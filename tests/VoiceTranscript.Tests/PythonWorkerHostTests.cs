@@ -1,0 +1,215 @@
+using System.Diagnostics;
+using VoiceTranscript.Core.Asr;
+using VoiceTranscript.Worker;
+
+namespace VoiceTranscript.Tests;
+
+/// <summary>
+/// Exercises the real Python worker as a child process.
+///
+/// These are integration tests: they start a process, so they are slower than the rest of the
+/// suite. They skip rather than fail when Python or the worker package is missing, so a
+/// checkout without a configured environment still gets a green run.
+///
+/// The transcription test additionally needs Whisper weights, so it only runs when
+/// VT_RUN_ASR_TESTS is set. Everything else runs unconditionally.
+/// </summary>
+public class PythonWorkerHostTests
+{
+    private static string? RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (dir is not null)
+        {
+            // Directory.Build.props is the marker: the solution file is not, because .NET 10
+            // creates it as .slnx rather than .sln and either may be present.
+            if (File.Exists(Path.Combine(dir.FullName, "Directory.Build.props"))) return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        return null;
+    }
+
+    private static PythonWorkerOptions? TryBuildOptions()
+    {
+        var root = RepoRoot();
+        if (root is null) return null;
+
+        var workerDir = Path.Combine(root, "worker");
+        if (!File.Exists(Path.Combine(workerDir, "vt_worker", "__main__.py"))) return null;
+
+        var python = FindPython();
+        return python is null
+            ? null
+            : new PythonWorkerOptions { PythonExecutable = python, WorkerDirectory = workerDir };
+    }
+
+    private static string? FindPython()
+    {
+        foreach (var candidate in new[] { "python", "python3" })
+        {
+            try
+            {
+                using var probe = Process.Start(new ProcessStartInfo(candidate, "--version")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                });
+
+                if (probe is null) continue;
+                probe.WaitForExit(10_000);
+                if (probe.ExitCode == 0) return candidate;
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                // Not on PATH; try the next candidate.
+            }
+        }
+
+        return null;
+    }
+
+    [Fact]
+    public async Task Probe_ReportsEnginesAndCudaState()
+    {
+        var options = TryBuildOptions();
+        Assert.SkipWhen(options is null, "Python or the vt_worker package was not found.");
+
+        var hello = await new PythonWorkerHost(options!).ProbeAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotEmpty(hello.Engines);
+        Assert.Contains(hello.Engines, e => e.Name == "faster-whisper");
+        Assert.NotNull(hello.Cuda);
+
+        // The development machine has no NVIDIA GPU, so this must report the fact rather than
+        // pretending CUDA works. On the target machine the same call reports a device instead.
+        if (!hello.Cuda.Available)
+            Assert.True(hello.Cuda.DeviceCount == 0);
+    }
+
+    /// <summary>
+    /// A missing audio file must surface as a typed failure the UI can act on, not as a hang or
+    /// a raw stack trace.
+    /// </summary>
+    [Fact]
+    public async Task MissingAudioFile_ProducesATypedFailure()
+    {
+        var options = TryBuildOptions();
+        Assert.SkipWhen(options is null, "Python or the vt_worker package was not found.");
+
+        var request = new TranscriptionRequest
+        {
+            Id = "missing-file",
+            ModelRef = "tiny",
+            Device = "cpu",
+            ComputeType = "int8",
+            Language = "en",
+            MicPath = Path.Combine(Path.GetTempPath(), "vt-does-not-exist.wav"),
+        };
+
+        var host = new PythonWorkerHost(options! with { Timeout = TimeSpan.FromMinutes(5) });
+
+        var error = await Assert.ThrowsAsync<WorkerException>(
+            () => host.TranscribeAsync(request, cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.False(string.IsNullOrWhiteSpace(error.Code));
+    }
+
+    [Fact]
+    public async Task RequestWithNoAudioAtAll_IsRejected()
+    {
+        var options = TryBuildOptions();
+        Assert.SkipWhen(options is null, "Python or the vt_worker package was not found.");
+
+        var request = new TranscriptionRequest { Id = "no-audio", ModelRef = "tiny" };
+        var host = new PythonWorkerHost(options!);
+
+        await Assert.ThrowsAsync<WorkerException>(
+            () => host.TranscribeAsync(request, cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    /// The full path: two WAV files in, one speaker-attributed transcript out.
+    ///
+    /// The fixture is generated by tools/synth_utterances.ps1 and tools/make_test_call.py, which
+    /// also write a ground-truth file. Speaker attribution is asserted against that ground truth
+    /// because it is the property the whole dual-stream design exists to guarantee.
+    /// </summary>
+    [Fact]
+    public async Task TranscribesATwoStreamCall_AndAttributesSpeakersCorrectly()
+    {
+        Assert.SkipUnless(
+            Environment.GetEnvironmentVariable("VT_RUN_ASR_TESTS") == "1",
+            "Set VT_RUN_ASR_TESTS=1 to run transcription tests (downloads Whisper weights).");
+
+        var options = TryBuildOptions();
+        Assert.SkipWhen(options is null, "Python or the vt_worker package was not found.");
+
+        var callDir = Path.Combine(RepoRoot()!, ".work", "call");
+        Assert.SkipUnless(
+            File.Exists(Path.Combine(callDir, "mic.wav")),
+            "Test call fixture missing. Generate it with tools/make_test_call.py.");
+
+        var request = new TranscriptionRequest
+        {
+            Id = "integration",
+            ModelRef = "base",
+            Device = "cpu",
+            ComputeType = "int8",
+            Language = "en",
+            MicPath = Path.Combine(callDir, "mic.wav"),
+            FarPath = Path.Combine(callDir, "far.wav"),
+        };
+
+        var seenStages = new List<string>();
+        var progress = new Progress<WorkerProgress>(p => seenStages.Add(p.Stage));
+
+        var host = new PythonWorkerHost(options! with { Timeout = TimeSpan.FromMinutes(10) });
+        var result = await host.TranscribeAsync(request, progress, TestContext.Current.CancellationToken);
+
+        Assert.NotEmpty(result.Segments);
+        Assert.Equal("faster-whisper", result.Engine);
+
+        // Both sides must be present and correctly labelled.
+        Assert.Contains(result.Segments, s => s.IsMe);
+        Assert.Contains(result.Segments, s => !s.IsMe);
+
+        // The fixture has no simultaneous speech, so any overlap flag is a false positive from
+        // segment boundaries drifting away from the audio.
+        Assert.All(result.Segments, s => Assert.False(s.OverlapsOtherSpeaker));
+
+        // Content check: the far end quotes the revised price, the user never does.
+        var theirText = string.Join(" ", result.Segments.Where(s => !s.IsMe).Select(s => s.Text));
+        Assert.Contains("18", theirText);
+
+        Assert.NotNull(result.Stats);
+        Assert.False(result.Stats.LikelyNoHeadphones);
+    }
+
+    [Fact]
+    public void JobObject_CapturesAProcessSoItCannotBeOrphaned()
+    {
+        using var job = new JobObject();
+
+        using var process = Process.Start(new ProcessStartInfo("cmd.exe", "/c timeout /t 30 /nobreak")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        });
+
+        Assert.NotNull(process);
+
+        try
+        {
+            job.Assign(process.Handle);
+            Assert.True(job.Contains(process.Handle));
+        }
+        finally
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+        }
+    }
+}

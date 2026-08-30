@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Windows-only: the worker host uses Win32 job objects and the capture layer uses WASAPI. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <!-- xUnit v3 ships two runners. Its own console runner is the default and works when the
+         executable is launched directly, but 'dotnet test' speaks the Microsoft.Testing.Platform
+         protocol and that runner rejects its arguments, reporting "Zero tests ran" rather than a
+         readable error. Both switches are needed: this one picks the MTP runner inside xUnit, and
+         global.json opts the .NET 10 SDK into driving it. -->
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <OutputType>Exe</OutputType>
+
+    <!-- The window smoke test actually constructs the pages, which needs the WPF plumbing. -->
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+
+    <!-- Turning on UseWPF switches the SDK to the WindowsDesktop implicit-using set, which drops
+         these two. Restoring them here keeps every existing test file compiling unchanged. -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\VoiceTranscript.Core\VoiceTranscript.Core.csproj" />
+    <ProjectReference Include="..\..\src\VoiceTranscript.Worker\VoiceTranscript.Worker.csproj" />
+    <ProjectReference Include="..\..\src\VoiceTranscript.Capture\VoiceTranscript.Capture.csproj" />
+    <ProjectReference Include="..\..\src\VoiceTranscript.App\VoiceTranscript.App.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,31 @@
+# VoiceTranscript Python worker — pinned dependencies.
+#
+# These pins are load-bearing. Read before changing any of them.
+#
+# ctranslate2 4.8.1
+#   - 4.6.3 removed the cuDNN dependency entirely (conv1d moved to pure CUDA), so the only
+#     NVIDIA runtime DLL needed is cublas64_12.dll. Both the faster-whisper README and the
+#     CTranslate2 installation docs still tell you to install cuDNN 9 — that advice is stale.
+#   - 4.7.0 added 16-multiple padding for INT8 tensor cores, which Ada (sm_89) benefits from.
+#   - 4.8.1 fixed a divide-by-zero that KILLS THE PROCESS when Whisper align() is handed a
+#     window with no frames. That happens on near-silent call segments, so for an unattended
+#     recorder this fix is not optional.
+#   - Do NOT follow the widespread advice to downgrade to 4.4.0. That was correct in 2024-2025
+#     and is now backwards: it reintroduces a hard cuDNN 8 dependency.
+ctranslate2==4.8.1
+faster-whisper==1.2.1
+
+# Supplies cublas64_12.dll. On Windows this is NOT enough on its own: since Python 3.8 the
+# loader no longer searches PATH for dependencies of C extension modules, so the DLL directory
+# has to be registered with os.add_dll_directory() at startup. vt_worker.dll_paths does that.
+# The LD_LIBRARY_PATH workaround in the faster-whisper README is Linux-only and does nothing here.
+nvidia-cublas-cu12==12.9.2.10
+
+# NEVER add onnxruntime-gpu. faster-whisper uses plain CPU onnxruntime for the Silero VAD.
+# The GPU build would take VRAM away from the model for no benefit AND drag back a hard
+# cuDNN 9 dependency, resurrecting the entire DLL problem this pin set exists to avoid.
+onnxruntime==1.23.2
+
+# NEVER add torch to this environment. torch bundles its own cublas64_12.dll and cuDNN under
+# torch/lib and shadows the pip-installed cuBLAS with a different minor version. Mixing the two
+# is the single most common cause of "it worked on my machine".

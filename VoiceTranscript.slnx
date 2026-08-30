@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VoiceTranscript.App/VoiceTranscript.App.csproj" />
+    <Project Path="src/VoiceTranscript.Capture/VoiceTranscript.Capture.csproj" />
+    <Project Path="src/VoiceTranscript.Core/VoiceTranscript.Core.csproj" />
+    <Project Path="src/VoiceTranscript.Worker/VoiceTranscript.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VoiceTranscript.Tests/VoiceTranscript.Tests.csproj" />
+  </Folder>
+</Solution>

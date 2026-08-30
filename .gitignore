@@ -1,0 +1,29 @@
+bin/
+obj/
+.vs/
+*.user
+artifacts/
+data/
+models/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Test ve yayın çıktıları
+TestResults/
+dist/
+.work/
+
+# Uygulama verisi — buraya asla kayıt, transkript veya günlük girmemeli
+logs/
+*.log
+*.wav
+*.db
+*.db-wal
+*.db-shm
+settings.json
+
+# Yerel araç durumu
+.idea/
+*.swp

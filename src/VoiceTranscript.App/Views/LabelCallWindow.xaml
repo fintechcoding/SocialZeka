@@ -1,0 +1,96 @@
+<ui:FluentWindow x:Class="VoiceTranscript.App.Views.LabelCallWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="{loc:T labelcallwindow.gorusme-kaydedildi}"
+                 Width="460" SizeToContent="Height"
+                 WindowStartupLocation="CenterScreen"
+                 Topmost="True"
+                 ShowInTaskbar="False"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica">
+
+    <StackPanel Margin="0,0,0,16">
+        <ui:TitleBar Title="{loc:T labelcallwindow.gorusme-kaydedildi}" />
+
+        <StackPanel Margin="20,8,20,0">
+            <TextBlock x:Name="HeadlineText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+
+            <!-- Whether both sides were actually heard. Stated every time, not only on failure:
+                 knowing it worked is the reassurance, and knowing it did not is the warning. -->
+            <TextBlock x:Name="AudioText" Margin="0,6,0,0" TextWrapping="Wrap"
+                       FontSize="{StaticResource TextSecondary}" />
+
+            <TextBlock Text="{loc:T labelcallwindow.kiminle-gorustunuz}" Margin="0,16,0,6" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+            <!-- Recent contacts first: the answer is almost always one of these, and one click
+                 beats typing a name every time. -->
+            <ItemsControl x:Name="RecentList">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <ui:Button Content="{Binding Name}" Margin="0,0,6,6" Click="PickRecent_Click"
+                                   Tag="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <ui:TextBox x:Name="NameBox" Margin="0,6,0,0"
+                        PlaceholderText="{loc:T labelcallwindow.veya-adi-yazin}"
+                        TextChanged="NameBox_TextChanged"
+                        PreviewKeyDown="NameBox_PreviewKeyDown" />
+
+            <!--
+                Everyone already in the archive whose name contains what has been typed.
+
+                The buttons above are only the five most recent. Somebody with sixty contacts
+                calling one they last spoke to in March would find nothing there and retype the
+                name by hand — and a name retyped slightly differently creates a second contact
+                and splits one person's history into two, which is the single worst thing that
+                can happen to this archive.
+            -->
+            <ListBox x:Name="MatchList" Margin="0,4,0,0" MaxHeight="150"
+                     Visibility="Collapsed"
+                     BorderThickness="1"
+                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                     Background="{DynamicResource ControlFillColorDefaultBrush}"
+                     SelectionChanged="MatchList_SelectionChanged">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="2,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+
+                            <!-- How many calls, so two people with similar names are telling
+                                 apart by which one this is likely to be. -->
+                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                       Margin="8,0,0,0"
+                                       FontSize="{StaticResource TextSecondary}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Text="{Binding CallCount, StringFormat={}{0} görüşme}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <CheckBox x:Name="RememberBox" Content="{loc:T labelcallwindow.bu-pencere-basligini-bu-kisiyle-eslestir}"
+                      Margin="0,12,0,0" IsChecked="True"
+                      ToolTip="{loc:T labelcallwindow.bir-dahaki-sefere-sormadan-taninir}" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                <ui:Button Content="{loc:T labelcallwindow.bu-kaydi-sil}" Margin="0,0,8,0" Click="Discard_Click" />
+                <ui:Button Content="{loc:T labelcallwindow.sonra-sorulsun}" Margin="0,0,8,0" Click="Later_Click" />
+                <ui:Button Content="{loc:T labelcallwindow.kaydet}" Appearance="Primary" Click="Save_Click" />
+            </StackPanel>
+        </StackPanel>
+    </StackPanel>
+</ui:FluentWindow>

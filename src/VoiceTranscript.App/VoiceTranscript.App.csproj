@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>VoiceTranscript</AssemblyName>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <RootNamespace>VoiceTranscript.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Needed as a resource as well as the executable's icon: the tray control loads it by
+         pack URI at runtime, and a tray application with no tray icon is invisible. -->
+    <Resource Include="icon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="H.NotifyIcon.Wpf" />
+    <PackageReference Include="NAudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VoiceTranscript.Core\VoiceTranscript.Core.csproj" />
+    <ProjectReference Include="..\VoiceTranscript.Capture\VoiceTranscript.Capture.csproj" />
+    <ProjectReference Include="..\VoiceTranscript.Worker\VoiceTranscript.Worker.csproj" />
+  </ItemGroup>
+
+</Project>

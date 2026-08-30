@@ -1,0 +1,185 @@
+<UserControl x:Class="VoiceTranscript.App.Views.SearchPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:SearchViewModel}">
+
+    <Grid Margin="24,4,32,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="{loc:T searchpage.arama}" Style="{StaticResource PageTitle}" />
+
+        <!--
+            Turkish search needs its own normalisation.
+
+            The default Unicode folding gets İ/ı wrong, so "ışık" would not find "IŞIK" — and it
+            would not report an error either, just no rows, which reads as "nothing was said about
+            that". The index is built over a Turkish-folded shadow column and the query goes
+            through the same rules, so the two always agree.
+        -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ui:TextBox Grid.Column="0" PlaceholderText="{loc:T searchpage.butun-gorusmelerde-ara}"
+                        Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
+                        FontSize="{StaticResource TextBody}">
+                <ui:TextBox.Icon>
+                    <ui:SymbolIcon Symbol="Search24" />
+                </ui:TextBox.Icon>
+                <ui:TextBox.InputBindings>
+                    <KeyBinding Key="Return" Command="{Binding SearchCommand}" />
+                </ui:TextBox.InputBindings>
+            </ui:TextBox>
+
+            <ui:Button Grid.Column="1" Content="{loc:T searchpage.ara}" Appearance="Primary" MinWidth="96"
+                       Margin="8,0,0,0" Command="{Binding SearchCommand}" />
+        </Grid>
+
+        <!--
+            Filters.
+
+            Three, and each one answers a question people really ask: who, when, and which side
+            said it. The last is only possible because the two streams were recorded separately —
+            on a single mixed recording "only what they said" would be a guess.
+        -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,14">
+            <ComboBox ItemsSource="{Binding ContactChoices}" SelectedItem="{Binding SelectedContact}"
+                      DisplayMemberPath="Name" MinWidth="180" VerticalAlignment="Center"
+                      ToolTip="{loc:T searchpage.yalnizca-bu-kisiyle-olan-gorusmelerde-ara}" />
+
+            <ComboBox ItemsSource="{Binding Periods}" SelectedItem="{Binding Period}"
+                      MinWidth="150" Margin="8,0,0,0" VerticalAlignment="Center">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource PeriodName}}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <CheckBox Content="{loc:T searchpage.yalnizca-karsi-taraf}" Margin="16,0,0,0"
+                      IsChecked="{Binding OnlyOtherParty}" VerticalAlignment="Center"
+                      ToolTip="{loc:T searchpage.kimin-ne-soyledigi-tahmin-degil-iki-akis-a}" />
+
+            <TextBlock Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="20,0,0,0"
+                       Visibility="{Binding HasSearched, Converter={StaticResource BoolToVisibility}}"
+                       Text="{Binding ResultCount, StringFormat='{}{0} sonuç'}" />
+        </StackPanel>
+
+        <!-- Results -->
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"
+                      Visibility="{Binding Groups.Count, Converter={StaticResource CountToVisibility}}">
+            <ItemsControl ItemsSource="{Binding Groups}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,0,0,18">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Border Style="{StaticResource Avatar}" Width="26" Height="26" CornerRadius="13"
+                                        Margin="0,0,10,0"
+                                        Background="{Binding ContactName, Converter={StaticResource NameBrush}}">
+                                    <TextBlock Style="{StaticResource AvatarText}" FontSize="11"
+                                               Text="{Binding ContactName, Converter={StaticResource Initials}}" />
+                                </Border>
+                                <TextBlock Text="{Binding Header}" FontWeight="SemiBold"
+                                           FontSize="{StaticResource TextBody}" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding Results}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource HoverCard}" Padding="14,12"
+                                                ToolTip="{loc:T searchpage.gorusmeyi-bu-andan-ac}">
+                                            <Border.InputBindings>
+                                                <MouseBinding MouseAction="LeftClick"
+                                                              Command="{Binding DataContext.OpenCommand,
+                                                                        RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
+                                                              CommandParameter="{Binding}" />
+                                            </Border.InputBindings>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border Grid.Column="0" Width="3" CornerRadius="2" Margin="0,1,12,1">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="{StaticResource ThemBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsMe}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource MeBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                </Border>
+
+                                                <StackPanel Grid.Column="1" Width="76" Margin="0,0,12,0">
+                                                    <TextBlock Text="{Binding Who}" FontWeight="SemiBold"
+                                                               FontSize="{StaticResource TextSecondary}" />
+                                                    <TextBlock Text="{Binding Timestamp}"
+                                                               Style="{StaticResource TimeLink}" Margin="0,2,0,0" />
+                                                </StackPanel>
+
+                                                <!--
+                                                    Match highlighted in place.
+
+                                                    Without it every row is a paragraph of
+                                                    similar-looking text and the eye has to read
+                                                    all of them to find the one word it came for.
+                                                -->
+                                                <TextBlock Grid.Column="2" TextWrapping="Wrap"
+                                                           FontSize="{StaticResource TextSecondary}"
+                                                           VerticalAlignment="Center">
+                                                    <Run Text="{Binding Before, Mode=OneWay}" />
+                                                    <Run Text="{Binding Match, Mode=OneWay}" FontWeight="Bold"
+                                                         Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}" />
+                                                    <Run Text="{Binding After, Mode=OneWay}" />
+                                                </TextBlock>
+
+                                                <TextBlock Grid.Column="3" Text="{Binding When}"
+                                                           Style="{StaticResource Caption}" Margin="12,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Nothing found, or nothing searched for yet. -->
+        <StackPanel Grid.Row="3" Style="{StaticResource EmptyState}"
+                    Visibility="{Binding Groups.Count, Converter={StaticResource CountToVisibility}, ConverterParameter=invert}">
+            <ui:SymbolIcon Symbol="Search24" FontSize="40" HorizontalAlignment="Center" Margin="0,0,0,16"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+
+            <TextBlock Style="{StaticResource EmptyTitle}"
+                       Text="{Binding HasSearched, Converter={StaticResource SearchEmptyTitle}}" />
+
+            <TextBlock Style="{StaticResource EmptyBody}" Text="{Binding Message}"
+                       Visibility="{Binding Message, Converter={StaticResource NullToCollapsed}}" />
+
+            <TextBlock Style="{StaticResource EmptyBody}"
+                       Visibility="{Binding HasSearched, Converter={StaticResource InverseBoolToVisibility}}"
+                       Text="{loc:T searchpage.butun-gorusmelerin-metni-aranir-turkce-buy}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

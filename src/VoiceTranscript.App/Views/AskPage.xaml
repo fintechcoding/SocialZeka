@@ -1,0 +1,207 @@
+<UserControl x:Class="VoiceTranscript.App.Views.AskPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+
+    <Grid Margin="28,22,28,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="{loc:T askpage.sor}" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}"
+                       Text="{loc:T askpage.konusulanlara-dair-bir-soru-sor-cevap-yaln}" />
+        </StackPanel>
+
+        <!-- The question, and what to narrow it to. -->
+        <Border Grid.Row="1" Style="{StaticResource SettingCard}" Margin="0,4,0,14">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:TextBox Grid.Column="0"
+                                PlaceholderText="{loc:T askpage.ornek-ahmet-le-fiyat-konusunda-ne-konusuld}"
+                                Text="{Binding Question, UpdateSourceTrigger=PropertyChanged}"
+                                IsEnabled="{Binding IsThinking, Converter={StaticResource InverseBool}}">
+                        <ui:TextBox.InputBindings>
+                            <KeyBinding Key="Return" Command="{Binding AskCommand}" />
+                        </ui:TextBox.InputBindings>
+                        <ui:TextBox.Icon>
+                            <ui:SymbolIcon Symbol="Chat24" />
+                        </ui:TextBox.Icon>
+                    </ui:TextBox>
+
+                    <ui:Button Grid.Column="1" Content="{loc:T askpage.sor}" Appearance="Primary"
+                               MinWidth="92" Margin="10,0,0,0"
+                               Command="{Binding AskCommand}"
+                               Visibility="{Binding IsThinking, Converter={StaticResource InverseBoolToVisibility}}" />
+
+                    <ui:Button Grid.Column="1" Content="{loc:T askpage.vazgec}"
+                               MinWidth="92" Margin="10,0,0,0"
+                               Command="{Binding CancelCommand}"
+                               Visibility="{Binding IsThinking, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding Contacts}" SelectedItem="{Binding Contact}"
+                              DisplayMemberPath="Name" />
+
+                    <ComboBox Grid.Column="2" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding Periods}" SelectedItem="{Binding Period}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Converter={StaticResource PeriodName}}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,20">
+            <StackPanel>
+
+                <!--
+                    Before the first question.
+
+                    An empty box with a cursor in it is the worst introduction to a feature whose
+                    usefulness depends on knowing what it can be asked.
+                -->
+                <StackPanel Visibility="{Binding HasAsked, Converter={StaticResource InverseBoolToVisibility}}">
+                    <TextBlock Text="{loc:T askpage.sunlari-deneyebilirsin}" Style="{StaticResource GroupHeader}" />
+
+                    <ItemsControl ItemsSource="{Binding Suggestions}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ui:Button Content="{Binding}" Margin="0,0,8,8"
+                                           Command="{Binding DataContext.UseSuggestionCommand,
+                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                           CommandParameter="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Working. -->
+                <Border Style="{StaticResource SettingCard}"
+                        Visibility="{Binding IsThinking, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:ProgressRing IsIndeterminate="True" Width="20" Height="20" Margin="0,0,12,0" />
+                        <TextBlock VerticalAlignment="Center" Style="{StaticResource Secondary}"
+                                   Text="{loc:T askpage.kayitlar-taraniyor-ve-okunuyor-yerel-model}" />
+                    </StackPanel>
+                </Border>
+
+                <!--
+                    The answer.
+
+                    Marked as coming from a model, every time. The excerpts below it are the
+                    record; this sentence is a reading of them.
+                -->
+                <Border Style="{StaticResource SettingCard}"
+                        Visibility="{Binding HasAnswer, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <ui:SymbolIcon Symbol="Sparkle24" FontSize="15" Margin="0,0,8,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Style="{StaticResource Caption}" VerticalAlignment="Center"
+                                       Text="{loc:T askpage.asagidaki-alintilardan-cikarildi}" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding Answer}" TextWrapping="Wrap"
+                                   FontSize="{StaticResource TextBody}" LineHeight="22" />
+
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                   Visibility="{Binding IsInsufficient, Converter={StaticResource BoolToVisibility}}"
+                                   Text="{loc:T askpage.bulunan-alintilar-soruyu-tam-karsilamiyor}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- When the answer was withheld, this says why — and the excerpts still follow. -->
+                <ui:InfoBar Severity="Warning" IsOpen="True" Margin="0,0,0,14"
+                            Title="{loc:T askpage.cevap-gosterilmedi}"
+                            Message="{Binding Problem}"
+                            Visibility="{Binding Problem, Converter={StaticResource NullToCollapsed}}" />
+
+                <TextBlock Text="{loc:T askpage.dayandigi-konusmalar}" Style="{StaticResource GroupHeader}"
+                           Visibility="{Binding HasCitations, Converter={StaticResource BoolToVisibility}}" />
+
+                <ItemsControl ItemsSource="{Binding Citations}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource HoverCard}" Padding="16,13" Margin="0,0,0,8">
+                                <Border.InputBindings>
+                                    <MouseBinding MouseAction="LeftClick"
+                                                  Command="{Binding DataContext.OpenCommand,
+                                                            RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                  CommandParameter="{Binding}" />
+                                </Border.InputBindings>
+
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0" Width="8" Height="8" CornerRadius="4"
+                                                Margin="0,0,8,0" VerticalAlignment="Center">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="{StaticResource ThemBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsMe}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource MeBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+
+                                        <TextBlock Grid.Column="1" Text="{Binding Who}" FontWeight="SemiBold"
+                                                   FontSize="{StaticResource TextSecondary}"
+                                                   VerticalAlignment="Center" />
+
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                            <TextBlock Style="{StaticResource Caption}" VerticalAlignment="Center"
+                                                       Text="{Binding When}" />
+                                            <TextBlock Style="{StaticResource TimeLink}" Margin="10,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       Text="{Binding At}"
+                                                       ToolTip="{loc:T askpage.bu-ani-dinlemek-icin-tikla}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                               FontSize="{StaticResource TextBody}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

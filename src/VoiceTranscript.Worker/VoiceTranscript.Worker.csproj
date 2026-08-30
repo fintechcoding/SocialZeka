@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The 10.0.19041 platform version is required for the WASAPI process-loopback APIs used
+         later by the capture layer; without it those calls raise CA1416 platform warnings. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <!-- LibraryImport source generators emit unsafe code; the interop below is otherwise safe. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VoiceTranscript.Core\VoiceTranscript.Core.csproj" />
+  </ItemGroup>
+
+</Project>

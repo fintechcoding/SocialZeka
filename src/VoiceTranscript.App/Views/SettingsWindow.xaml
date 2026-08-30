@@ -1,0 +1,1041 @@
+<ui:FluentWindow x:Class="VoiceTranscript.App.Views.SettingsWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 mc:Ignorable="d"
+                 d:DataContext="{d:DesignInstance vm:SettingsViewModel}"
+                 Title="{loc:T settingswindow.ayarlar}"
+                 Icon="pack://application:,,,/VoiceTranscript;component/icon.ico"
+                 Width="1060" Height="780"
+                 MinWidth="880" MinHeight="600"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="{loc:T settingswindow.ayarlar}">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/VoiceTranscript;component/icon.ico" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="232" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Category rail, matching the shape of Windows 11 Settings. -->
+            <StackPanel Grid.Column="0" Margin="12,4,0,12">
+                <RadioButton GroupName="Cat" IsChecked="True" Style="{StaticResource NavButton}"
+                             Checked="Category_Checked" Tag="Recording">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Record24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T settingswindow.kayit}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
+                             Checked="Category_Checked" Tag="Transcription">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="DocumentText24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T settingswindow.yaziya-dokme}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
+                             Checked="Category_Checked" Tag="Analysis">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Sparkle24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T settingswindow.cozumleme}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
+                             Checked="Category_Checked" Tag="Export">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Save24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T settingswindow.disa-aktarma}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+
+            <ScrollViewer Grid.Column="1" Padding="24,4,32,16" VerticalScrollBarVisibility="Auto">
+                <Grid MaxWidth="760" HorizontalAlignment="Left">
+
+                    <!-- Recording -->
+                    <StackPanel x:Name="PageRecording">
+                        <TextBlock Text="{loc:T settingswindow.kayit}" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="{loc:T settingswindow.gorusme-basladiginda-hangi-uygulamalarin-k}" />
+
+                        <TextBlock Text="{loc:T settingswindow.arayuz-dili}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="LocalLanguage24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.dil}" FontSize="{StaticResource TextBody}" />
+
+                                    <!-- Deliberately separate from the language people speak on a
+                                         call. Conflating the two would mean switching the
+                                         interface to English quietly told Whisper to stop
+                                         expecting Turkish. -->
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.arayuzun-dili-konusulan-dili-degistirmez}" />
+
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                               Visibility="{Binding LanguageChanged, Converter={StaticResource BoolToVisibility}}"
+                                               Text="{loc:T settingswindow.uygulama-yeniden-baslatildiginda-uygulanir}" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="2" MinWidth="150" VerticalAlignment="Center"
+                                          ItemsSource="{Binding UiLanguages}"
+                                          SelectedItem="{Binding UiLanguage}"
+                                          DisplayMemberPath="Name" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="{loc:T settingswindow.ne-zaman-kaydedilsin}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Record24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.otomatik-kayit}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.kapaliyken-aramalar-izlenmeye-devam-eder-a}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding RecordAutomatically}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Eye24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.kayit-seridi}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.kayit-surerken-ekranin-ustunde-ince-bir-se}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding ShowRecordingBar}" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="{loc:T settingswindow.uygulamalar}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Chat24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.whatsapp}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.whatsapp-desktop-uzerinden-yapilan-sesli-a}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding RecordWhatsApp}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Send24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.telegram}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.telegram-desktop-aramalari-kisi-adi-arama}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding RecordTelegram}" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="{loc:T settingswindow.ses-yakalama}" Style="{StaticResource GroupHeader}" />
+
+                        <!--
+                            Which devices a call actually runs on.
+
+                            Automatic is right most of the time and wrong in exactly the case
+                            people hit: listening on Bluetooth earphones while talking into the
+                            laptop microphone. Windows records those as two unrelated defaults,
+                            and capturing the wrong output endpoint produces an hour of silence
+                            from the other person with no error — an idle endpoint and a quiet
+                            conversation are the same thing to a loopback client.
+                        -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ui:SymbolIcon Grid.Column="0" Symbol="Mic24" FontSize="18" Margin="0,0,14,0"
+                                                   VerticalAlignment="Top"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{loc:T settingswindow.senin-sesin-nereden-alinsin}" FontSize="{StaticResource TextBody}" />
+                                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,8"
+                                                   Text="{loc:T settingswindow.konustugun-mikrofon-kulaklikla-dinleyip-bi}" />
+
+                                        <ComboBox ItemsSource="{Binding Microphones}"
+                                                  SelectedItem="{Binding SelectedMicrophone}"
+                                                  HorizontalAlignment="Stretch">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="0,2">
+                                                        <TextBlock Text="{Binding Name}" />
+                                                        <TextBlock Text="{Binding Description}"
+                                                                   Style="{StaticResource Caption}"
+                                                                   Visibility="{Binding HasDescription, Converter={StaticResource BoolToVisibility}}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+
+                                    <ui:Button Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Top"
+                                               Content="{loc:T settingswindow.yenile}" MinWidth="90"
+                                               Command="{Binding RefreshDevicesCommand}"
+                                               ToolTip="{loc:T settingswindow.kulakligi-yeni-taktiysan-listeyi-tazele}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Speaker224" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Top"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="{loc:T settingswindow.karsi-tarafin-sesi-nereden-alinsin}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,8"
+                                               Text="{loc:T settingswindow.karsi-tarafi-duydugun-cihaz-airpods-ile-di}" />
+
+                                    <ComboBox ItemsSource="{Binding Outputs}"
+                                              SelectedItem="{Binding SelectedOutput}"
+                                              HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,2">
+                                                    <TextBlock Text="{Binding Name}" />
+                                                    <TextBlock Text="{Binding Description}"
+                                                               Style="{StaticResource Caption}"
+                                                               Visibility="{Binding HasDescription, Converter={StaticResource BoolToVisibility}}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!--
+                            The Bluetooth trap, said plainly.
+
+                            A headset presents itself twice: a hands-free pair that carries the
+                            microphone at 16 kHz and drops the earphones out of stereo, and a
+                            stereo output-only pair at full quality. Choosing the hands-free half
+                            is how a conversation ends up sounding like a 1985 telephone, and
+                            nothing in Windows explains it.
+                        -->
+                        <ui:InfoBar Margin="0,4,0,4" IsClosable="False" Severity="Warning"
+                                    Title="{loc:T settingswindow.bluetooth-eller-serbest-modu-secili}"
+                                    Message="{loc:T settingswindow.bluetooth-kulakliklar-windows-a-iki-kez-go}"
+                                    IsOpen="{Binding WarnAboutHandsFree}" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Headphones24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.yanki-engelleme}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.hoparlorle-konusurken-karsi-tarafin-sesi-m}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding UseEchoCancellation}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Desktop24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.uygulama-bazli-yakalama}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.yalnizca-whatsapp-ve-telegram-sesini-alir}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding PreferProcessLoopback}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Grid.Column="0" Symbol="Mic24" FontSize="18" Margin="0,0,14,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:T settingswindow.ses-yakalamayi-sina}" FontSize="{StaticResource TextBody}" />
+                                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                                   Text="{loc:T settingswindow.bes-saniye-kayit-alip-iki-akistan-da-gerce}" />
+                                    </StackPanel>
+                                    <ui:Button x:Name="TestCaptureButton" Grid.Column="2" Content="{loc:T settingswindow.sina}"
+                                               MinWidth="96" VerticalAlignment="Center" Click="TestCapture_Click" />
+                                </Grid>
+                                <TextBlock x:Name="CaptureTestResult" Style="{StaticResource Secondary}"
+                                           Margin="32,10,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="{loc:T settingswindow.isleme}" Style="{StaticResource GroupHeader}" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Timer24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.bekleme-suresi-saniye}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.gorusme-bittikten-sonra-ekran-kartini-kull}" />
+                                </StackPanel>
+                                <ui:NumberBox Grid.Column="2" Value="{Binding GpuCooldownSeconds}"
+                                              Minimum="0" Maximum="600" Width="120" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Delete24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.ses-kayitlarini-saklama-gun}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.sifir-suresiz-saklamak-demektir-sabitlenmi}" />
+                                </StackPanel>
+                                <ui:NumberBox Grid.Column="2" Value="{Binding AudioRetentionDays}"
+                                              Minimum="0" Maximum="3650" Width="120" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Transcription -->
+                    <StackPanel x:Name="PageTranscription" Visibility="Collapsed">
+                        <TextBlock Text="{loc:T settingswindow.yaziya-dokme}" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="{loc:T settingswindow.konusmanin-metne-cevrilmesi-bu-makinede-ca}" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T settingswindow.nerede-calissin}" FontSize="{StaticResource TextBody}" />
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,10"
+                                           Text="{loc:T settingswindow.yerelde-calistirmak-varsayilandir-ve-hicbi}" />
+                                <ComboBox ItemsSource="{Binding AsrModes}" SelectedItem="{Binding AsrMode}"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource AsrModeName}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Hosted services -->
+                        <StackPanel Visibility="{Binding UsesCloudAsr, Converter={StaticResource BoolToVisibility}}">
+                            <ui:InfoBar Margin="0,8,0,4" IsOpen="True" IsClosable="False" Severity="Warning"
+                                        Title="{loc:T settingswindow.ses-makineden-cikar}"
+                                        Message="{loc:T settingswindow.bu-modda-gorusme-kaydi-sectigin-servise-yu}" />
+
+                            <Grid Margin="0,12,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{loc:T settingswindow.servisler}" Style="{StaticResource GroupHeader}" Margin="0,0,0,4" />
+                                    <TextBlock Style="{StaticResource Caption}"
+                                               Text="{loc:T settingswindow.sirayla-denenir-biri-cevap-vermezse-ya-da}" />
+                                </StackPanel>
+
+                                <ui:Button Grid.Column="1" Content="{loc:T settingswindow.servis-ekle}" Margin="12,0,0,0"
+                                           VerticalAlignment="Bottom" Command="{Binding AddEndpointCommand}">
+                                    <ui:Button.Icon>
+                                        <ui:SymbolIcon Symbol="AddCircle24" />
+                                    </ui:Button.Icon>
+                                </ui:Button>
+                            </Grid>
+
+                            <ItemsControl ItemsSource="{Binding SttEndpoints}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource SettingCard}" Padding="16,14" Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <ComboBox Grid.Column="0"
+                                                              ItemsSource="{Binding DataContext.AvailableSttProviders,
+                                                                            RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                              SelectedValue="{Binding Kind}"
+                                                              SelectedValuePath="Kind"
+                                                              DisplayMemberPath="DisplayName"
+                                                              MinWidth="220" HorizontalAlignment="Left" />
+
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                        <ui:ToggleSwitch IsChecked="{Binding Enabled}"
+                                                                         VerticalAlignment="Center" Margin="0,0,10,0"
+                                                                         ToolTip="{loc:T settingswindow.kapaliyken-yapilandirma-korunur-ama-bu-ser}" />
+
+                                                        <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T settingswindow.yukari-tasi}"
+                                                                Command="{Binding DataContext.MoveEndpointUpCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}">
+                                                            <ui:SymbolIcon Symbol="ArrowUp24" FontSize="15" />
+                                                        </Button>
+
+                                                        <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T settingswindow.asagi-tasi}"
+                                                                Command="{Binding DataContext.MoveEndpointDownCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}">
+                                                            <ui:SymbolIcon Symbol="ArrowDown24" FontSize="15" />
+                                                        </Button>
+
+                                                        <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T settingswindow.kaldir}"
+                                                                Command="{Binding DataContext.RemoveEndpointCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}">
+                                                            <ui:SymbolIcon Symbol="Delete24" FontSize="15" />
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <TextBlock Text="{Binding Provider.Summary}"
+                                                           Style="{StaticResource Caption}" Margin="0,0,0,12" />
+
+                                                <ui:InfoBar Margin="0,0,0,12" IsClosable="False" Severity="Warning"
+                                                            Title="{loc:T settingswindow.bu-servise-yukleme-yapilamiyor}"
+                                                            Message="{loc:T settingswindow.istek-bicimi-openai-ninkinden-farkli-kayit}"
+                                                            IsOpen="{Binding CanUpload, Converter={StaticResource InverseBool}}" />
+
+                                                <Grid Margin="0,0,0,10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                                        <TextBlock Text="{loc:T settingswindow.adres}" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                                                        <ui:TextBox Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                    <ui:Button Grid.Column="1" Content="{loc:T settingswindow.varsayilana-don}"
+                                                               VerticalAlignment="Bottom" Appearance="Transparent"
+                                                               Command="{Binding ResetAddressCommand}" />
+                                                </Grid>
+
+                                                <TextBlock Text="{loc:T settingswindow.api-anahtari}" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                                                <ui:PasswordBox Password="{Binding ApiKey, Mode=TwoWay}" Margin="0,0,0,10" />
+
+                                                <TextBlock Text="{loc:T settingswindow.model}" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                                                <ComboBox IsEditable="True" ItemsSource="{Binding Models}"
+                                                          Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
+                                                          Margin="0,0,0,12" />
+
+                                                <!--
+                                                    The two buttons that make this trustworthy.
+                                                    Otherwise a wrong key or an exhausted balance is
+                                                    discovered only when a real conversation has
+                                                    already been recorded and fails to upload.
+                                                -->
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:Button Content="{loc:T settingswindow.baglantiyi-sina}" MinWidth="128"
+                                                               Command="{Binding TestCommand}"
+                                                               IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}">
+                                                        <ui:Button.Icon>
+                                                            <ui:SymbolIcon Symbol="PlugConnected24" />
+                                                        </ui:Button.Icon>
+                                                    </ui:Button>
+
+                                                    <ui:Button Content="{loc:T settingswindow.krediyi-sor}" Margin="8,0,0,0" MinWidth="120"
+                                                               Command="{Binding ReadBalanceCommand}"
+                                                               Visibility="{Binding SupportsBalance, Converter={StaticResource BoolToVisibility}}">
+                                                        <ui:Button.Icon>
+                                                            <ui:SymbolIcon Symbol="Wallet24" />
+                                                        </ui:Button.Icon>
+                                                    </ui:Button>
+
+                                                    <ui:HyperlinkButton Content="{loc:T settingswindow.anahtar-al}" Margin="8,0,0,0"
+                                                                        NavigateUri="{Binding SignupUrl}"
+                                                                        Visibility="{Binding HasSignupUrl, Converter={StaticResource BoolToVisibility}}" />
+
+                                                    <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16"
+                                                                     Margin="10,0,0,0" VerticalAlignment="Center"
+                                                                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                                                </StackPanel>
+
+                                                <TextBlock Text="{Binding Status}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                                           FontSize="{StaticResource TextSecondary}"
+                                                           Visibility="{Binding Status, Converter={StaticResource NullToCollapsed}}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding StatusIsGood}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <StackPanel Margin="0,10,0,0"
+                                                            Visibility="{Binding HasBalance, Converter={StaticResource BoolToVisibility}}">
+                                                    <ProgressBar Value="{Binding BalanceUsed}" Maximum="1" Height="6"
+                                                                 Visibility="{Binding BalanceUsed, Converter={StaticResource NullToCollapsed}}" />
+                                                    <TextBlock Text="{Binding Balance}" Margin="0,6,0,0"
+                                                               FontSize="{StaticResource TextSecondary}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding BalanceIsLow}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Border Style="{StaticResource Panel}"
+                                    Visibility="{Binding SttEndpoints.Count, Converter={StaticResource CountToVisibility}, ConverterParameter=invert}">
+                                <StackPanel>
+                                    <TextBlock Text="{loc:T settingswindow.henuz-servis-tanimlanmadi}" FontWeight="SemiBold" />
+                                    <TextBlock Style="{StaticResource Secondary}" Margin="0,6,0,0"
+                                               Text="{loc:T settingswindow.bulut-uzerinden-yaziya-dokmek-icin-en-az-b}" />
+                                </StackPanel>
+                            </Border>
+
+                            <ui:InfoBar Margin="0,4,0,0" IsOpen="True" IsClosable="False" Severity="Informational"
+                                        Title="{loc:T settingswindow.uzun-aramalar}"
+                                        Message="{loc:T settingswindow.ses-opus-a-sikistirilip-gerekirse-sessiz-a}" />
+                        </StackPanel>
+
+                        <!-- Local model -->
+                        <TextBlock Text="{loc:T settingswindow.yerel-model}" Style="{StaticResource GroupHeader}" />
+                        <TextBlock Style="{StaticResource Secondary}" Margin="0,0,0,10"
+                                   Text="{loc:T settingswindow.asagidaki-hata-oranlari-turkce-icin-gercek}" />
+
+                        <Border Style="{StaticResource SettingCard}" Padding="0">
+                            <DataGrid AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" Height="220"
+                                      Background="Transparent" BorderThickness="0"
+                                      SelectedItem="{Binding SelectedAsrModel, Mode=TwoWay}"
+                                      ItemsSource="{Binding AsrModels}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="{loc:T settingswindow.model}" Binding="{Binding DisplayName}" Width="*" />
+                                    <DataGridTextColumn Header="{loc:T settingswindow.wer}" Binding="{Binding Wer.MediaSpeech, StringFormat='{}{0:0.0}'}" Width="64" />
+                                    <DataGridTextColumn Header="{loc:T settingswindow.vram}" Binding="{Binding VramGb, StringFormat='{}{0} GB'}" Width="74" />
+                                    <DataGridTextColumn Header="{loc:T settingswindow.indirme}" Binding="{Binding DownloadGb, StringFormat='{}{0} GB'}" Width="80" />
+                                    <DataGridTextColumn Header="{loc:T settingswindow.hiz}" Binding="{Binding SpeedHint}" Width="132" />
+
+                                    <!--
+                                        Whether the weights are already here.
+
+                                        The table invited a choice between five models and left
+                                        out the one thing needed to make it: whether picking a
+                                        row means transcription starts now or stalls behind a
+                                        three-gigabyte download.
+                                    -->
+                                    <DataGridTemplateColumn Header="{loc:T settingswindow.durum}" Width="84">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock VerticalAlignment="Center"
+                                                           FontSize="{StaticResource TextSecondary}">
+                                                    <TextBlock.Text>
+                                                        <MultiBinding Converter="{StaticResource ModelPresence}">
+                                                            <Binding Path="ModelRef" />
+                                                            <Binding Path="DataContext.DownloadedModelRefs"
+                                                                     RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                        </MultiBinding>
+                                                    </TextBlock.Text>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding SelectedAsrModel.DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding SelectedAsrModel.Summary}" Style="{StaticResource Secondary}"
+                                           Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding SelectedAsrModel.Warning}" Style="{StaticResource Secondary}"
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}" Margin="0,8,0,0"
+                                           Visibility="{Binding SelectedAsrModel.Warning, Converter={StaticResource NullToCollapsed}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:T settingswindow.model-dosyalari}" FontSize="{StaticResource TextBody}" />
+                                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                                   Text="{loc:T settingswindow.model-ilk-kullanimda-kendiliginden-iner-am}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:Button x:Name="DownloadButton" Content="{loc:T settingswindow.indir}" MinWidth="76"
+                                                   Click="DownloadModel_Click" Margin="0,0,6,0" />
+                                        <ui:Button x:Name="SelfTestButton" Content="{loc:T settingswindow.sina}" MinWidth="76"
+                                                   Click="SelfTestModel_Click" Margin="0,0,6,0" />
+                                        <ui:Button x:Name="RefreshStatusButton" Content="{loc:T settingswindow.yenile}" MinWidth="76"
+                                                   Click="RefreshModelStatus_Click" />
+                                    </StackPanel>
+                                </Grid>
+                                <ProgressBar x:Name="ModelProgress" Height="3" Margin="0,10,0,0" Visibility="Collapsed" />
+                                <TextBlock x:Name="ModelStatus" Style="{StaticResource Secondary}" Margin="0,10,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.hesaplama-cihazi}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.otomatik-ekran-karti-erisilebiliyorsa-onu}" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding Devices}"
+                                          SelectedItem="{Binding AsrDevice}" Width="140" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Analysis -->
+                    <StackPanel x:Name="PageAnalysis" Visibility="Collapsed">
+                        <TextBlock Text="{loc:T settingswindow.cozumleme}" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="{loc:T settingswindow.metinden-taahhutleri-degisen-rakamlari-ve}" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.gorusme-bitince-otomatik-cozumle}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.kapaliyken-kayit-ve-yaziya-dokme-yine-cali}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding AnalyseAutomatically}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T settingswindow.saglayici}" FontSize="{StaticResource TextBody}" />
+                                <ComboBox ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}"
+                                          DisplayMemberPath="DisplayName" Margin="0,8,0,0" HorizontalAlignment="Stretch" />
+                                <TextBlock Text="{Binding SelectedProvider.Summary}" Style="{StaticResource Caption}"
+                                           Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <ui:InfoBar Margin="0,4,0,4" IsClosable="False" Severity="Warning"
+                                    Title="{loc:T settingswindow.metin-makineden-cikar}"
+                                    Message="{loc:T settingswindow.bu-saglayici-bulutta-calisir-gorusmenin-ya}"
+                                    IsOpen="{Binding SelectedProvider.SendsDataOffMachine}" />
+
+                        <Border Style="{StaticResource SettingCard}"
+                                Visibility="{Binding SelectedProvider.RequiresApiKey, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T settingswindow.api-anahtari}" FontSize="{StaticResource TextBody}" />
+                                <ui:PasswordBox Password="{Binding LlmApiKey, Mode=TwoWay}" Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T settingswindow.adres}" FontSize="{StaticResource TextBody}" />
+                                <ui:TextBox Text="{Binding LlmBaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                            Margin="0,8,0,10" />
+
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:Button Content="{loc:T settingswindow.baglantiyi-sina}" MinWidth="128"
+                                               Command="{Binding TestLlmCommand}"
+                                               IsEnabled="{Binding IsTestingLlm, Converter={StaticResource InverseBool}}">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="PlugConnected24" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+
+                                    <ui:Button Content="{loc:T settingswindow.yerel-sunucu-bul}" Margin="8,0,0,0" MinWidth="140"
+                                               Command="{Binding DiscoverLocalServersCommand}"
+                                               ToolTip="{loc:T settingswindow.ollama-llama-server-ve-lm-studio-bilinen-p}"
+                                               IsEnabled="{Binding IsTestingLlm, Converter={StaticResource InverseBool}}">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="Server24" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+
+                                    <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" Margin="10,0,0,0"
+                                                     VerticalAlignment="Center"
+                                                     Visibility="{Binding IsTestingLlm, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding LlmStatus}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                           FontSize="{StaticResource TextSecondary}"
+                                           Visibility="{Binding LlmStatus, Converter={StaticResource NullToCollapsed}}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding LlmStatusIsGood}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}"
+                                Visibility="{Binding UsesRemoteModelName, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T settingswindow.model-adi}" FontSize="{StaticResource TextBody}" />
+                                <ComboBox IsEditable="True" Margin="0,8,0,0"
+                                          Text="{Binding LlmRemoteModel, UpdateSourceTrigger=PropertyChanged}"
+                                          ItemsSource="{Binding DiscoveredLlmModels}" />
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0"
+                                           Text="{loc:T settingswindow.baglantiyi-sinadiginda-liste-saglayicinin}" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Visibility="{Binding UsesRemoteModelName, Converter={StaticResource InverseBoolToVisibility}}">
+                            <TextBlock Text="{loc:T settingswindow.yerel-model}" Style="{StaticResource GroupHeader}" />
+                            <TextBlock Style="{StaticResource Secondary}" Margin="0,0,0,10"
+                                       Text="{loc:T settingswindow.toplam-sutunu-model-agirliklari-ile-baglam}" />
+
+                            <Border Style="{StaticResource SettingCard}" Padding="0">
+                                <DataGrid AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" Height="180"
+                                          Background="Transparent" BorderThickness="0"
+                                          ItemsSource="{Binding LlmModels}" SelectedItem="{Binding SelectedLlmModel, Mode=TwoWay}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="{loc:T settingswindow.model}" Binding="{Binding DisplayName}" Width="*" />
+                                        <DataGridTextColumn Header="{loc:T settingswindow.kuant}" Binding="{Binding Quantisation}" Width="84" />
+                                        <DataGridTextColumn Header="{loc:T settingswindow.toplam}" Binding="{Binding TotalGb, StringFormat='{}{0} GB'}" Width="80" />
+                                        <DataGridTextColumn Header="{loc:T settingswindow.baglam}" Binding="{Binding ContextTokens}" Width="76" />
+                                        <DataGridTextColumn Header="{loc:T settingswindow.hiz}" Binding="{Binding SpeedHint}" Width="124" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding SelectedLlmModel.Summary}" Style="{StaticResource Secondary}" />
+                                    <TextBlock Text="{Binding SelectedLlmModel.Warning}" Style="{StaticResource Secondary}"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}" Margin="0,8,0,0"
+                                               Visibility="{Binding SelectedLlmModel.Warning, Converter={StaticResource NullToCollapsed}}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Export -->
+                    <StackPanel x:Name="PageExport" Visibility="Collapsed">
+                        <TextBlock Text="{loc:T settingswindow.disa-aktarma}" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="{loc:T settingswindow.gorusme-ozetlerinin-uygulama-disina-yazilm}" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Folder24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.obsidian}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.vault-klasorune-markdown-dosyalari-yazar-t}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding ExportToObsidian}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}"
+                                Visibility="{Binding ExportToObsidian, Converter={StaticResource BoolToVisibility}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:TextBox Grid.Column="0" VerticalAlignment="Center"
+                                            Text="{Binding ObsidianVaultPath, UpdateSourceTrigger=PropertyChanged}"
+                                            PlaceholderText="{loc:T settingswindow.vault-klasoru}" />
+                                <ui:Button Grid.Column="1" Content="{loc:T settingswindow.sec}" Margin="8,0,0,0" MinWidth="80"
+                                           VerticalAlignment="Center" Click="BrowseVault_Click" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Cloud24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.notion}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.bulut-servisidir-ozetler-notion-sunuculari}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding ExportToNotion}" />
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Visibility="{Binding ExportToNotion, Converter={StaticResource BoolToVisibility}}">
+                            <!--
+                                What goes and what never goes, written out.
+
+                                A checkbox that quietly decides how much of somebody's private
+                                conversation leaves the machine is not a checkbox anybody can
+                                consent to. The list comes from the exporter itself, so it cannot
+                                drift away from what the code actually does.
+                            -->
+                            <Border Style="{StaticResource Panel}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                        <TextBlock Text="{loc:T settingswindow.gonderilenler}" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                        <ItemsControl ItemsSource="{Binding NotionSends}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                        <ui:SymbolIcon Symbol="Checkmark24" FontSize="13" Margin="0,0,8,0"
+                                                                       Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                                                        <TextBlock Text="{Binding}" Style="{StaticResource Caption}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{loc:T settingswindow.asla-gonderilmeyenler}" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                        <ItemsControl ItemsSource="{Binding NotionNeverSends}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="13" Margin="0,0,8,0"
+                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                        <TextBlock Text="{Binding}" Style="{StaticResource Caption}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <StackPanel>
+                                    <TextBlock Text="{loc:T settingswindow.notion-anahtari}" FontSize="{StaticResource TextBody}" />
+                                    <ui:PasswordBox Password="{Binding NotionApiKey, Mode=TwoWay}" Margin="0,8,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <StackPanel>
+                                    <TextBlock Text="{loc:T settingswindow.veritabani-kimligi}" FontSize="{StaticResource TextBody}" />
+                                    <ui:TextBox Text="{Binding NotionDatabaseId, UpdateSourceTrigger=PropertyChanged}"
+                                                Margin="0,8,0,10" />
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:Button Content="{loc:T settingswindow.baglantiyi-sina}" MinWidth="128"
+                                                   Command="{Binding TestNotionCommand}"
+                                                   IsEnabled="{Binding IsTestingNotion, Converter={StaticResource InverseBool}}">
+                                            <ui:Button.Icon>
+                                                <ui:SymbolIcon Symbol="PlugConnected24" />
+                                            </ui:Button.Icon>
+                                        </ui:Button>
+                                        <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" Margin="10,0,0,0"
+                                                         VerticalAlignment="Center"
+                                                         Visibility="{Binding IsTestingNotion, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+
+                                    <TextBlock Text="{Binding NotionStatus}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                               FontSize="{StaticResource TextSecondary}"
+                                               Visibility="{Binding NotionStatus, Converter={StaticResource NullToCollapsed}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding NotionStatusIsGood}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+
+        <Border Grid.Row="2" Padding="24,14,32,16" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ItemsControl Grid.Column="0" ItemsSource="{Binding Problems}" VerticalAlignment="Center"
+                              Margin="0,0,16,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                <ui:SymbolIcon Symbol="Warning24" FontSize="14" Margin="0,0,8,0"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                           FontSize="{StaticResource TextSecondary}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <ui:Button Content="{loc:T settingswindow.vazgec}" Margin="0,0,8,0" MinWidth="96" Click="Cancel_Click" />
+                    <ui:Button Content="{loc:T settingswindow.kaydet}" Appearance="Primary" MinWidth="96" Click="Save_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

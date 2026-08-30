@@ -1,0 +1,221 @@
+<UserControl x:Class="VoiceTranscript.App.Views.LedgerPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:LedgerViewModel}">
+
+    <Grid Margin="24,4,32,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="{loc:T ledgerpage.defter}" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}" Margin="0,0,0,16"
+                       Text="{loc:T ledgerpage.tutulmamis-sozler-degisen-rakamlar-ve-ceva}" />
+        </StackPanel>
+
+        <!--
+            Filter chips.
+
+            Counts are on the chips rather than discovered by clicking, because the first thing
+            somebody wants from this page is the size of the problem.
+        -->
+        <Grid Grid.Row="1" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <RadioButton GroupName="LedgerFilter" IsChecked="True" Style="{StaticResource ChipButton}"
+                             Command="{Binding SetFilterCommand}" CommandParameter="Everything"
+                             Content="{loc:T ledgerpage.hepsi}" />
+
+                <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
+                             Command="{Binding SetFilterCommand}" CommandParameter="Overdue">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T ledgerpage.vadesi-gecti}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource CountPill}" Margin="8,0,0,0"
+                                Visibility="{Binding OverdueCount, Converter={StaticResource PositiveToVisibility}}">
+                            <TextBlock Style="{StaticResource CountPillText}" Text="{Binding OverdueCount}" />
+                        </Border>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
+                             Command="{Binding SetFilterCommand}" CommandParameter="Promises">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T ledgerpage.acik-sozler}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                Visibility="{Binding PromiseCount, Converter={StaticResource PositiveToVisibility}}">
+                            <TextBlock Style="{StaticResource PillText}" Text="{Binding PromiseCount}" />
+                        </Border>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
+                             Command="{Binding SetFilterCommand}" CommandParameter="Changes">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T ledgerpage.degisenler}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                Visibility="{Binding ChangeCount, Converter={StaticResource PositiveToVisibility}}">
+                            <TextBlock Style="{StaticResource PillText}" Text="{Binding ChangeCount}" />
+                        </Border>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
+                             Command="{Binding SetFilterCommand}" CommandParameter="Flags">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T ledgerpage.dikkat}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                Visibility="{Binding FlagCount, Converter={StaticResource PositiveToVisibility}}">
+                            <TextBlock Style="{StaticResource PillText}" Text="{Binding FlagCount}" />
+                        </Border>
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+
+            <ui:TextBox Grid.Column="1" Width="220" PlaceholderText="{loc:T ledgerpage.kisiye-gore-suz}"
+                        Text="{Binding ContactFilter, UpdateSourceTrigger=PropertyChanged}">
+                <ui:TextBox.Icon>
+                    <ui:SymbolIcon Symbol="Filter24" />
+                </ui:TextBox.Icon>
+            </ui:TextBox>
+        </Grid>
+
+        <!-- Entries -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                      Visibility="{Binding HasEntries, Converter={StaticResource BoolToVisibility}}">
+            <ItemsControl ItemsSource="{Binding Entries}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource SettingCard}" Padding="16,14" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0" Style="{StaticResource Avatar}" Margin="0,0,14,0"
+                                        VerticalAlignment="Top"
+                                        Background="{Binding ContactName, Converter={StaticResource NameBrush}}">
+                                    <TextBlock Style="{StaticResource AvatarText}"
+                                               Text="{Binding ContactName, Converter={StaticResource Initials}}" />
+                                </Border>
+
+                                <StackPanel Grid.Column="1">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <TextBlock Text="{Binding ContactName}" FontWeight="SemiBold"
+                                                   FontSize="{StaticResource TextBody}" VerticalAlignment="Center" />
+
+                                        <Border Style="{StaticResource Pill}" Margin="10,0,0,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="11"
+                                                               Margin="0,0,5,0" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock Style="{StaticResource PillText}" Text="{Binding KindLabel}" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource CountPill}" Margin="8,0,0,0"
+                                                Visibility="{Binding IsLate, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Style="{StaticResource CountPillText}" Text="{Binding LateText}" />
+                                        </Border>
+                                    </StackPanel>
+
+                                    <TextBlock Text="{Binding Headline}" TextWrapping="Wrap"
+                                               FontSize="{StaticResource TextBody}" />
+
+                                    <!-- The quote travels with the claim, always. -->
+                                    <Border Style="{StaticResource QuoteBlock}" BorderBrush="{StaticResource ThemBrush}">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource QuoteText}" Text="{Binding Quote}" />
+                                            <TextBlock Style="{StaticResource TimeLink}" Margin="0,4,0,0"
+                                                       Text="{Binding Timestamp}"
+                                                       ToolTip="{loc:T ledgerpage.gorusmeyi-bu-andan-ac}">
+                                                <TextBlock.InputBindings>
+                                                    <MouseBinding MouseAction="LeftClick"
+                                                                  Command="{Binding DataContext.OpenCommand,
+                                                                            RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                  CommandParameter="{Binding}" />
+                                                </TextBlock.InputBindings>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Style="{StaticResource QuoteBlock}"
+                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                            Visibility="{Binding HasCounter, Converter={StaticResource BoolToVisibility}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{loc:T ledgerpage.daha-once}" Style="{StaticResource Caption}" />
+                                            <TextBlock Style="{StaticResource QuoteText}" Text="{Binding CounterQuote}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <TextBlock Text="{Binding Caveat}" Style="{StaticResource Caption}"
+                                               Margin="0,8,0,0" FontStyle="Italic"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                               Visibility="{Binding HasCaveat, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top"
+                                            Margin="12,0,0,0">
+                                    <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T ledgerpage.gorusmeyi-ac}"
+                                            Command="{Binding DataContext.OpenCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}">
+                                        <ui:SymbolIcon Symbol="Open24" FontSize="15" />
+                                    </Button>
+
+                                    <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T ledgerpage.tutuldu-olarak-isaretle}"
+                                            Command="{Binding DataContext.FulfilCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}">
+                                        <ui:SymbolIcon Symbol="Checkmark24" FontSize="15" />
+                                    </Button>
+
+                                    <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T ledgerpage.bu-satiri-kaldir}"
+                                            Command="{Binding DataContext.DismissCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}">
+                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="15" />
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!--
+            Two different empty states.
+
+            "Nothing has gone wrong" and "there is nothing here yet" are opposite messages, and
+            showing the wrong one either worries somebody who is fine or reassures somebody whose
+            recorder has never run.
+        -->
+        <StackPanel Grid.Row="2" Style="{StaticResource EmptyState}"
+                    Visibility="{Binding HasEntries, Converter={StaticResource InverseBoolToVisibility}}">
+            <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="42" HorizontalAlignment="Center"
+                           Margin="0,0,0,16"
+                           Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+
+            <TextBlock Style="{StaticResource EmptyTitle}"
+                       Text="{Binding HasAnything, Converter={StaticResource LedgerEmptyTitle}}" />
+
+            <TextBlock Style="{StaticResource EmptyBody}"
+                       Text="{Binding HasAnything, Converter={StaticResource LedgerEmptyBody}}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

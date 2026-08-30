@@ -1,0 +1,126 @@
+VoiceTranscript — Kurulum
+=========================
+
+Bu klasör kendi kendine yeter. .NET kurmana gerek yok. Sadece Python gerekiyor,
+o da yalnızca yerel Whisper için — buluta göndermeyi seçersen ona bile gerek yok.
+
+
+ADIM 1 — Python kur (yerel çalıştıracaksan)
+-------------------------------------------
+    https://www.python.org/downloads/
+
+Kurulum ekranında "Add python.exe to PATH" kutusunu MUTLAKA işaretle.
+
+
+ADIM 2 — Kurulum betiği
+-----------------------
+Bu klasörde PowerShell aç (boş yere Shift+sağ tık > "PowerShell penceresini
+burada aç"):
+
+    powershell -ExecutionPolicy Bypass -File kurulum.ps1
+
+Sonunda "CUDA ready: 1 device(s)" yazmalı. Yazmıyorsa aşağıdaki "Sorun çıkarsa"
+bölümüne bak — ya da yazıya dökmeyi buluta yönlendir, o zaman ekran kartına hiç
+ihtiyaç kalmaz.
+
+Veriler şuraya yazılır:  %LOCALAPPDATA%\VoiceTranscript.Data
+
+
+ADIM 3 — Çalıştır
+-----------------
+    VoiceTranscript.exe
+
+Pencereyi kapatmak uygulamayı kapatmaz; aramaları dinlemeye devam etmesi
+gerekiyor. Tamamen kapatmak için tepsi simgesine sağ tık > Çıkış.
+
+
+ADIM 4 — Ayarlar
+----------------
+Sol alttaki "Ayarlar" düğmesi. Üç şeyi ayarlaman gerekiyor:
+
+  YAZIYA DÖKME — nerede çalışsın?
+    · Yalnızca bu makinede (varsayılan) — hiçbir şey dışarı çıkmaz. Model
+      indirmen gerekir; aynı ekranda "Bu modeli indir" ve "Sına" düğmeleri var.
+    · Otomatik — ekran kartı çalışıyorsa yerelde, çalışmıyorsa buluta gönderir.
+    · Her zaman buluta — model indirmeye gerek yok, API anahtarı yeter.
+
+    Bulut seçeneklerinde görüşmenin SESİ dışarı çıkar, sadece yazısı değil.
+    Ses; kimin konuştuğunu, ses tonunu ve arka planı da taşır. Arayüz bunu
+    kırmızıyla yazar.
+
+  KAYIT — "Ses yakalamayı sına" düğmesine bas. Beş saniye kayıt alır ve iki
+    akıştan da GERÇEKTEN ses gelip gelmediğini söyler. Sınama sırasında konuş
+    ve aynı anda bir müzik/video çaldır, yoksa sessizlik mi arıza mı ayırt
+    edilemez.
+
+  ÇÖZÜMLEME — taahhüt/çelişki defterini üreten katman. Üç seçenek:
+    · Kapalı bırak — kayıt ve yazıya dökme yine çalışır.
+    · OpenRouter — kurulum yok, anahtar yeter. Görüşme metni dışarı çıkar.
+    · Ollama (yerel) — ollama.com'dan kur, sonra: ollama pull qwen3.5:4b
+      Hiçbir veri dışarı çıkmaz.
+
+
+İLK GÜN YAPILACAK İKİ ÖLÇÜM
+===========================
+Belgeden öğrenilemez, ölçülmesi gerekiyor.
+
+1. EN AZ BİR SAATLİK bir görüşme kaydet. Sonra:
+
+       %LOCALAPPDATA%\VoiceTranscript.Data\recordings\
+
+   O görüşmenin "-mic.wav" ve "-far.wav" dosyaları AYNI UZUNLUKTA OLMALI.
+   Değilse söyle — ilk sessizlikten sonra kimin konuştuğu güvenilmez demektir.
+
+2. Beş gerçek Türkçe aramanın metnini oku, kaç kelime yanlış çıkmış say.
+   %15'in altındaysa iyi. Üstündeyse ayarlardan başka model dene.
+
+Ayrıca bir gerçek WhatsApp ve bir Telegram araması yap. Telegram'da kişi adı
+otomatik gelir. WhatsApp'ta ilk seferinde sorulur, bir kez söyledikten sonra o
+pencere başlığını hatırlar.
+
+
+SORUN ÇIKARSA
+=============
+
+"CUDA ready" yazmıyor ama ekran kartı var
+-----------------------------------------
+    cd worker
+    & "$env:LOCALAPPDATA\VoiceTranscript.Data\python\Scripts\python.exe" -m vt_worker probe
+
+Çıktı hangi DLL'in eksik olduğunu söyler. Genelde sürücü güncellemek yeterli.
+
+ÖNEMLİ: İnternette "cuDNN kurun" veya "ctranslate2'yi 4.4.0'a düşürün" diyen
+tavsiyeler göreceksin. İKİSİ DE ARTIK YANLIŞ. Kullandığımız sürüm cuDNN'e hiç
+ihtiyaç duymaz; 4.4.0'a düşmek o bağımlılığı geri getirir.
+
+Arama tespit edilmiyor
+----------------------
+Ayarlar > Kayıt'ta WhatsApp ve Telegram açık mı bak. Arama sırasında sol üstteki
+durum kartı "Kaydediliyor" demeli. Demiyorsa "Ses yakalamayı sına" düğmesini
+kullan.
+
+Karşı tarafın sesi mikrofona karışıyor
+--------------------------------------
+Kulaklık kullan. Hoparlörle konuşurken karşı tarafın sesi mikrofona da girer ve
+kimin konuştuğu belirsizleşir. Uygulama bunu tespit edip uyarır ama kulaklık
+kadar iyi çözmez.
+
+Uzun aramada bulut hatası
+-------------------------
+Servislerin dosya sınırı var (OpenAI 25 MB). Uygulama sesi Opus'a sıkıştırıp
+gerekirse parçalara bölerek gönderir ve sonucu tek metin hâlinde birleştirir.
+Yine de hata alıyorsan görüşme çok uzun demektir; parça sayısı otomatik artar.
+
+
+NELER YAPMAZ
+============
+- Yalan tespit etmez. Hiçbir yapay zekâ bunu metinden yapamaz. Bunun yerine
+  sayılabilir olanı gösterir: ne söz verildi, hangi tarih kaydı, hangi fiyat
+  değişti, hangi soru cevapsız kaldı. Her biri birebir alıntı ve tıklanabilir
+  zaman damgasıyla.
+
+- Grup aramalarını yazıya dökmez. Karşı taraftaki herkes tek ses akışında
+  karışır, kimin ne söylediği kesin bilinemez. Ses saklanır, metin çıkarılmaz.
+
+- Sen açmadıkça hiçbir şeyi internete göndermez. Bulut seçeneklerini açtığında
+  arayüz bunu açıkça yazar.

@@ -1,0 +1,277 @@
+<UserControl x:Class="VoiceTranscript.App.Views.OverviewPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:OverviewViewModel}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,4,32,24">
+        <StackPanel MaxWidth="1000" HorizontalAlignment="Left">
+
+            <TextBlock Text="{loc:T overviewpage.genel-bakis}" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}"
+                       Text="{loc:T overviewpage.ne-kaydedildi-ne-bekliyor-neye-bakman-gere}" />
+
+            <!--
+                Four numbers, one card.
+
+                Separate cards for each would turn a summary into a grid of boxes; these belong
+                together because they are read together, as one sentence about the archive.
+            -->
+            <Border Style="{StaticResource HeroCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding TotalCalls}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="{loc:T overviewpage.gorusme}" />
+                    </StackPanel>
+
+                    <Border Grid.Column="1" Width="1" Margin="16,4" VerticalAlignment="Stretch"
+                            Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding TotalContacts}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="{loc:T overviewpage.kisi}" />
+                    </StackPanel>
+
+                    <Border Grid.Column="3" Width="1" Margin="16,4" VerticalAlignment="Stretch"
+                            Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding TotalRecorded}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="{loc:T overviewpage.kayit-suresi}" />
+                    </StackPanel>
+
+                    <Border Grid.Column="5" Width="1" Margin="16,4" VerticalAlignment="Stretch"
+                            Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                    <StackPanel Grid.Column="6">
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding PendingWork}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="{loc:T overviewpage.islem-bekliyor}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!--
+                Things that want a decision.
+
+                First on the page on purpose. A recording nobody has named, a promise that came
+                due, a job that failed — these are the reasons to open this window at all, and
+                burying them under an archive listing is how they get missed.
+            -->
+            <StackPanel Visibility="{Binding Attention.Count, Converter={StaticResource CountToVisibility}}">
+                <TextBlock Text="{loc:T overviewpage.dikkat}" Style="{StaticResource GroupHeader}" />
+
+                <ItemsControl ItemsSource="{Binding Attention}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource SettingCard}" Padding="16,14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ui:SymbolIcon Grid.Column="0" Symbol="{Binding Icon}" FontSize="18"
+                                                   Margin="0,0,14,0" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                                   FontSize="{StaticResource TextBody}" />
+                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Secondary}"
+                                                   Margin="0,3,0,0" />
+                                    </StackPanel>
+
+                                    <ui:Button Grid.Column="2" Content="{Binding ActionLabel}" Margin="14,0,0,0"
+                                               MinWidth="112" VerticalAlignment="Center" Appearance="Primary"
+                                               Command="{Binding DataContext.RunActionCommand,
+                                                         RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                               CommandParameter="{Binding}"
+                                               Visibility="{Binding HasAction, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Promises that came due. -->
+            <StackPanel Visibility="{Binding Overdue.Count, Converter={StaticResource CountToVisibility}}">
+                <TextBlock Text="{loc:T overviewpage.vadesi-gecen-sozler}" Style="{StaticResource GroupHeader}" />
+                <TextBlock Style="{StaticResource Secondary}" Margin="0,0,0,10"
+                           Text="{loc:T overviewpage.soylenmis-ve-tarihi-gecmis-alinti-konusmad}" />
+
+                <ItemsControl ItemsSource="{Binding Overdue}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource SettingCard}" Padding="16,14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ui:SymbolIcon Grid.Column="0" Symbol="Clock24" FontSize="18"
+                                                   Margin="0,0,14,0" VerticalAlignment="Top"
+                                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Line}" FontWeight="SemiBold"
+                                                   FontSize="{StaticResource TextBody}" TextWrapping="Wrap" />
+
+                                        <Border Style="{StaticResource QuoteBlock}"
+                                                BorderBrush="{StaticResource ThemBrush}">
+                                            <TextBlock Style="{StaticResource QuoteText}" Text="{Binding Quote}" />
+                                        </Border>
+                                    </StackPanel>
+
+                                    <Border Grid.Column="2" Style="{StaticResource CountPill}" Margin="14,0,0,0"
+                                            VerticalAlignment="Top">
+                                        <TextBlock Style="{StaticResource CountPillText}"
+                                                   Text="{Binding DaysLate, StringFormat='{}{0} gün'}" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- The archive. -->
+            <StackPanel Visibility="{Binding Recent.Count, Converter={StaticResource CountToVisibility}}">
+                <TextBlock Text="{loc:T overviewpage.son-gorusmeler}" Style="{StaticResource GroupHeader}" />
+
+                <ItemsControl ItemsSource="{Binding Recent}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource HoverCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Initials on a colour derived from the name, so the same
+                                         person is the same colour everywhere and the eye finds
+                                         them before it reads. -->
+                                    <Border Grid.Column="0" Style="{StaticResource Avatar}" Margin="0,0,14,0"
+                                            Background="{Binding ContactName, Converter={StaticResource NameBrush}}">
+                                        <TextBlock Style="{StaticResource AvatarText}"
+                                                   Text="{Binding ContactName, Converter={StaticResource Initials}}" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ContactName}" FontWeight="SemiBold"
+                                                   FontSize="{StaticResource TextBody}" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                            <TextBlock Style="{StaticResource Caption}"
+                                                       Text="{Binding StartedAt, Converter={StaticResource RelativeDate}}" />
+                                            <TextBlock Style="{StaticResource Caption}" Text=" · " />
+                                            <TextBlock Style="{StaticResource Caption}" Text="{Binding Status}" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Grid.Column="2" Style="{StaticResource Pill}" Margin="10,0">
+                                        <TextBlock Style="{StaticResource PillText}" Text="{Binding AppName}" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:ProgressRing IsIndeterminate="True" Width="14" Height="14"
+                                                         Margin="0,0,10,0"
+                                                         Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Text="{Binding Length}" FontFamily="Consolas, Cascadia Mono, Segoe UI"
+                                                   FontSize="{StaticResource TextSecondary}" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!--
+                Removing the example.
+
+                Offered wherever it is loaded, because a demonstration that cannot be cleared out
+                stops being a demonstration and becomes clutter in somebody's real archive.
+            -->
+            <Border Style="{StaticResource SettingCard}" Margin="0,8,0,0"
+                    Visibility="{Binding HasSample, Converter={StaticResource BoolToVisibility}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Sparkle24" FontSize="18" Margin="0,0,14,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{loc:T overviewpage.ornek-gorusmeler-yuklu}" FontWeight="SemiBold"
+                                   FontSize="{StaticResource TextBody}" />
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                   Text="{loc:T overviewpage.bunlar-gercek-kayit-degil-kendi-gorusmeler}" />
+                    </StackPanel>
+
+                    <ui:Button Grid.Column="2" Content="{loc:T overviewpage.kaldir}" Margin="14,0,0,0"
+                               Command="{Binding RemoveSampleCommand}" />
+                </Grid>
+            </Border>
+
+            <!-- Nothing recorded yet. -->
+            <StackPanel Style="{StaticResource EmptyState}" Margin="24,64,24,24"
+                        Visibility="{Binding HasAnyData, Converter={StaticResource InverseBoolToVisibility}}">
+                <ui:SymbolIcon Symbol="Call24" FontSize="42" HorizontalAlignment="Center" Margin="0,0,0,16"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T overviewpage.henuz-kayit-yok}" />
+                <TextBlock Style="{StaticResource EmptyBody}"
+                           Text="{loc:T overviewpage.whatsapp-ya-da-telegram-uzerinden-bir-sesl}" />
+
+                <!--
+                    The worked example.
+
+                    What this application is for does not appear in any one conversation; it
+                    appears three calls later, when a price has moved twice and a promise has
+                    come due. Nobody can see that on their first day, and asking somebody to
+                    record their calls for a month on faith is asking a lot.
+                -->
+                <Border Style="{StaticResource Panel}" Margin="0,24,0,0"
+                        Visibility="{Binding HasSample, Converter={StaticResource InverseBoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="{loc:T overviewpage.nasil-calistigini-simdi-gor}" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Style="{StaticResource EmptyBody}" Margin="0,6,0,12"
+                                   Text="{loc:T overviewpage.alti-haftaya-yayilmis-uc-ornek-gorusme-yuk}" />
+                        <ui:Button Content="{loc:T overviewpage.ornek-gorusmeleri-yukle}" Appearance="Primary"
+                                   HorizontalAlignment="Center" Command="{Binding LoadSampleCommand}">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="Sparkle24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

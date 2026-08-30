@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The interface's words.
+
+         Embedded rather than copied beside the executable: the application installs into a
+         versioned directory that is replaced on every update, and a loose resource file is
+         exactly the kind of thing that survives one upgrade and not the next.
+
+         Here rather than in the application project because WPF builds its final assembly
+         through a generated temporary project that drops EmbeddedResource items.
+
+         WithCulture="false" is load-bearing and was found the hard way. MSBuild reads the ".tr."
+         and ".en." in these file names as culture tags and, left to itself, compiles each one
+         into a satellite assembly under tr\ and en\ instead of embedding it. The build succeeds,
+         csc is even passed the right /resource: arguments, and the main assembly comes out with
+         no dictionaries in it at all — so every label in the product falls back to showing its
+         own key, on every screen, with nothing anywhere reporting a problem. -->
+    <EmbeddedResource Include="Resources/strings.tr.json" WithCulture="false"
+                      LogicalName="VoiceTranscript.Core.Resources.strings.tr.json" />
+    <EmbeddedResource Include="Resources/strings.en.json" WithCulture="false"
+                      LogicalName="VoiceTranscript.Core.Resources.strings.en.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Dapper" />
+  </ItemGroup>
+
+</Project>

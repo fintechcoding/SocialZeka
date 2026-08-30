@@ -1,0 +1,33 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Audio capture and playback.
+         3.0.1 is the floor: per-process WASAPI loopback landed in 3.0.0 (PR #1348), but 3.0.0
+         shipped a packaging bug where a plain netX.0-windows target silently resolved the
+         portable asset and dropped the whole Windows stack. -->
+    <PackageVersion Include="NAudio" Version="3.0.1" />
+    <!-- One WMI query resolves every parent/child link at once, which is far cheaper
+         than asking per process while polling once a second. -->
+    <PackageVersion Include="System.Management" Version="10.0.6" />
+
+    <!-- Storage. Microsoft.Data.Sqlite pulls SQLitePCLRaw.bundle_e_sqlite3, which has FTS5
+         compiled in — the other bundles do not, and that is a classic silent failure. -->
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <PackageVersion Include="Dapper" Version="2.1.79" />
+
+    <!-- UI -->
+    <PackageVersion Include="WPF-UI" Version="4.3.0" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageVersion Include="H.NotifyIcon.Wpf" Version="2.4.1" />
+
+    <!-- Hosting / DI / logging -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.6" />
+
+    <!-- Tests -->
+    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+  </ItemGroup>
+</Project>

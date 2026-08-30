@@ -1,0 +1,320 @@
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using VoiceTranscript.Core.Domain;
+using VoiceTranscript.Core.Storage;
+using Wpf.Ui.Controls;
+
+namespace VoiceTranscript.App.ViewModels;
+
+/// <summary>Which slice of the ledger is showing.</summary>
+public enum LedgerFilter
+{
+    Everything,
+    Overdue,
+    Promises,
+    Changes,
+    Flags,
+}
+
+/// <summary>
+/// One line of the ledger, whatever produced it.
+///
+/// Promises, changed figures and flags are different rows in the database but the same thing to
+/// a person reading them: something that was said, by somebody, at a moment they can listen to.
+/// Presenting them as one list is what makes the screen readable; keeping the quote and the
+/// timestamp on every single one is what makes it fair.
+/// </summary>
+public sealed partial class LedgerEntry : ObservableObject
+{
+    public required LedgerFilter Kind { get; init; }
+    public required string ContactName { get; init; }
+    public long? ContactId { get; init; }
+    public long CallId { get; init; }
+
+    /// <summary>What happened, in one line.</summary>
+    public required string Headline { get; init; }
+
+    /// <summary>The words it rests on. Never empty — a claim without a quote is an accusation.</summary>
+    public required string Quote { get; init; }
+
+    public int QuoteStartMs { get; init; }
+
+    /// <summary>An earlier quote being contradicted, when there is one.</summary>
+    public string? CounterQuote { get; init; }
+
+    public int? CounterQuoteStartMs { get; init; }
+
+    public DateTimeOffset When { get; init; }
+
+    /// <summary>Days past the deadline. Zero when there is no deadline or it has not passed.</summary>
+    public int DaysLate { get; init; }
+
+    /// <summary>Extra note: "kural tabanlı", "ses net değil", "koşullu".</summary>
+    public string? Caveat { get; init; }
+
+    /// <summary>Row identity in its own table, for dismissing.</summary>
+    public long SourceId { get; init; }
+
+    public string Timestamp => $"{QuoteStartMs / 60000:00}:{QuoteStartMs / 1000 % 60:00}";
+
+    public bool HasCounter => !string.IsNullOrWhiteSpace(CounterQuote);
+
+    public bool HasCaveat => Caveat is not null;
+
+    public bool IsLate => DaysLate > 0;
+
+    public string LateText => DaysLate == 1 ? "1 gün geçti" : $"{DaysLate} gün geçti";
+
+    public SymbolRegular Icon => Kind switch
+    {
+        LedgerFilter.Overdue => SymbolRegular.Clock24,
+        LedgerFilter.Promises => SymbolRegular.ClipboardTaskListLtr24,
+        LedgerFilter.Changes => SymbolRegular.ArrowSwap24,
+        _ => SymbolRegular.Flag24,
+    };
+
+    public string KindLabel => Kind switch
+    {
+        LedgerFilter.Overdue => "vadesi geçti",
+        LedgerFilter.Promises => "söz",
+        LedgerFilter.Changes => "değişti",
+        _ => "dikkat",
+    };
+}
+
+/// <summary>
+/// The ledger: what did not hold, across everybody.
+///
+/// This is the screen the application exists for. Everything else — the recording, the
+/// transcription, the two separate streams — is machinery in service of somebody being able to
+/// open one page and see that a price moved three times, that a promise came due eleven days
+/// ago, and that four direct questions went unanswered. So it is a top-level page rather than a
+/// tab inside a contact, which is where it used to be.
+///
+/// It is deliberately a list of facts with quotes attached, not a score. A language model cannot
+/// tell whether somebody is lying, and a number claiming otherwise would be both wrong and
+/// harmful to a real person. What it can do is find the words and put them side by side.
+/// </summary>
+public sealed partial class LedgerViewModel(Repository repository) : ObservableObject
+{
+    /// <summary>Raised when a row wants the shell to open a contact.</summary>
+    public event EventHandler<(long ContactId, long CallId)>? OpenRequested;
+
+    /// <summary>Raised when something needs saying to the user.</summary>
+    public event EventHandler<string>? Notice;
+
+    public ObservableCollection<LedgerEntry> Entries { get; } = [];
+
+    [ObservableProperty] private LedgerFilter _filter = LedgerFilter.Everything;
+    [ObservableProperty] private string _contactFilter = "";
+    [ObservableProperty] private bool _isLoading;
+
+    /// <summary>Counts for the filter chips, so the numbers are visible before clicking.</summary>
+    [ObservableProperty] private int _overdueCount;
+    [ObservableProperty] private int _promiseCount;
+    [ObservableProperty] private int _changeCount;
+    [ObservableProperty] private int _flagCount;
+
+    public bool HasEntries => Entries.Count > 0;
+
+    public bool HasAnything => OverdueCount + PromiseCount + ChangeCount + FlagCount > 0;
+
+    partial void OnFilterChanged(LedgerFilter value) => Refresh();
+
+    partial void OnContactFilterChanged(string value) => Refresh();
+
+    [RelayCommand]
+    public void Refresh()
+    {
+        IsLoading = true;
+
+        try
+        {
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            var all = new List<LedgerEntry>();
+
+            all.AddRange(Commitments(today));
+            all.AddRange(Changes());
+            all.AddRange(Flags());
+
+            OverdueCount = all.Count(e => e.Kind == LedgerFilter.Overdue);
+            PromiseCount = all.Count(e => e.Kind == LedgerFilter.Promises);
+            ChangeCount = all.Count(e => e.Kind == LedgerFilter.Changes);
+            FlagCount = all.Count(e => e.Kind == LedgerFilter.Flags);
+
+            var name = ContactFilter.Trim();
+
+            var shown = all
+                .Where(e => Filter == LedgerFilter.Everything || e.Kind == Filter)
+                .Where(e => name.Length == 0
+                            || Core.Text.TurkishText.NormalizeForSearch(e.ContactName)
+                                .Contains(Core.Text.TurkishText.NormalizeForSearch(name), StringComparison.Ordinal))
+                // Overdue first, then by how late, then newest. Somebody scanning this page is
+                // looking for what has gone wrong, not for a chronology.
+                .OrderByDescending(e => e.IsLate)
+                .ThenByDescending(e => e.DaysLate)
+                .ThenByDescending(e => e.When);
+
+            Entries.Clear();
+            foreach (var entry in shown) Entries.Add(entry);
+
+            OnPropertyChanged(nameof(HasEntries));
+            OnPropertyChanged(nameof(HasAnything));
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private IEnumerable<LedgerEntry> Commitments(DateOnly today)
+    {
+        foreach (var (commitment, contactName) in repository.AllOpenCommitments())
+        {
+            // A promise the user made is not a grievance, and mixing the two would turn a useful
+            // page into a list of complaints about other people.
+            if (commitment.ByMe) continue;
+
+            var late = commitment.DeadlineDate is { } due && due < today
+                ? today.DayNumber - due.DayNumber
+                : 0;
+
+            var caveats = new List<string>();
+            if (commitment.IsConditional) caveats.Add("koşullu");
+            if (commitment.DeadlineDate is null && commitment.DeadlineRaw is { } raw)
+                caveats.Add($"tarih net değil: {raw}");
+
+            yield return new LedgerEntry
+            {
+                Kind = late > 0 ? LedgerFilter.Overdue : LedgerFilter.Promises,
+                ContactName = contactName,
+                ContactId = commitment.ContactId,
+                CallId = commitment.CallId,
+                Headline = commitment.Obligation,
+                Quote = commitment.Quote.Trim(),
+                QuoteStartMs = commitment.QuoteStartMs,
+                When = DateTimeOffset.Now,
+                DaysLate = late,
+                Caveat = caveats.Count > 0 ? string.Join(", ", caveats) : null,
+                SourceId = commitment.Id,
+            };
+        }
+    }
+
+    private IEnumerable<LedgerEntry> Changes()
+    {
+        foreach (var (contactName, contactId, subject, series) in repository.ChangedAmounts())
+        {
+            var first = series[0];
+            var last = series[^1];
+
+            // Stated as a sequence, not as a verdict. "Was 12,000 and is now 18,000" is a fact
+            // the user can check by listening; "he raised the price on you" is not ours to say.
+            var figures = string.Join(" → ", series
+                .Select(c => c.NumericValue is { } v ? $"{v:N0} {c.Unit}".Trim() : c.Value)
+                .Distinct());
+
+            yield return new LedgerEntry
+            {
+                Kind = LedgerFilter.Changes,
+                ContactName = contactName,
+                ContactId = contactId,
+                CallId = last.CallId,
+                Headline = $"{subject}: {figures}",
+                Quote = last.Quote.Trim(),
+                QuoteStartMs = last.QuoteStartMs,
+                CounterQuote = first.Quote.Trim(),
+                CounterQuoteStartMs = first.QuoteStartMs,
+                When = DateTimeOffset.Now,
+                Caveat = series.Any(c => c.LowConfidence) ? "ses net değil" : null,
+                SourceId = last.Id,
+            };
+        }
+    }
+
+    private IEnumerable<LedgerEntry> Flags()
+    {
+        foreach (var (flag, contactName) in repository.RecentFlags(limit: 200))
+        {
+            var caveats = new List<string>();
+            if (flag.IsHeuristic) caveats.Add("kural tabanlı");
+            if (flag.LowConfidence) caveats.Add("ses net değil");
+
+            yield return new LedgerEntry
+            {
+                Kind = LedgerFilter.Flags,
+                ContactName = contactName,
+                ContactId = flag.ContactId,
+                CallId = flag.CallId,
+                Headline = flag.Summary,
+                Quote = flag.Quote.Trim(),
+                QuoteStartMs = flag.QuoteStartMs,
+                CounterQuote = flag.CounterQuote?.Trim(),
+                CounterQuoteStartMs = flag.CounterQuoteStartMs,
+                When = flag.CreatedAt,
+                Caveat = caveats.Count > 0 ? string.Join(", ", caveats) : null,
+                SourceId = flag.Id,
+            };
+        }
+    }
+
+    /// <summary>Opens the conversation this line came from, at the right moment.</summary>
+    [RelayCommand]
+    private void Open(LedgerEntry entry)
+    {
+        if (entry.ContactId is { } id) OpenRequested?.Invoke(this, (id, entry.CallId));
+    }
+
+    /// <summary>
+    /// Silences a line without deleting the words behind it.
+    ///
+    /// Extraction is not perfect, and a wrong entry that cannot be dismissed accumulates until
+    /// the page is noise and nobody reads it. The quote stays in the transcript; only the ledger
+    /// line goes.
+    /// </summary>
+    [RelayCommand]
+    private void Dismiss(LedgerEntry entry)
+    {
+        switch (entry.Kind)
+        {
+            case LedgerFilter.Overdue or LedgerFilter.Promises:
+                repository.DismissCommitment(entry.SourceId);
+                break;
+
+            case LedgerFilter.Flags:
+                repository.DismissFlag(entry.SourceId);
+                break;
+
+            default:
+                // A changed figure is derived from the claims rather than stored as its own row,
+                // so there is nothing to mark. Saying so is better than a button that silently
+                // does nothing.
+                Notice?.Invoke(this, "Değişen rakamlar alıntılardan hesaplanıyor, tek tek kapatılamaz.");
+                return;
+        }
+
+        Entries.Remove(entry);
+        OnPropertyChanged(nameof(HasEntries));
+
+        Notice?.Invoke(this, "Kaldırıldı. Alıntı görüşmenin metninde duruyor.");
+    }
+
+    /// <summary>Marks a promise as kept.</summary>
+    [RelayCommand]
+    private void Fulfil(LedgerEntry entry)
+    {
+        if (entry.Kind is not (LedgerFilter.Overdue or LedgerFilter.Promises)) return;
+
+        repository.FulfilCommitment(entry.SourceId);
+
+        Entries.Remove(entry);
+        OnPropertyChanged(nameof(HasEntries));
+
+        Notice?.Invoke(this, "Tutuldu olarak işaretlendi.");
+    }
+
+    [RelayCommand]
+    private void SetFilter(string filter)
+        => Filter = Enum.TryParse<LedgerFilter>(filter, out var parsed) ? parsed : LedgerFilter.Everything;
+}

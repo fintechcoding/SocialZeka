@@ -1,0 +1,11 @@
+[
+  { "id": "m0", "voice": "mic", "start": 0.0,  "text": "Hello, good morning. I am calling about the order we discussed last week." },
+  { "id": "f0", "voice": "far", "start": 6.0,  "text": "Good morning. Yes, of course, I remember the conversation." },
+  { "id": "m1", "voice": "mic", "start": 11.5, "text": "We agreed on twelve thousand for the whole batch. Is that still correct?" },
+  { "id": "f1", "voice": "far", "start": 17.5, "text": "Actually the costs went up, so it is eighteen thousand now." },
+  { "id": "m2", "voice": "mic", "start": 24.0, "text": "That is a very large increase. When exactly will you send the documents?" },
+  { "id": "f2", "voice": "far", "start": 31.0, "text": "I will send the documents on Friday without fail, I promise." },
+  { "id": "m3", "voice": "mic", "start": 38.0, "text": "And the contract itself? You said you would put it in writing." },
+  { "id": "f3", "voice": "far", "start": 44.5, "text": "Let us not worry about the paperwork right now. You have to decide today." },
+  { "id": "m4", "voice": "mic", "start": 52.0, "text": "I would still like the contract before I decide anything." }
+]

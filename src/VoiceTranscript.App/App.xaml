@@ -1,0 +1,43 @@
+<Application x:Class="VoiceTranscript.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:VoiceTranscript.App"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="Light" />
+                <ui:ControlsDictionary />
+                <ResourceDictionary Source="Styles/Theme.xaml" />
+                <ResourceDictionary Source="Styles/Components.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <local:NullToCollapsedConverter x:Key="NullToCollapsed" />
+            <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+            <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+            <local:PageVisibilityConverter x:Key="PageVisibility" />
+            <local:CountToVisibilityConverter x:Key="CountToVisibility" />
+            <local:AsrModeNameConverter x:Key="AsrModeName" />
+            <local:NullToBoolConverter x:Key="NullToBool" />
+            <local:InitialsConverter x:Key="Initials" />
+            <local:NameToBrushConverter x:Key="NameBrush" />
+            <local:DurationConverter x:Key="Duration" />
+            <local:RelativeDateConverter x:Key="RelativeDate" />
+            <local:LevelToWidthConverter x:Key="LevelWidth" />
+            <local:ByteSizeConverter x:Key="ByteSize" />
+            <local:PositiveToVisibilityConverter x:Key="PositiveToVisibility" />
+            <local:RatioToStarConverter x:Key="RatioStar" />
+            <local:SearchEmptyTitleConverter x:Key="SearchEmptyTitle" />
+            <local:InverseBoolConverter x:Key="InverseBool" />
+            <local:LedgerEmptyTitleConverter x:Key="LedgerEmptyTitle" />
+            <local:LedgerEmptyBodyConverter x:Key="LedgerEmptyBody" />
+            <local:ListeningToConverter x:Key="ListeningTo" />
+            <local:ModelPresenceConverter x:Key="ModelPresence" />
+            <local:SearchPeriodNameConverter x:Key="PeriodName" />
+            <local:BrushFromKeyConverter x:Key="BrushFromKey" />
+            <local:HealthHeadlineConverter x:Key="HealthHeadline" />
+
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
