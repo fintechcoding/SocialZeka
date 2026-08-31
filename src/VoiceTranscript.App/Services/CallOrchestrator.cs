@@ -898,6 +898,9 @@ public sealed class CallOrchestrator : IDisposable
                 }
             }
 
+            // With the words safely out of the audio and into the archive, the dead air can go.
+            if (settings.TrimSilenceAfterProcessing) TrimSilence(callId);
+
             if (settings.ExportToObsidian && !string.IsNullOrWhiteSpace(settings.ObsidianVaultPath))
                 Export(callId, settings);
 
@@ -1109,6 +1112,64 @@ public sealed class CallOrchestrator : IDisposable
         throw new InvalidOperationException(
             "Yapılandırılmış servislerin hiçbiri yazıya dökemedi:" + Environment.NewLine
             + string.Join(Environment.NewLine, failures));
+    }
+
+    /// <summary>
+    /// Removes the dead air from a processed recording — the answer to "çok yer kaplıyor".
+    ///
+    /// Runs only after transcription has what it needs, only once per recording, and only on
+    /// moments that are silent in BOTH streams at once: the streams share a clock, and cutting
+    /// them anywhere but together would slide one against the other. Both files are written
+    /// beside themselves and swapped only when both succeeded; every stored timestamp moves in
+    /// one transaction with the trim stamp. A failure here is logged and ignored — losing disk
+    /// economy is nothing, losing a recording would be everything.
+    /// </summary>
+    private void TrimSilence(long callId)
+    {
+        try
+        {
+            var call = _repository.GetCall(callId);
+
+            if (call?.MicPath is not { } mic || call.FarPath is not { } far) return;
+            if (call.TrimmedAt is not null) return;
+            if (!File.Exists(mic) || !File.Exists(far)) return;
+
+            var cuts = Core.Audio.SilenceTrimmer.PlanCuts(mic, far);
+            if (cuts.Count == 0) return;
+
+            var removedMs = cuts.Sum(c => c.Frames) * 1000
+                            / Core.Audio.AudioFormat.WhisperPcm.SampleRate;
+
+            var before = new FileInfo(mic).Length + new FileInfo(far).Length;
+
+            Core.Audio.SilenceTrimmer.Apply(mic, mic + ".trim", cuts);
+            Core.Audio.SilenceTrimmer.Apply(far, far + ".trim", cuts);
+
+            // Both written whole before either original is touched.
+            File.Move(mic + ".trim", mic, overwrite: true);
+            File.Move(far + ".trim", far, overwrite: true);
+
+            // The mixed copy, if one was made, is on the old clock now. Deleted rather than
+            // rebuilt: it is derived, and the next export rebuilds it from the trimmed streams.
+            var mix = Core.Audio.ConversationMix.PathFor(mic);
+            if (File.Exists(mix)) File.Delete(mix);
+
+            _repository.ApplyTrim(
+                callId,
+                Core.Audio.SilenceTrimmer.ToMilliseconds(cuts),
+                call.Duration - TimeSpan.FromMilliseconds(removedMs));
+
+            var after = new FileInfo(mic).Length + new FileInfo(far).Length;
+
+            AppLog.Write("veri",
+                $"sessizlik kırpıldı: görüşme #{callId} · {cuts.Count} aralık · "
+                + $"{TimeSpan.FromMilliseconds(removedMs):mm\\:ss} ölü hava · "
+                + $"{before / 1024 / 1024} MB → {after / 1024 / 1024} MB");
+        }
+        catch (Exception e)
+        {
+            AppLog.Error("veri", e, $"görüşme #{callId} sessizliği kırpılamadı — kayıt olduğu gibi duruyor");
+        }
     }
 
     /// <summary>

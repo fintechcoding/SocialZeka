@@ -136,6 +136,8 @@
   "settingswindow.veriler": "Veriler",
   "settingswindow.veriler-aciklama": "Arşivin nerede durduğu ve ne kadar süre saklandığı. Kayıtlar, dökümler ve veritabanı hep bu klasörde — yedeklemek istersen yedeklenecek yer burası.",
   "settingswindow.veri-klasoru": "Veri klasörü",
+  "settingswindow.sessizligi-kirp": "İşlem bitince sessizliği kırp",
+  "settingswindow.sessizligi-kirp-aciklama": "Kimsenin konuşmadığı uzun boşluklar kısaltılır — kelimeler, duraksamalar ve zaman damgaları aynen kalır. 46 dakikalık bir görüşme yarıya inebilir.",
   "settingswindow.klasoru-ac": "Klasörü aç",
   "settingswindow.anahtar-al": "Anahtar al",
   "settingswindow.api-anahtari": "API anahtarı",

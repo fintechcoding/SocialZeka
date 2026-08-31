@@ -16,7 +16,7 @@ kapalı ya da aşağıda tasarımıyla duruyor.
 
 ## Faz 1 — Cila (küçük, bağımsız işler; herhangi bir sırada)
 
-### 1.1 Sessizlik kırpma (eski §11.7'nin cevabı)
+### 1.1 Sessizlik kırpma ✅ 1 Eylül yapıldı (SilenceTrimmer + ApplyTrim + v3 migrasyonu + 10 test; ayarı Veriler'de, varsayılan açık)
 **Sorun:** 46 dk görüşme = 171 MB. **Karar:** kayıt biçimi DEĞİŞMEZ (WAV'ı 5 alt sistem okuyor,
 bu VM'de ses donanımı yok, test edilemez). Bunun yerine: işleme bittikten sonra her akıştaki
 uzun sessizlikler (>2 sn, eşik altı RMS) kısaltılır — iki akış tasarım gereği >%50 sessiz,
@@ -51,7 +51,8 @@ yeni tabloyla çözüldü ama bu sonsuza dek süremez (şifreleme, kırpma harit
 C# delegesi), açılışta tek geçiş, migrasyon öncesi otomatik DB yedeği (`voicetranscript.db.bak-N`).
 **Kabul:** v0 (bugünkü) → vN zinciri testte gerçek eski DB kopyasıyla koşar. **Efor:** 2 gün.
 
-### 2.2 Dayanıklı işleme kuyruğu (§1b)
+### 2.2 Dayanıklı işleme kuyruğu (§1b) — kalan tek parçası worker tarafında
+C# tarafı bugün dayanıklı: kuyruk sırası açılışta started_at'ten kurulur, bulut .cloudparts ile kaldığı yerden sürer. Kalan: YEREL dökümde parça önbelleği — Python işi, bu VM'de Python yok, doğrulanamaz; app makinesinde test edilecek.
 **Sorun:** kuyruk bellekte; çökme "Queued" satırlarını açılış taramasına bırakır (çalışıyor ama
 kör). Bulut yükleme parça parça sürdürülebilir (`.cloudparts` var) — yerel değil.
 **Tasarım:** kuyruk sırası DB'ye (`queue_position` — 2.1'e bağımlı); işleme aşaması per-call

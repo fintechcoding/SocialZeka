@@ -27,10 +27,12 @@ public static class Migrations
     /// <param name="Description">One line for the log, in Turkish: the user may see it.</param>
     public sealed record Step(int Version, string Description, string[] Sql);
 
-    /// <summary>
-    /// Shipped steps, ascending. Empty today, deliberately: everything so far fit the baseline
-    /// because it only ever added tables. The machinery ships before the first passenger so the
-    /// first passenger is not also the test flight.
-    /// </summary>
-    public static readonly IReadOnlyList<Step> Steps = [];
+    /// <summary>Shipped steps, ascending. A step's version equals the Schema.Version it produces.</summary>
+    public static readonly IReadOnlyList<Step> Steps =
+    [
+        // v3 — silence trimming records when it ran, so a recording is never trimmed twice and
+        // the screen can say why a file is smaller than its duration suggests.
+        new(3, "Görüşme tablosuna sessizlik kırpma damgası",
+            ["ALTER TABLE call ADD COLUMN trimmed_at TEXT;"]),
+    ];
 }

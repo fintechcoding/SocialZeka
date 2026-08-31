@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 2;
+    public const int Version = 3;
 
     public static readonly string[] Statements =
     [
@@ -66,7 +66,8 @@ public static class Schema
             capture_stats        TEXT,
             likely_no_headphones INTEGER NOT NULL DEFAULT 0,
             is_pinned            INTEGER NOT NULL DEFAULT 0,
-            audio_sha256         TEXT
+            audio_sha256         TEXT,
+            trimmed_at           TEXT
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_call_contact ON call(contact_id, started_at DESC);",

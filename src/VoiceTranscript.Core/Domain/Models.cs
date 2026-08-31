@@ -130,6 +130,9 @@ public sealed record Call
     public bool IsPinned { get; init; }
 
     public string? AudioSha256 { get; init; }
+
+    /// <summary>When the joint-silence trim ran, or null for an untrimmed recording.</summary>
+    public DateTimeOffset? TrimmedAt { get; init; }
 }
 
 public sealed record Segment

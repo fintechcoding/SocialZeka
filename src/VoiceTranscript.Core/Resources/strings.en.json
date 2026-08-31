@@ -136,6 +136,8 @@
   "settingswindow.veriler": "Data",
   "settingswindow.veriler-aciklama": "Where the archive lives and how long audio is kept. Recordings, transcripts and the database all sit in this folder — it is the one place to back up.",
   "settingswindow.veri-klasoru": "Data folder",
+  "settingswindow.sessizligi-kirp": "Trim silence after processing",
+  "settingswindow.sessizligi-kirp-aciklama": "Long stretches where nobody is talking are shortened — words, pauses and timestamps stay exactly as they were. A 46-minute call can halve.",
   "settingswindow.klasoru-ac": "Open folder",
   "settingswindow.anahtar-al": "Get a key",
   "settingswindow.api-anahtari": "API key",

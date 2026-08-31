@@ -284,6 +284,18 @@ public sealed record AppSettings
     public string? NotionApiKey { get; init; }
     public string? NotionDatabaseId { get; init; }
 
+    // ---- storage economy ----------------------------------------------------
+
+    /// <summary>
+    /// Shortens the moments when NOBODY is talking, once a recording is fully processed.
+    ///
+    /// On by default because it answers a real complaint — "46 dakikalık görüşme 171 MB" — and
+    /// removes only what cannot be listened to: joint silence longer than a couple of seconds,
+    /// with the edges kept. Words, pauses inside speech, and the alignment between the two
+    /// streams are untouched; every stored timestamp is shifted in the same transaction.
+    /// </summary>
+    public bool TrimSilenceAfterProcessing { get; init; } = true;
+
     // ---- retention ----------------------------------------------------------
 
     /// <summary>

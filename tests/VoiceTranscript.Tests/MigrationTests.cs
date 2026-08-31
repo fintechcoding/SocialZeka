@@ -144,7 +144,11 @@ public sealed class MigrationTests : IDisposable
         Assert.Equal(Schema.Version, Stored());
     }
 
-    /// <summary>Shipped steps must be strictly ascending and above the baseline.</summary>
+    /// <summary>
+    /// Shipped steps must be strictly ascending, above the original baseline, and end exactly at
+    /// the current Schema.Version — a step without its matching baseline change (or the other way
+    /// round) means fresh and upgraded databases have different shapes.
+    /// </summary>
     [Fact]
     public void TheShippedStepListIsWellFormed()
     {
@@ -152,6 +156,41 @@ public sealed class MigrationTests : IDisposable
 
         Assert.Equal(versions.OrderBy(v => v), versions);
         Assert.Equal(versions.Distinct(), versions);
-        Assert.All(versions, v => Assert.True(v > Schema.Version || Migrations.Steps.Count == 0));
+        Assert.All(versions, v => Assert.InRange(v, 3, Schema.Version));
+
+        if (versions.Count > 0) Assert.Equal(Schema.Version, versions[^1]);
+    }
+
+    /// <summary>
+    /// The property the whole model rests on: a database upgraded step by step and a database
+    /// born fresh must end with the same columns.
+    /// </summary>
+    [Fact]
+    public void AnUpgradedDatabaseMatchesAFreshOne()
+    {
+        // Born at v2: baseline as it was before the first shipped step.
+        using (var connection = new Database(_path).Open())
+        {
+            // A minimal v2-era call table — the real one minus every column the steps add.
+            using var create = connection.CreateCommand();
+            create.CommandText =
+                """
+                CREATE TABLE call (id INTEGER PRIMARY KEY AUTOINCREMENT, contact_id INTEGER,
+                    app INTEGER NOT NULL DEFAULT 0, direction INTEGER NOT NULL DEFAULT 0,
+                    kind INTEGER NOT NULL DEFAULT 0, started_at TEXT NOT NULL, ended_at TEXT,
+                    duration_ms INTEGER NOT NULL DEFAULT 0, mic_path TEXT, far_path TEXT,
+                    state INTEGER NOT NULL DEFAULT 0, failure_reason TEXT, observed_title TEXT,
+                    capture_stats TEXT, likely_no_headphones INTEGER NOT NULL DEFAULT 0,
+                    is_pinned INTEGER NOT NULL DEFAULT 0, audio_sha256 TEXT);
+                CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                INSERT INTO setting VALUES ('schema_version', '2');
+                """;
+            create.ExecuteNonQuery();
+        }
+
+        new Database(_path).Migrate(); // walks the real shipped steps
+
+        Assert.True(ColumnExists("trimmed_at"));
+        Assert.Equal(Schema.Version, Stored());
     }
 }
