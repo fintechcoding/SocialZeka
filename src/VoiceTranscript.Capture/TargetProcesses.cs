@@ -23,10 +23,40 @@ namespace VoiceTranscript.Capture;
 [SupportedOSPlatform("windows")]
 public sealed class TargetProcesses
 {
-    private const string WhatsAppPackageFamily = "5319275A.WhatsAppDesktop_cv1g1gvanyjgm";
+    /// <summary>
+    /// Package family names of the watched applications, when they are Store apps.
+    ///
+    /// Matched before executable names because package identity survives both a rename and the
+    /// versioned install path — WhatsApp Desktop's root executable was renamed from WhatsApp.exe
+    /// to WhatsApp.Root.exe, and its folder carries the version number, so it changes on every
+    /// update.
+    /// </summary>
+    private static readonly (string Family, CallApp App)[] PackageFamilies =
+    [
+        ("5319275A.WhatsAppDesktop_cv1g1gvanyjgm", CallApp.WhatsApp),
+        ("TelegramMessengerLLP.TelegramDesktop_t4vj0pshhgkwm", CallApp.Telegram),
+    ];
 
     private static readonly string[] WhatsAppExecutables = ["WhatsApp.Root.exe", "WhatsApp.exe"];
-    private static readonly string[] TelegramExecutables = ["Telegram.exe"];
+
+    /// <summary>
+    /// Telegram Desktop and the forks people actually run.
+    ///
+    /// The forks matter because somebody using one is still making Telegram calls, and a watcher
+    /// that only knows the official binary records nothing for them without ever saying so.
+    /// </summary>
+    private static readonly string[] TelegramExecutables =
+        ["Telegram.exe", "AyuGram.exe", "64Gram.exe", "Kotatogram.exe"];
+
+    /// <summary>
+    /// Signal Desktop.
+    ///
+    /// An Electron application installed per-user under
+    /// <c>%LOCALAPPDATA%\Programs\signal-desktop</c>. Its calls run in the main process, but the
+    /// renderer children are picked up anyway by walking the process tree, which costs nothing
+    /// and removes an assumption that a future build could invalidate.
+    /// </summary>
+    private static readonly string[] SignalExecutables = ["Signal.exe", "Signal Beta.exe"];
 
     private readonly TimeSpan _cacheFor;
     private DateTimeOffset _refreshedAt = DateTimeOffset.MinValue;
@@ -79,14 +109,17 @@ public sealed class TargetProcesses
         if (name is null) return CallApp.Unknown;
 
         // Package identity first: it is immune to renames and to the versioned install path.
-        if (TryGetPackageFamilyName(process, out var family) &&
-            family.Equals(WhatsAppPackageFamily, StringComparison.OrdinalIgnoreCase))
+        if (TryGetPackageFamilyName(process, out var family))
         {
-            return CallApp.WhatsApp;
+            foreach (var (candidate, app) in PackageFamilies)
+            {
+                if (family.Equals(candidate, StringComparison.OrdinalIgnoreCase)) return app;
+            }
         }
 
         if (WhatsAppExecutables.Contains(name, StringComparer.OrdinalIgnoreCase)) return CallApp.WhatsApp;
         if (TelegramExecutables.Contains(name, StringComparer.OrdinalIgnoreCase)) return CallApp.Telegram;
+        if (SignalExecutables.Contains(name, StringComparer.OrdinalIgnoreCase)) return CallApp.Signal;
 
         return CallApp.Unknown;
     }

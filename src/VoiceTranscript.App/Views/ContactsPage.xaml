@@ -122,6 +122,24 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <!--
+                                Sits beside the other per-call actions because that is where
+                                somebody looking at a call filed under the wrong person already is.
+
+                                It is not a rare repair. All the messengers offer for attribution is
+                                a window title, and a title is sometimes the person, sometimes the
+                                conversation that happened to be open, and sometimes an unread
+                                counter — so calls land under the wrong contact no matter how
+                                careful the guessing gets, and correcting it has to be ordinary.
+                            -->
+                            <ui:Button Content="Kişiyi değiştir" Margin="0,0,8,0" Click="MoveCall_Click"
+                                       ToolTip="Bu görüşmeyi başka bir kişinin altına taşı."
+                                       IsEnabled="{Binding SelectedCall, Converter={StaticResource NullToBool}}">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="PersonSwap24" />
+                                </ui:Button.Icon>
+                            </ui:Button>
+
                             <ui:Button Content="{loc:T contactspage.yeniden-isle}" Margin="0,0,8,0" Click="Reprocess_Click"
                                        ToolTip="{loc:T contactspage.bu-gorusmeyi-bastan-yaziya-dok-ve-cozumle}">
                                 <ui:Button.Icon>

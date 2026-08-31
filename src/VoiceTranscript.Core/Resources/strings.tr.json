@@ -209,6 +209,8 @@
   "settingswindow.ses-yakalama": "Ses yakalama",
   "settingswindow.ses-yakalamayi-sina": "Ses yakalamayı sına",
   "settingswindow.sifir-suresiz-saklamak-demektir-sabitlenmi": "Sıfır, süresiz saklamak demektir. Sabitlenmiş görüşmeler bu temizlikten etkilenmez.",
+  "settingswindow.signal": "Signal",
+  "settingswindow.signal-desktop-aramalari": "Signal Desktop aramaları. Signal masaüstü uygulaması kurulu değilse bu ayarın etkisi olmaz.",
   "settingswindow.sina": "Sına",
   "settingswindow.sirayla-denenir-biri-cevap-vermezse-ya-da": "Sırayla denenir. Biri cevap vermezse ya da kredisi biterse bir sonrakine geçilir — kayıt yalnızca bir kez var, kaybolmasın.",
   "settingswindow.telegram": "Telegram",

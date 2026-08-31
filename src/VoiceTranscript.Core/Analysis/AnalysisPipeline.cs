@@ -151,7 +151,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         if (options.WriteSummary)
         {
             progress?.Report("Özet yazılıyor");
-            summary = await SummariseAsync(commitments, claims, flags, options, cancellationToken);
+            summary = await SummariseAsync(commitments, claims, flags, segments, options, cancellationToken);
 
             if (summary is not null)
             {
@@ -334,10 +334,24 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         List<Commitment> commitments,
         List<Claim> claims,
         List<Flag> flags,
+        IReadOnlyList<Segment> segments,
         AnalysisOptions options,
         CancellationToken cancellationToken)
     {
-        if (commitments.Count == 0 && claims.Count == 0 && flags.Count == 0) return null;
+        // A conversation with nothing extracted still gets a summary, from the transcript.
+        //
+        // This used to return null here, and that made the product silent about most of its own
+        // archive: promises, prices and dates are the exception, and an ordinary call — asking how
+        // somebody is, arranging to speak later, talking about nothing in particular — produced no
+        // summary at all. The user was left with a recording, a transcript, and no answer to the
+        // only question they asked afterwards, which is what the call was about.
+        //
+        // Summarised from the transcript rather than from structure, because there is no structure
+        // to summarise. That means the quote verification the extraction step performs does not
+        // apply to it, which is why the prompt is emphatic about inventing nothing — and why this
+        // path is used only when the verified one has nothing to say.
+        if (commitments.Count == 0 && claims.Count == 0 && flags.Count == 0)
+            return await SummariseConversationAsync(segments, options, cancellationToken);
 
         var facts = new JsonObject
         {
@@ -364,6 +378,42 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
                 Model = options.Model,
                 SystemPrompt = ExtractionPrompt.SummarySystemPrompt,
                 UserPrompt = facts.ToJsonString(),
+                Temperature = 0.3,
+                MaxTokens = 512,
+                UnloadAfterwards = options.UnloadWhenDone,
+            }, cancellationToken);
+
+            return response.CompletedNormally ? response.Content.Trim() : null;
+        }
+        catch (LlmException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Writes "what was this call about" straight from the transcript.
+    ///
+    /// Used when the extraction step found nothing to verify — which is the ordinary case, not a
+    /// failure. Kept separate from the structured summary so the difference is visible in the
+    /// code: one is built from quotes that were checked against the transcript, and this one is
+    /// the model reading the transcript directly.
+    /// </summary>
+    private async Task<string?> SummariseConversationAsync(
+        IReadOnlyList<Segment> segments,
+        AnalysisOptions options,
+        CancellationToken cancellationToken)
+    {
+        var transcript = ExtractionPrompt.BuildConversationSummaryPrompt(segments);
+        if (string.IsNullOrWhiteSpace(transcript)) return null;
+
+        try
+        {
+            var response = await llm.CompleteAsync(new LlmRequest
+            {
+                Model = options.Model,
+                SystemPrompt = ExtractionPrompt.ConversationSummarySystemPrompt,
+                UserPrompt = transcript,
                 Temperature = 0.3,
                 MaxTokens = 512,
                 UnloadAfterwards = options.UnloadWhenDone,

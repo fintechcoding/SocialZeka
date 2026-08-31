@@ -62,6 +62,16 @@ public sealed record AppSettings
     public bool RecordWhatsApp { get; init; } = true;
     public bool RecordTelegram { get; init; } = true;
 
+    /// <summary>
+    /// Whether Signal Desktop calls are recorded.
+    ///
+    /// Defaults to on like the other two. A settings file written before Signal was supported has
+    /// no value for this, and JSON deserialisation then leaves the field at its default — which is
+    /// what is wanted: somebody who asked for their calls to be recorded gets the new application
+    /// recorded too, rather than discovering months later that one messenger was quietly skipped.
+    /// </summary>
+    public bool RecordSignal { get; init; } = true;
+
     /// <summary>Record every detected call automatically, then ask afterwards whether to keep it.</summary>
     /// <summary>
     /// Whether a detected call is recorded without being asked.
@@ -295,6 +305,32 @@ public sealed record AppSettings
         string.IsNullOrWhiteSpace(LlmBaseUrl) ? Provider.DefaultBaseUrl : LlmBaseUrl;
 
     /// <summary>
+    /// Whether there is anything configured for analysis to talk to.
+    ///
+    /// Answered from settings alone, without touching the network, because it is asked on the path
+    /// that decides whether to attempt analysis at all — and the whole point is to avoid a request
+    /// that will hang. A hosted provider with no key cannot answer, and no address means there is
+    /// nothing to ask.
+    ///
+    /// <b>This is deliberately "in principle".</b> A local server that is configured but not
+    /// running still passes here, because the only way to know is to ask it, and asking is exactly
+    /// what must not block. That case is bounded by a short timeout on the request instead: it
+    /// fails in seconds and is reported as a failure, rather than sitting for ten minutes per
+    /// transcript chunk while the recording queue backs up behind it.
+    /// </summary>
+    [JsonIgnore]
+    public bool LlmReachableInPrinciple
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(ResolvedBaseUrl)) return false;
+
+            // A hosted service without a key is a request that will be refused, every time.
+            return !Provider.SendsDataOffMachine || !string.IsNullOrWhiteSpace(LlmApiKey);
+        }
+    }
+
+    /// <summary>
     /// True when the provider hosts the models itself and is addressed by a model identifier
     /// rather than by a file this machine holds.
     /// </summary>
@@ -328,7 +364,7 @@ public sealed record AppSettings
     {
         List<string> problems = [];
 
-        if (!RecordWhatsApp && !RecordTelegram)
+        if (!RecordWhatsApp && !RecordTelegram && !RecordSignal)
             problems.Add("En az bir uygulama seçilmeli, yoksa hiçbir görüşme kaydedilmez.");
 
         var cloud = AppPaths.DetectCloudSync(paths.Recordings);

@@ -323,6 +323,355 @@ Yeni: `AudioClipTests` (8), `ArchiveQuestionsTests` (14), `LocalisationTests` (7
 
 ---
 
+## 2026-08-31 — Geliştirme ortamı ve iki sessiz ayar kusuru
+
+Kullanıcı hedef makinede kullanmaya devam etti ve üç şey bildirdi:
+
+1. *"Görüşme yaptım, arkada sesleri işlemeye çalışıyordu, kaydedildi sanırım ama görüşme bitince
+   kim aradı ne yaptı bu çıkmadı."*
+2. *"WhatsApp'tan ve Telegram'dan isimleri doğru yakalayamıyor."*
+3. *"İşleme kısmında bir hata oluşursa ve o sırada bir görüşme yaptıysam, o görüşme bitince kayıt
+   ekranı çıkmadı."*
+4. *"Serdal'la yaptığım bir görüşme sistemde Uliana'nın altına kaydedilmiş; bunu elle taşıyabilmem
+   lazım."*
+
+Bunların hepsi `YAPILACAKLAR.md` dosyasında numaralandırıldı — bu tur onları **düzeltmedi**,
+zeminini kurdu ve yol üstünde çıkan iki ayrı kusuru kapattı.
+
+### 0. Geliştirme ortamı kuruldu ve taban çizgisi alındı
+
+Bu makinede .NET SDK yoktu; derleme ve test hiç çalıştırılamıyordu. Kuruldu:
+.NET 10.0.400, Python 3.12.10 + pytest 9.1.1, Inno Setup 6.7.3. Ayrıntılar ve tuzaklar
+`docs/GELISTIRME.md` içinde.
+
+**Taban çizgisi:** derleme 0 hata, C# 439 test / 0 kırık, Python 56 test / 0 kırık.
+
+Bu sayı önemli bir şey söylüyor: **kod tabanı sağlam, bildirilen hatalar derleme veya test
+kırıklığından gelmiyor.** Ama daha önemlisi şu — 495 test yeşilken görüşme sonrası akış
+çalışmıyor, yani **hiçbir test o akışı uçtan uca sürmüyor.** Bu, projenin daha önce bizzat
+yaşadığı kör nokta:
+
+> *"Bu dikişin varlığı süs değil: bitmiş bir kaydın dosya yollarını ve süresini satırına geri
+> yazan adım tamamen eksikti ve birkaç yüz testlik bir takımdan sağ çıktı, çünkü hiçbiri bir
+> kaydı ses kartı olmadan baştan sona sürükleyemiyordu."* — `CallOrchestrator.cs:78`
+
+> **Kural:** §1 düzeltmesinin ayrılmaz parçası, kaydı tespit → kayıt → bitiş → kuyruk → işleme →
+> özet → kayıt ekranı boyunca süren bir test olmak zorundadır. Altyapı zaten var ve
+> kullanılmıyor: `CallOrchestrator` yapıcısı `captureBackend` enjeksiyon noktası taşıyor ve
+> `FileAudioSource` mevcut.
+
+### 1. `DataRoot` ayarı hiçbir şey yapmıyordu
+
+**Belirti.** Geliştirme, uygulamanın gerçekten kullanıldığı makineye taşınıyor. Deneysel bir
+derlemenin gerçek görüşme arşivinin üstünde çalışmaması gerekiyor. Bunu sağlayacak ayar
+(`AppSettings.DataRoot`) tanımlıydı ve "veri dizinini geçersiz kılar" diyordu.
+
+**Asıl sebep.** Ayar **projede hiçbir yerde okunmuyordu**; tek geçtiği yer kendi tanımıydı.
+`AppPaths` yapıcısı `root` parametresini zaten kabul ediyordu ama `App.xaml.cs` onu argümansız
+çağırıyordu. Bu, bu projede daha önce görülmüş bir kusur biçiminin **üçüncü tekrarı** —
+`RecordAutomatically` de uzun süre tanımlıydı ama okunmuyordu (`CallOrchestrator.cs:157`).
+
+Ayarla çözülemezdi: `settings.json` veri kökünün *içinde* yaşıyor, yani ayarı okumak kökü zaten
+bilmeyi gerektiriyor. Geliştirme için ayrıca yetersiz — dev derlemesinin gerçek kuruluma
+dokunmamak için gerçek kurulumun ayar dosyasını değiştirmesi saçma olurdu.
+
+**Yapılan.** `--data <klasör>` komut satırı anahtarı. Öncelik: komut satırı > ayar > varsayılan.
+
+- `AppPaths.ResolveRoot` / `DataDirectoryFrom` / `AsksForDataDirectory` — karar **saf**, Win32'ye
+  ve WPF'e bağlı değil, dolayısıyla tamamen test edilebilir.
+- `App.xaml.cs` başlangıcı yeniden sıralandı: veri klasörü **günlük açılmadan önce** çözülüyor.
+  Aksi hâlde günlük yanlış klasöre yazardı — ve günlük, hedef makineden hata bildirmenin tek
+  kanalı.
+- Günlüğün ilk satırı artık hangi veri klasörünün kullanıldığını yazıyor, varsayılan değilse
+  açıkça işaretliyor. `--data` var olduğu andan itibaren "hangi veritabanıydı" sorusu ortaya
+  çıkıyor ve bu soru tam da bir görüşmenin nerede olduğu aranırken sorulur.
+- Hatalı `--data` (arkasında klasör yok) **sessizce varsayılana düşmüyor**; uygulama açıklama
+  verip kapanıyor. Sessiz geri düşüş, anahtarın var olma sebebini yok ederdi.
+- Klasör oluşturulamazsa Türkçe açıklamayla kapanıyor. Daha önce bu, günlük henüz açılmadığı için
+  kimseye hiçbir şey söylemeyen bir çökme olurdu.
+
+### 2. Ayarları kaydetmek, ekranda görünmeyen ayarları siliyordu
+
+**Belirti.** §1'i yaparken fark edildi: `DataRoot` canlandırılırsa, kullanıcı ayarları bir kez
+kaydettiğinde taşınmış arşiv **görünmez** olacaktı.
+
+**Asıl sebep.** `SettingsViewModel.ToSettings()` sıfırdan yeni bir `AppSettings` kuruyordu, yani
+listelemediği her alan varsayılana dönüyordu. 34 alandan 5'i listede yoktu. Üçü çağrı yerinde
+`with` ile elle kurtarılıyordu; **ikisi kurtarılmıyordu:**
+
+| Alan | Sonuç |
+|---|---|
+| `TranscriptRetentionDays` | Her ayar kaydında sıfırlanıyordu — **bugün canlı bir kusur** |
+| `DataRoot` | Canlandırıldığı anda her kayıtta silinecekti |
+
+**Yapılan.** Yama değil, biçim değişikliği: `ToSettings()` artık pencerenin açıldığı kaydı
+düzeltiyor — `_original with { ... }`. `MainWindow.OpenSettings` içindeki elle kurtarma listesi
+kaldırıldı; artık gereksiz ve zaten yanlış biçimdi — her yeni ayarda elle güncellenmesi
+gerekiyordu ve unutmak sessizdi. **İleride eklenen hiçbir alan artık sessizce düşemez.**
+
+Kusur sınıfı için test yazıldı: yansımayla `AppSettings`'in bütün alanları geziliyor ve ayarlar
+ekranının düzenlemediği her alanın aynı değerle döndüğü doğrulanıyor. Sıfırdan kurmaya geri
+dönülürse anında kırılıyor; ekrana yeni bir alan eklenip listeye yazılmazsa da kırılıyor.
+
+### 3. Düzeltilmeyen ama kayda geçen bulgular
+
+Bunlar araştırma sırasında çıktı, `YAPILACAKLAR.md` içinde numaralandırıldı, bu turda
+**düzeltilmedi**:
+
+- **Saklama süresi hiç uygulanmıyor** (§8.1). `AudioRetentionDays` ayarlar ekranında
+  düzenlenebiliyor ve "şu kadar gün sonra ses silinir" diyor, ama **silen kod yok**. `retention`
+  geçen tek yerler iki yorum (`CallOrchestrator.cs:417`, `Models.cs:115`) ve `IsPinned` sütunu.
+  **Kullanıcı kararı: arşiv zaten tutulmalı**, yani varsayılan davranış doğru ve veri kaybı riski
+  yok. Kusur, tutulmayan sözün kendisi: ya gerçekten uygulansın ya ayar kaldırılsın.
+- **`TranscriptRetentionDays` tamamen ölü** (§8.2) — tanımı dışında hiç geçmiyor.
+- **Öksüz ses dosyaları birikiyor** (§8.1b). `Discard` silemediği dosyalar için "süpürme alır"
+  diyor; süpürme yok. Veritabanında satırı olmayan görüşme sesleri kalıcı olarak kalıyor.
+- **Yanlış kişiye kayıt zinciri** (§7). Kök sebep bulundu: `CallWindows` uygulamanın kendi adı
+  olmayan her pencere başlığını kişi adı sayıyor; isimlendirme penceresindeki "bu başlığı bu
+  kişiyle eşleştir" kutusu **varsayılan olarak işaretli** (`LabelCallWindow.xaml:86`); yanlış bir
+  başlık `title_binding`'e yazılınca o başlıkla gelen **her** görüşme aynı yanlış kişiye gidiyor
+  ve `NeedsLabel` false olduğu için **kayıt ekranı hiç çıkmıyor**. Hata sessiz, kalıcı ve kendini
+  besleyen. Ayrıca `AssignContact` taşımada eski kişinin sayaçlarını güncellemiyor ve
+  `commitment`/`claim`/`flag` satırları görüşmeyle birlikte taşınmıyor.
+
+### Doğrulama
+
+```
+dotnet build VoiceTranscript.slnx -c Debug   →  0 hata, 22 uyarı
+VoiceTranscript.Tests.exe                    →  454 test, 450 geçti, 0 kırık, 4 atlandı
+pytest (worker/)                             →  56 test, 56 geçti
+```
+
+Yeni: `DataDirectoryTests` (15 test) — `--data` çözümlemesi ve ayar gidiş-dönüşü.
+
+### Ders: önce belgeyi oku
+
+`dotnet test`'in bu projede çalışmadığını araştırıp iki farklı çözüm denedim
+(`dotnet.config`, `global.json`), ikisi de işe yaramadı ve ikisini de geri aldım. **Bunların
+hepsi `docs/GELISTIRME.md` içinde zaten yazılıydı** — `test.ps1` de sebebini kendi başlığında
+açıklıyordu.
+
+> **Kural:** bir araç beklenmedik davrandığında ilk bakılacak yer `docs/GELISTIRME.md` ve bu
+> günlüktür. Bu proje tam olarak bu yüzden belge tutuyor; okumadan araştırmak, yazılı olan bir
+> cevabı ikinci kez satın almaktır.
+
+Denemenin tek kazancı, bulgunun artık kanıtla yazılmış olması: hangi iki yolun denendiği ve her
+birinin tam olarak ne döndürdüğü `docs/GELISTIRME.md` içinde tabloya alındı, bir daha denenmesin.
+
+---
+
+## 2026-08-31 (ikinci tur) — Kişi adı yakalama ve pencerelerin çağrı durumundan çıkarılması
+
+### Kullanıcının verdiği bilgi, çözümün tamamını belirledi
+
+> *"WhatsApp'ta, Telegram'da bir çağrı olunca **yeni pencerede** arayan kişinin, konuşulan kişinin
+> ismi yazıyor."*
+
+Bu, buradan doğrulanması mümkün olmayan tek şeydi — bu makine sanal, ses donanımı yok, messenger
+oturumu yok. Ve tasarımı baştan değiştirdi.
+
+**Neden bu kadar önemli:** tek bir anlık görüntüde çağrı paneli ile "o an açık sohbeti gösteren ana
+pencere" **ayırt edilemiyor**. İkisi de "başlığı uygulamanın kendi adı olmayan bir pencere". Farkı
+yaratan şey **belirme**: çağrı paneli bir saniye önce yoktu. Bu yalnızca ardışık iki anket
+karşılaştırılarak görülüyor, ve tek bir anket üzerinde ne kadar akıllıca düşünülürse düşünülsün
+bulunamazdı.
+
+### 1. Pencereler artık çağrı durumunu belirlemiyor
+
+**Asıl sebep — ve projenin kendi ilkesini ihlal etmesi.** `CallDetector`'ın kendi belgesi şunu
+yazıyor: *"Neden pencere başlıkları yerine ses oturumları: kullanıcı Windows'u Türkçe çalıştırıyor
+ve düğme veya pencere metnine dayanan her sezgisel yöntem patlamayı bekleyen bir yerelleştirme
+tuzağı."* Sonra bir pencere bayrağı içeri sızmış ve **zilin başlamasını, çağrının bitmesini ve
+kimle konuşulduğunu** birden sürmeye başlamış. Üstelik o bayrak "çağrı penceresi var" değil,
+**"messenger'ın herhangi bir penceresi var"** demekti.
+
+Üç ayrı kusur bundan doğuyordu:
+
+- **Açık sohbet penceresi = sonsuz zil.** Detektör sürekli `Ringing` kalıyor, 3 dakikada bir zil
+  zaman aşımına uğrayıp `Abandoned` üretiyordu — ve `Abandoned` **kaydı siler**. Elle başlatılmış
+  bir kayıt, var olmayan bir çağrı yüzünden her üç dakikada bir sessizce yok oluyordu.
+- **Tepsiye küçültmek = telefonu kapatmak.** Görüşme sırasında messenger'ı küçültmek kaydı tek bir
+  örnekte bitiriyordu. Kalan konuşma ayrı bir görüşme olarak dosyalanıyor, ilk parça 5 saniyenin
+  altındaysa **uyarısız siliniyordu**.
+- **Çağrıdan önceki başlık çağrıya atfediliyordu.** Bayrak detektörü sürekli `Ringing`'de tuttuğu
+  için başlık `Reset()` görmüyordu; görüşmeden dakikalar önce açık olan sohbetin adı kaydediliyordu.
+
+**Yapılan.** Pencereler tek bir soruyu cevaplıyor: *bu görüşme kiminle.* Çağrı durumu **yalnızca
+sesten** geliyor.
+
+- `CallWindowPresent` → `AppWindowPresent`. Adı artık ne olduğunu söylüyor.
+- Zil yalnızca render akışıyla başlıyor; cevapsız zil yalnızca sessizlikle kapanıyor.
+- Pencerenin kaybolması çağrıyı **bitirmiyor**. `TrustWindowDisappearance` kaldırıldı.
+- `InCall` için **4 saatlik tavan** eklendi. Sessizlik tek çıkıştı ve takılı bir ses oturumu onu
+  etkisiz bırakıyordu; kayıt uygulama kapanana kadar sürüyordu. Tavana çarpmak **normal bir
+  `Ended`** üretiyor — kayıt kayıp değil, bitmiş ve isimlendirmeye sunulmuş oluyor. Ses hâlâ
+  akıyorsa yeni bir çağrı başlıyor, ki bu doğru: aksi hâlde takılı bir oturum sonraki gerçek
+  aramayı da yutardı.
+- Uygulama atfı yalnızca sesten. Pencere varlığı iki messenger için birden doğru olabildiğinden,
+  çağrı sonundaki sessiz örneklerde atıf diğerine kayıyor ve bitmiş görüşme yanlış uygulama altında
+  raporlanıyordu.
+
+### 2. İsim yakalama
+
+- **Önek rozeti.** `IsShellTitle` yalnızca `"Telegram (3)"` biçimini biliyordu; `"(3) WhatsApp"`
+  biçimi kişi adı sayılıyordu. Arşiv **"(3) WhatsApp"** adlı bir kişi ediniyordu — ve her farklı
+  okunmamış sayısı için ayrı bir tane, her biri bir kişinin geçmişinin bir dilimini tutan. İki
+  biçim de eleniyor artık; yalnızca parantez içindeki **rakam dizisi** rozet sayılıyor, yani
+  `"Ahmet (iş)"` bozulmuyor.
+- **İlk eşleşmede durmak yok.** `Look` z-sırasındaki ilk pencerede duruyordu, yani cevap kullanıcının
+  en son neye tıkladığına bağlıydı. Artık hepsi toplanıyor ve `Choose` karar veriyor.
+- **Yeni beliren pencere kazanıyor** — yukarıdaki kullanıcı bilgisi. `Likely` güven.
+- **Belirsizlikte susuyor.** Birden fazla aday varsa ve hiçbiri yeni değilse, ön plandaki `Possible`
+  ile öneriliyor; o da yoksa **isim yazılmıyor.** Yanlış isim isimsizden kötü: isimlendirme
+  penceresindeki "hatırla" kutusu varsayılan işaretli, yani bir yanlış tahmin kalıcı bir eşleşmeye
+  dönüşüyor ve kişi "biliniyor" göründüğü için pencere bir daha hiç çıkmıyor.
+- **Doğru uygulamadan okunuyor.** `Look` ses oturumunun suçladığı uygulamayı alıyor. Önceden ses
+  Telegram derken başlık WhatsApp penceresinden gelebiliyordu; öğrenilen bağ `(başlık, app)` ile
+  anahtarlandığı için o eşleşme bir daha asla tutmuyordu.
+- **Daha iyi başlık üzerine yazabiliyor.** `TitleTrust` eklendi; `CallDetector` ilk gördüğünü
+  kilitlemek yerine daha güvenilirini kabul ediyor.
+- **Süreç listesi genişledi.** Store'dan kurulan Telegram'ın paket kimliği, Telegram çatalları
+  (AyuGram, 64Gram, Kotatogram), WhatsApp Business ve **Signal Desktop** (kullanıcı isteği).
+
+### 3. Tanı çıktısı — tahmini bitirmek için
+
+`VoiceTranscript.exe --pencereler` çalıştırıldığında, izlenen uygulamaların **bütün** görünür
+üst düzey pencereleri masaüstüne bir dosyaya yazılıyor: başlık, pencere sınıfı, boyut, ön planda
+mı, her biri için "kişi adı olabilir mi" kararı, ve seçilecek isim.
+
+Bu bilerek **ayrı** bir dosyaya yazılıyor, uygulama günlüğüne değil: çıktı kişi adı içerebilir ve
+o günlük, kullanıcıya "içinde konuşma metni, kişi adı ve API anahtarı yoktur" sözüyle paylaşılmak
+üzere veriliyor. Söz tutulmalı.
+
+> **Kural:** bu makinede doğrulanamayan bir şey hakkında tahmin yürütmek yerine, doğrulanabildiği
+> yerden veri getirecek bir araç yaz. "(3) WhatsApp" kişisi, bu kuralın yokluğunun bedeliydi.
+
+### Doğrulama
+
+```
+dotnet build VoiceTranscript.slnx -c Debug   →  0 hata
+VoiceTranscript.Tests.exe                    →  474 test, 470 geçti, 0 kırık, 4 atlandı
+```
+
+Önceki tur 454 testti; 20 yeni test eklendi. Karar `CallWindows.Choose` içinde ve **saftır** —
+Win32'ye de WPF'e de bağlı değil, dolayısıyla gerçek bir arama olmadan tamamen sınanabiliyor.
+
+**Hedef makinede sınanacak:** gerçek bir aramada isim doğru geliyor mu; gelmiyorsa `--pencereler`
+çıktısı neyi gösteriyor.
+
+---
+
+## 2026-08-31 (üçüncü tur) — Görüşme sonrası akış ve kaydı doğru kişiye taşıma
+
+Bu tur `YAPILACAKLAR` §1'i (görüşme sonrası akış) ve §7'yi (kişi onarımı) kapattı.
+
+### 1. Tespit döngüsü artık hiçbir şeyi beklemiyor
+
+**Asıl sebep.** Denetimin baş bulgusu, ilk teşhisimden ciddi biçimde kötüydü. Ben "isimlendirme
+penceresi *işlemeyi* kilitliyor" demiştim; gerçek şu: **tespitin tamamını donduruyordu.**
+
+Zincir: `Tick()` senkron ve tek bir arka plan döngüsünden çağrılıyor; `FinishRecordingAsync`
+içindeki tek `await`, `CallFinished?.Invoke`'tan **sonra**; abone `Dispatcher.Invoke` +
+`ShowDialog()` yapıyor. Sonuç: pencere ekranda kaldığı sürece döngü `Tick()` içinde park hâlinde,
+`PeriodicTimer` kaçırılan tikleri düşürüyor, ve **o sırada yapılan görüşme hiç görülmüyor** —
+satır yok, dosya yok, ses kalıcı olarak kayıp.
+
+`LabelCallWindow.xaml:9-10`'daki `Topmost="True"` + `ShowInTaskbar="False"` bunu besliyordu:
+pencere öne çıkmayı bıraktığında görev çubuğunda geri dönüş yolu yok.
+
+**Yapılan — ve neden `InvokeAsync` yetmezdi.** Denetimin uyardığı gibi, sorun `Invoke` değil,
+**örnekleme döngüsünün iş yapan iş parçacığıyla aynı olması**. `CompleteCall` senkron ve SQLite
+kilidi başkasındaysa `busy_timeout` başına 5 saniye bekliyor; cihaz açmak da senkron. İkisi de
+tespiti tek başına durdururdu.
+
+- `Tick()` artık **yalnızca örnekliyor** ve olayı bir `Channel`'a yazıp dönüyor.
+- Ayrı bir tüketici kayıt yaşam döngüsünü **sırayla** işliyor (tek kaydedici, tek geçerli çağrı
+  olduğu için sıra artık tasarımın özelliği, zamanlamanın değil).
+- İşleme **ayrı** bir kuyrukta. Yazıya dökme dakikalar sürüyor ve o sırada ne sonraki kaydın
+  alınması ne de "bu kim" sorusu bekliyor.
+- `FinishRecordingAsync`'in **tamamı** tek bir hata kapısında (kardeşi `BeginRecordingAsync` ile
+  simetrik). Yalnızca `Stop()` sarılıydı ve `async Task` senkron fırlatmadığı için çağıranın
+  `catch`'i sahte bir güvenlik ağıydı.
+- `CallFinished` artık `GetInvocationList()` üzerinden abone abone çağrılıyor. Çok abonelikli
+  delege ilk fırlatanda duruyordu: tek bir dinleyicinin hatası hem kayıt ekranını hem listeyi hem
+  de yazıya dökmeyi birden götürüyordu.
+- `Dispose` artık süren kaydı **düzgün bitiriyor**. Önceden yalnızca `Dispose` ediliyor, dönen
+  sonuç atılıyordu — görüşme sırasında çıkmak o konuşmayı kaybettiriyordu.
+- İsimlendirme penceresi tek örnek; ikisi üst üste açılıp alttaki ulaşılamaz kalamıyor.
+
+### 2. Sıradan bir görüşme de özet alıyor
+
+`AnalysisPipeline` özeti yalnızca taahhüt/iddia/bayrak bulunmuşsa yazıyordu. Söz verilmemiş,
+rakam ya da tarih geçmemiş bir konuşma — yani **görüşmelerin çoğu** — hiç özet almıyordu.
+Artık böyle bir görüşme metnin kendisinden özetleniyor. Bu yol alıntı doğrulamasından geçmediği
+için istem "metinde geçmeyen hiçbir şey ekleme" konusunda ayrıca kesin.
+
+### 3. İşleme bitince kullanıcıya söyleniyor
+
+Özet aslında **gösteriliyordu** (`ContactsPage.xaml:267`), ama hazır olduğu hiç söylenmiyordu:
+kullanıcının gidip araması gerekiyordu. `CallProcessed` olayı eklendi; işleme bitince tek satırlık
+bir bildirim çıkıyor — kim, ne kadar sürdü, özetin ilk cümlesi. Başarısızsa sebebi.
+
+### 4. Yapay zekâ servisi yoksa denenmiyor
+
+Kullanıcının uyarısı: *"hiçbir API bağlanamamışsa denemesin."* Haklıydı ve tehlikesi
+sanıldığından büyüktü — paylaşılan `HttpClient`'ın zaman aşımı **10 dakika** ve her metin parçası
+için ayrı işliyor, yani 12 parçalık bir görüşme 2 saat asılı kalıp işleme yuvasını tutuyordu.
+
+- `AppSettings.LlmReachableInPrinciple` — ağa dokunmadan, ayarlardan cevaplanıyor. Anahtarsız bir
+  bulut sağlayıcı hiç denenmiyor; metin zaten yazılmış olduğu için kaybedilen özet, görüşme değil.
+- Tek bir tamamlama isteğine **5 dakikalık** sınır kondu. Paylaşılan istemcinin 10 dakikası bir
+  saatlik sesi yüklemek için doğru, bir sohbet tamamlaması için değil.
+- **K3 düzeltildi:** `catch (OperationCanceledException)` süzgeçsizdi ve zaman aşımı tam olarak
+  onu fırlatıyordu — görüşme sessizce `Queued`'a dönüyor, "işlenemedi" listesinde hiç çıkmıyor ve
+  **her açılışta** yeniden deneniyordu. Artık yalnızca gerçek kapanış kuyruğa geri koyuyor.
+
+### 5. Kaydı doğru kişiye taşıma
+
+Kullanıcının bildirimi: *"Serdal'la yaptığım bir görüşme Uliana'nın altına kaydedilmiş."*
+
+Bu bir düzen işi değil, **doğruluk** işi — ve otomatik atıf güvenilir yapılamayacağı için kalıcı
+olarak gerekli. Messenger'ların sunduğu tek şey pencere başlığı; başlık bazen kişi, bazen o an
+açık olan sohbet, bazen okunmamış sayacı.
+
+- `AssignContact` artık **taşıma** yapabiliyor: görüşme + o görüşmeden çıkan `commitment`,
+  `claim`, `flag` satırları **tek işlemde** birlikte gidiyor. Yarım taşıma en kötüsüydü: söz bir
+  kişide, konuşma başkasında kalıyor ve iki geçmiş birden bozuluyordu — üstelik ikisi de eksiksiz
+  görünerek.
+- **İki kişinin de** sayaçları yeniden hesaplanıyor. Yalnızca hedef hesaplanıyordu; tek çağıran
+  isimsiz kaydı ilk kez atadığı için görünmüyordu.
+- `ForgetTitleBinding` + `TitleBindings` — yanlış öğrenilmiş başlık bağı çözülebiliyor ve
+  listelenebiliyor. **Taşıma tek başına yarım onarım**: bağ kalırsa o başlıkla gelen her görüşme
+  yine aynı yanlış kişiye gider, ve kişi "biliniyor" göründüğü için soru bir daha hiç sorulmaz.
+- `MergeContacts` — bir insan iki kişi olmuşsa birleştiriliyor (görüşmeler, defter, mesajlar,
+  başlık bağları; çakışan bağlarda hayatta kalanınki kalıyor).
+- `RenameContact` — `UpsertContact` ada göre eşleştiği için yeniden adlandırma ayrı bir işlem
+  olmak zorundaydı; aksi hâlde düzeltilmiş yazım ikinci bir kişi yaratıyordu.
+- Arayüz: Kişiler sayfasındaki görüşme araç çubuğunda **"Kişiyi değiştir"**. Açılan pencere var
+  olan kişiyi seçmeye **veya yenisini oluşturmaya** izin veriyor — taşınacak kişi çoğu zaman
+  henüz yok, ki zaten yanlış atamanın sebebi de o. Kaç defter kaydının birlikte taşınacağını
+  önden söylüyor ve "başlığı çöz" kutusu **varsayılan işaretli**.
+
+### 6. Duman testi boşluğu
+
+`LabelCallWindow` ve yeni `MoveCallWindow` hiçbir testte kurulmuyordu. Bu önemliydi: isimlendirme
+penceresi her yeni kişide açılıyor, ve oradaki bir markup hatası (yeniden adlandırılmış kaynak
+anahtarı, var olmayan simge) tam olarak **"kayıt ekranı çıkmadı"** belirtisini verir — kayıt
+başarısızlığından ayırt edilemez. İkisi de artık `WindowSmokeTests` içinde gerçekten kuruluyor.
+
+### Doğrulama
+
+```
+dotnet build VoiceTranscript.slnx -c Debug   →  0 hata
+VoiceTranscript.Tests.exe                    →  495 test, 491 geçti, 0 kırık, 4 atlandı
+pytest (worker/)                             →  56 test, 56 geçti
+```
+
+Önceki tur 474 testti. Yeni: `ContactRepairTests` (14), özet davranışı (3), LLM erişilebilirliği
+(4), detektör tavanı ve pencere kuralları.
+
+---
+
 ## Bu makinede doğrulanamayanlar
 
 Geliştirme makinesinde NVIDIA kartı ve ses donanımı **yok** (`Win32_SoundDevice` boş). Aşağıdakiler

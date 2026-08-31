@@ -94,8 +94,56 @@ public partial class App : Application
         // frame rather than as part of the desktop.
         Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
 
-        Paths = new AppPaths();
-        Paths.EnsureCreated();
+        // Where everything is kept is settled before anything opens a file, because the log
+        // itself has to go in the right place.
+        //
+        // Development happens on the machine this is actually used on: a real call, a real
+        // capture device and a real call window exist nowhere else, so most faults can be
+        // reproduced nowhere else either. That machine is also the one holding an archive of real
+        // conversations, and an experimental build writing into it is how a month of recordings
+        // is lost to a half-finished idea. `--data C:\vt-dev` keeps the two apart, and being
+        // careful is not a substitute for that.
+        var defaults = new AppPaths();
+
+        // Read from the default location on purpose. DataRoot is stored in settings.json, which
+        // lives inside the directory it names, so something has to break the circle — and it has
+        // to be the fixed location, or a relocated archive could never be found again.
+        var relocated = AppSettings.Load(defaults.SettingsFile).DataRoot;
+
+        if (AppPaths.DataDirectoryFrom(e.Args) is null && AppPaths.AsksForDataDirectory(e.Args))
+        {
+            // Refused rather than ignored. Carrying on with the default would point a development
+            // build straight at the real recordings — exactly what the switch was typed to avoid,
+            // and the failure would be silent until something had already been written.
+            MessageBox.Show(
+                $"{AppPaths.DataSwitch} verildi ama arkasında bir klasör yok.\n\n" +
+                $"Doğru kullanım:  VoiceTranscript.exe {AppPaths.DataSwitch} C:\\vt-dev\n\n" +
+                "Varsayılan klasörle devam edilmedi: amaç zaten oraya dokunmamaktı.",
+                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            Shutdown();
+            return;
+        }
+
+        Paths = new AppPaths(AppPaths.ResolveRoot(e.Args, relocated, defaults.Root));
+
+        try
+        {
+            Paths.EnsureCreated();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+                                              or ArgumentException or NotSupportedException)
+        {
+            // Said out loud rather than crashed on. A mistyped path or a folder on a drive that is
+            // not there would otherwise surface as an unhandled exception before the log exists,
+            // which reports nothing to anybody.
+            MessageBox.Show(
+                $"Veri klasörü hazırlanamadı:\n\n{Paths.Root}\n\n{exception.Message}",
+                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Error);
+
+            Shutdown();
+            return;
+        }
 
         // Opened before anything else that can fail.
         //
@@ -106,12 +154,41 @@ public partial class App : Application
         AppLog.Start(Paths.Logs, VersionString());
         HookCrashReporting();
 
+        // A one-shot dump of every window the watched applications have, then exit.
+        //
+        // Which window a call puts a name in cannot be established where this is written — the
+        // development machine is a virtual one with no audio hardware and no signed-in messenger.
+        // Guessing at it has already cost this project a wrong contact for every unread count, so
+        // the way to settle it is to look, on the machine where calls happen, while a call is
+        // actually up.
+        //
+        // Not folded into the ordinary log on purpose: this output can contain a contact's name,
+        // and that log is offered to the user to send to somebody else on the written promise that
+        // it carries no such thing. This is produced only when asked for, into a file the user
+        // chooses to share or not.
+        if (e.Args.Any(a => string.Equals(a, WindowDumpSwitch, StringComparison.OrdinalIgnoreCase)))
+        {
+            DumpWindowsAndExit();
+            return;
+        }
+
         Settings = AppSettings.Load(Paths.SettingsFile);
 
         // Before any window exists. The strings are resolved by a markup extension while the
         // markup is parsed, so a language chosen after a page has been built does not reach it —
         // which is why changing it asks for a restart rather than pretending to apply live.
         Localisation.Use(Settings.UiLanguage);
+
+        // The data directory is logged first, and by name.
+        //
+        // Everything else in the log is about a database, a recording or a setting, and all three
+        // depend on which directory is in use. A log that does not say which one it was is
+        // ambiguous the moment a development build with --data exists, and that ambiguity would
+        // land exactly when somebody is trying to work out why a conversation is not where they
+        // left it.
+        AppLog.Write("app", Paths.Root == new AppPaths().Root
+            ? $"Veri klasörü: {Paths.Root}"
+            : $"Veri klasörü: {Paths.Root}  (varsayılan DEĞİL)");
 
         AppLog.Write("app", $"Ayarlar okundu: mod={Settings.AsrMode}, model={Settings.AsrModelId}, " +
                             $"otomatik kayıt={Settings.RecordAutomatically}, dil={Settings.UiLanguage}");
@@ -204,6 +281,58 @@ public partial class App : Application
 
         // Anything left queued by a crash or a shutdown mid-transcription is picked up now.
         _ = Task.Run(() => Orchestrator.ProcessBacklogAsync());
+    }
+
+    /// <summary>Asks what windows WhatsApp, Telegram and Signal currently have, then quits.</summary>
+    public const string WindowDumpSwitch = "--pencereler";
+
+    /// <summary>
+    /// Writes what the window watcher can see to a file and opens it.
+    ///
+    /// Run this <i>while a call is ringing or connected</i>. What it prints is the entire input to
+    /// the naming decision — every visible top-level window of a watched application, its title,
+    /// class, size, whether it is in front, and the verdict reached for each — followed by the name
+    /// that would have been chosen. If a conversation is filed under the wrong person, this says
+    /// why in one step instead of a round trip of guesses.
+    /// </summary>
+    private void DumpWindowsAndExit()
+    {
+        var file = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+            "voicetranscript-pencereler.txt");
+
+        try
+        {
+            using var watcher = new Capture.AudioSessionWatcher();
+
+            var report =
+                "VoiceTranscript — pencere tanısı" + Environment.NewLine
+                + $"{DateTimeOffset.Now:dd.MM.yyyy HH:mm:ss}" + Environment.NewLine
+                + Environment.NewLine
+                + "UYARI: aşağıdaki başlıklar kişi adı içerebilir. Paylaşmadan önce oku."
+                + Environment.NewLine + Environment.NewLine
+                + watcher.DescribeWindows(DateTimeOffset.Now);
+
+            File.WriteAllText(file, report);
+
+            MessageBox.Show(
+                $"Pencere listesi yazıldı:\n\n{file}\n\nEn iyi sonuç için bunu bir arama "
+                + "çalarken veya görüşme sürerken çalıştır.",
+                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(file)
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                $"Pencere listesi alınamadı:\n\n{exception.Message}",
+                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+
+        Shutdown();
     }
 
     /// <summary>Opens the setup wizard. Also reachable from the main window at any time.</summary>

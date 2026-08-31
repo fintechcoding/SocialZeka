@@ -247,18 +247,84 @@ public sealed class Repository(Database database)
             new { state = (int)state, failureReason, callId });
     }
 
-    /// <summary>Assigns a contact and keeps the denormalised counters on `contact` in step.</summary>
-    public void AssignContact(long callId, long contactId)
+    /// <summary>
+    /// Puts a call under a contact, moving everything the call produced along with it.
+    ///
+    /// <b>Everything, and in one transaction.</b> A call is not just a row: the commitments,
+    /// claims and flags extracted from it each carry their own <c>contact_id</c>, and moving only
+    /// the call would leave the promise filed under one person and the conversation it was made in
+    /// under another. That corrupts two histories at once and does it invisibly — both look
+    /// complete, and the ledger simply stops noticing that a price moved or a deadline slipped.
+    ///
+    /// <b>Both contacts are recounted, not just the new one.</b> The counters are derived from the
+    /// calls rather than incremented, but only the destination used to be recalculated — so the
+    /// contact a call was moved <i>away</i> from kept claiming it. That did not show while the only
+    /// caller assigned a previously unassigned call; it appears the moment moving is possible,
+    /// which is what this method exists for.
+    ///
+    /// Safe to call when the call is already under <paramref name="contactId"/>, and safe when it
+    /// had no contact at all — that is how a newly recorded call is labelled for the first time.
+    /// </summary>
+    /// <returns>The contact the call was taken from, if it had one.</returns>
+    public long? AssignContact(long callId, long contactId)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
+
+        var previous = connection.QueryFirstOrDefault<long?>(
+            "SELECT contact_id FROM call WHERE id = @callId;", new { callId }, transaction);
 
         connection.Execute(
             "UPDATE call SET contact_id = @contactId WHERE id = @callId;",
             new { contactId, callId }, transaction);
 
-        // Derived from the calls themselves rather than incremented, so reassigning a call can
-        // never leave a stale count behind.
+        // The ledger entries this call produced travel with it. Scoped by call_id rather than by
+        // the old contact, so a call that had no contact yet is handled by the same statement.
+        foreach (var table in LedgerTables)
+        {
+            connection.Execute(
+                $"UPDATE {table} SET contact_id = @contactId WHERE call_id = @callId;",
+                new { contactId, callId }, transaction);
+        }
+
+        Recount(connection, transaction, contactId);
+        if (previous is { } from && from != contactId) Recount(connection, transaction, from);
+
+        transaction.Commit();
+
+        return previous == contactId ? null : previous;
+    }
+
+    /// <summary>
+    /// Tables whose rows belong to a contact by way of the call they came from.
+    ///
+    /// Listed once so that adding another derived table is a single edit rather than a bug that
+    /// only appears after somebody moves a call.
+    /// </summary>
+    private static readonly string[] LedgerTables = ["commitment", "claim", "flag"];
+
+    /// <summary>
+    /// How many ledger rows a call produced.
+    ///
+    /// Shown before a move is confirmed. A call is not one row — the promises, figures and flags
+    /// taken out of it are filed against the same person and travel with it — and somebody moving
+    /// a conversation to a different contact is also moving those, which is not obvious and is
+    /// worth saying before rather than after.
+    /// </summary>
+    public int CountLedgerEntriesForCall(long callId)
+    {
+        using var connection = Open();
+
+        return LedgerTables.Sum(table => connection.ExecuteScalar<int>(
+            $"SELECT COUNT(*) FROM {table} WHERE call_id = @callId;", new { callId }));
+    }
+
+    /// <summary>Recomputes a contact's denormalised counters from the calls themselves.</summary>
+    private static void Recount(
+        Microsoft.Data.Sqlite.SqliteConnection connection,
+        Microsoft.Data.Sqlite.SqliteTransaction transaction,
+        long contactId)
+    {
         connection.Execute(
             """
             UPDATE contact SET
@@ -267,8 +333,165 @@ public sealed class Repository(Database database)
             WHERE id = @contactId;
             """,
             new { contactId }, transaction);
+    }
+
+    /// <summary>
+    /// Forgets a learned title-to-contact pairing.
+    ///
+    /// The reason a call lands under the wrong person is usually not a one-off mistake: the
+    /// labelling dialog offers to remember the window title, that box is ticked by default, and a
+    /// title that was not really a name — the conversation that happened to be open, an unread
+    /// badge — gets bound to whoever was chosen. Every later call showing that title then resolves
+    /// to the same wrong contact, and because the contact now looks known the dialog stops
+    /// appearing, so nobody is ever asked again.
+    ///
+    /// Moving the call fixes the past. Removing the binding is what stops it happening again, and
+    /// one without the other is half a repair.
+    /// </summary>
+    public int ForgetTitleBinding(string title, CallApp app)
+    {
+        var pattern = TurkishText.StripFormatting(title);
+        if (pattern.Length == 0) return 0;
+
+        using var connection = Open();
+        return connection.Execute(
+            "DELETE FROM title_binding WHERE title_pattern = @pattern AND app = @app;",
+            new { pattern, app = (int)app });
+    }
+
+    /// <summary>Every learned title pairing, newest first, so they can be reviewed and removed.</summary>
+    public IReadOnlyList<(long Id, string Title, long ContactId, string ContactName, CallApp App, int TimesUsed)>
+        TitleBindings()
+    {
+        using var connection = Open();
+
+        return [.. connection.Query<(long, string, long, string, int, int)>(
+                """
+                SELECT b.id, b.title_pattern, b.contact_id, c.name, b.app, b.times_used
+                FROM title_binding b
+                JOIN contact c ON c.id = b.contact_id
+                ORDER BY b.last_used_at DESC;
+                """)
+            .Select(r => (r.Item1, r.Item2, r.Item3, r.Item4, (CallApp)r.Item5, r.Item6))];
+    }
+
+    /// <summary>
+    /// Folds one contact into another and removes the empty one.
+    ///
+    /// One person routinely ends up as two rows here, and the causes are ordinary rather than
+    /// exotic: a window title that was not a name created a contact, the same name was typed with
+    /// a different capitalisation, or the two arrived from different applications — contacts are
+    /// keyed on <c>(name, app)</c>, so "Ahmet" on WhatsApp and "Ahmet" on Telegram are already two
+    /// people as far as the archive is concerned.
+    ///
+    /// The cost of leaving them split is not cosmetic. Everything this product is for — noticing
+    /// that a price moved between two calls, that a promise came due, that an account of events
+    /// changed — is computed per contact, and a split history makes both halves look complete
+    /// while the comparison across them silently never happens.
+    ///
+    /// Everything moves: calls, the ledger rows those calls produced, imported messages, and the
+    /// learned title bindings. Bindings that would collide are dropped rather than merged, because
+    /// a pattern can only point at one contact and the surviving one is the destination by
+    /// definition.
+    /// </summary>
+    /// <returns>How many calls were moved.</returns>
+    public int MergeContacts(long fromContactId, long intoContactId)
+    {
+        if (fromContactId == intoContactId) return 0;
+
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        var moved = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM call WHERE contact_id = @fromContactId;",
+            new { fromContactId }, transaction);
+
+        connection.Execute(
+            "UPDATE call SET contact_id = @intoContactId WHERE contact_id = @fromContactId;",
+            new { intoContactId, fromContactId }, transaction);
+
+        foreach (var table in LedgerTables)
+        {
+            connection.Execute(
+                $"UPDATE {table} SET contact_id = @intoContactId WHERE contact_id = @fromContactId;",
+                new { intoContactId, fromContactId }, transaction);
+        }
+
+        connection.Execute(
+            "UPDATE message SET contact_id = @intoContactId WHERE contact_id = @fromContactId;",
+            new { intoContactId, fromContactId }, transaction);
+
+        // A title can only be bound to one contact, and (title_pattern, app) is unique. Where both
+        // contacts learned the same pattern, the destination's binding is the one that survives.
+        connection.Execute(
+            """
+            DELETE FROM title_binding
+            WHERE contact_id = @fromContactId
+              AND EXISTS (
+                  SELECT 1 FROM title_binding other
+                  WHERE other.contact_id    = @intoContactId
+                    AND other.title_pattern = title_binding.title_pattern
+                    AND other.app           = title_binding.app);
+            """,
+            new { fromContactId, intoContactId }, transaction);
+
+        connection.Execute(
+            "UPDATE title_binding SET contact_id = @intoContactId WHERE contact_id = @fromContactId;",
+            new { intoContactId, fromContactId }, transaction);
+
+        // Deleted last, once nothing points at it. ON DELETE CASCADE would otherwise take the
+        // rows that were just moved.
+        connection.Execute("DELETE FROM contact WHERE id = @fromContactId;", new { fromContactId }, transaction);
+
+        Recount(connection, transaction, intoContactId);
 
         transaction.Commit();
+
+        return moved;
+    }
+
+    /// <summary>
+    /// Changes a contact's name in place.
+    ///
+    /// Needed as its own operation because <see cref="UpsertContact"/> matches on the normalised
+    /// name: passing a new one there creates a second person rather than renaming the first, which
+    /// is the opposite of what somebody correcting a spelling wants.
+    /// </summary>
+    /// <returns>False when another contact of the same application already holds that name.</returns>
+    public bool RenameContact(long contactId, string name)
+    {
+        var trimmed = TurkishText.StripFormatting(name);
+        if (trimmed.Length == 0) return false;
+
+        using var connection = Open();
+
+        var app = connection.QueryFirstOrDefault<int?>(
+            "SELECT app FROM contact WHERE id = @contactId;", new { contactId });
+
+        if (app is null) return false;
+
+        // The same folding UpsertContact uses, so "Işık" and "isik" are recognised as the same
+        // person here too. Renaming into a name that already exists must be caught by the same
+        // rule that would have matched them on the way in.
+        var normalised = TurkishText.NormalizeForSearch(trimmed);
+
+        var taken = connection.ExecuteScalar<long?>(
+            """
+            SELECT id FROM contact
+            WHERE name_normalised = @normalised AND app = @app AND id <> @contactId
+            LIMIT 1;
+            """,
+            new { normalised, app, contactId });
+
+        // Refused rather than silently merged. Two people with one name is a decision the user has
+        // to make, and merging is available for when that is what they meant.
+        if (taken is not null) return false;
+
+        connection.Execute(
+            "UPDATE contact SET name = @trimmed, name_normalised = @normalised WHERE id = @contactId;",
+            new { trimmed, normalised, contactId });
+
+        return true;
     }
 
     public Call? GetCall(long id)

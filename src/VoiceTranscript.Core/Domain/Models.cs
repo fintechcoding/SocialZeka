@@ -5,6 +5,14 @@ public enum CallApp
     Unknown = 0,
     WhatsApp = 1,
     Telegram = 2,
+
+    /// <summary>
+    /// Signal Desktop.
+    ///
+    /// The numbers are stored in the database, so this may only ever be appended to. Renumbering
+    /// would silently re-attribute every call already recorded.
+    /// </summary>
+    Signal = 3,
 }
 
 public enum CallDirection

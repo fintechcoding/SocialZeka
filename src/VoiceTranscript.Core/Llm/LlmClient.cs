@@ -88,6 +88,9 @@ public sealed class OpenAiCompatibleClient(
 
     public LlmProviderKind Kind => kind;
 
+    /// <summary>How long a single completion may take before it is treated as unreachable.</summary>
+    public static readonly TimeSpan RequestTimeout = TimeSpan.FromMinutes(5);
+
     public async Task<LlmResponse> CompleteAsync(LlmRequest request, CancellationToken cancellationToken = default)
     {
         try
@@ -183,14 +186,37 @@ public sealed class OpenAiCompatibleClient(
         if (!string.IsNullOrWhiteSpace(apiKey))
             message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
+        // One request gets its own deadline, shorter than the shared client's.
+        //
+        // That client is configured with a ten-minute timeout because uploading an hour of audio
+        // for transcription legitimately takes that long. A chat completion does not, and letting
+        // it inherit ten minutes is what turned an endpoint that accepts connections but never
+        // answers — a crashed local server, a proxy swallowing the request — into a stall that
+        // held the processing slot while every new recording queued up behind it.
+        //
+        // Five minutes rather than something tight: a local model generating on the processor is
+        // genuinely slow, and cutting off a real answer would be a worse failure than waiting.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(RequestTimeout);
+
         HttpResponseMessage response;
         try
         {
-            response = await http.SendAsync(message, cancellationToken);
+            response = await http.SendAsync(message, deadline.Token);
         }
         catch (HttpRequestException e)
         {
             throw new LlmException($"{kind} adresine ulaşılamadı ({baseUrl}): {e.Message}", e);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Ours, not the caller's: the endpoint took too long. Reported as a reachability
+            // failure rather than a cancellation, because that is what it is — and because a
+            // cancellation would be mistaken for a shutdown and put the call back in the queue to
+            // be retried against the same dead endpoint on every start.
+            throw new LlmException(
+                $"{kind} {RequestTimeout.TotalMinutes:0} dakika içinde yanıt vermedi ({baseUrl}). "
+                + "Servis çalışmıyor ya da erişilemiyor olabilir.");
         }
 
         using (response)

@@ -13,6 +13,19 @@ public enum CallState
     InCall,
 }
 
+/// <summary>How far a window title can be trusted to name the person on the call.</summary>
+/// <remarks>
+/// Mirrors <c>VoiceTranscript.Capture.TitleConfidence</c>. Duplicated rather than referenced
+/// because <c>Core</c> does not depend on <c>Capture</c> — and must not, since that dependency
+/// would drag Win32 into the one layer that can be tested on a machine with no audio hardware.
+/// </remarks>
+public enum TitleTrust
+{
+    None = 0,
+    Possible = 1,
+    Likely = 2,
+}
+
 /// <summary>One observation of the world, taken roughly once a second.</summary>
 public readonly record struct DetectionSample(
     DateTimeOffset At,
@@ -23,13 +36,29 @@ public readonly record struct DetectionSample(
     /// <summary>A target process has an active capture session — the microphone is open.</summary>
     bool Capturing,
 
-    /// <summary>A window matching the app's call-window signature exists.</summary>
-    bool CallWindowPresent,
+    /// <summary>
+    /// A watched application has a visible top-level window.
+    ///
+    /// This means "the messenger is open", <b>not</b> "a call is happening", and nothing in this
+    /// state machine may treat it as the latter. It used to: the flag was called
+    /// <c>CallWindowPresent</c>, it was set by any window the application had, and it decided both
+    /// when ringing started and when a call ended. A chat window left open therefore held the
+    /// detector in <see cref="CallState.Ringing"/> indefinitely — which discarded hand-started
+    /// recordings every three minutes when the ring timed out — and closing the messenger to the
+    /// tray ended a live call mid-sentence.
+    ///
+    /// It is kept because it is genuinely useful for one thing: knowing whether reading a title
+    /// was even possible. It is not evidence of a call.
+    /// </summary>
+    bool AppWindowPresent,
 
-    /// <summary>Title of that window, when there is one. Telegram puts the contact's name here.</summary>
+    /// <summary>Title of a window that appears to name the counterpart, when one was identified.</summary>
     string? WindowTitle = null,
 
-    CallApp App = CallApp.Unknown);
+    CallApp App = CallApp.Unknown,
+
+    /// <summary>How far <see cref="WindowTitle"/> can be trusted.</summary>
+    TitleTrust TitleTrust = TitleTrust.None);
 
 public enum CallEventKind
 {
@@ -72,6 +101,7 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
     private DateTimeOffset? _callStartedAt;
     private DateTimeOffset? _ringingSince;
     private string? _observedTitle;
+    private TitleTrust _titleTrust;
     private CallApp _app;
 
     public CallState State { get; private set; } = CallState.Idle;
@@ -95,16 +125,35 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
         _renderStreak = sample.Rendering ? _renderStreak + 1 : 0;
         _captureStreak = sample.Capturing ? _captureStreak + 1 : 0;
 
-        // Only attribute the app when there is actually a signal. An idle sample carries no
-        // information about which app we are watching, and letting it write here would leave
-        // stale attribution behind after a call ends.
-        if (sample.App != CallApp.Unknown && (sample.Rendering || sample.Capturing || sample.CallWindowPresent))
+        // Which application is on the call is decided by audio, never by a window.
+        //
+        // An open window is not evidence: both messengers can be open at once, so a sample where
+        // only that flag was set could re-attribute a live call to whichever application the
+        // window enumeration happened to reach. That is not hypothetical — it rewrote the
+        // attribution during the silent samples at the end of a call, so the finished call was
+        // reported under the wrong application, the labelling dialog announced the wrong one, and
+        // the learned title binding was stored under a key that could never match again.
+        //
+        // An idle sample still carries no information and must not write here either, or stale
+        // attribution outlives the call it belonged to.
+        if (sample.App != CallApp.Unknown && (sample.Rendering || sample.Capturing))
             _app = sample.App;
 
-        // Keep the first non-empty title: Telegram renames its window as participants change,
-        // and the earliest value is the one that names the person who was called.
-        if (string.IsNullOrEmpty(_observedTitle) && !string.IsNullOrWhiteSpace(sample.WindowTitle))
+        // Keep the best title seen, not merely the first.
+        //
+        // Keeping the first was wrong in a way that showed up as calls filed under the wrong
+        // person. A title is observable before the call connects — the messenger's main window
+        // carries whichever conversation is on screen — so the first value seen was often the chat
+        // the user happened to have open, and once stored it could never be corrected even when
+        // the call panel appeared a second later carrying the actual name. Confidence makes the
+        // later, better answer win; equal confidence still keeps the earlier one, because during a
+        // call a title change means participants changed, not that the first was wrong.
+        if (!string.IsNullOrWhiteSpace(sample.WindowTitle)
+            && (string.IsNullOrEmpty(_observedTitle) || sample.TitleTrust > _titleTrust))
+        {
             _observedTitle = sample.WindowTitle;
+            _titleTrust = sample.TitleTrust;
+        }
 
         var quiet = !sample.Rendering && !sample.Capturing;
         if (quiet) _quietSince ??= sample.At;
@@ -121,10 +170,19 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
 
     private CallEvent? FromIdle(DetectionSample sample)
     {
-        // A call window appearing is instant and unambiguous, so it does not wait for a streak.
-        var ringing = sample.CallWindowPresent || _renderStreak >= _options.SamplesToRing;
-
-        if (!ringing) return null;
+        // Ringing is decided by audio alone.
+        //
+        // A window used to be able to declare it on its own, on the reasoning that a call window
+        // appearing is instant and unambiguous. The flag did not mean that: it meant the
+        // application had any window at all. So leaving Telegram open put the detector into
+        // Ringing and kept it there, and three minutes later the ring timed out as Abandoned —
+        // which deletes the recording in progress. Somebody using hand-started recording lost it
+        // roughly every three minutes, silently, to a call that never existed.
+        //
+        // Audio is the honest signal, and it is the one this class was written around: a process
+        // holding a render session is playing something, and after two consecutive samples that
+        // something is a ringtone rather than a notification.
+        if (_renderStreak < _options.SamplesToRing) return null;
 
         State = CallState.Ringing;
         _ringingSince = sample.At;
@@ -140,10 +198,14 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
             return EnterCall(sample);
 
         // Declined, missed, or cancelled: it never became a conversation.
-        var windowGone = !sample.CallWindowPresent;
+        //
+        // Judged on silence alone now. The window condition that used to sit alongside it could
+        // not be satisfied while the messenger was open, so a ring that was never answered stayed
+        // Ringing until MaxRingingDuration — three minutes of the recorder believing a call was
+        // about to start.
         var silentLongEnough = _quietSince is { } since && sample.At - since >= _options.RingingTimeout;
 
-        if (windowGone && silentLongEnough)
+        if (silentLongEnough)
         {
             var at = sample.At;
             Reset();
@@ -163,24 +225,34 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
 
     private CallEvent? FromInCall(DetectionSample sample)
     {
-        // The window vanishing is conclusive: the call UI is gone, so the call is over. No need
-        // to wait out the audio hysteresis on top of it.
-        if (_options.TrustWindowDisappearance && !sample.CallWindowPresent && _sawCallWindow)
+        // Silence ends a call. A disappearing window does not.
+        //
+        // It used to, on the reasoning that the call UI going away is conclusive. But the flag
+        // meant "the application has a window", so minimising the messenger to the tray — an
+        // ordinary thing to do while talking — ended the recording on a single sample. The rest of
+        // the conversation was then filed as a separate call, and if the first fragment came in
+        // under five seconds it was deleted outright with no notice at all.
+        if (_quietSince is { } since && sample.At - since >= _options.SilenceBeforeEnd)
             return EndCall(sample);
 
-        if (_quietSince is { } since && sample.At - since >= _options.SilenceBeforeEnd)
+        // Nothing else can end a call, so something has to bound it.
+        //
+        // Both audio streams can stay nominally active after a call really ends — a client that
+        // keeps its session open, a driver that never reports the change — and there was no
+        // ceiling at all on this state, only on ringing. The result was a recording that ran until
+        // the application was closed: an ever-growing file, a microphone left open, and no
+        // finished call to show the user. A ceiling turns that from a silent loss into a long
+        // recording that at least exists and can be trimmed.
+        if (_callStartedAt is { } started && sample.At - started >= _options.MaxCallDuration)
             return EndCall(sample);
 
         return null;
     }
 
-    private bool _sawCallWindow;
-
     private CallEvent EnterCall(DetectionSample sample)
     {
         State = CallState.InCall;
         _callStartedAt = sample.At;
-        _sawCallWindow = sample.CallWindowPresent;
 
         return new CallEvent(CallEventKind.Started, sample.At, _app, _observedTitle, TimeSpan.Zero);
     }
@@ -207,7 +279,7 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
         _callStartedAt = null;
         _ringingSince = null;
         _observedTitle = null;
-        _sawCallWindow = false;
+        _titleTrust = TitleTrust.None;
         _app = CallApp.Unknown;
     }
 }
@@ -234,8 +306,16 @@ public sealed record CallDetectorOptions
     public TimeSpan MaxRingingDuration { get; init; } = TimeSpan.FromMinutes(3);
 
     /// <summary>
-    /// Whether the call window disappearing ends the call immediately. True for apps whose call
-    /// window is reliably detected; false falls back to the audio timeout alone.
+    /// The longest a single call is allowed to run before it is closed off regardless.
+    ///
+    /// A ceiling exists because the only other way out of <see cref="CallState.InCall"/> is
+    /// sustained silence on both streams, and a client or driver that leaves a session nominally
+    /// active defeats that — leaving a recording running with no way to finish. Four hours is
+    /// past any conversation this is built for and well short of filling a disk.
+    ///
+    /// Reaching it produces an ordinary <see cref="CallEventKind.Ended"/>, so the recording is
+    /// kept, written to its row and offered for labelling like any other. Losing it would be the
+    /// worse failure by far.
     /// </summary>
-    public bool TrustWindowDisappearance { get; init; } = true;
+    public TimeSpan MaxCallDuration { get; init; } = TimeSpan.FromHours(4);
 }

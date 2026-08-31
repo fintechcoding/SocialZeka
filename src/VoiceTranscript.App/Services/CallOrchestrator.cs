@@ -33,6 +33,26 @@ public sealed record CallFinished(
     bool HasSilentStream);
 
 /// <summary>
+/// A recording has been through transcription and analysis, for better or worse.
+///
+/// Raised so that finishing is something the user is <i>told</i> about rather than something they
+/// have to go and check. Until this existed, the end of processing changed a state field and
+/// nothing else: the summary was written to the database and displayed on the contact's page, and
+/// the only way to discover it was there was to navigate to that page and select the call. Asked
+/// afterwards what the conversation was about, the product had an answer and no way to say it.
+/// </summary>
+/// <param name="ContactName">Who it was with, or a placeholder when nobody has said yet.</param>
+/// <param name="Summary">The written summary, when one was produced.</param>
+/// <param name="Failure">Why it did not finish, when it did not.</param>
+public sealed record CallProcessed(
+    long CallId,
+    string ContactName,
+    TimeSpan Duration,
+    string? Summary,
+    bool Succeeded,
+    string? Failure);
+
+/// <summary>
 /// The background loop that ties everything together.
 ///
 /// Watch audio sessions once a second, record while a call is up, and once it ends put the
@@ -105,6 +125,9 @@ public sealed class CallOrchestrator : IDisposable
     /// <summary>Raised when a call has been recorded, so the user can label and keep or discard it.</summary>
     public event EventHandler<CallFinished>? CallFinished;
 
+    /// <summary>Raised when a recording has finished being transcribed and analysed, or has failed.</summary>
+    public event EventHandler<CallProcessed>? CallProcessed;
+
     public event EventHandler<string>? Notice;
 
     /// <summary>
@@ -117,15 +140,56 @@ public sealed class CallOrchestrator : IDisposable
     /// </summary>
     public event EventHandler<(double Mic, double Far)>? LevelChanged;
 
+    /// <summary>
+    /// Detected events on their way to the worker that acts on them.
+    /// </summary>
+    /// <remarks>
+    /// Unbounded because dropping one would mean losing a conversation, and because the producer
+    /// emits at most one event per second while the consumer takes milliseconds per event except
+    /// when it is deliberately waiting — which is exactly the case this channel exists to absorb.
+    /// </remarks>
+    private readonly System.Threading.Channels.Channel<CallEvent> _work =
+        System.Threading.Channels.Channel.CreateUnbounded<CallEvent>(
+            new System.Threading.Channels.UnboundedChannelOptions
+            {
+                SingleReader = true,
+                SingleWriter = true,
+            });
+
+    /// <summary>Recordings waiting to be transcribed and analysed.</summary>
+    private readonly System.Threading.Channels.Channel<long> _processing =
+        System.Threading.Channels.Channel.CreateUnbounded<long>(
+            new System.Threading.Channels.UnboundedChannelOptions { SingleReader = true });
+
+    private Task? _recordingWorker;
+    private Task? _processor;
+
     public void Start()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_loop is not null) return;
 
         _cts = new CancellationTokenSource();
+
         _loop = Task.Run(() => WatchAsync(_cts.Token));
+        _recordingWorker = Task.Run(() => WorkAsync(_cts.Token));
+        _processor = Task.Run(() => ProcessQueueAsync(_cts.Token));
     }
 
+    /// <summary>
+    /// Samples the world once a second and writes what it finds to the work channel.
+    ///
+    /// <b>This loop must never wait for anything, and that is the whole point of it.</b> It used
+    /// to do the work itself, and the work included opening audio devices, writing to SQLite —
+    /// which blocks for up to five seconds when another writer holds the lock — and, through an
+    /// event subscriber, showing a modal dialog. While any of that ran, no sample was taken. A
+    /// dialog left on screen therefore froze detection completely: a call made during that time
+    /// produced no row, no file and no recording at all, and the audio was gone for good.
+    ///
+    /// Note that making the dialog asynchronous would not have been enough. The database wait and
+    /// the device open are synchronous and would stall sampling on their own. The invariant has to
+    /// be that this loop samples and does nothing else.
+    /// </summary>
     private async Task WatchAsync(CancellationToken cancellationToken)
     {
         using var ticker = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -155,38 +219,113 @@ public sealed class CallOrchestrator : IDisposable
         var callEvent = _detector.Observe(sample);
         UpdateState();
 
-        switch (callEvent?.Kind)
+        // Handing the event over is a queue write and returns immediately. Everything that can
+        // block — devices, database, dialogs — happens on the worker.
+        if (callEvent is not null) _work.Writer.TryWrite(callEvent);
+    }
+
+    /// <summary>
+    /// Acts on detected events, one at a time, off the sampling loop.
+    ///
+    /// Serialised on purpose. Recording has a single recorder and a single current call, and the
+    /// previous arrangement started each event on a thread-pool thread with no ordering at all —
+    /// so a call ending could overlap the next one starting and the two would write over each
+    /// other's fields. One consumer makes the ordering a property of the design rather than of
+    /// timing.
+    /// </summary>
+    private async Task WorkAsync(CancellationToken cancellationToken)
+    {
+        try
         {
-            case CallEventKind.Started:
-                // The switch is honoured here rather than by stopping the watcher, so that the
-                // status card can still say "a call is happening and I am deliberately not
-                // recording it" — which is the reassurance somebody who turned it off wants.
-                //
-                // This setting existed from the beginning and was never read anywhere, so
-                // automatic recording could not in fact be turned off by any means.
-                if (!settings.RecordAutomatically)
+            await foreach (var callEvent in _work.Reader.ReadAllAsync(cancellationToken))
+            {
+                var settings = _settings();
+
+                try
                 {
-                    Notice?.Invoke(this, "Otomatik kayıt kapalı — bu görüşme kaydedilmiyor.");
-                    break;
+                    switch (callEvent.Kind)
+                    {
+                        case CallEventKind.Started:
+                            // The switch is honoured here rather than by stopping the watcher, so
+                            // that the status card can still say "a call is happening and I am
+                            // deliberately not recording it" — which is the reassurance somebody
+                            // who turned it off wants.
+                            if (!settings.RecordAutomatically)
+                            {
+                                Notice?.Invoke(this, "Otomatik kayıt kapalı — bu görüşme kaydedilmiyor.");
+                                break;
+                            }
+
+                            await BeginRecordingAsync(callEvent, settings);
+                            break;
+
+                        case CallEventKind.Ended:
+                            await FinishRecordingAsync(callEvent, settings);
+                            break;
+
+                        case CallEventKind.Abandoned:
+                            DiscardRecording();
+                            break;
+                    }
                 }
-
-                _ = BeginRecordingAsync(callEvent, settings);
-                break;
-
-            case CallEventKind.Ended:
-                _ = FinishRecordingAsync(callEvent, settings);
-                break;
-
-            case CallEventKind.Abandoned:
-                DiscardRecording();
-                break;
+                catch (Exception e)
+                {
+                    // The worker must outlive any single event. If it died, every later call would
+                    // be detected and then silently ignored — the recorder would look alive and
+                    // record nothing.
+                    AppLog.Error("kayıt", e, $"{callEvent.Kind} işlenemedi");
+                    Notice?.Invoke(this, $"Kayıt işlenemedi: {e.Message}");
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down.
         }
     }
+
+    /// <summary>
+    /// Transcribes and analyses finished recordings, one at a time.
+    ///
+    /// Separate from the recording worker because the two have wildly different durations and must
+    /// not share a queue: transcription and analysis take minutes, and while they ran nothing else
+    /// could happen — not the next call's recording, and not the question asking who the last one
+    /// was with. Recording is now never behind processing.
+    /// </summary>
+    private async Task ProcessQueueAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var callId in _processing.Reader.ReadAllAsync(cancellationToken))
+            {
+                try
+                {
+                    await ProcessAsync(callId, _settings(), cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    AppLog.Error("işleme", e, $"görüşme #{callId} işlenemedi");
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down.
+        }
+    }
+
+    /// <summary>Puts a recording in the queue to be transcribed and analysed.</summary>
+    public void Enqueue(long callId) => _processing.Writer.TryWrite(callId);
 
     private static bool IsWatched(CallApp app, AppSettings settings) => app switch
     {
         CallApp.WhatsApp => settings.RecordWhatsApp,
         CallApp.Telegram => settings.RecordTelegram,
+        CallApp.Signal => settings.RecordSignal,
         _ => true, // Unknown means no target process is active; the detector handles that.
     };
 
@@ -261,10 +400,12 @@ public sealed class CallOrchestrator : IDisposable
     /// that was busy, a rate limit, a model that had not finished downloading. Making somebody
     /// re-record a conversation because of that would be absurd, and impossible anyway.
     /// </summary>
-    public async Task ReprocessAsync(long callId, CancellationToken cancellationToken = default)
+    public Task ReprocessAsync(long callId, CancellationToken cancellationToken = default)
     {
         _repository.SetCallState(callId, ProcessingState.Queued);
-        await ProcessAsync(callId, _settings(), cancellationToken);
+        Enqueue(callId);
+
+        return Task.CompletedTask;
     }
 
     private async Task BeginRecordingAsync(CallEvent callEvent, AppSettings settings)
@@ -335,73 +476,137 @@ public sealed class CallOrchestrator : IDisposable
                     settings.OutputDeviceId);
     }
 
-    private async Task FinishRecordingAsync(CallEvent callEvent, AppSettings settings)
+    /// <summary>
+    /// Closes off a finished recording: stops the devices, writes the row, and queues the work.
+    ///
+    /// <b>Every statement here is inside one error gate</b>, deliberately and symmetrically with
+    /// <see cref="BeginRecordingAsync"/>. Only <c>recorder.Stop()</c> used to be guarded, and
+    /// because an <c>async Task</c> method never throws synchronously, the <c>try/catch</c> around
+    /// the caller could not see anything the rest of the body threw — it looked like a safety net
+    /// and caught nothing. A failure writing the row therefore lost the call in the worst possible
+    /// way: the audio was on disk, the row pointed nowhere, no question was asked, no error was
+    /// shown, and nothing was ever queued.
+    ///
+    /// <b>Processing is queued rather than awaited.</b> It used to be awaited right here, which
+    /// chained "ask who this was with" to "transcribe it" — so a failure in one took the other
+    /// with it, and a dialog left open stopped transcription entirely.
+    /// </summary>
+    private Task FinishRecordingAsync(CallEvent callEvent, AppSettings settings)
     {
-        if (_recorder is null || _currentCallId is not { } callId) return;
+        if (_recorder is null || _currentCallId is not { } callId) return Task.CompletedTask;
 
         var recorder = _recorder;
         _recorder = null;
         _currentCallId = null;
 
-        RecordingResult result;
         try
         {
-            result = recorder.Stop();
+            RecordingResult result;
+            try
+            {
+                result = recorder.Stop();
+            }
+            finally
+            {
+                recorder.Dispose();
+            }
+
+            // Very short recordings are almost always a misfire — a ringtone, a notification, a
+            // call that never connected. Keeping them would fill the archive with noise.
+            if (result.Duration < TimeSpan.FromSeconds(5))
+            {
+                Discard(callId, result);
+
+                // Said rather than done silently. Deleting a recording is not reversible, and a
+                // user who has just watched the strip appear and vanish deserves to know that the
+                // decision was made and why — otherwise a genuine short call looks like the
+                // recorder simply failing.
+                Notice?.Invoke(this,
+                    $"{result.Duration.TotalSeconds:0} saniyelik kayıt silindi — bağlanmamış arama sayıldı.");
+
+                return Task.CompletedTask;
+            }
+
+            if (!result.StreamsAreAligned)
+            {
+                Notice?.Invoke(this,
+                    "İki ses akışı hizalı değil, bu kayıtta kimin ne söylediği güvenilir olmayabilir.");
+            }
+
+            // Said out loud rather than left to be discovered in an empty transcript. A capture
+            // that produces silence looks identical to a successful one from every other angle,
+            // and the user has no way to tell the difference until they go looking for a
+            // conversation that was never recorded.
+            if (result.HasSilentStream) Notice?.Invoke(this, result.AudioSummary);
+
+            // After the short-recording guard, so a row is never pointed at files that were just
+            // deleted, and before the state changes to Queued, so the transcriber never sees a
+            // call that is ready to process but has no audio attached to it.
+            _repository.CompleteCall(
+                callId,
+                result.MicPath,
+                result.FarPath,
+                result.Duration,
+                callEvent.At,
+                $"mic: {result.MicStats}; far: {result.FarStats}");
+
+            _repository.SetCallState(callId, ProcessingState.Queued);
+
+            RaiseCallFinished(new CallFinished(
+                callId,
+                result.Duration,
+                callEvent.WindowTitle,
+                callEvent.App,
+                NeedsLabel: _repository.GetCall(callId)?.ContactId is null,
+                AudioSummary: result.AudioSummary,
+                HasSilentStream: result.HasSilentStream));
+
+            Enqueue(callId);
         }
         catch (Exception e)
         {
+            AppLog.Error("kayıt", e, $"görüşme #{callId} sonlandırılamadı");
             Notice?.Invoke(this, $"Kayıt sonlandırılamadı: {e.Message}");
-            _repository.SetCallState(callId, ProcessingState.Failed, e.Message);
-            return;
+
+            try
+            {
+                _repository.SetCallState(callId, ProcessingState.Failed, e.Message);
+            }
+            catch (Exception inner)
+            {
+                // The database is the thing that failed. Nothing else can be done here, but the
+                // fault has to be written down or it is invisible.
+                AppLog.Error("kayıt", inner, $"görüşme #{callId} başarısız işaretlenemedi");
+            }
         }
-        finally
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Tells every listener that a call finished, and does not let one of them silence the rest.
+    ///
+    /// A multicast delegate stops at the first subscriber that throws. There are three here — the
+    /// log, the window that asks who the call was with, and the list refresh — and they are
+    /// invoked in subscription order, so an exception in the first would have taken the labelling
+    /// dialog and the refresh with it. They are independent concerns and one failing is not a
+    /// reason for the others not to happen.
+    /// </summary>
+    private void RaiseCallFinished(CallFinished finished)
+    {
+        if (CallFinished is not { } handlers) return;
+
+        foreach (var handler in handlers.GetInvocationList())
         {
-            recorder.Dispose();
+            try
+            {
+                ((EventHandler<CallFinished>)handler)(this, finished);
+            }
+            catch (Exception e)
+            {
+                AppLog.Error("kayıt", e, "görüşme bitti bildirimi bir dinleyicide hata verdi");
+            }
         }
-
-        // Very short recordings are almost always a misfire — a ringtone, a notification, a
-        // call that never connected. Keeping them would fill the archive with noise.
-        if (result.Duration < TimeSpan.FromSeconds(5))
-        {
-            Discard(callId, result);
-            return;
-        }
-
-        if (!result.StreamsAreAligned)
-        {
-            Notice?.Invoke(this,
-                "İki ses akışı hizalı değil, bu kayıtta kimin ne söylediği güvenilir olmayabilir.");
-        }
-
-        // Said out loud rather than left to be discovered in an empty transcript. A capture that
-        // produces silence looks identical to a successful one from every other angle, and the
-        // user has no way to tell the difference until they go looking for a conversation that
-        // was never recorded.
-        if (result.HasSilentStream) Notice?.Invoke(this, result.AudioSummary);
-
-        // After the short-recording guard, so a row is never pointed at files that were just
-        // deleted, and before the state changes to Queued, so the transcriber never sees a call
-        // that is ready to process but has no audio attached to it.
-        _repository.CompleteCall(
-            callId,
-            result.MicPath,
-            result.FarPath,
-            result.Duration,
-            callEvent.At,
-            $"mic: {result.MicStats}; far: {result.FarStats}");
-
-        _repository.SetCallState(callId, ProcessingState.Queued);
-
-        CallFinished?.Invoke(this, new CallFinished(
-            callId,
-            result.Duration,
-            callEvent.WindowTitle,
-            callEvent.App,
-            NeedsLabel: _repository.GetCall(callId)?.ContactId is null,
-            AudioSummary: result.AudioSummary,
-            HasSilentStream: result.HasSilentStream));
-
-        await ProcessAsync(callId, settings);
     }
 
     private void Discard(long callId, RecordingResult result)
@@ -474,8 +679,36 @@ public sealed class CallOrchestrator : IDisposable
 
             await TranscribeAsync(call, settings, cancellationToken);
 
+            // Analysis is attempted only when there is something to analyse with.
+            //
+            // Without this the pipeline walked into the worst kind of stall. An unconfigured or
+            // unreachable model still gets a request per transcript chunk, and the shared
+            // HttpClient waits ten minutes before giving up — so a twelve-chunk conversation hung
+            // for two hours, holding the processing slot the whole time, and every recording made
+            // meanwhile queued up behind it. The user sees "Çözümleniyor" and nothing else, for
+            // the rest of the day.
+            //
+            // The transcript is already written and saved at this point, so declining to analyse
+            // costs the ledger entries and the summary, not the conversation.
             if (settings.AnalyseAutomatically)
-                await AnalyseAsync(callId, settings, cancellationToken);
+            {
+                if (settings.LlmReachableInPrinciple)
+                {
+                    await AnalyseAsync(callId, settings, cancellationToken);
+                }
+                else
+                {
+                    _repository.SetCallState(callId, ProcessingState.Transcribed,
+                        "Çözümleme yapılmadı: bağlı bir yapay zekâ servisi yok. "
+                        + "Ayarlardan bir sağlayıcı seçip anahtarını girdiğinde bu görüşme "
+                        + "yeniden çözümlenebilir.");
+
+                    Notice?.Invoke(this,
+                        "Görüşme yazıya döküldü. Özet çıkarılmadı — bağlı bir yapay zekâ servisi yok.");
+
+                    return;
+                }
+            }
 
             if (settings.ExportToObsidian && !string.IsNullOrWhiteSpace(settings.ObsidianVaultPath))
                 Export(callId, settings);
@@ -487,9 +720,26 @@ public sealed class CallOrchestrator : IDisposable
                 await ExportToNotionAsync(callId, settings, cancellationToken);
             }
         }
-        catch (OperationCanceledException)
+        // Only a real shutdown puts the call back in the queue.
+        //
+        // This used to catch every OperationCanceledException, and an HttpClient timeout throws
+        // exactly that — so a hung endpoint silently returned the call to Queued rather than
+        // marking it failed. It then never appeared under "işlenemedi", never offered a retry, and
+        // was tried again on every single startup, forever. With the analysis writes being
+        // additive, each of those retries also appended another full copy of the person's
+        // commitments and claims to their ledger.
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             _repository.SetCallState(callId, ProcessingState.Queued);
+        }
+        catch (OperationCanceledException e)
+        {
+            // Cancelled by something other than us: a timeout. That is a failure, and it has to
+            // look like one.
+            _repository.SetCallState(callId, ProcessingState.Failed,
+                "Servis zaman aşımına uğradı: " + e.Message);
+
+            Notice?.Invoke(this, "İşleme zaman aşımına uğradı. Görüşme kaydı duruyor, tekrar denenebilir.");
         }
         catch (Exception e)
         {
@@ -501,6 +751,52 @@ public sealed class CallOrchestrator : IDisposable
             _gpu.Release();
             State = OrchestratorState.Idle;
             StateChanged?.Invoke(this, State);
+
+            AnnounceResult(callId);
+        }
+    }
+
+    /// <summary>
+    /// Says what became of a recording, once there is something to say.
+    ///
+    /// Read back from the database rather than accumulated in memory, so the announcement matches
+    /// what the archive actually holds — including when the work was done by an earlier run and
+    /// picked up from the backlog. Nothing here may throw: this is in a <c>finally</c>, and an
+    /// exception would replace whatever real fault was being reported.
+    /// </summary>
+    private void AnnounceResult(long callId)
+    {
+        try
+        {
+            var call = _repository.GetCall(callId);
+            if (call is null) return;
+
+            var name = call.ContactId is { } id ? _repository.GetContact(id)?.Name : null;
+            var summary = _repository.GetSummary(callId)?.Summary;
+
+            var processed = new CallProcessed(
+                callId,
+                name ?? "İsimsiz",
+                call.Duration,
+                summary,
+                Succeeded: call.State is ProcessingState.Analysed or ProcessingState.Transcribed,
+                Failure: call.State == ProcessingState.Failed ? call.FailureReason : null);
+
+            foreach (var handler in CallProcessed?.GetInvocationList() ?? [])
+            {
+                try
+                {
+                    ((EventHandler<CallProcessed>)handler)(this, processed);
+                }
+                catch (Exception e)
+                {
+                    AppLog.Error("işleme", e, "sonuç bildirimi bir dinleyicide hata verdi");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            AppLog.Error("işleme", e, $"görüşme #{callId} sonucu bildirilemedi");
         }
     }
 
@@ -735,14 +1031,23 @@ public sealed class CallOrchestrator : IDisposable
         }
     }
 
-    /// <summary>Retries every recording that was left queued or failed, oldest first.</summary>
-    public async Task ProcessBacklogAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Queues every recording that was left waiting by a crash or a shutdown, oldest first.
+    ///
+    /// Queues rather than runs. This is called during startup, and processing each one inline
+    /// meant the backlog held the single processing slot for as long as it took — so a call made
+    /// shortly after opening the application waited behind however many recordings had piled up
+    /// while it was closed. Through the same queue, a live call's recording is never behind them.
+    /// </summary>
+    public Task ProcessBacklogAsync(CancellationToken cancellationToken = default)
     {
         foreach (var call in _repository.CallsAwaitingProcessing())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await ProcessAsync(call.Id, _settings(), cancellationToken);
+            Enqueue(call.Id);
         }
+
+        return Task.CompletedTask;
     }
 
     public void Dispose()
@@ -750,11 +1055,34 @@ public sealed class CallOrchestrator : IDisposable
         if (_disposed) return;
         _disposed = true;
 
+        // A recording in progress is finished properly rather than abandoned.
+        //
+        // Disposing the recorder writes correct WAV headers but throws away the result, so the
+        // row never learned where its audio was, no question was asked, and the next start found
+        // a Queued call with null paths and marked it permanently Failed. Quitting during a call
+        // therefore lost that conversation while the audio sat intact on disk.
+        try
+        {
+            FinishRecordingAsync(
+                new CallEvent(CallEventKind.Ended, DateTimeOffset.Now, CallApp.Unknown, null, TimeSpan.Zero),
+                _settings()).Wait(TimeSpan.FromSeconds(10));
+        }
+        catch (Exception e)
+        {
+            AppLog.Error("kayıt", e, "kapanışta kayıt sonlandırılamadı");
+        }
+
         _cts?.Cancel();
+        _work.Writer.TryComplete();
+        _processing.Writer.TryComplete();
 
         try
         {
-            _loop?.Wait(TimeSpan.FromSeconds(3));
+            // The processor is not waited on: it may be minutes into transcribing, and holding
+            // shutdown for that would look like the application hanging. Its work is durable —
+            // the row stays Queued and ProcessBacklogAsync picks it up on the next start.
+            Task[] running = [.. new[] { _loop, _recordingWorker }.Where(t => t is not null).Select(t => t!)];
+            if (running.Length > 0) Task.WaitAll(running, TimeSpan.FromSeconds(3));
         }
         catch (AggregateException)
         {

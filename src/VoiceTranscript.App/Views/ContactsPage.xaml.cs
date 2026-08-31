@@ -27,6 +27,43 @@ public partial class ContactsPage
         model.Playback.SeekTo(e.GetPosition(strip).X / strip.ActualWidth);
     }
 
+    /// <summary>
+    /// Moves the selected call to a different person.
+    ///
+    /// Opened from the call toolbar rather than hidden in a menu, because a call filed under the
+    /// wrong person is something the user is looking straight at when they notice it. The window
+    /// can create the contact as well as pick one: the person a call belongs to frequently does
+    /// not exist yet, and sending somebody away to make one first is how a wrong filing gets left
+    /// in place and forgotten.
+    /// </summary>
+    private void MoveCall_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { SelectedCall: { } row } model) return;
+
+        var call = row.Call;
+
+        // Counted so the window can say it. A call is not one row — the promises and figures taken
+        // out of it are filed against the same person and travel with it — and somebody moving a
+        // call deserves to know their ledger is about to change too.
+        var ledgerEntries = App.Repository.CountLedgerEntriesForCall(call.Id);
+
+        var dialog = new MoveCallWindow(
+            App.Repository,
+            model.SelectedContact?.Contact.Name ?? "bilinmeyen kişi",
+            call.ObservedTitle,
+            call.App,
+            call.StartedAt,
+            call.Duration,
+            ledgerEntries)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        if (dialog.ShowDialog() != true || dialog.ChosenContactId is not { } target) return;
+
+        model.MoveSelectedCall(target, dialog.ForgetTitle);
+    }
+
     private async void Reprocess_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is not { } model || App.Orchestrator is null) return;

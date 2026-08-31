@@ -34,6 +34,15 @@ public sealed class AudioSessionWatcher : IDisposable
     private readonly TargetProcesses _targets;
     private bool _disposed;
 
+    /// <summary>
+    /// What the previous poll saw, so a call window can be recognised by having just appeared.
+    ///
+    /// The one piece of state this class keeps, and it earns its place: appearance is the only
+    /// signal that separates a call panel from a main window displaying an open conversation, and
+    /// appearance is invisible without a previous frame to compare against.
+    /// </summary>
+    private IReadOnlyList<WindowSighting>? _previousWindows;
+
     public AudioSessionWatcher(TargetProcesses? targets = null) => _targets = targets ?? new TargetProcesses();
 
     /// <summary>
@@ -43,40 +52,83 @@ public sealed class AudioSessionWatcher : IDisposable
     /// exist so tests can drive the detector with a fabricated observation on a machine with no
     /// windows and no audio hardware, which is the only way any of this is testable at all.
     /// </summary>
-    public DetectionSample Sample(DateTimeOffset now, bool? callWindowPresent = null, string? windowTitle = null)
+    public DetectionSample Sample(DateTimeOffset now, bool? appWindowPresent = null, string? windowTitle = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         var targetPids = _targets.Resolve(now);
         if (targetPids.Count == 0)
-            return new DetectionSample(now, false, false, callWindowPresent ?? false, windowTitle);
+            return new DetectionSample(now, false, false, appWindowPresent ?? false, windowTitle);
 
-        // Read alongside the sessions rather than separately, because the two have to agree
-        // about the same instant: a title read a second later can belong to a different call.
+        // The sessions are read first so the windows can be read on their behalf.
         //
-        // This is where automatic naming comes from. Nothing was filling it in before, so
-        // ObservedTitle was null for every call ever recorded and the labelling dialog had
-        // nothing to pre-fill — which made every conversation, on both applications, an
-        // "İsimsiz" row waiting to be named by hand.
-        var windows = callWindowPresent is null
-            ? CallWindows.Look(targetPids)
-            : new CallWindows.Observation(callWindowPresent.Value, windowTitle, CallApp.Unknown);
-
+        // These two answers used to be produced independently and never compared: the sessions
+        // could say Telegram while the title came off whichever WhatsApp window EnumWindows
+        // happened to reach first. The labelling dialog then announced the wrong application,
+        // offered the name of a conversation open in the other one, and — because a learned title
+        // binding is keyed on (title, app) — stored a pairing that could never match again.
         var rendering = ActiveApp(DataFlow.Render, targetPids);
         var capturing = ActiveApp(DataFlow.Capture, targetPids);
 
         var app = rendering != CallApp.Unknown ? rendering : capturing;
 
+        // Read in the same poll as the sessions, because the two have to agree about the same
+        // instant: a title read a second later can belong to a different call.
+        //
+        // This is where automatic naming comes from. Nothing was filling it in before, so
+        // ObservedTitle was null for every call ever recorded and the labelling dialog had
+        // nothing to pre-fill — which made every conversation, on both applications, an
+        // "İsimsiz" row waiting to be named by hand.
+        WindowObservation windows;
+
+        if (appWindowPresent is null)
+        {
+            // The previous poll is carried across so that a window which has just appeared can be
+            // recognised as new. That is what identifies the call: both clients open a fresh
+            // window for one and put the other person's name in its title, and nothing about a
+            // single snapshot distinguishes that window from a main window showing whichever
+            // conversation happens to be on screen.
+            windows = CallWindows.Look(targetPids, app, _previousWindows, out var seen);
+            _previousWindows = seen;
+        }
+        else
+        {
+            windows = new WindowObservation(
+                appWindowPresent.Value,
+                windowTitle,
+                CallApp.Unknown,
+                windowTitle is null ? TitleConfidence.None : TitleConfidence.Possible);
+        }
+
         return new DetectionSample(
             now,
             Rendering: rendering != CallApp.Unknown,
             Capturing: capturing != CallApp.Unknown,
-            CallWindowPresent: windows.CallWindowPresent,
+            AppWindowPresent: windows.AppWindowPresent,
             WindowTitle: windows.Title,
 
             // The audio session is the stronger signal for which application is on a call; the
             // window only fills in when no session has been attributed yet.
-            App: app != CallApp.Unknown ? app : windows.App);
+            App: app != CallApp.Unknown ? app : windows.App,
+            TitleTrust: (TitleTrust)windows.Confidence);
+    }
+
+    /// <summary>
+    /// Every window the watched applications currently have, described in full.
+    ///
+    /// For the diagnostic screen only. Which window a call actually puts a name in cannot be
+    /// established on a machine with no audio hardware and no signed-in messenger, so the way to
+    /// settle it is to look on the machine where calls happen — see <see cref="CallWindows.Describe"/>.
+    /// </summary>
+    public string DescribeWindows(DateTimeOffset now)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var targetPids = _targets.Resolve(now);
+
+        return targetPids.Count == 0
+            ? "WhatsApp veya Telegram çalışmıyor."
+            : CallWindows.Describe(CallWindows.Enumerate(targetPids));
     }
 
     /// <summary>Which watched application, if any, has an active session in this direction.</summary>
