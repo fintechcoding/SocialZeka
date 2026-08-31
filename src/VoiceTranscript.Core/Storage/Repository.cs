@@ -868,10 +868,35 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>How many recordings are waiting to be processed or are being processed now.</summary>
+    /// <summary>
+    /// Recordings with work still to do: recorded, queued, or being worked on.
+    ///
+    /// <b>Transcribed (3) is deliberately not counted.</b> It is a resting state, not a queue: with
+    /// no analysis model configured every call finishes there and stays, so counting it made the
+    /// figure equal to the total number of calls and unable to ever fall. On a real screen that
+    /// read "13 görüşme … 13 işlem bekliyor" — the same number twice, one of them presented as a
+    /// backlog that would never clear.
+    ///
+    /// The view model already knew this: it describes Transcribed as a resting state and excludes
+    /// it from "is working". This query never got the same correction.
+    /// </summary>
     public int PendingWorkCount()
     {
         using var connection = Open();
-        return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM call WHERE state IN (0,1,2,3,4);");
+        return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM call WHERE state IN (0,1,2,4);");
+    }
+
+    /// <summary>
+    /// Recordings that have text but were never analysed.
+    ///
+    /// Worth its own figure rather than being folded into the queue. It is not a fault and not a
+    /// backlog: it is what the archive looks like when no model is connected, and it becomes
+    /// actionable the moment one is — the text is kept, so only the analysis is repeated.
+    /// </summary>
+    public int UnanalysedCount()
+    {
+        using var connection = Open();
+        return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM call WHERE state = 3;");
     }
 
     public (int Calls, int Contacts, TimeSpan Recorded) Totals()

@@ -58,9 +58,22 @@
                     <Border Grid.Column="5" Width="1" Margin="16,4" VerticalAlignment="Stretch"
                             Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
 
+                    <!--
+                        Not analysed, rather than "waiting to process".
+
+                        The queue figure counted the resting state too, so with no model connected
+                        every call landed in it and stayed: the number equalled the total number of
+                        calls and could never fall. A real screen read "13 görüşme … 13 işlem
+                        bekliyor" — the same number twice, one of them dressed up as a backlog.
+
+                        This one is a fact rather than a queue, and it is the one that is true on a
+                        machine with no model: the text is kept, and connecting one later repeats
+                        only the analysis. The queue itself has a screen of its own, with reasons
+                        beside each row, which is where a backlog belongs.
+                    -->
                     <StackPanel Grid.Column="6">
-                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding PendingWork}" />
-                        <TextBlock Style="{StaticResource StatLabel}" Text="{loc:T overviewpage.islem-bekliyor}" />
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding Unanalysed}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="{loc:T overviewpage.cozumlenmedi}" />
                     </StackPanel>
                 </Grid>
             </Border>

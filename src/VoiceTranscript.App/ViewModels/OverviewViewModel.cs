@@ -159,6 +159,9 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
     [ObservableProperty] private int _totalContacts;
     [ObservableProperty] private string _totalRecorded = "0 dk";
     [ObservableProperty] private int _pendingWork;
+
+    /// <summary>Transcribed but never analysed. Not a backlog — see Repository.UnanalysedCount.</summary>
+    [ObservableProperty] private int _unanalysed;
     [ObservableProperty] private bool _hasAnyData;
 
     public sealed record OverdueItem(Commitment Commitment, string ContactName)
@@ -212,6 +215,7 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
             ? $"{(int)recorded.TotalHours} sa {recorded.Minutes} dk"
             : $"{(int)recorded.TotalMinutes} dk";
         PendingWork = repository.PendingWorkCount();
+        Unanalysed = repository.UnanalysedCount();
         HasAnyData = calls > 0;
 
         Recent.Clear();
