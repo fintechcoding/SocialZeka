@@ -320,14 +320,70 @@ public partial class App : Application
         var wantsSetup = e.Args.Any(a =>
             string.Equals(a, "--setup", StringComparison.OrdinalIgnoreCase));
 
-        if (wantsSetup || !File.Exists(Paths.SettingsFile)) ShowSetup(window);
+        // Never set up: no stamp AND no settings file.
+        //
+        // The stamp is the real answer and is written when the wizard closes — which nothing did
+        // until now, so the wizard could reappear forever on a machine where it had been
+        // completed. But the stamp cannot be the only test: every installation that already
+        // exists has settings and no stamp, and asking those people to sit through the wizard
+        // again would be a worse fault than the one being fixed.
+        //
+        // So the file stands in for the stamp on databases written before it existed. New
+        // installations get the stamp, and the file test stops mattering for them.
+        var neverSetUp = Settings.SetupCompletedAt is null && !File.Exists(Paths.SettingsFile);
+
+        if (wantsSetup || neverSetUp) ShowSetup(window);
 
         Orchestrator.Start();
 
         // Anything left queued by a crash or a shutdown mid-transcription is picked up now.
         _ = Task.Run(() => Orchestrator.ProcessBacklogAsync());
 
+        // Old recordings go, if the user asked for them to.
+        //
+        // The setting has been on the settings screen since the first version and nothing ever
+        // read it. A number of days that deletes nothing is worse than no setting at all: it is a
+        // promise the product made about somebody's disk and then quietly did not keep.
+        _ = Task.Run(SweepOldAudioAsync);
+
         _ = Task.Run(() => CheckForUpdateAsync(window));
+    }
+
+    /// <summary>
+    /// Deletes audio past the retention period, keeping everything derived from it.
+    ///
+    /// It runs after startup rather than during it, because deleting files is never a reason to
+    /// make somebody wait for their application, and it logs what it did — a sweep that removes
+    /// recordings silently is indistinguishable from recordings going missing.
+    /// </summary>
+    private static async Task SweepOldAudioAsync()
+    {
+        try
+        {
+            var days = Settings.AudioRetentionDays;
+            if (days <= 0) return;
+
+            // Recording holds files open. A sweep is never urgent enough to race it.
+            await Task.Delay(TimeSpan.FromSeconds(20));
+
+            var stale = Repository.AudioToSweep(days);
+            if (stale.Count == 0) return;
+
+            var files = 0;
+            foreach (var call in stale) files += Repository.ForgetAudio(call.Id);
+
+            if (files > 0)
+            {
+                AppLog.Write("veri",
+                    $"{days} günden eski {stale.Count} görüşmenin ses kaydı silindi "
+                    + $"({files} dosya) — dökümler ve notlar duruyor");
+            }
+        }
+        catch (Exception sweep)
+        {
+            // Housekeeping, like the counter repair above: it must never take the app down.
+            AppLog.Error("veri", sweep, "eski ses kayıtları temizlenemedi");
+        }
     }
 
     /// <summary>The update client, once startup has built it.</summary>
@@ -518,6 +574,22 @@ public partial class App : Application
         };
 
         wizard.ShowDialog();
+
+        // Remembered, which it was not.
+        //
+        // AppSettings.SetupCompletedAt exists and carries a comment explaining that it replaced
+        // "does a settings file exist" precisely so the wizard would stop reappearing — and
+        // nothing ever wrote to it. So the failure it describes was still live: finish the
+        // wizard, never open Settings, and meet the wizard again on every launch. On an
+        // application that starts with Windows, that is the first thing its owner sees every day.
+        //
+        // Closing it counts, whether it was completed or skipped. Somebody on the cloud route
+        // needs none of the local prerequisites, and asking again tomorrow is not a wizard.
+        if (Settings.SetupCompletedAt is null)
+        {
+            Settings = Settings with { SetupCompletedAt = DateTimeOffset.UtcNow };
+            Settings.Save(Paths.SettingsFile);
+        }
 
         // The wizard may have built the environment, so the worker has to be pointed at it.
         Worker = new PythonWorkerHost(new PythonWorkerOptions

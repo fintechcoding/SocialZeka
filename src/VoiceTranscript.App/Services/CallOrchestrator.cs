@@ -403,14 +403,15 @@ public sealed class CallOrchestrator : IDisposable
     /// </summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<long, byte> _analyseOnly = new();
 
+    /// <summary>The analysis model chosen for one recording, overriding the setting.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, string> _llmOverride = new();
+
     /// <summary>
     /// Queues a recording to be redone.
     /// </summary>
     /// <param name="asrModelId">An engine from the ASR catalogue, or null to follow the setting.</param>
     /// <param name="analyseOnly">Keep the existing transcript and only run the analysis again.</param>
-    /// <summary>The analysis model chosen for one recording, overriding the setting.</summary>
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, string> _llmOverride = new();
-
+    /// <param name="llmModel">An analysis model, or null to follow the setting.</param>
     public void EnqueueWith(
         long callId, string? asrModelId = null, bool analyseOnly = false, string? llmModel = null)
     {

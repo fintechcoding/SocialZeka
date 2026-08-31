@@ -724,42 +724,34 @@ yapmıyor.** Projenin daha önce bu biçimde bir kusuru olmuş ve kod içinde ş
 
 Aynı sınıf hata en az dört yerde daha var.
 
-- [ ] **8.1 — Saklama süresi ayarı tutmadığı bir söz veriyor.**
+- [x] **8.1 — Saklama süresi ayarı tutmadığı bir söz veriyor.** *(2026-08-31 yapıldı)*
 
-  **Önce netleştirelim — varsayılan davranış doğru ve öyle kalacak.** Kullanıcının kararı
-  (2026-08-31): *"silinmiyor ki, normalde arşivde tutulmalı."* Bugün `AudioRetentionDays`
-  varsayılanı 0 = sonsuza kadar sakla, ve gerçekte de hiçbir şey silinmiyor. **Yani arşiv
-  güvende; burada bir veri kaybı riski yok.**
+  **Yapıldı.** Ayar artık gerçekten çalışıyor ve söz verdiği şeyi yapıyor.
 
-  Kusur bunun tersi: `AudioRetentionDays` (`AppSettings.cs:244`) "sesin kaç gün sonra
-  *silineceği*" diyor ve ayarlar ekranında düzenlenebiliyor (`SettingsViewModel.cs:230`), ama
-  **silen kod hiç yok.** Kullanıcı 30 gün yazarsa hiçbir şey olmaz ve bunu öğrenmesinin bir yolu
-  da yok. Yanlış bilgi veren bir ayar, olmayan bir ayardan kötüdür.
+  - `Repository.AudioToSweep(gün)` — süresi dolmuş, **silinmesi güvenli** kayıtları verir.
+    Sıfır ve negatif gün boş liste döner: **varsayılan hâlâ süresiz saklamak.**
+  - `Repository.ForgetAudio(callId)` — yalnızca `.wav` dosyalarını siler, satırı ve dökümü
+    bırakır, `mic_path`/`far_path` alanlarını `NULL` yapar. (Var olmayan bir dosyaya işaret eden
+    yol, oynatıcının kimsenin açıklayamayacağı biçimde bozulması demek.) Dosya kilitliyse
+    satır temizlenmez — bir sonraki süpürme tekrar dener.
+  - `App.SweepOldAudioAsync()` — açılıştan **sonra**, 20 saniye gecikmeyle çalışır (kayıt dosyayı
+    açık tutar; süpürme hiçbir zaman onunla yarışacak kadar acil değil) ve ne sildiğini günlüğe
+    yazar. Sessizce silen bir süpürme, kayıtların kaybolmasından ayırt edilemez.
 
-  Buna atıfta bulunan ama var olmayan mekanizma:
-  - `CallOrchestrator.cs:417` — silinemeyen dosyalar için *"Geride bırakıldı; saklama süpürmesi
-    onu alır."* Alacak bir süpürme yok.
-  - `Models.cs:115` — *"Sabitlenmiş görüşmeler saklama süpürmesinden sağ çıkar."* `IsPinned`
-    sütunu yalnızca bunun için var.
+  **Muafiyet gerçek olanlarla değiştirildi.** Eski ekran *"sabitlenmiş görüşmeler etkilenmez"*
+  diyordu; üründe hiçbir yer sabitleme yapmıyor, yani **kimsenin kullanamayacağı bir güvence**
+  veriliyordu. Yerine kullanıcının gerçekten erişebildiği iki işaret kondu: **panoya eklenmiş**
+  ya da **not yazılmış** bir görüşmenin sesine dokunulmaz. Panodan çıkarılınca yeniden süpürülebilir
+  olur — aksi hâlde pano tek yönlü bir kapı olurdu.
 
-  *Düzeltme (öncelik düşük, veri riski yok):* ayar **açıkça isteğe bağlı** olsun. Varsayılan
-  "sonsuza kadar sakla" kalsın ve arayüzde böyle yazsın. Kullanıcı bir gün sayısı girerse:
-  süpürme gerçekten çalışsın, `IsPinned` olanları atlasın, ne sildiğini günlüğe yazsın ve ilk
-  çalışmadan önce bir kez onay istesin. Bu iş yapılmayacaksa ayar arayüzden kaldırılsın —
-  ikisinden biri, ama yalan söyleyen bir kutu kalmasın.
+  Ekran metni de yapabildiğini söyleyecek şekilde yeniden yazıldı (`strings.tr.json` /
+  `strings.en.json`). Kapsam: `RetentionTests.cs` — 8 test.
 
-- [ ] **8.1b — Öksüz dosyalar birikiyor.** *(§8.1'den bağımsız, küçük)*
-  `CallOrchestrator.Discard` (`CallOrchestrator.cs:410`) çok kısa kayıtların dosyalarını siliyor;
-  `IOException` olursa "süpürme alır" diyip geçiyor (`:417`). Süpürme olmadığı için o dosyalar
-  kalıcı olarak kalıyor — veritabanında satırı yok, hiçbir ekranda görünmüyor, kimse silmiyor.
-  Az yer kaplıyor ama **görüşme sesi**, yani gizlilik açısından önemsiz değil.
-  *Düzeltme:* açılışta kayıt klasöründe veritabanında karşılığı olmayan dosyaları bul ve sil.
-  Bu, saklama süresinden bağımsız — burada silinen şey bir arşiv kaydı değil, zaten atılmış
-  bir kaydın artığı.
+- [x] **8.2 — ⚠️ `TranscriptRetentionDays` tamamen ölü.** *(2026-08-31 kaldırıldı)*
 
-- [ ] **8.2 — ⚠️ `TranscriptRetentionDays` tamamen ölü.** `AppSettings.cs:246` — tanımı dışında
-  projede **hiç geçmiyor**. Ne arayüzde var, ne okunuyor. Ya uygulansın (§8.1 ile birlikte)
-  ya kaldırılsın.
+  **Kaldırıldı.** Arayüzde yoktu, hiçbir yerde okunmuyordu ve §8.1'de yazılan tasarımın tam
+  tersini vaat ediyordu: süpürme **bilerek** dökümü saklıyor, çünkü küçük olan ve saklamaya değen
+  parça o. Eski `settings.json` dosyalarındaki anahtar sessizce yok sayılır.
 
 - [x] **8.3 — ⚠️ Ayar kaydetmek bazı alanları sıfırlıyor.** *(gerçek kusur — 2026-08-31 düzeltildi)*
 

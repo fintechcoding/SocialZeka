@@ -584,8 +584,12 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
     /// disk, while telling the user it was gone. One caller cannot forget what only one method
     /// does.
     /// </summary>
-    [RelayCommand]
-    private void DeleteContact() => DeleteSelectedContact();
+    // No DeleteContact command here.
+    //
+    // There was one, and it was a one-line forward to DeleteSelectedContact that nothing called:
+    // the screen asks for confirmation first, so it goes through the code-behind and calls the
+    // method directly. A second entrance to a destructive operation is not a convenience — it is
+    // the one that will eventually be wired up without the confirmation.
 
     // ---- putting a call under the right person ------------------------------
 

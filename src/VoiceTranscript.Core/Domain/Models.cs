@@ -120,7 +120,13 @@ public sealed record Call
 
     public bool LikelyNoHeadphones { get; init; }
 
-    /// <summary>Pinned calls survive the retention sweep.</summary>
+    /// <summary>
+    /// Set aside from the retention sweep.
+    ///
+    /// Nothing in the product sets this today — the sweep honours it, but the exemptions a person
+    /// can actually reach are a card on the board or a note they wrote. Kept because the column
+    /// exists and rows may carry it; not offered as a promise until something can set it.
+    /// </summary>
     public bool IsPinned { get; init; }
 
     public string? AudioSha256 { get; init; }

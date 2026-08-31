@@ -1252,6 +1252,92 @@ public sealed class Repository(Database database)
             "SELECT * FROM call_summary WHERE call_id = @callId;", new { callId })?.ToModel();
     }
 
+    // ---- retention ----------------------------------------------------------
+
+    /// <summary>
+    /// Recordings whose audio is old enough to remove, and which nothing says to keep.
+    ///
+    /// The setting has existed since the beginning and nothing ever acted on it: the screen
+    /// offered a number of days, promised that pinned conversations were exempt, and then kept
+    /// everything forever. Both halves were untrue, and the second was untrue in a way nobody
+    /// could have discovered — nothing in the product pins anything.
+    ///
+    /// So the exemptions are things that actually exist and that a person actually did: a
+    /// conversation on the board, or one they wrote a note about. Both are explicit signals that
+    /// this recording matters, which is what "pinned" was reaching for.
+    ///
+    /// Only the audio goes. The transcript, the ledger and the notes are small and are the part
+    /// worth keeping; the recording is what fills a disk.
+    /// </summary>
+    public IReadOnlyList<Call> AudioToSweep(int olderThanDays)
+    {
+        if (olderThanDays <= 0) return [];
+
+        var cutoff = Iso(DateTimeOffset.UtcNow.AddDays(-olderThanDays));
+
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<CallRow>(
+                """
+                SELECT c.* FROM call c
+                WHERE c.started_at < @cutoff
+                  AND (c.mic_path IS NOT NULL OR c.far_path IS NOT NULL)
+                  AND c.is_pinned = 0
+                  AND NOT EXISTS (SELECT 1 FROM board_card b WHERE b.call_id = c.id)
+                  AND NOT EXISTS (SELECT 1 FROM call_note n WHERE n.call_id = c.id)
+                ORDER BY c.started_at;
+                """,
+                new { cutoff })
+                .Select(r => r.ToModel()),
+        ];
+    }
+
+    /// <summary>
+    /// Removes one recording's audio, keeping everything derived from it.
+    ///
+    /// The row survives with its transcript, so the conversation is still searchable, still
+    /// quotable and still in the ledger — it simply can no longer be played. The paths are cleared
+    /// rather than left pointing at nothing, because a path to a missing file is what makes a
+    /// player fail in a way nobody can explain.
+    /// </summary>
+    /// <returns>How many files were actually removed.</returns>
+    public int ForgetAudio(long callId)
+    {
+        var call = GetCall(callId);
+        if (call is null) return 0;
+
+        var removed = 0;
+
+        foreach (var path in new[] { call.MicPath, call.FarPath })
+        {
+            if (string.IsNullOrWhiteSpace(path)) continue;
+
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                    removed++;
+                }
+            }
+            catch (Exception)
+            {
+                // A file held open by a player stays. The row is only cleared for files that
+                // actually went, so the next sweep tries again rather than losing track of it.
+                return removed;
+            }
+        }
+
+        using var connection = Open();
+
+        connection.Execute(
+            "UPDATE call SET mic_path = NULL, far_path = NULL WHERE id = @callId;", new { callId });
+
+        return removed;
+    }
+
     // ---- the board ----------------------------------------------------------
 
     /// <summary>

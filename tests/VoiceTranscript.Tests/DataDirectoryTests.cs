@@ -187,11 +187,11 @@ public class SettingsSurviveSavingTests
         var saved = RoundTrip(new AppSettings
         {
             DataRoot = @"D:\arsiv",
-            TranscriptRetentionDays = 180,
+            AudioRetentionDays = 180,
         });
 
         Assert.Equal(@"D:\arsiv", saved.DataRoot);
-        Assert.Equal(180, saved.TranscriptRetentionDays);
+        Assert.Equal(180, saved.AudioRetentionDays);
     }
 
     /// <summary>
@@ -229,7 +229,6 @@ public class SettingsSurviveSavingTests
         var original = new AppSettings
         {
             DataRoot = @"D:\arsiv",
-            TranscriptRetentionDays = 180,
             SetupCompletedAt = DateTimeOffset.UtcNow.AddDays(-3),
             Language = "en",
             TranscribeGroupCalls = true,

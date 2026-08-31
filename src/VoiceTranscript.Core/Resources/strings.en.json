@@ -209,7 +209,7 @@
   "settingswindow.ses-opus-a-sikistirilip-gerekirse-sessiz-a": "Audio is compressed to Opus and, where needed, split at silent moments, so no word is cut in half. Each part is tried separately, a rate limit is waited out and retried, and finished parts are cached so a retry does not start from the beginning.",
   "settingswindow.ses-yakalama": "Audio capture",
   "settingswindow.ses-yakalamayi-sina": "Test audio capture",
-  "settingswindow.sifir-suresiz-saklamak-demektir-sabitlenmi": "Zero means keep them forever. Pinned calls are not touched by this sweep.",
+  "settingswindow.sifir-suresiz-saklamak-demektir-sabitlenmi": "Zero keeps them forever. Only the audio goes — transcripts, the ledger and notes stay. Calls on the board or with a note are never swept.",
   "settingswindow.signal": "Signal",
   "settingswindow.signal-desktop-aramalari": "Signal Desktop calls. Has no effect unless Signal Desktop is installed.",
   "settingswindow.sina": "Test",

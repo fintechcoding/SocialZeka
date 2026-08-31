@@ -286,10 +286,14 @@ public sealed record AppSettings
 
     // ---- retention ----------------------------------------------------------
 
-    /// <summary>Days after which audio is deleted. Zero keeps it forever. Pinned calls are exempt.</summary>
+    /// <summary>
+    /// Days after which a recording's audio is deleted. Zero keeps it forever.
+    ///
+    /// Only the audio goes — the transcript, the ledger entry and any notes stay, because those
+    /// are the small part and the part worth keeping. A conversation on the board or one the user
+    /// wrote a note about is never swept: both are somebody explicitly saying this one matters.
+    /// </summary>
     public int AudioRetentionDays { get; init; }
-
-    public int TranscriptRetentionDays { get; init; }
 
     // ---- storage ------------------------------------------------------------
 

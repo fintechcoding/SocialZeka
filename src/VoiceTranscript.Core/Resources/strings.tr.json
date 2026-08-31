@@ -209,7 +209,7 @@
   "settingswindow.ses-opus-a-sikistirilip-gerekirse-sessiz-a": "Ses Opus'a sıkıştırılıp gerekirse sessiz anlardan bölünerek gönderilir, hiçbir kelime ortadan kesilmez. Her parça ayrı denenir, hız sınırına takılırsa beklenip tekrar denenir, ve biten parçalar önbellekte tutulduğu için yeniden deneme baştan başlamaz.",
   "settingswindow.ses-yakalama": "Ses yakalama",
   "settingswindow.ses-yakalamayi-sina": "Ses yakalamayı sına",
-  "settingswindow.sifir-suresiz-saklamak-demektir-sabitlenmi": "Sıfır, süresiz saklamak demektir. Sabitlenmiş görüşmeler bu temizlikten etkilenmez.",
+  "settingswindow.sifir-suresiz-saklamak-demektir-sabitlenmi": "Sıfır, süresiz saklamak demektir. Yalnızca ses dosyası silinir; döküm, defter ve notlar kalır. Panoya eklenmiş ya da not aldığınız görüşmelere dokunulmaz.",
   "settingswindow.signal": "Signal",
   "settingswindow.signal-desktop-aramalari": "Signal Desktop aramaları. Signal masaüstü uygulaması kurulu değilse bu ayarın etkisi olmaz.",
   "settingswindow.sina": "Sına",
