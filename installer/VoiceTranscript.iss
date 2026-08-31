@@ -144,6 +144,19 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchDescription}";   Flags: now
 ; the three fires in every case.
 Filename: "{app}\{#AppExe}"; Flags: nowait postinstall; Check: WizardSilent
 
+[InstallDelete]
+; The worker tree is replaced wholesale rather than merged into.
+;
+; Inno overwrites the files it ships and leaves behind anything the previous version had that this
+; one does not. For compiled assemblies that is untidy; for a Python package it is a hazard, because
+; a module that was renamed or split still sits there as a valid import and Python will happily load
+; it. The failure would be a stale code path running inside a worker that otherwise reports the new
+; version — which is the hardest kind of bug to see.
+;
+; Only this directory. Wiping all of {app} would be tidier still and is not worth the trade: an
+; install interrupted between the delete and the copy would leave nothing to run at all.
+Type: filesandordirs; Name: "{app}\worker"
+
 [UninstallDelete]
 ; Only what the installer created. The data folder is deliberately left alone — see below.
 Type: filesandordirs; Name: "{app}"
