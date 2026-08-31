@@ -531,6 +531,78 @@ public sealed class AnalysisPipelineTests : IDisposable
     }
 
     /// <summary>
+    /// Analysing the same call twice must not double its ledger.
+    ///
+    /// This is the fault that corrupts the thing the product exists for. The writes are plain
+    /// inserts with no uniqueness constraint, so a second analysis appended a second full copy of
+    /// the person's commitments and claims — and reprocessing is not a rare path: it is offered on
+    /// two screens, it is the entire purpose of the "retry everything" button, and a timeout used
+    /// to requeue a call silently on every startup.
+    ///
+    /// The corruption also compounds. The deterministic checks compare a person's commitments
+    /// against each other, so duplicates make the ledger report contradictions between a statement
+    /// and itself.
+    /// </summary>
+    [Fact]
+    public async Task ReanalysingACallDoesNotDuplicateItsLedger()
+    {
+        var (call, contact) = SeedCall(
+            CallKind.OneToOne,
+            (false, 0, "Parayı cuma günü göndereceğim."));
+
+        const string extraction =
+            """
+            {"taahhutler":[{"konusan":"KARSI","alinti":"Parayı cuma günü göndereceğim.",
+              "yukumluluk":"parayı gönderecek","tarih_ham":"cuma günü","kosullu":false}],
+             "iddialar":[],"sorular":[],"baski_isaretleri":[]}
+            """;
+
+        await new AnalysisPipeline(new ScriptedLlm(extraction), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Single(_repo.GetOpenCommitments(contact));
+
+        // The same call, analysed again — exactly what "Tekrar dene" does.
+        await new AnalysisPipeline(new ScriptedLlm(extraction), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Single(_repo.GetOpenCommitments(contact));
+    }
+
+    /// <summary>
+    /// A flag the user has dismissed stays dismissed through a reprocess.
+    ///
+    /// Bringing back a judgement somebody has explicitly rejected is how a ledger stops being
+    /// read at all — and once it stops being read, the real findings are lost with the false ones.
+    /// </summary>
+    [Fact]
+    public void ClearingAnAnalysisLeavesDismissedFlagsAlone()
+    {
+        var (call, contact) = SeedCall(CallKind.OneToOne, (false, 0, "merhaba"));
+
+        var kept = _repo.InsertFlag(new Flag
+        {
+            CallId = call,
+            ContactId = contact,
+            Kind = FlagKind.Contradiction,
+            Summary = "kullanıcı bunu reddetti",
+            Quote = "merhaba",
+            QuoteStartMs = 0,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+
+        _repo.DismissFlag(kept);
+
+        _repo.ClearAnalysis(call);
+
+        // Still there, still dismissed — not resurrected as a fresh finding.
+        Assert.Contains(_repo.GetFlags(contact, includeDismissed: true), f => f.Id == kept);
+
+        // And not offered again: the undismissed view stays empty.
+        Assert.DoesNotContain(_repo.GetFlags(contact), f => f.Id == kept);
+    }
+
+    /// <summary>
     /// A transcript with nothing in it produces no summary rather than an invented one.
     /// </summary>
     [Fact]

@@ -878,6 +878,45 @@ public sealed class Repository(Database database)
 
     // ---- analysis -----------------------------------------------------------
 
+    /// <summary>
+    /// Clears what a previous analysis of this call produced.
+    ///
+    /// Called before writing a fresh analysis, and the reason is a fault that corrupts the thing
+    /// this product exists for. The three writes below are plain inserts with no uniqueness
+    /// constraint behind them, so analysing a call a second time appended a second full copy of
+    /// that person's commitments, claims and flags. Every retry doubled the ledger.
+    ///
+    /// It was not a rare path either. Reprocessing is offered on the contact page and on the
+    /// processing screen, a timeout used to requeue a call silently on every startup, and the whole
+    /// point of the "retry everything" button is to run after a fixed configuration — so the
+    /// ordinary way to use the product was also the way to corrupt it. A person would appear to
+    /// have promised the same thing three times, and the deterministic checks that compare
+    /// commitments against each other would then report contradictions between a statement and
+    /// itself.
+    ///
+    /// Delete-then-insert rather than an upsert, matching <see cref="ReplaceSegments"/>. An
+    /// extraction is not an accumulation of facts: it is one model's reading of one conversation,
+    /// and a second reading replaces the first rather than adding to it.
+    ///
+    /// Dismissed flags are deliberately not resurrected — see the flag write itself.
+    /// </summary>
+    public void ClearAnalysis(long callId)
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        connection.Execute("DELETE FROM commitment WHERE call_id = @callId;", new { callId }, transaction);
+        connection.Execute("DELETE FROM claim WHERE call_id = @callId;", new { callId }, transaction);
+
+        // A flag the user has already dismissed stays dismissed. Reprocessing must not bring back
+        // a judgement they have explicitly rejected — that is how a ledger stops being read.
+        connection.Execute(
+            "DELETE FROM flag WHERE call_id = @callId AND dismissed_by_user = 0;",
+            new { callId }, transaction);
+
+        transaction.Commit();
+    }
+
     public long InsertCommitment(Commitment commitment)
     {
         using var connection = Open();

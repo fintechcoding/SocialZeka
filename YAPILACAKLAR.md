@@ -256,7 +256,7 @@ olur — bu sesi yazıya dönüştürme süreçlerinde bir yerlerde lazım olabi
   Her parçanın durumu diskte tutulsun, devam tam kaldığı yerden olsun, sıralı birleştirilsin.
   Kalıcı olarak başarısız bir parça metinde **görünür** olsun — sessizce eksik kalmasın.
 
-- [ ] **1b.4 — ⚠️ K4: analiz sonuçları eklemeli yazılıyor.** *(denetimden, kritik)*
+- [x] **1b.4 — ⚠️ K4: analiz sonuçları eklemeli yazılıyor.** *(denetimden, kritik)*
   `AnalysisPipeline.cs:123,148` düz `INSERT` kullanıyor. `ReplaceSegments`'in aksine önce silme
   yok, `SaveSummary`'nin aksine `ON CONFLICT` yok, şemada tekillik kısıtı yok. **Her yeniden
   işleme, kişinin defterine sözlerin ve fiyatların ikinci bir tam kopyasını ekliyor.**

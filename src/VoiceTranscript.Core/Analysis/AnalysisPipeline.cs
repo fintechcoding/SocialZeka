@@ -120,6 +120,16 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
         progress?.Report("Karşılaştırmalar yapılıyor");
 
+        // Whatever a previous analysis of this call left behind goes first.
+        //
+        // Without this, analysing a call twice appended a second full copy of the person's
+        // commitments and claims — and reprocessing is not a rare path: it is offered on two
+        // screens, it is the whole point of the "retry everything" button, and a timeout used to
+        // requeue a call silently on every startup. So the ordinary way to use the product was
+        // also the way to corrupt its ledger, and the corruption compounds: the deterministic
+        // checks then report contradictions between a statement and its own duplicate.
+        repository.ClearAnalysis(callId);
+
         foreach (var commitment in commitments) repository.InsertCommitment(commitment);
         foreach (var claim in claims) repository.InsertClaim(claim);
 
