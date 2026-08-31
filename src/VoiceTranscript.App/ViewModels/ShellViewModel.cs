@@ -84,7 +84,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Overview = new OverviewViewModel(repository, settings, paths);
         Ledger = new LedgerViewModel(repository);
         Contacts = new ContactsViewModel(repository);
-        Processing = new ProcessingViewModel(repository);
+        Processing = new ProcessingViewModel(repository, settings);
         AiStatus = new AiStatusViewModel(settings, App.HttpClient, repository);
 
         // The service is fetched through a function rather than captured, because it is built

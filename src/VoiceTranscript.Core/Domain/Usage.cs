@@ -69,3 +69,26 @@ public sealed record EngineUsage : UsageTotals
 {
     public string Engine { get; set; } = "";
 }
+
+/// <summary>
+/// The last thing that processed one call, and how it went.
+///
+/// Shown on the processing screen because "yazıya dökülüyor" answers what is happening and not
+/// what is doing it — and on this product those are different questions with different fixes. A
+/// call transcribed locally at a fifth of real time and one sent to a hosted model look identical
+/// in a list, right up until somebody asks why one took four hours.
+/// </summary>
+public sealed record CallRun
+{
+    public long CallId { get; set; }
+    public string Engine { get; set; } = "";
+    public long ElapsedMs { get; set; }
+    public long AudioMs { get; set; }
+    public bool Succeeded { get; set; }
+
+    public TimeSpan Elapsed => TimeSpan.FromMilliseconds(ElapsedMs);
+
+    /// <summary>How many times faster than real time this one call ran. Null without audio.</summary>
+    public double? SpeedFactor =>
+        ElapsedMs > 0 && AudioMs > 0 ? (double)AudioMs / ElapsedMs : null;
+}

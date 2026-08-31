@@ -1229,6 +1229,39 @@ public sealed class Repository(Database database)
         }
     }
 
+    /// <summary>
+    /// The most recent run of one stage for every call that has had one.
+    ///
+    /// One query rather than one per row: the processing screen lists up to two thousand calls, and
+    /// asking the database once per row is how a screen that opens instantly becomes one that
+    /// hangs for a second every time it refreshes.
+    ///
+    /// Latest is taken by identity rather than by timestamp — the column is an autoincrement, and
+    /// two runs of the same call in the same second are otherwise a coin toss.
+    /// </summary>
+    public IReadOnlyDictionary<long, CallRun> LastRuns(string stage)
+    {
+        using var connection = Open();
+
+        return connection.Query<CallRun>(
+            """
+            SELECT r.call_id    AS CallId,
+                   r.engine     AS Engine,
+                   r.elapsed_ms AS ElapsedMs,
+                   r.audio_ms   AS AudioMs,
+                   r.succeeded  AS Succeeded
+            FROM processing_run r
+            JOIN (
+                SELECT MAX(id) AS id
+                FROM processing_run
+                WHERE stage = @stage AND call_id IS NOT NULL
+                GROUP BY call_id
+            ) latest ON latest.id = r.id;
+            """,
+            new { stage })
+            .ToDictionary(r => r.CallId);
+    }
+
     /// <summary>Totals for one stage over a window. All zero when nothing has run yet.</summary>
     public UsageTotals Usage(string stage, DateTimeOffset? since = null)
     {

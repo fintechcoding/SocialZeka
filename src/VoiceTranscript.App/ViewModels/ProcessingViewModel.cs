@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
 
@@ -93,9 +94,34 @@ public sealed record ProcessingRow(Call Call, string ContactName, int SegmentCou
 /// slower than real time: a long call can be worked on for an hour, and with nothing on screen
 /// saying so, an application that is working looks exactly like one that has hung.
 /// </summary>
-public sealed partial class ProcessingViewModel(Repository repository) : ObservableObject
+public sealed partial class ProcessingViewModel(
+    Repository repository, Func<AppSettings>? settings = null) : ObservableObject
 {
     public ObservableCollection<ProcessingRow> Rows { get; } = [];
+
+    /// <summary>
+    /// Which engine will do the work, named on the live line.
+    ///
+    /// "Yazıya dökülüyor" answers what is happening and not what is doing it, and on this product
+    /// those are different questions with different answers: the same sentence covers a local
+    /// model grinding at a fifth of real time and an upload to a hosted one. It was said once, in
+    /// a toast that disappears, at the moment somebody was least likely to be looking.
+    /// </summary>
+    private string? ActiveEngine
+    {
+        get
+        {
+            if (settings?.Invoke() is not { } current) return null;
+
+            // Answered the way the orchestrator answers it, minus the hardware probe: it resolves
+            // the local model unless the mode forbids it. Saying "local" here while the recording
+            // is being uploaded would be worse than saying nothing.
+            if (current.AsrMode == TranscriptionMode.CloudOnly)
+                return current.UsableSttEndpoints.FirstOrDefault()?.ResolvedName;
+
+            return current.AsrModel.DisplayName;
+        }
+    }
 
     [ObservableProperty] private ProcessingFilter _filter = ProcessingFilter.Unfinished;
 
@@ -156,7 +182,10 @@ public sealed partial class ProcessingViewModel(Repository repository) : Observa
 
             var line = who is null ? stage : $"{who} · {stage}";
 
-            return HasActivePercent ? $"{line} — %{ActivePercent * 100:0}" : line;
+            if (HasActivePercent) line = $"{line} — %{ActivePercent * 100:0}";
+
+            // Which engine, said here rather than only in a toast that has already gone.
+            return ActiveEngine is { Length: > 0 } engine ? $"{line} · {engine}" : line;
         }
     }
 

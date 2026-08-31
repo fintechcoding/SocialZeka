@@ -287,6 +287,19 @@ public sealed class PythonWorkerHost(PythonWorkerOptions options)
                 onEvent(workerEvent);
 
             await process.WaitForExitAsync(linked.Token);
+
+            // And then again, synchronously, which is not redundant.
+            //
+            // WaitForExitAsync returns when the process ends. It does NOT wait for the readers
+            // started by BeginOutputReadLine/BeginErrorReadLine to finish delivering what the
+            // process wrote on its way out — only the parameterless WaitForExit() does that. So
+            // the exit code was read while the Python traceback was still in flight, and the tail
+            // captured below came back empty.
+            //
+            // The result was that every worker crash reported "The worker exited with code 1."
+            // and nothing else. A real one reached the user with no cause attached, and no way to
+            // find it: the message is the only place that traceback would ever have appeared.
+            process.WaitForExit();
         }
         catch (OperationCanceledException)
         {

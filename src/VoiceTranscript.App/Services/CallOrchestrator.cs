@@ -356,6 +356,13 @@ public sealed class CallOrchestrator : IDisposable
                 {
                     throw;
                 }
+                catch (ObjectDisposedException) when (_disposed)
+                {
+                    // Shutting down, and something this loop depends on has already gone. Not a
+                    // fault of the recording: leaving it Queued is what lets the next start pick
+                    // it up. Reported as a failure it would be abandoned instead.
+                    throw new OperationCanceledException();
+                }
                 catch (Exception e)
                 {
                     AppLog.Error("işleme", e, $"görüşme #{callId} işlenemedi");
@@ -1278,7 +1285,24 @@ public sealed class CallOrchestrator : IDisposable
 
         _recorder?.Dispose();
         _sessions.Dispose();
-        _cts?.Dispose();
-        _gpu.Dispose();
+
+        // The token source and the processing slot are deliberately NOT disposed.
+        //
+        // The processor above is not waited on, on purpose — it may be minutes into transcribing
+        // and holding shutdown for that looks like a hang. But disposing what it is still using
+        // turns that considered decision into a bug: the queue consumer was either parked on
+        // _gpu.WaitAsync or about to Release it, and both then threw ObjectDisposedException.
+        //
+        // That exception is not an OperationCanceledException, so the consumer's cancellation
+        // guard did not catch it and every queued recording was logged as "işlenemedi" and left
+        // marked Failed. Observed in a real log: closing the application failed calls #9 through
+        // #13 in one burst, none of which had anything wrong with them. The comment above promised
+        // "the row stays Queued and ProcessBacklogAsync picks it up on the next start", and this
+        // is what broke that promise.
+        //
+        // Leaking them is correct rather than merely expedient: the process is exiting, neither
+        // holds an operating-system handle here, and the alternative is corrupting the state of
+        // work that was going to be resumed.
+        _cts?.Cancel();
     }
 }
