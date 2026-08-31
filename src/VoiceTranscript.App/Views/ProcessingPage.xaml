@@ -185,6 +185,44 @@
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                     <TextBlock Style="{StaticResource EmptyTitle}" Text="{Binding EmptyMessage}" />
                 </StackPanel>
+
+                <!--
+                    What just happened.
+
+                    The view model has always written a sentence here — "1 görüşme yeniden kuyruğa
+                    alındı", or the reason nothing could be — and nothing displayed it. Pressing
+                    "Yeniden işle" therefore did its work in silence, which from the outside is
+                    indistinguishable from a button that does not work, and is how somebody
+                    concludes the feature is broken and stops pressing it.
+                -->
+                <Border VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+                        Margin="12" Padding="14,10" CornerRadius="6"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        Visibility="{Binding Notice, Converter={StaticResource NullToCollapsed}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0" Symbol="Info24" FontSize="16" Margin="0,0,10,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+
+                        <TextBlock Grid.Column="1" Text="{Binding Notice}" TextWrapping="Wrap"
+                                   VerticalAlignment="Center" />
+
+                        <ui:Button Grid.Column="2" Appearance="Transparent" Margin="10,0,0,0"
+                                   Command="{Binding DismissNoticeCommand}">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="Dismiss24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+                    </Grid>
+                </Border>
             </Grid>
         </Border>
     </Grid>

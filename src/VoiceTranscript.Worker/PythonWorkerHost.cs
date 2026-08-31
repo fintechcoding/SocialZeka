@@ -171,6 +171,24 @@ public sealed class PythonWorkerHost(PythonWorkerOptions options)
         Action<WorkerEvent> onEvent,
         CancellationToken cancellationToken)
     {
+        // The worker's own account of what went wrong, kept so it can outrank the exit code.
+        //
+        // The worker already says exactly why it failed: it catches EngineError, writes
+        // {"type":"error","code":...,"message":...} and exits non-zero. Every caller here captures
+        // that event and throws it — but only after RunAsync returns, and RunAsync threw first,
+        // on the exit code. So the specific reason was collected, discarded, and replaced with
+        // "The worker exited with code 1."
+        //
+        // That is how a real cloud failure reached the user with no cause attached, eleven times,
+        // while the worker had written the cause each time.
+        WorkerFailure? reported = null;
+
+        void Observe(WorkerEvent e)
+        {
+            if (e is WorkerFailure f) reported = f;
+            onEvent(e);
+        }
+
         using var timeout = new CancellationTokenSource(options.Timeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
@@ -284,7 +302,7 @@ public sealed class PythonWorkerHost(PythonWorkerOptions options)
         try
         {
             await foreach (var workerEvent in events.Reader.ReadAllAsync(linked.Token))
-                onEvent(workerEvent);
+                Observe(workerEvent);
 
             await process.WaitForExitAsync(linked.Token);
 
@@ -314,6 +332,18 @@ public sealed class PythonWorkerHost(PythonWorkerOptions options)
         {
             string tail;
             lock (stderr) tail = stderr.ToString().Trim();
+
+            // What the worker said, if it said anything. It almost always did.
+            //
+            // Preferring the exit code over this is how "Bulut motoru için adres, anahtar ve model
+            // adı gerekiyor" — a sentence naming the exact problem — reached the user as "The
+            // worker exited with code 1."
+            if (reported is { } failure)
+            {
+                throw new WorkerException(
+                    failure.Code,
+                    failure.Message + (tail.Length > 0 ? $"{Environment.NewLine}{tail}" : ""));
+            }
 
             throw new WorkerException(
                 "worker_failed",
