@@ -119,6 +119,68 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     /// <summary>True when a large share of the lines were uncertain, so it is worth saying louder.</summary>
     [ObservableProperty] private bool _qualityIsPoor;
 
+    // ---- live processing ----------------------------------------------------
+    //
+    // This window used to answer "Çözümle" with a dialog telling the user to close it and open
+    // it again later. The orchestrator was already announcing progress several times a second
+    // and completion once — the window simply was not listening. Now it is, and the dialog and
+    // its instruction are gone.
+
+    /// <summary>True while this conversation is queued or being worked on.</summary>
+    [ObservableProperty] private bool _isWorking;
+
+    /// <summary>What the pipeline says it is doing right now.</summary>
+    [ObservableProperty] private string? _workStage;
+
+    /// <summary>Progress 0..1 when the stage reports one.</summary>
+    [ObservableProperty] private double _workPercent;
+
+    /// <summary>True while no percentage is available, so the bar still moves.</summary>
+    [ObservableProperty] private bool _workIsIndeterminate = true;
+
+    /// <summary>One readable sentence when the run failed, beside a way to try again.</summary>
+    [ObservableProperty] private string? _workFailure;
+
+    /// <summary>Flips the strip on the moment the request is queued, before any event arrives.</summary>
+    public void MarkQueued()
+    {
+        WorkFailure = null;
+        WorkStage = "Sırada bekliyor";
+        WorkPercent = 0;
+        WorkIsIndeterminate = true;
+        IsWorking = true;
+    }
+
+    /// <summary>A progress report from the pipeline. Ignores other conversations'.</summary>
+    public void OnProgress(Services.CallProgress progress)
+    {
+        if (progress.CallId != CallId) return;
+
+        IsWorking = true;
+        WorkFailure = null;
+        WorkStage = progress.Stage;
+        WorkIsIndeterminate = progress.Percent is null;
+        WorkPercent = progress.Percent ?? 0;
+    }
+
+    /// <summary>
+    /// The pipeline finished with this conversation, one way or the other. Everything on screen
+    /// is re-read from the archive, because that is what just changed.
+    /// </summary>
+    public void OnProcessed(Services.CallProcessed processed)
+    {
+        if (processed.CallId != CallId) return;
+
+        IsWorking = false;
+        WorkStage = null;
+
+        WorkFailure = processed.Failure is null
+            ? null
+            : Core.Asr.FailureText.Summarise(processed.Failure);
+
+        Load();
+    }
+
     public bool HasSummary => !string.IsNullOrWhiteSpace(Summary);
     public bool HasLedger => Commitments.Count > 0 || Claims.Count > 0 || Flags.Count > 0;
     public bool HasTurns => Turns.Count > 0;

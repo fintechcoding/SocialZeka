@@ -164,15 +164,17 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
     [ObservableProperty] private int _unanalysed;
 
     /// <summary>
-    /// What is on the board, in one line: "Bakılacak 3 · Bende 1".
+    /// The important-conversations panel: the one part of this archive a person arranges
+    /// themselves, on the screen they see first.
     ///
-    /// The board is the one part of this archive a person arranged themselves, so it is the part
-    /// worth putting on the screen they see first. Empty until they put something there, and it
-    /// says so rather than drawing four empty columns.
+    /// A flat, hand-ordered pile — drag in, drag around, take off. It used to be a summary line
+    /// pointing at a separate four-lane board page; the user's own description of what they
+    /// wanted was simpler and better: "önemli görüşmeler, oraya atabileyim, silebileyim,
+    /// kaydırabileyim". The lanes went; the pile stayed.
     /// </summary>
-    [ObservableProperty] private string _boardSummary = "";
+    public ObservableCollection<PanelCard> Board { get; } = [];
 
-    public bool HasBoard => !string.IsNullOrWhiteSpace(BoardSummary);
+    public bool HasBoard => Board.Count > 0;
 
     /// <summary>
     /// Cards whose reminder has come due.
@@ -342,11 +344,32 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
     /// </summary>
     private void LoadBoard()
     {
-        var counts = repository.BoardCounts();
+        Board.Clear();
 
-        BoardSummary = string.Join(" · ", BoardLane.All
-            .Where(lane => lane != BoardLane.Done && counts.GetValueOrDefault(lane) > 0)
-            .Select(lane => $"{BoardLane.NameOf(lane)} {counts[lane]}"));
+        var cards = repository.OpenBoardCards();
+        var tags = repository.TagsOf(cards.Select(c => c.CallId));
+
+        foreach (var card in cards)
+        {
+            var call = repository.GetCall(card.CallId);
+            if (call is null) continue;
+
+            var name = call.ContactId is { } cid ? repository.GetContact(cid)?.Name : null;
+
+            // The first sentence of the machine's summary, when there is one. The card is a
+            // pointer, not a claim: the quotes and their timestamps live in the window it opens.
+            var summary = repository.GetSummary(card.CallId)?.Summary;
+            var firstSentence = summary?.Split('.', 2)[0].Trim();
+
+            Board.Add(new PanelCard(
+                card.CallId,
+                name ?? "İsimsiz",
+                call.StartedAt,
+                $"{(int)call.Duration.TotalMinutes:00}:{call.Duration.Seconds:00}",
+                string.IsNullOrWhiteSpace(firstSentence) ? null : firstSentence + ".",
+                tags.GetValueOrDefault(card.CallId, []),
+                card.RemindOn));
+        }
 
         Due.Clear();
 
@@ -369,6 +392,72 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
         OnPropertyChanged(nameof(HasBoard));
         OnPropertyChanged(nameof(HasDue));
     }
+
+    // ---- the panel's verbs --------------------------------------------------
+    //
+    // Each one writes and reloads. The panel is small by nature — a pile of conversations one
+    // person is tracking by hand — so re-reading it wholesale after every change is simpler than
+    // incremental bookkeeping and impossible to get out of sync.
+
+    /// <summary>Puts a conversation on the panel. Dropping it there twice just moves it.</summary>
+    public void AddToBoard(long callId)
+    {
+        repository.PutOnBoard(callId, BoardLane.ToLookAt);
+        LoadBoard();
+    }
+
+    public void RemoveFromBoard(long callId)
+    {
+        repository.RemoveFromBoard(callId);
+        LoadBoard();
+    }
+
+    /// <summary>
+    /// Puts a conversation at the given panel index — the drop target of a drag, clamped, so a
+    /// drop past the end simply means "last".
+    /// </summary>
+    public void MoveCardTo(long callId, int index)
+    {
+        var order = Board.Select(c => c.CallId).ToList();
+
+        var from = order.IndexOf(callId);
+        if (from >= 0) order.RemoveAt(from);
+
+        order.Insert(Math.Clamp(index, 0, order.Count), callId);
+
+        repository.ReorderBoard(order);
+        LoadBoard();
+    }
+
+    public void MoveCardUp(long callId) => Nudge(callId, -1);
+    public void MoveCardDown(long callId) => Nudge(callId, +1);
+
+    private void Nudge(long callId, int delta)
+    {
+        var index = Board.Select(c => c.CallId).ToList().IndexOf(callId);
+        if (index < 0) return;
+
+        MoveCardTo(callId, index + delta);
+    }
+}
+
+/// <summary>One conversation on the important pile, as the first screen shows it.</summary>
+public sealed record PanelCard(
+    long CallId,
+    string ContactName,
+    DateTimeOffset StartedAt,
+    string Length,
+    string? SummaryLine,
+    IReadOnlyList<string> Tags,
+    DateOnly? RemindOn)
+{
+    public string When => StartedAt.ToLocalTime().ToString("d MMMM, HH:mm");
+
+    public bool HasSummary => SummaryLine is not null;
+    public bool HasTags => Tags.Count > 0;
+    public bool HasReminder => RemindOn is not null;
+
+    public string ReminderText => RemindOn is { } day ? $"Hatırlat: {day:d MMM}" : "";
 }
 
 /// <summary>One reminder that has come due, as the first screen lists it.</summary>

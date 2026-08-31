@@ -398,6 +398,45 @@
             <StackPanel>
 
                 <!--
+                    What the pipeline is doing to this conversation, while it does it.
+
+                    This strip replaced a dialog that said "close the window and open it again
+                    to see the result" — the application describing its own missing feature.
+                    Now the request is watched from the window that made it: stage, progress,
+                    and on failure one readable sentence instead of silence.
+                -->
+                <Grid Margin="2,0,2,10"
+                      Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:ProgressRing Grid.Column="0" IsIndeterminate="True" Width="16" Height="16"
+                                     Margin="0,0,10,0" VerticalAlignment="Center" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding WorkStage}" FontSize="{StaticResource TextSecondary}" />
+                        <ProgressBar Height="4" Margin="0,4,0,0"
+                                     Minimum="0" Maximum="1" Value="{Binding WorkPercent}"
+                                     IsIndeterminate="{Binding WorkIsIndeterminate}" />
+                    </StackPanel>
+                </Grid>
+
+                <Border Margin="2,0,2,10" Padding="10,8" CornerRadius="6"
+                        Background="{DynamicResource SystemFillColorCriticalBackgroundBrush}"
+                        Visibility="{Binding WorkFailure, Converter={StaticResource NullToCollapsed}}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="ErrorCircle24" FontSize="15" Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                        <TextBlock Text="{Binding WorkFailure}" TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   FontSize="{StaticResource TextSecondary}" />
+                    </StackPanel>
+                </Border>
+
+                <!--
                     The timeline, and it is draggable.
 
                     Two mirrored waveforms: you above the line, the other party below. No recorder

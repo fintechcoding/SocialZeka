@@ -1011,3 +1011,19 @@ Kullanıcının test sırasında bildirdikleri, geldikleri sırayla. Karşısın
   kaydırabileceği. "Anasayfa boş duruyor, workspace gibi orası." → Plan ajanına verildi.
 - [ ] **12.7 — Kişi penceresi bir detay sayfası olmalı.** Foto ekleme, doğum tarihi, kişi
   hakkında yapılandırılmış bilgiler, "bir sürü alan olabilir". → Plan ajanına verildi.
+- [ ] **12.8 — İşlemler sekmesi canlanmalı.** Satırda ilerleme çubuğu (veri `ReportProgress`
+  ile zaten akıyor), çalışan işi durdurma, "Bitenler" görünümü, satırdan günlüğe erişim.
+- [ ] **12.9 — Ayarlar penceresi UX elden geçmeli.** Kullanıcı: "tab eksik, sıralama kötü".
+  Kenar çubuğunda yalnız 4 bölüm görünüyor; Veriler/saklama nerede? Bölüm sırası ve
+  gruplama gözden geçirilecek. Not: ekran görüntüsünde otomatik çözümleme KAPALIYDI —
+  çözümlemenin hiç koşmamasının nedeni buydu; açık istek artık anahtarı eziyor (12.3).
+- [x] **12.10 — Sor ekranı OpenAI 400: `max_tokens` reddi.** Yeni OpenAI modelleri
+  `max_completion_tokens` istiyor. İstemci artık api.openai.com'a onu gönderiyor; diğer
+  OpenAI-uyumlu sunucular (yereller, OpenRouter) `max_tokens` almaya devam ediyor, ret gelirse
+  adı değiştirip bir kez yeniden deniyor.
+- [ ] **12.11 — Anlamsal arama araştırması (embedding index).** Kullanıcının işaret ettiği konu:
+  uzun konuşma arşivlerinde kelime eşleşmesi (FTS5) yetmez; "borç konuştuğumuz yer" gibi
+  sorgular anlam ister. Yol: her segment için embedding üretilir (yerelde küçük bir model ya da
+  sağlayıcının embedding API'si — metin makineden çıkar uyarısıyla), sqlite-vec ile saklanır,
+  Sor/Arama önce vektör komşuluğuyla aday toplar, cevap yine alıntı+zaman damgasıyla kurulur.
+  Maliyet/gizlilik dengesi ve yerel model seçimi ayrı bir araştırma turu ister — bu turda değil.

@@ -21,10 +21,36 @@ public partial class CallWindow
 
         DataContext = model;
 
+        // The pipeline reports progress and completion for whichever recording it is working on;
+        // this window forwards the ones about its own. Both events arrive on worker threads, so
+        // they hop to the dispatcher here — and both are let go when the window closes, because a
+        // static orchestrator holding handlers into dead windows is a leak that also keeps their
+        // view models alive.
+        EventHandler<Services.CallProgress>? onProgress = null;
+        EventHandler<Services.CallProcessed>? onProcessed = null;
+
+        if (App.Orchestrator is { } orchestrator)
+        {
+            onProgress = (_, p) => Dispatcher.InvokeAsync(() => model.OnProgress(p));
+            onProcessed = (_, p) => Dispatcher.InvokeAsync(() => model.OnProcessed(p));
+
+            orchestrator.ProgressChanged += onProgress;
+            orchestrator.CallProcessed += onProcessed;
+        }
+
         // The player holds a file handle and a wave device. Left alive, a window somebody opened
         // and closed keeps the recording locked, and the next thing that tries to delete or
         // re-process it fails for a reason nobody could guess from the message.
-        Closed += (_, _) => model.Dispose();
+        Closed += (_, _) =>
+        {
+            if (App.Orchestrator is { } o)
+            {
+                if (onProgress is not null) o.ProgressChanged -= onProgress;
+                if (onProcessed is not null) o.CallProcessed -= onProcessed;
+            }
+
+            model.Dispose();
+        };
     }
 
     private CallWindowViewModel? ViewModel => DataContext as CallWindowViewModel;
@@ -133,9 +159,11 @@ public partial class CallWindow
         App.Repository.SetCallState(model.CallId, VoiceTranscript.Core.Domain.ProcessingState.Queued);
         App.Orchestrator.EnqueueWith(model.CallId, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel);
 
-        MessageBox.Show(
-            "Sıraya alındı. Bittiğinde bu pencereyi kapatıp yeniden açarsan çözümleme görünür.",
-            "Çözümleme", MessageBoxButton.OK, MessageBoxImage.Information);
+        // No dialog. The strip at the bottom of the window carries it from here: progress while
+        // it runs, and the tabs refill themselves when it finishes. The dialog this replaces told
+        // the user to close the window and open it again — which was the application describing
+        // its own missing feature.
+        model.MarkQueued();
     }
 
     /// <summary>
@@ -161,9 +189,7 @@ public partial class CallWindow
         App.Repository.SetCallState(model.CallId, VoiceTranscript.Core.Domain.ProcessingState.Queued);
         App.Orchestrator.EnqueueWith(model.CallId, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel);
 
-        MessageBox.Show(
-            "Sıraya alındı. Bittiğinde bu pencereyi kapatıp yeniden açarsan yeni metin görünür.",
-            "Yeniden çevir", MessageBoxButton.OK, MessageBoxImage.Information);
+        model.MarkQueued();
     }
 
     /// <summary>Enter asks, because a single-line question box that needs the mouse is not used.</summary>

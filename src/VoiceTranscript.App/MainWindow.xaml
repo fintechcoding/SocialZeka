@@ -214,16 +214,6 @@
                         </Grid>
                     </RadioButton>
 
-                    <!-- Between the archive and the tools for searching it, because that is what it
-                         is: not another way to read the archive, but the short list of things you
-                         are still carrying out of it. -->
-                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
-                                 Command="{Binding NavigateCommand}" CommandParameter="Board">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Board24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
-                            <TextBlock Text="Pano" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </RadioButton>
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Search">
@@ -310,14 +300,6 @@
                     </views:ContactsPage.Visibility>
                 </views:ContactsPage>
 
-                <views:BoardPage Style="{StaticResource PageHost}" DataContext="{Binding Board}">
-                    <views:BoardPage.Visibility>
-                        <MultiBinding Converter="{StaticResource PageVisibility}">
-                            <Binding Path="DataContext.Page" RelativeSource="{RelativeSource AncestorType=Window}" />
-                            <Binding Source="Board" />
-                        </MultiBinding>
-                    </views:BoardPage.Visibility>
-                </views:BoardPage>
 
                 <views:HealthPage Style="{StaticResource PageHost}" DataContext="{Binding Health}">
                     <views:HealthPage.Visibility>

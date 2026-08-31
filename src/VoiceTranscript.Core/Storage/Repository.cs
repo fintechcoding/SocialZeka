@@ -1252,6 +1252,114 @@ public sealed class Repository(Database database)
             "SELECT * FROM call_summary WHERE call_id = @callId;", new { callId })?.ToModel();
     }
 
+    // ---- tags ---------------------------------------------------------------
+    //
+    // The user's own words for what a conversation was — "tehdit edildik", "önemli", anything.
+    // Identity is the Turkish-folded form, so İ/ı casing differences never split one tag in two,
+    // while the spelling the user first typed is what every screen shows. User data throughout:
+    // reprocessing may never write or delete here.
+
+    /// <summary>Puts a label on a conversation. Re-tagging with a spelling variant is a no-op.</summary>
+    public void Tag(long callId, string tag)
+    {
+        var trimmed = tag.Trim();
+        if (trimmed.Length == 0) return;
+
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO call_tag (call_id, tag, tag_folded, created_at)
+            VALUES (@callId, @trimmed, @folded, @now)
+            ON CONFLICT(call_id, tag_folded) DO NOTHING;
+            """,
+            new
+            {
+                callId,
+                trimmed,
+                folded = Text.TurkishText.NormalizeForSearch(trimmed),
+                now = Iso(DateTimeOffset.UtcNow),
+            });
+    }
+
+    public void Untag(long callId, string tag)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            "DELETE FROM call_tag WHERE call_id = @callId AND tag_folded = @folded;",
+            new { callId, folded = Text.TurkishText.NormalizeForSearch(tag.Trim()) });
+    }
+
+    public IReadOnlyList<string> TagsOf(long callId)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<string>(
+                "SELECT tag FROM call_tag WHERE call_id = @callId ORDER BY created_at, tag;",
+                new { callId }),
+        ];
+    }
+
+    /// <summary>Tags for many conversations at once, for list screens: one query, not one per row.</summary>
+    public IReadOnlyDictionary<long, IReadOnlyList<string>> TagsOf(IEnumerable<long> callIds)
+    {
+        var ids = callIds.Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<long, IReadOnlyList<string>>();
+
+        using var connection = Open();
+
+        return connection
+            .Query<(long CallId, string Tag)>(
+                "SELECT call_id, tag FROM call_tag WHERE call_id IN @ids ORDER BY created_at, tag;",
+                new { ids })
+            .GroupBy(r => r.CallId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(r => r.Tag)]);
+    }
+
+    /// <summary>Every tag in use with its count, most used first. Feeds suggestions and filters.</summary>
+    public IReadOnlyList<(string Tag, int Count)> AllTags()
+    {
+        using var connection = Open();
+
+        // The display spelling of a folded group is its earliest: the word the user first chose.
+        return
+        [
+            .. connection.Query<(string, int)>(
+                """
+                SELECT (SELECT t2.tag FROM call_tag t2
+                        WHERE t2.tag_folded = t.tag_folded
+                        ORDER BY t2.created_at LIMIT 1),
+                       COUNT(*)
+                FROM call_tag t
+                GROUP BY t.tag_folded
+                ORDER BY COUNT(*) DESC, t.tag_folded;
+                """),
+        ];
+    }
+
+    /// <summary>Conversations carrying a tag, optionally one contact's, newest first.</summary>
+    public IReadOnlyList<Call> CallsTagged(string tag, long? contactId = null)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<CallRow>(
+                """
+                SELECT c.* FROM call c
+                JOIN call_tag t ON t.call_id = c.id
+                WHERE t.tag_folded = @folded
+                  AND (@contactId IS NULL OR c.contact_id = @contactId)
+                ORDER BY c.started_at DESC;
+                """,
+                new { folded = Text.TurkishText.NormalizeForSearch(tag.Trim()), contactId })
+                .Select(r => r.ToModel()),
+        ];
+    }
+
     // ---- retention ----------------------------------------------------------
 
     /// <summary>
@@ -1356,8 +1464,11 @@ public sealed class Repository(Database database)
 
         using var connection = Open();
 
+        // Table-wide, not per lane. The dashboard panel shows every card as one flat, hand-ordered
+        // list, so position is one global sequence — which restricted to any lane is still a valid
+        // per-lane order, so nothing that sorts by (lane, position) notices the change.
         var next = connection.ExecuteScalar<int>(
-            "SELECT COALESCE(MAX(position), -1) + 1 FROM board_card WHERE lane = @lane;", new { lane });
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM board_card;");
 
         connection.Execute(
             """
@@ -1402,6 +1513,56 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>Everything on the board, in lane and position order.</summary>
+    /// <summary>
+    /// The dashboard panel's projection: every open card, flat, in the order the user made.
+    ///
+    /// Databases written before position became global can hold ties across lanes; the created_at
+    /// and call_id tiebreaks keep those stable until the first reorder rewrites them for good.
+    /// </summary>
+    public IReadOnlyList<BoardCard> OpenBoardCards()
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<(long CallId, string Lane, int Position, string? Title, string? RemindOn, string CreatedAt)>(
+                """
+                SELECT call_id, lane, position, title, remind_on, created_at FROM board_card
+                WHERE lane <> @done
+                ORDER BY position, created_at, call_id;
+                """,
+                new { done = BoardLane.Done })
+                .Select(r => new BoardCard
+                {
+                    CallId = r.CallId,
+                    Lane = r.Lane,
+                    Position = r.Position,
+                    Title = r.Title,
+                    RemindOn = r.RemindOn is null ? null : DateOnly.Parse(r.RemindOn),
+                    CreatedAt = DateTimeOffset.Parse(r.CreatedAt),
+                }),
+        ];
+    }
+
+    /// <summary>
+    /// Rewrites the user's order: each listed card gets its index as its position, atomically.
+    /// Cards not listed keep theirs — they only ever compete against each other.
+    /// </summary>
+    public void ReorderBoard(IReadOnlyList<long> callIdsInOrder)
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        for (var i = 0; i < callIdsInOrder.Count; i++)
+        {
+            connection.Execute(
+                "UPDATE board_card SET position = @i WHERE call_id = @callId;",
+                new { i, callId = callIdsInOrder[i] }, transaction);
+        }
+
+        transaction.Commit();
+    }
+
     public IReadOnlyList<BoardCard> BoardCards()
     {
         using var connection = Open();

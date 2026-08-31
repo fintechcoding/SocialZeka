@@ -298,6 +298,25 @@ public static class Schema
         );
         """,
 
+        // Labels the user put on conversations: "tehdit edildik", "önemli", whatever they need.
+        //
+        // Free vocabulary on purpose. The board's lanes are fixed because they are the product's
+        // own structure; a tag is the user's word for what a conversation was, and nobody can
+        // enumerate those in advance. Folded copy for identity, so "Önemli" and "ONEMLI" are one
+        // tag while the user's own spelling is what the screen shows.
+        //
+        // User data, like call_note: reprocessing may never touch this table.
+        """
+        CREATE TABLE IF NOT EXISTS call_tag (
+            call_id    INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+            tag        TEXT    NOT NULL,
+            tag_folded TEXT    NOT NULL,
+            created_at TEXT    NOT NULL,
+            PRIMARY KEY (call_id, tag_folded)
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_call_tag ON call_tag(tag_folded);",
+
         // What each piece of work cost.
         //
         // The question this answers is one the application could not answer at all: how long

@@ -179,42 +179,110 @@
             <!-- The archive. -->
             <StackPanel Visibility="{Binding Recent.Count, Converter={StaticResource CountToVisibility}}">
                 <!--
-                    ==================== the board, in one line ====================
+                    ==================== önemli görüşmeler ====================
 
-                    The one part of this archive a person arranged themselves, so the one part
-                    worth putting on the screen they see first. Empty until they file something,
-                    and it says so in a sentence rather than drawing four empty columns — which is
-                    what an empty board looks like and teaches nobody anything.
+                    The workspace: the one part of this archive a person arranges themselves,
+                    on the screen they see first. Conversations are dragged in from the list
+                    below, dragged around to change their order, and taken off with the ✕ —
+                    and every one of those has a right-click equivalent, because a feature
+                    that exists only as a drag is invisible and unusable from the keyboard.
                 -->
-                <TextBlock Text="Panon" Style="{StaticResource GroupHeader}" />
+                <TextBlock Text="Önemli görüşmeler" Style="{StaticResource GroupHeader}" />
 
-                <Border Style="{StaticResource HoverCard}" Cursor="Hand"
-                        MouseLeftButtonUp="OpenBoard_Click"
-                        ToolTip="Panoyu aç">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                <Border x:Name="BoardPanel" AllowDrop="True" CornerRadius="8" Padding="4"
+                        BorderThickness="1" MinHeight="56"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        Background="{DynamicResource LayerFillColorDefaultBrush}"
+                        DragOver="BoardPanel_DragOver" Drop="BoardPanel_Drop">
 
-                        <ui:SymbolIcon Grid.Column="0" Symbol="Board24" FontSize="18" Margin="0,0,14,0"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding Board}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource HoverCard}" Cursor="Hand"
+                                            MouseLeftButtonUp="PanelCard_Click"
+                                            PreviewMouseLeftButtonDown="Drag_Prime"
+                                            PreviewMouseMove="PanelCard_DragMove"
+                                            ToolTip="Görüşmeyi aç · sürükleyerek sırala">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Görüşmeyi aç" Click="PanelOpen_Click" />
+                                                <Separator />
+                                                <MenuItem Header="Yukarı taşı" Click="PanelUp_Click" />
+                                                <MenuItem Header="Aşağı taşı" Click="PanelDown_Click" />
+                                                <Separator />
+                                                <MenuItem Header="Panelden kaldır" Click="PanelRemove_Click" />
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap"
-                                   Text="{Binding BoardSummary}"
-                                   Visibility="{Binding HasBoard, Converter={StaticResource BoolToVisibility}}" />
+                                            <Border Grid.Column="0" Style="{StaticResource Avatar}"
+                                                    Margin="0,0,12,0" VerticalAlignment="Center"
+                                                    Background="{Binding ContactName, Converter={StaticResource NameBrush}}">
+                                                <TextBlock Style="{StaticResource AvatarText}"
+                                                           Text="{Binding ContactName, Converter={StaticResource Initials}}" />
+                                            </Border>
 
-                        <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap"
-                                   Style="{StaticResource Secondary}"
-                                   Text="Pano boş. Aşağıdaki görüşmelerden takip etmek istediklerini sağ tıklayıp panoya at."
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding ContactName}" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding When}" Style="{StaticResource Caption}"
+                                                               Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                    <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="{Binding HasReminder, Converter={StaticResource BoolToVisibility}}">
+                                                        <TextBlock Style="{StaticResource PillText}"
+                                                                   Text="{Binding ReminderText}" />
+                                                    </Border>
+                                                    <ItemsControl ItemsSource="{Binding Tags}" Margin="4,0,0,0"
+                                                                  VerticalAlignment="Center"
+                                                                  Visibility="{Binding HasTags, Converter={StaticResource BoolToVisibility}}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <StackPanel Orientation="Horizontal" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Style="{StaticResource Pill}" Margin="4,0,0,0"
+                                                                        Background="{Binding Converter={StaticResource NameBrush}}">
+                                                                    <TextBlock Style="{StaticResource PillText}"
+                                                                               Foreground="White" Text="{Binding}" />
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding SummaryLine}" Style="{StaticResource Caption}"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"
+                                                           Visibility="{Binding HasSummary, Converter={StaticResource BoolToVisibility}}" />
+                                            </StackPanel>
+
+                                            <TextBlock Grid.Column="2" Text="{Binding Length}" Margin="12,0,0,0"
+                                                       VerticalAlignment="Center" Style="{StaticResource Caption}"
+                                                       FontFamily="Consolas, Cascadia Mono, Segoe UI" />
+
+                                            <ui:Button Grid.Column="3" Appearance="Transparent" Margin="8,0,0,0"
+                                                       Padding="6,4" ToolTip="Panelden kaldır"
+                                                       Click="PanelRemove_Click">
+                                                <ui:SymbolIcon Symbol="Dismiss24" FontSize="12" />
+                                            </ui:Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Margin="12,10" Style="{StaticResource Secondary}" TextWrapping="Wrap"
+                                   Text="Buraya sürükle: aşağıdaki görüşmelerden takip etmek istediklerini bırak ya da sağ tıklayıp 'Önemlilere ekle' de."
                                    Visibility="{Binding HasBoard, Converter={StaticResource InverseBoolToVisibility}}" />
-
-                        <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="14"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                    </Grid>
+                    </StackPanel>
                 </Border>
 
                 <!--
@@ -277,7 +345,15 @@
                             -->
                             <Border Style="{StaticResource HoverCard}" Cursor="Hand"
                                     MouseLeftButtonUp="RecentCall_Click"
-                                    ToolTip="Görüşmeyi aç">
+                                    PreviewMouseLeftButtonDown="Drag_Prime"
+                                    PreviewMouseMove="RecentCall_DragMove"
+                                    ToolTip="Görüşmeyi aç · yukarıdaki panele sürüklenebilir">
+                                <Border.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Görüşmeyi aç" Click="RecentOpen_Click" />
+                                        <MenuItem Header="Önemlilere ekle" Click="RecentToBoard_Click" />
+                                    </ContextMenu>
+                                </Border.ContextMenu>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />

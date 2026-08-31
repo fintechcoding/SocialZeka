@@ -241,4 +241,88 @@ public sealed class BoardTests : IDisposable
             Assert.EndsWith(".", BoardLane.EmptyText(lane));
         });
     }
+
+    // ---- the dashboard panel ------------------------------------------------
+    //
+    // The panel shows every open card as one flat, hand-ordered list. Position is a single
+    // global sequence, which any lane-restricted view still reads as a valid order.
+
+    [Fact]
+    public void ThePanelListsOpenCardsInTheUsersOrder()
+    {
+        var first = Call();
+        var second = Call();
+        var third = Call();
+
+        _repo.PutOnBoard(first, BoardLane.ToLookAt);
+        _repo.PutOnBoard(second, BoardLane.Mine);
+        _repo.PutOnBoard(third, BoardLane.Theirs);
+
+        _repo.ReorderBoard([third, first, second]);
+
+        Assert.Equal([third, first, second], _repo.OpenBoardCards().Select(c => c.CallId));
+    }
+
+    [Fact]
+    public void ReorderingDoesNotChangeLanes()
+    {
+        var a = Call();
+        var b = Call();
+
+        _repo.PutOnBoard(a, BoardLane.Mine);
+        _repo.PutOnBoard(b, BoardLane.Theirs);
+
+        _repo.ReorderBoard([b, a]);
+
+        var cards = _repo.OpenBoardCards();
+
+        Assert.Equal(BoardLane.Theirs, cards[0].Lane);
+        Assert.Equal(BoardLane.Mine, cards[1].Lane);
+    }
+
+    /// <summary>
+    /// Closed cards stay out of the panel — the panel is what still needs attention — but they
+    /// are not deleted, and reordering around them leaves them alone.
+    /// </summary>
+    [Fact]
+    public void ClosedCardsStayOffThePanel()
+    {
+        var open = Call();
+        var closed = Call();
+
+        _repo.PutOnBoard(open, BoardLane.ToLookAt);
+        _repo.PutOnBoard(closed, BoardLane.Done);
+
+        _repo.ReorderBoard([open]);
+
+        Assert.Equal(open, Assert.Single(_repo.OpenBoardCards()).CallId);
+        Assert.Equal(2, _repo.BoardCards().Count);
+    }
+
+    [Fact]
+    public void ANewCardLandsAtTheEndOfThePanel()
+    {
+        var a = Call();
+        var b = Call();
+        var late = Call();
+
+        _repo.PutOnBoard(a, BoardLane.ToLookAt);
+        _repo.PutOnBoard(b, BoardLane.Mine);
+        _repo.ReorderBoard([b, a]);
+
+        _repo.PutOnBoard(late, BoardLane.ToLookAt);
+
+        Assert.Equal(late, _repo.OpenBoardCards().Last().CallId);
+    }
+
+    [Fact]
+    public void ReorderingKeepsReminders()
+    {
+        var card = Call();
+
+        _repo.PutOnBoard(card, BoardLane.ToLookAt, remindOn: new DateOnly(2026, 9, 15));
+        _repo.ReorderBoard([card]);
+
+        Assert.Equal(new DateOnly(2026, 9, 15), Assert.Single(_repo.OpenBoardCards()).RemindOn);
+    }
 }

@@ -145,13 +145,56 @@ public sealed class OpenAiCompatibleClient(
         return (closing < 0 ? body : body[..closing]).Trim();
     }
 
+    /// <summary>
+    /// The name of the token-limit field this endpoint expects.
+    ///
+    /// OpenAI renamed it: their newer models reject "max_tokens" outright with a 400 telling the
+    /// caller to send "max_completion_tokens" — a real user hit exactly that on the Sor screen.
+    /// Every other OpenAI-compatible server (local runtimes, OpenRouter, Groq) still speaks the
+    /// original name, and some know nothing else. So the host picks the opening bid, and the one
+    /// 400 that names the other field swaps and retries once.
+    /// </summary>
+    private string PreferredTokenField()
+    {
+        return Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri)
+               && uri.Host.EndsWith("openai.com", StringComparison.OrdinalIgnoreCase)
+            ? "max_completion_tokens"
+            : "max_tokens";
+    }
+
+    private static bool WantsOtherTokenField(string body, string otherField) =>
+        body.Contains("unsupported_parameter", StringComparison.OrdinalIgnoreCase)
+        && body.Contains(otherField, StringComparison.OrdinalIgnoreCase);
+
     private async Task<LlmResponse> SendAsync(LlmRequest request, CancellationToken cancellationToken)
+    {
+        var tokenField = PreferredTokenField();
+
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await SendOnceAsync(request, tokenField, cancellationToken);
+            }
+            catch (LlmException e) when (attempt == 0)
+            {
+                var other = tokenField == "max_tokens" ? "max_completion_tokens" : "max_tokens";
+
+                if (!WantsOtherTokenField(e.Message, other)) throw;
+
+                tokenField = other;
+            }
+        }
+    }
+
+    private async Task<LlmResponse> SendOnceAsync(
+        LlmRequest request, string tokenField, CancellationToken cancellationToken)
     {
         var payload = new JsonObject
         {
             ["model"] = request.Model,
             ["temperature"] = request.Temperature,
-            ["max_tokens"] = request.MaxTokens,
+            [tokenField] = request.MaxTokens,
             ["stream"] = false,
             ["messages"] = new JsonArray(
                 new JsonObject { ["role"] = "system", ["content"] = request.SystemPrompt },

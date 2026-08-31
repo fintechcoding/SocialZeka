@@ -325,17 +325,12 @@
                                         </MenuItem>
                                         <Separator />
 
-                                        <!-- Onto the board, which is the one part of this archive
-                                             a person arranges themselves. The lane is chosen here
-                                             rather than defaulted, because "whose move is it" is
-                                             the thing being decided at this moment. -->
-                                        <MenuItem Header="Panoya ekle">
+                                        <!-- Onto the first screen's important pile — the one part
+                                             of this archive a person arranges themselves. -->
+                                        <MenuItem Header="Önemlilere ekle" Click="AddToBoard_Click">
                                             <MenuItem.Icon>
                                                 <ui:SymbolIcon Symbol="Board24" />
                                             </MenuItem.Icon>
-                                            <MenuItem Header="Bakılacak" Tag="bakilacak" Click="AddToBoard_Click" />
-                                            <MenuItem Header="Bende" Tag="bende" Click="AddToBoard_Click" />
-                                            <MenuItem Header="Onlarda" Tag="onlarda" Click="AddToBoard_Click" />
                                         </MenuItem>
 
                                         <Separator />

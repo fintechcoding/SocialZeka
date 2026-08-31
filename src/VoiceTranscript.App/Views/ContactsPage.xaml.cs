@@ -201,22 +201,21 @@ public partial class ContactsPage
     }
 
     /// <summary>
-    /// Puts this conversation on the board.
+    /// Puts this conversation on the important-conversations panel of the first screen.
     ///
-    /// The lane is chosen here rather than defaulted, because "whose move is it" is precisely the
-    /// judgement being made at the moment somebody decides a conversation is not finished with.
+    /// The panel replaced the four-lane board page — the user's word for what they wanted was a
+    /// pile, not a workflow — so the menu no longer asks which lane; there is one pile now.
     /// </summary>
     private void AddToBoard_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel?.SelectedCall is not { } row) return;
-        if (sender is not FrameworkElement { Tag: string lane }) return;
 
-        App.Repository.PutOnBoard(row.Call.Id, lane);
+        App.Repository.PutOnBoard(row.Call.Id, Core.Domain.BoardLane.ToLookAt);
 
-        if (Window.GetWindow(this)?.DataContext is ViewModels.ShellViewModel shell) shell.Board.Refresh();
+        if (Window.GetWindow(this)?.DataContext is ViewModels.ShellViewModel shell)
+            shell.Overview.Refresh();
 
-        ViewModel.PlaybackMessage =
-            $"Panoya eklendi: {Core.Domain.BoardLane.NameOf(lane)}.";
+        ViewModel.PlaybackMessage = "Önemli görüşmelere eklendi.";
     }
 
     /// <summary>
