@@ -160,7 +160,18 @@
                 <ItemsControl ItemsSource="{Binding Recent}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Style="{StaticResource HoverCard}">
+                            <!--
+                                The row opens the conversation.
+
+                                It already looked like something you could press — a card that
+                                lifts under the pointer — and did nothing when pressed, which is a
+                                worse state than a plain list: it teaches people that the first
+                                screen is a display rather than a way in. This is the shortest path
+                                from "what happened today" to reading it.
+                            -->
+                            <Border Style="{StaticResource HoverCard}" Cursor="Hand"
+                                    MouseLeftButtonUp="RecentCall_Click"
+                                    ToolTip="Görüşmeyi aç">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
