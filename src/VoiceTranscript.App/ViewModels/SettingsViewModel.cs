@@ -104,8 +104,54 @@ public sealed partial class SettingsViewModel : ObservableObject
                 _probe));
         }
 
+        // Editing a service has to re-run the checks, and nothing was listening.
+        //
+        // Each service is its own view model, so typing a key into one raised PropertyChanged on
+        // that object and reached nobody. The warning above the buttons went on saying "API
+        // anahtarı girilmemiş" while the user looked straight at the key they had just typed —
+        // and it stayed until some unrelated field happened to be touched.
+        WatchEndpoints();
+
         RefreshDevices();
         Revalidate();
+    }
+
+    /// <summary>
+    /// Keeps the validation warnings honest while services are being edited.
+    ///
+    /// Both halves matter: adding or removing a service changes the answer, and so does editing
+    /// one that is already there. Subscriptions are dropped when an item leaves, because a service
+    /// the user deleted must not keep voting on whether the configuration is valid.
+    /// </summary>
+    private void WatchEndpoints()
+    {
+        foreach (var endpoint in SttEndpoints) endpoint.PropertyChanged += OnEndpointChanged;
+
+        SttEndpoints.CollectionChanged += (_, e) =>
+        {
+            foreach (var added in e.NewItems?.OfType<SttEndpointViewModel>() ?? [])
+                added.PropertyChanged += OnEndpointChanged;
+
+            foreach (var removed in e.OldItems?.OfType<SttEndpointViewModel>() ?? [])
+                removed.PropertyChanged -= OnEndpointChanged;
+
+            Revalidate();
+        };
+    }
+
+    private void OnEndpointChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // Only the fields that decide whether a service can be used. Status, balance and the busy
+        // flag change while a connection is being tested, and revalidating on those would rerun
+        // the checks several times per keystroke for no gain.
+        if (e.PropertyName is nameof(SttEndpointViewModel.ApiKey)
+                           or nameof(SttEndpointViewModel.BaseUrl)
+                           or nameof(SttEndpointViewModel.Model)
+                           or nameof(SttEndpointViewModel.Kind)
+                           or nameof(SttEndpointViewModel.Enabled))
+        {
+            Revalidate();
+        }
     }
 
     /// <summary>

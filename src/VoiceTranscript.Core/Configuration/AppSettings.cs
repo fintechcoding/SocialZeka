@@ -396,51 +396,78 @@ public sealed record AppSettings
         }
     }
 
-    /// <summary>Problems that should be shown before the settings are accepted.</summary>
+    /// <summary>
+    /// Problems that should be shown before the settings are accepted.
+    ///
+    /// Each one names the section it belongs to. The settings window shows one category page at a
+    /// time and this list at the bottom of all of them, so a problem was regularly read while its
+    /// cause was on a page the reader was not looking at — somebody standing on "Çözümleme" was
+    /// told "Buluta gönderme açık ama API anahtarı girilmemiş", which is about transcription, and
+    /// then hunted for a key that was already filled in on the page in front of them.
+    /// </summary>
     public IReadOnlyList<string> Validate(AppPaths paths)
     {
         List<string> problems = [];
 
+        const string Recording = "Kayıt";
+        const string Transcription = "Yazıya dökme";
+        const string Analysis = "Çözümleme";
+        const string Export = "Dışa aktarma";
+
+        void Problem(string section, string message) => problems.Add($"{section} — {message}");
+
         if (!RecordWhatsApp && !RecordTelegram && !RecordSignal)
-            problems.Add("En az bir uygulama seçilmeli, yoksa hiçbir görüşme kaydedilmez.");
+            Problem(Recording, "En az bir uygulama seçilmeli, yoksa hiçbir görüşme kaydedilmez.");
 
         var cloud = AppPaths.DetectCloudSync(paths.Recordings);
         if (cloud.Count > 0)
         {
-            problems.Add(
+            Problem(Recording,
                 $"Kayıt klasörü {string.Join(" ve ", cloud)} içinde. Görüşme kayıtları buluta " +
                 "yüklenir. Başka bir konum seçin.");
         }
 
         if (ExportToObsidian && string.IsNullOrWhiteSpace(ObsidianVaultPath))
-            problems.Add("Obsidian dışa aktarımı açık ama vault klasörü seçilmemiş.");
+            Problem(Export, "Obsidian dışa aktarımı açık ama vault klasörü seçilmemiş.");
 
         if (ExportToObsidian && !string.IsNullOrWhiteSpace(ObsidianVaultPath) && !Directory.Exists(ObsidianVaultPath))
-            problems.Add("Seçilen Obsidian vault klasörü bulunamadı.");
+            Problem(Export, "Seçilen Obsidian vault klasörü bulunamadı.");
 
         if (Provider.RequiresApiKey && string.IsNullOrWhiteSpace(LlmApiKey))
-            problems.Add($"{Provider.DisplayName} bir API anahtarı gerektiriyor.");
+            Problem(Analysis, $"{Provider.DisplayName} bir API anahtarı gerektiriyor.");
 
         if (UsesRemoteModelName && string.IsNullOrWhiteSpace(LlmRemoteModel))
         {
-            problems.Add(
+            Problem(Analysis,
                 $"{Provider.DisplayName} için model adı yazılmalı, örneğin " +
                 $"\"{SuggestionsFor(LlmProvider).First()}\".");
         }
 
         if (LlmProvider == LlmProviderKind.OpenAiCompatible && string.IsNullOrWhiteSpace(LlmBaseUrl))
-            problems.Add("Bu sağlayıcı için adres yazılmalı.");
+            Problem(Analysis, "Bu sağlayıcı için adres yazılmalı.");
 
         if (ExportToNotion && (string.IsNullOrWhiteSpace(NotionApiKey) || string.IsNullOrWhiteSpace(NotionDatabaseId)))
-            problems.Add("Notion dışa aktarımı için anahtar ve veritabanı kimliği gerekli.");
+            Problem(Export, "Notion dışa aktarımı için anahtar ve veritabanı kimliği gerekli.");
 
         if (!AsrCatalog.TryGet(AsrModelId, out _))
-            problems.Add($"Bilinmeyen yazıya dökme modeli: {AsrModelId}");
+            Problem(Transcription, $"Bilinmeyen yazıya dökme modeli: {AsrModelId}");
 
-        if (AsrMode != TranscriptionMode.LocalOnly && string.IsNullOrWhiteSpace(AsrApiKey))
+        // Asked of the same property that decides what actually runs.
+        //
+        // This used to test AsrApiKey alone — the single-key field the settings screen replaced
+        // with a list of services. So somebody who entered their key where the interface asks for
+        // it, in the service, was refused with "API anahtarı girilmemiş" while looking straight at
+        // the key they had just typed. The runtime was already using the list; only the check was
+        // still reading the field nothing fills in any more.
+        //
+        // UsableSttEndpoints falls back to the legacy field when the list is empty, so old
+        // settings files keep working and there is exactly one answer to "is a cloud service
+        // configured".
+        if (AsrMode != TranscriptionMode.LocalOnly && UsableSttEndpoints.Count == 0)
         {
-            problems.Add(
-                "Buluta gönderme açık ama API anahtarı girilmemiş. Anahtar olmadan bu mod hiç çalışmaz.");
+            Problem(Transcription,
+                "Buluta gönderme açık ama kullanılabilir bir servis yok. Servisin açık olduğundan, "
+                + "adresinin, API anahtarının ve model adının dolu olduğundan emin ol.");
         }
 
         return problems;

@@ -248,6 +248,19 @@ public partial class App : Application
             WorkerDirectory = WorkerDirectory,
             ModelCacheDirectory = Paths.Models,
 
+            // Eight hours, not the two the host defaults to.
+            //
+            // Two hours sounds generous until it is divided by the speed this actually runs at on
+            // a machine with no usable GPU: measured at 0.22x real time, that budget covers about
+            // twenty-seven minutes of audio. Every longer call would burn two hours of processor
+            // and then be killed with nothing to show for it — the recording kept, the transcript
+            // never produced, and the message an untranslated "The worker exceeded its 02:00:00
+            // limit."
+            //
+            // The limit exists to catch a worker that has genuinely hung, and eight hours still
+            // does that. What it stops doing is cutting off work that was going to finish.
+            Timeout = TimeSpan.FromHours(8),
+
             // The worker's own account of what it did. This is where "gpu: RTX 4050 (6 GB)" and
             // "cuda unusable: cublas64_12.dll ... falling back to the processor" come from, and
             // both are invisible anywhere else.
@@ -512,6 +525,19 @@ public partial class App : Application
             PythonExecutable = ResolvePython(),
             WorkerDirectory = WorkerDirectory,
             ModelCacheDirectory = Paths.Models,
+
+            // Eight hours, not the two the host defaults to.
+            //
+            // Two hours sounds generous until it is divided by the speed this actually runs at on
+            // a machine with no usable GPU: measured at 0.22x real time, that budget covers about
+            // twenty-seven minutes of audio. Every longer call would burn two hours of processor
+            // and then be killed with nothing to show for it — the recording kept, the transcript
+            // never produced, and the message an untranslated "The worker exceeded its 02:00:00
+            // limit."
+            //
+            // The limit exists to catch a worker that has genuinely hung, and eight hours still
+            // does that. What it stops doing is cutting off work that was going to finish.
+            Timeout = TimeSpan.FromHours(8),
 
             // The worker's own account of what it did. This is where "gpu: RTX 4050 (6 GB)" and
             // "cuda unusable: cublas64_12.dll ... falling back to the processor" come from, and
