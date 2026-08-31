@@ -111,6 +111,27 @@ public class WindowSmokeTests
                     duration: TimeSpan.FromMinutes(3),
                     ledgerEntries: 2), failures);
 
+                Build("Güncelleme", () => new UpdateWindow(
+                    new VoiceTranscript.App.Services.UpdateService(http, paths),
+                    new VoiceTranscript.Core.Update.Release(
+                        VoiceTranscript.Core.Update.AppVersion.Parse("1.2.0"),
+                        "Yenilikler burada",
+                        "VoiceTranscript-Setup-1.2.0-win-x64.exe",
+                        "https://example/setup.exe",
+                        "https://example/SHA256SUMS",
+                        68_000_000),
+                    new VoiceTranscript.Core.Update.UpdateGuard
+                    {
+                        IsRecording = false,
+                        IsProcessing = false,
+                        QueueDepth = 0,
+                        DataDirectoryOverridden = false,
+                        InstalledNormally = true,
+                        FreeDiskBytes = 10L * 1024 * 1024 * 1024,
+                        InstallerBytes = 68_000_000,
+                        RestorePending = false,
+                    }), failures);
+
                 database.ClearPool();
 
                 try

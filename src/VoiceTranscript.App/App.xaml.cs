@@ -281,6 +281,134 @@ public partial class App : Application
 
         // Anything left queued by a crash or a shutdown mid-transcription is picked up now.
         _ = Task.Run(() => Orchestrator.ProcessBacklogAsync());
+
+        _ = Task.Run(() => CheckForUpdateAsync(window));
+    }
+
+    /// <summary>The update client, once startup has built it.</summary>
+    public static Services.UpdateService? Updates { get; private set; }
+
+    /// <summary>
+    /// Looks for a newer version and, if there is one, offers it.
+    ///
+    /// Everything about this is deliberately unassertive. It runs on a background task after the
+    /// window exists, every failure is swallowed, and it never installs anything on its own — the
+    /// user asked for checking with approval, not for silent updates. An application whose real
+    /// job is to be running when a call arrives has no business letting an update check delay it.
+    ///
+    /// The delay before checking is not politeness. Startup is already doing the things that
+    /// matter — opening the database, starting the watcher, picking up the backlog — and a network
+    /// call competing with those is a worse first minute for no gain.
+    /// </summary>
+    private static async Task CheckForUpdateAsync(MainWindow window)
+    {
+        try
+        {
+            Updates = new Services.UpdateService(Http, Paths);
+
+            // Installers from previous updates, which nothing else deletes. Seventy megabytes each,
+            // inside the directory the user is told holds their recordings.
+            Updates.CleanUp();
+
+            // An update that silently did nothing is otherwise undetectable: the application is
+            // dead while the installer runs, so this marker is the only witness.
+            if (Updates.TakeFailedAttempt() is { } failed)
+            {
+                AppLog.Write("güncelleme", failed);
+                await window.Dispatcher.InvokeAsync(() => Notify(window, failed));
+            }
+
+            if (!Settings.CheckForUpdates) return;
+
+            await Task.Delay(TimeSpan.FromSeconds(20));
+
+            var check = await Updates.CheckAsync();
+
+            if (!check.Available || check.Release is null)
+            {
+                if (check.Message is { } message) AppLog.Write("güncelleme", message);
+                return;
+            }
+
+            var release = check.Release;
+
+            // Compared rather than matched, so skipping 1.2.0 does not also skip 1.3.0 — one
+            // dismissal must not silence updates for good.
+            if (Core.Update.AppVersion.Parse(Settings.SkippedUpdateVersion) is { } skipped
+                && release.Version <= skipped)
+            {
+                AppLog.Write("güncelleme", $"{release.Version} atlanmış sürüm, sorulmuyor");
+                return;
+            }
+
+            AppLog.Write("güncelleme", $"{release.Version} bulundu");
+
+            await window.Dispatcher.InvokeAsync(() => OfferUpdate(window, release));
+        }
+        catch (Exception e)
+        {
+            // Never allowed to matter. This is a courtesy running beside the thing the application
+            // is actually for.
+            AppLog.Error("güncelleme", e, "denetim sırasında beklenmeyen hata");
+        }
+    }
+
+    private static void OfferUpdate(MainWindow window, Core.Update.Release release)
+    {
+        if (Updates is null) return;
+
+        var guard = BuildUpdateGuard(release.SizeBytes);
+
+        var dialog = new Views.UpdateWindow(Updates, release, guard)
+        {
+            Owner = window is { IsVisible: true } ? window : null,
+        };
+
+        dialog.ShowDialog();
+
+        if (dialog.Choice != Views.UpdateChoice.Skip) return;
+
+        Settings = Settings with { SkippedUpdateVersion = release.Version.ToString() };
+        Settings.Save(Paths.SettingsFile);
+
+        AppLog.Write("güncelleme", $"{release.Version} kullanıcı tarafından atlandı");
+    }
+
+    /// <summary>Assembles what the guard needs to know about right now.</summary>
+    public static Core.Update.UpdateGuard BuildUpdateGuard(long installerBytes)
+    {
+        long free = 0;
+
+        try
+        {
+            free = new DriveInfo(Path.GetPathRoot(Paths.Root) ?? "C:\\").AvailableFreeSpace;
+        }
+        catch (Exception e) when (e is IOException or ArgumentException or UnauthorizedAccessException)
+        {
+            // Unknown free space reads as none, which refuses rather than risks a half-written
+            // application directory.
+        }
+
+        var installedUnder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+        return new Core.Update.UpdateGuard
+        {
+            IsRecording = Orchestrator?.State == Services.OrchestratorState.Recording
+                          || Orchestrator?.IsManualRecording == true,
+            IsProcessing = Orchestrator?.State == Services.OrchestratorState.Processing,
+            QueueDepth = Repository?.CallsAwaitingProcessing().Count ?? 0,
+            DataDirectoryOverridden = Paths.Root != new AppPaths().Root,
+            InstalledNormally = AppContext.BaseDirectory.StartsWith(
+                Path.Combine(installedUnder, "Programs"), StringComparison.OrdinalIgnoreCase),
+            FreeDiskBytes = free,
+            InstallerBytes = installerBytes,
+            RestorePending = false,
+        };
+    }
+
+    private static void Notify(MainWindow window, string message)
+    {
+        if (window.DataContext is ViewModels.ShellViewModel shell) shell.Notice = message;
     }
 
     /// <summary>Asks what windows WhatsApp, Telegram and Signal currently have, then quits.</summary>

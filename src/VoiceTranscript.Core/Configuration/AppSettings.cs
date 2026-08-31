@@ -45,6 +45,29 @@ public sealed record AppSettings
     /// </summary>
     public DateTimeOffset? SetupCompletedAt { get; init; }
 
+    // ---- updates ------------------------------------------------------------
+
+    /// <summary>
+    /// Whether the application looks for new versions.
+    ///
+    /// On by default, and it only ever <i>looks</i>: the user decided explicitly that nothing may
+    /// install without being asked. A check that fails is silent, so turning this off is about not
+    /// contacting GitHub at all rather than about avoiding interruptions.
+    /// </summary>
+    public bool CheckForUpdates { get; init; } = true;
+
+    /// <summary>
+    /// A version the user said they did not want.
+    ///
+    /// Stored so "bu sürümü atla" means something beyond the current session, and compared rather
+    /// than matched exactly — skipping 1.2.0 must not also skip 1.3.0, or one dismissal silences
+    /// updates forever.
+    /// </summary>
+    public string? SkippedUpdateVersion { get; init; }
+
+    /// <summary>When the last check ran, so the next one is not on every start.</summary>
+    public DateTimeOffset? LastUpdateCheck { get; init; }
+
     /// <summary>
     /// The language the interface is shown in. Turkish by default.
     ///
