@@ -1031,3 +1031,30 @@ Kullanıcının test sırasında bildirdikleri, geldikleri sırayla. Karşısın
   kişi penceresinde filtre, panelde görünüm)*
 - [x] **12.13 — "Çözümle"ye basınca pencereyi kapat-aç diyaloğu** *(2026-08-31 kaldırıldı —
   pencere içi canlı ilerleme + kendini yenileme)*
+
+---
+
+## Kapanış — 31 Ağustos gece turu (v0.9.22)
+
+Bu turun hedefi kullanıcının sözüyle "bitir artık: hataları düzelt, UI geliştirmelerini düşün ve
+planla, notları al, geliştir ve bitir" idi. Durum:
+
+**Bitti ve yayında (v0.9.22, tek sürüm):**
+§11'in ana kalemleri + §12.1–12.5, 12.8 (Durdur/Bitenler), 12.9 (Veriler bölümü), 12.10
+(max_tokens), 12.12 (etiketler), 12.13 (pencere içi çözümleme), 12.6 (panel), 12.7 (kişi detay).
+Ayrıca §8.1/8.2 (saklama süresi gerçek oldu, ölü ayar silindi) ve ölü kod taraması bulguları.
+688 test, 0 hata.
+
+**Kullanıcı dönüşü bekleyen (kod bu turda hazırlandı):**
+- **Bulut 404 kök nedeni.** Bu makinede uygulama verisi yok; teşhis ancak v0.9.22'nin logundan
+  çıkar — hata artık tam URL taşıyor ("deneniyor: ad @ adres" satırı + worker hatasında URL).
+  İlk başarısız denemenin logu konuyu kapatır. Beklenti: OpenRouter denemesinden kalan taban URL.
+- **Çözümleme.** Kullanıcının ayarında "otomatik çözümle" kapalı; 12.3 sayesinde elle istekler
+  artık çalışacak. Çalışmazsa log artık nedenini söylüyor.
+
+**Bilerek sonraya bırakılan (analizleri yazılı):**
+- §11.7 ses sıkıştırma → önerilen yol sessizlik kırpma; kayıt biçimini değiştirmek 5 alt sistemi
+  kırar ve bu VM'de test edilemez (ses donanımı yok).
+- §1b dayanıklı kuyruk, §3 şifreleme (önce migrasyon makinesi ister), §10 ilişki analitiği,
+  12.11 anlamsal arama — hepsi ayrı faz; kapsamları bu dosyada.
+- Ayarlar tam düzen turu (12.9'un kalanı): bölüm sırası/gruplama gözden geçirme.
