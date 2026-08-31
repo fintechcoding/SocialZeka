@@ -204,4 +204,52 @@ public static class ExtractionPrompt
         Ardından varsa yapılacakları maddeler hâlinde listele.
         Sana verilmeyen hiçbir bilgiyi ekleme.
         """;
+
+    /// <summary>
+    /// Summarises the conversation itself, for the calls where nothing was extracted.
+    ///
+    /// Most conversations contain no promise, no price and no date, and the structured summary has
+    /// nothing to work from for those — so it produced nothing at all, and the user was left with
+    /// a recording, a transcript and no answer to "what was that about". That is the ordinary case,
+    /// not an edge case: it is most calls.
+    ///
+    /// Written from the transcript rather than from structure, so it says what was talked about
+    /// even when nothing was committed to. The instruction not to invent is doubled here because
+    /// there is no quote verification behind this path — the extraction pipeline checks every
+    /// quote it keeps against the transcript, and this summary bypasses that entirely.
+    /// </summary>
+    public const string ConversationSummarySystemPrompt =
+        """
+        Sana bir telefon görüşmesinin metni verilecek. BEN ve KARSI olarak iki konuşmacı var.
+
+        Görüşmenin kısa ve sade bir Türkçe özetini yaz:
+        - En fazla 4 cümle.
+        - Sadece ne konuşulduğunu anlat. Kimse hakkında yorum yapma, niyet atfetme.
+        - Varsa yapılacakları ayrıca maddeler hâlinde listele.
+        - Metinde geçmeyen hiçbir bilgiyi ekleme, tahmin yürütme, boşluk doldurma.
+        - Metin anlaşılmıyorsa veya konuşma yoksa bunu tek cümleyle söyle.
+        """;
+
+    /// <summary>
+    /// Lays the transcript out for <see cref="ConversationSummarySystemPrompt"/>.
+    ///
+    /// Truncated from the front rather than the back when it is too long: the end of a call is
+    /// where things are agreed, and a summary that read only the opening pleasantries would be
+    /// worse than useless — it would look complete.
+    /// </summary>
+    public static string BuildConversationSummaryPrompt(
+        IReadOnlyList<Segment> segments, int maxCharacters = 12000)
+    {
+        var lines = segments
+            .Where(s => !string.IsNullOrWhiteSpace(s.Text))
+            .Select(s => $"{(s.IsMe ? "BEN" : "KARSI")}: {s.Text.Trim()}")
+            .ToList();
+
+        var text = string.Join(Environment.NewLine, lines);
+
+        if (text.Length <= maxCharacters) return text;
+
+        return "[görüşmenin başı kısaltıldı]" + Environment.NewLine
+               + text[^maxCharacters..];
+    }
 }

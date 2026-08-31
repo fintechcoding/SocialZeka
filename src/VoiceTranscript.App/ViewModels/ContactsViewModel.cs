@@ -587,5 +587,98 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void DeleteContact() => DeleteSelectedContact();
 
+    // ---- putting a call under the right person ------------------------------
+
+    /// <summary>
+    /// Every other contact, for the "move this call to…" list.
+    ///
+    /// Excludes whoever the call is filed under now, because moving it to where it already is is
+    /// not an option worth offering.
+    /// </summary>
+    public IReadOnlyList<Contact> ContactsToMoveTo()
+    {
+        var current = SelectedCall?.Call.ContactId;
+
+        return [.. repository.ListContacts().Where(c => c.Id != current)];
+    }
+
+    /// <summary>
+    /// Files the selected call under a different person.
+    ///
+    /// This exists because automatic attribution cannot be made reliable, not because it is
+    /// currently poor. All the messengers offer is a window title, and a title is sometimes the
+    /// person, sometimes whichever conversation was open, and sometimes an unread counter — so
+    /// calls will land under the wrong contact however good the guessing gets, and the product's
+    /// answer has to be that correcting it is easy.
+    ///
+    /// The repository moves the commitments, claims and flags along with the call and recalculates
+    /// both contacts. Doing less would leave a promise filed under somebody who never made it.
+    /// </summary>
+    /// <param name="forgetTitle">
+    /// Whether to also forget the learned title pairing that caused this.
+    ///
+    /// Usually the right thing. A call lands under the wrong person because a window title was
+    /// bound to them — the labelling dialog offers to remember it and that box is ticked by
+    /// default — and until the binding is removed, every later call showing that title goes to the
+    /// same wrong contact. Worse, the contact then looks known, so the question stops being asked
+    /// and the mistake becomes invisible.
+    /// </param>
+    public void MoveSelectedCall(long toContactId, bool forgetTitle)
+    {
+        if (SelectedCall is not { } row) return;
+
+        var call = row.Call;
+        var takenFrom = repository.AssignContact(call.Id, toContactId);
+
+        if (forgetTitle && !string.IsNullOrWhiteSpace(call.ObservedTitle))
+            repository.ForgetTitleBinding(call.ObservedTitle, call.App);
+
+        var name = repository.GetContact(toContactId)?.Name ?? "kişi";
+
+        Notice?.Invoke(this, takenFrom is null
+            ? $"Görüşme {name} altına alındı."
+            : $"Görüşme {name} altına taşındı."
+              + (forgetTitle ? " Bu pencere başlığı artık eski kişiye bağlanmayacak." : ""));
+
+        Refresh();
+    }
+
+    /// <summary>
+    /// Folds another contact into the selected one.
+    ///
+    /// One person routinely becomes two rows: a title that was not a name created a contact, a
+    /// name was typed differently, or the same person was reached on two applications — contacts
+    /// are keyed on (name, app), so those are already two people here. Leaving them split is not
+    /// cosmetic: every comparison this product makes is computed per contact, so a divided history
+    /// makes both halves look complete while the comparison across them silently never happens.
+    /// </summary>
+    public void MergeInto(long fromContactId)
+    {
+        if (SelectedContact is not { } row) return;
+
+        var absorbed = repository.GetContact(fromContactId)?.Name ?? "kişi";
+        var moved = repository.MergeContacts(fromContactId, row.Contact.Id);
+
+        Notice?.Invoke(this,
+            $"{absorbed} birleştirildi: {moved} görüşme {row.Contact.Name} altına taşındı.");
+
+        Refresh();
+    }
+
+    /// <summary>Corrects a contact's name without creating a second one.</summary>
+    public bool RenameSelectedContact(string name)
+    {
+        if (SelectedContact is not { } row) return false;
+
+        if (!repository.RenameContact(row.Contact.Id, name))
+        {
+            Notice?.Invoke(this, "Bu ad zaten başka bir kişide kullanılıyor.");
+            return false;
+        }
+
+        Refresh();
+        return true;
+    }
+
     public void Dispose() => Playback.Dispose();
 }

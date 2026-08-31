@@ -188,10 +188,78 @@ public sealed class AppSettingsTests : IDisposable
     public void ValidDefaultsProduceNoComplaints()
         => Assert.Empty(new AppSettings().Validate(Paths()));
 
+    /// <summary>
+    /// Whether analysis is even attempted, decided without touching the network.
+    ///
+    /// This guards a real stall rather than a preference. An unconfigured hosted provider still
+    /// gets a request per transcript chunk, and the shared client waits ten minutes before giving
+    /// up — so a twelve-chunk conversation held the single processing slot for two hours while
+    /// every new recording queued behind it, and the screen said "Çözümleniyor" the whole time.
+    /// </summary>
+    [Fact]
+    public void AHostedProviderWithoutAKeyIsNotWorthAsking()
+    {
+        var settings = new AppSettings
+        {
+            LlmProvider = LlmProviderKind.OpenRouter,
+            LlmApiKey = null,
+        };
+
+        Assert.True(settings.Provider.SendsDataOffMachine, "this test is meaningless otherwise");
+        Assert.False(settings.LlmReachableInPrinciple);
+    }
+
+    [Fact]
+    public void AHostedProviderWithAKeyIsWorthAsking()
+    {
+        var settings = new AppSettings
+        {
+            LlmProvider = LlmProviderKind.OpenRouter,
+            LlmApiKey = "sk-test",
+        };
+
+        Assert.True(settings.LlmReachableInPrinciple);
+    }
+
+    /// <summary>
+    /// A local server is always worth asking, because the only way to know whether it is running
+    /// is to ask — and asking is exactly what must not block the decision. That case is bounded by
+    /// the per-request timeout instead, which fails in minutes and reports a failure.
+    /// </summary>
+    [Fact]
+    public void ALocalServerIsAlwaysWorthAsking()
+    {
+        var settings = new AppSettings { LlmProvider = LlmProviderKind.LlamaServer };
+
+        Assert.False(settings.Provider.SendsDataOffMachine);
+        Assert.True(settings.LlmReachableInPrinciple);
+    }
+
+    /// <summary>
+    /// The bound that keeps a dead-but-listening endpoint from holding the processing slot.
+    ///
+    /// The shared client's ten-minute timeout is right for uploading an hour of audio and wrong
+    /// for a chat completion. It has to stay well under that, and well above what a local model
+    /// generating on the processor legitimately needs.
+    /// </summary>
+    [Fact]
+    public void ASingleCompletionHasABoundedDeadline()
+    {
+        Assert.InRange(
+            OpenAiCompatibleClient.RequestTimeout,
+            TimeSpan.FromMinutes(2),
+            TimeSpan.FromMinutes(8));
+    }
+
     [Fact]
     public void RecordingNothingIsRejected()
     {
-        var problems = new AppSettings { RecordWhatsApp = false, RecordTelegram = false }.Validate(Paths());
+        var problems = new AppSettings
+        {
+            RecordWhatsApp = false,
+            RecordTelegram = false,
+            RecordSignal = false,
+        }.Validate(Paths());
 
         Assert.Contains(problems, p => p.Contains("En az bir uygulama"));
     }

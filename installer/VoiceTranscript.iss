@@ -14,7 +14,19 @@
 ;   into a multi-gigabyte one, and would pin versions that the wizard can otherwise keep current.
 
 #define AppName "VoiceTranscript"
-#define AppVersion "1.0.0"
+
+; The version comes from publish.ps1, which gets it from the git tag.
+;
+; Generated rather than edited, because the alternative is somebody remembering to change a number
+; here for every release and the failure when they forget is silent: the installer builds fine, the
+; file carries the old version in its name, and the update client then refuses it as belonging to
+; another tag. The fallback keeps a bare "iscc installer\VoiceTranscript.iss" working.
+#ifexist "version.generated.iss"
+  #include "version.generated.iss"
+#else
+  #define AppVersion "0.0.0-dev"
+#endif
+
 #define AppPublisher "VoiceTranscript"
 #define AppExe "VoiceTranscript.exe"
 #define SourceDir "..\dist\VoiceTranscript"
@@ -29,7 +41,10 @@ DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 DisableDirPage=no
 OutputDir=..\dist
-OutputBaseFilename=VoiceTranscript-Setup-{#AppVersion}
+
+; The architecture is in the name because the update client matches on the whole file name, and
+; because a second architecture later must not make the old name ambiguous.
+OutputBaseFilename=VoiceTranscript-Setup-{#AppVersion}-win-x64
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -45,6 +60,22 @@ PrivilegesRequiredOverridesAllowed=dialog
 MinVersion=10.0.19041
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
+
+; Wait for the running copy to quit. Never close it.
+;
+; This is the difference between an update and losing a conversation. The application holds this
+; mutex while it runs, and it is a tray recorder — it is running essentially always, which is the
+; point of it. CloseApplications=yes would let Restart Manager terminate it, and it cannot even do
+; that cleanly: MainWindow.OnClosing sets e.Cancel = true so the window refuses to close, leaving
+; a kill as the only outcome. Killing it mid-call ends the recording with the WAV headers unwritten
+; and the row never completed.
+;
+; So the installer waits instead, and the application closes itself when the user agrees to the
+; update — after it has stopped detection and finished anything in flight. Somebody who runs the
+; installer by hand during a call sees a wait rather than a lost recording.
+AppMutex=Global\VoiceTranscript.SingleInstance
+CloseApplications=no
+RestartApplications=no
 
 [Languages]
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
@@ -92,6 +123,19 @@ Name: "{userstartup}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: autostart
 ; on its own. Without it, it simply starts.
 Filename: "{app}\{#AppExe}"; Parameters: "--setup"; Description: "{cm:PrepareDescription}";   Flags: nowait postinstall skipifsilent; Tasks: prepare
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchDescription}";   Flags: nowait postinstall skipifsilent unchecked; Tasks: not prepare
+
+; And the entry that matters for an update.
+;
+; Both entries above carry skipifsilent, which is right for them — a silent install should not
+; offer a checkbox nobody can see. But it meant a silent install finished by leaving the machine
+; with no recorder running at all: the application had closed itself to let the installer through,
+; and nothing started it again. The user agreed to an update and silently lost call recording until
+; they next opened the application by hand — which, for a tray application they are supposed to
+; forget about, could be weeks.
+;
+; This entry carries no skipifsilent and runs only when the wizard was silent, so exactly one of
+; the three fires in every case.
+Filename: "{app}\{#AppExe}"; Flags: nowait postinstall; Check: WizardSilent
 
 [UninstallDelete]
 ; Only what the installer created. The data folder is deliberately left alone — see below.

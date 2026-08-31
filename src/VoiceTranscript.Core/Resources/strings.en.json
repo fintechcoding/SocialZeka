@@ -209,6 +209,8 @@
   "settingswindow.ses-yakalama": "Audio capture",
   "settingswindow.ses-yakalamayi-sina": "Test audio capture",
   "settingswindow.sifir-suresiz-saklamak-demektir-sabitlenmi": "Zero means keep them forever. Pinned calls are not touched by this sweep.",
+  "settingswindow.signal": "Signal",
+  "settingswindow.signal-desktop-aramalari": "Signal Desktop calls. Has no effect unless Signal Desktop is installed.",
   "settingswindow.sina": "Test",
   "settingswindow.sirayla-denenir-biri-cevap-vermezse-ya-da": "Tried in order. If one does not answer or runs out of credit, the next takes over — there is only one copy of a recording and it must not be lost.",
   "settingswindow.telegram": "Telegram",

@@ -197,6 +197,26 @@
                             </Grid>
                         </Border>
 
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="ShieldTask24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.signal}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="{loc:T settingswindow.signal-desktop-aramalari}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding RecordSignal}" />
+                            </Grid>
+                        </Border>
+
                         <TextBlock Text="{loc:T settingswindow.ses-yakalama}" Style="{StaticResource GroupHeader}" />
 
                         <!--

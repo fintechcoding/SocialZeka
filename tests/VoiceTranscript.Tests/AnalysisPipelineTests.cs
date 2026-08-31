@@ -248,6 +248,9 @@ public sealed class AnalysisPipelineTests : IDisposable
         WriteSummary = false,
     };
 
+    /// <summary>The same, but with the summary step on, for the tests that are about it.</summary>
+    private static readonly AnalysisOptions SummarisingOptions = Options with { WriteSummary = true };
+
     [Fact]
     public async Task ExtractsAndStoresACommitmentWithItsRealTimestamp()
     {
@@ -462,5 +465,86 @@ public sealed class AnalysisPipelineTests : IDisposable
         var speaker = schema["properties"]!["taahhutler"]!["items"]!["properties"]!["konusan"]!["enum"];
         Assert.NotNull(speaker);
         Assert.Equal(2, speaker.AsArray().Count);
+    }
+
+    /// <summary>
+    /// An ordinary conversation still gets a summary.
+    ///
+    /// This is the fault the user reported as "the call ended and nothing came out". Most calls
+    /// contain no promise, no price and no date, and the summary was built only from those — so
+    /// for most of the archive it produced nothing at all, and the answer to "what was that about"
+    /// was a recording and a transcript to read yourself.
+    /// </summary>
+    [Fact]
+    public async Task AConversationWithNoCommitmentsStillGetsASummary()
+    {
+        var (call, _) = SeedCall(
+            CallKind.OneToOne,
+            (false, 0, "Merhaba, nasılsın?"),
+            (true, 3000, "İyiyim, sen nasılsın?"),
+            (false, 6000, "Ben de iyiyim. Annem selam söyledi."));
+
+        var llm = new ScriptedLlm(
+            """{"taahhutler":[],"iddialar":[],"sorular":[],"baski_isaretleri":[]}""",
+            "Hâl hatır sorulan kısa bir görüşme. Karşı taraf annesinden selam iletti.");
+
+        var report = await new AnalysisPipeline(llm, _repo)
+            .AnalyseAsync(call, SummarisingOptions, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.NotNull(report.Summary);
+        Assert.Contains("selam", report.Summary!, StringComparison.OrdinalIgnoreCase);
+
+        // And it is saved, not merely returned — the screen reads it from the database.
+        Assert.NotNull(_repo.GetSummary(call));
+    }
+
+    /// <summary>
+    /// The fallback summary reads the transcript, so the transcript has to reach it.
+    ///
+    /// Written from the conversation rather than from extracted structure, which also means the
+    /// quote verification the extraction step performs does not apply — hence the emphatic
+    /// instruction in the prompt, and hence this test pinning that the transcript is what is sent.
+    /// </summary>
+    [Fact]
+    public async Task TheFallbackSummaryIsBuiltFromWhatWasSaid()
+    {
+        var (call, _) = SeedCall(
+            CallKind.OneToOne,
+            (false, 0, "Kargo ne zaman gelir?"),
+            (true, 3000, "Bilmiyorum, bakmam lazım."));
+
+        var llm = new ScriptedLlm(
+            """{"taahhutler":[],"iddialar":[],"sorular":[],"baski_isaretleri":[]}""",
+            "Kargonun ne zaman geleceği soruldu.");
+
+        await new AnalysisPipeline(llm, _repo)
+            .AnalyseAsync(call, SummarisingOptions, cancellationToken: TestContext.Current.CancellationToken);
+
+        var summaryRequest = llm.Requests[^1];
+
+        Assert.Contains("Kargo ne zaman gelir?", summaryRequest.UserPrompt);
+        Assert.Contains("BEN", summaryRequest.UserPrompt);
+        Assert.Contains("KARSI", summaryRequest.UserPrompt);
+
+        // No schema on this path: it is asked for prose, not structure.
+        Assert.Null(summaryRequest.JsonSchema);
+    }
+
+    /// <summary>
+    /// A transcript with nothing in it produces no summary rather than an invented one.
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyTranscriptIsNotSummarised()
+    {
+        var (call, _) = SeedCall(CallKind.OneToOne);
+
+        var llm = new ScriptedLlm();
+
+        var report = await new AnalysisPipeline(llm, _repo)
+            .AnalyseAsync(call, SummarisingOptions, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Null(report.Summary);
+        Assert.Contains(report.Warnings, w => w.Contains("metni yok"));
+        Assert.Empty(llm.Requests);
     }
 }

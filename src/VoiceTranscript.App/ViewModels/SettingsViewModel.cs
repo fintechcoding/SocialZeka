@@ -24,8 +24,21 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly SttProbe _probe;
     private readonly HttpClient _http;
 
+    /// <summary>
+    /// The settings this window opened on, kept so saving can amend them rather than replace them.
+    ///
+    /// <see cref="ToSettings"/> used to build a brand new record from the fields the window shows,
+    /// which silently reset every setting it does not show. Three of those were rescued by hand at
+    /// the call site and two were not: a transcript retention period was wiped on every save, and
+    /// <see cref="AppSettings.DataRoot"/> would be too the moment it started doing anything. A
+    /// rescue list is the wrong shape for this — it has to be remembered every time a setting is
+    /// added, and forgetting is silent. Amending the original cannot forget.
+    /// </summary>
+    private readonly AppSettings _original;
+
     public SettingsViewModel(AppSettings settings, AppPaths paths, HttpClient http)
     {
+        _original = settings;
         _paths = paths;
         _http = http;
         _probe = new SttProbe(http);
@@ -45,6 +58,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         _recordWhatsApp = settings.RecordWhatsApp;
         _recordTelegram = settings.RecordTelegram;
+        _recordSignal = settings.RecordSignal;
         _recordAutomatically = settings.RecordAutomatically;
         _uiLanguage = Localisation.Available.FirstOrDefault(l => l.Code == settings.UiLanguage);
         if (_uiLanguage.Code is null) _uiLanguage = Localisation.Available[0];
@@ -208,6 +222,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _asrApiBaseUrl;
     [ObservableProperty] private bool _recordWhatsApp;
     [ObservableProperty] private bool _recordTelegram;
+    [ObservableProperty] private bool _recordSignal;
     [ObservableProperty] private bool _useEchoCancellation;
 
     /// <summary>Saved endpoint identifiers. Null means follow the communications default.</summary>
@@ -269,6 +284,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     partial void OnRecordWhatsAppChanged(bool value) => Revalidate();
     partial void OnRecordTelegramChanged(bool value) => Revalidate();
+    partial void OnRecordSignalChanged(bool value) => Revalidate();
     partial void OnLlmApiKeyChanged(string value) => Revalidate();
     partial void OnAsrApiKeyChanged(string value) => Revalidate();
 
@@ -466,10 +482,18 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    public AppSettings ToSettings() => new()
+    /// <summary>
+    /// The settings as the window now has them.
+    ///
+    /// Amends the record the window opened on rather than constructing a fresh one, so a setting
+    /// this screen does not display survives being saved. Everything below is what the user can
+    /// actually change here; anything absent is deliberately carried through untouched.
+    /// </summary>
+    public AppSettings ToSettings() => _original with
     {
         RecordWhatsApp = RecordWhatsApp,
         RecordTelegram = RecordTelegram,
+        RecordSignal = RecordSignal,
         RecordAutomatically = RecordAutomatically,
         ShowRecordingBar = ShowRecordingBar,
         UiLanguage = UiLanguage.Code,

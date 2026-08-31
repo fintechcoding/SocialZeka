@@ -53,11 +53,22 @@ public partial class MainWindow
         // The prompt is raised from a background thread, so it has to be marshalled onto the UI.
         if (App.Orchestrator is { } orchestrator)
         {
+            // InvokeAsync, not Invoke.
+            //
+            // The blocking form made the caller wait for the delegate, and the delegate opens a
+            // modal dialog — so the orchestrator's thread sat inside this line for as long as the
+            // window was on screen. That thread was the detection loop, which meant no call was
+            // detected while the dialog was open, and a conversation started in that window was
+            // never recorded at all. The loop no longer does this work, but the blocking call
+            // would still be wrong: nothing on a background thread should wait on the interface.
             orchestrator.CallFinished += (_, finished) =>
-                Dispatcher.Invoke(() => PromptForLabel(finished));
+                Dispatcher.InvokeAsync(() => PromptForLabel(finished));
 
             orchestrator.StateChanged += (_, state) =>
-                Dispatcher.Invoke(() => ShowRecordingStrip(state));
+                Dispatcher.InvokeAsync(() => ShowRecordingStrip(state));
+
+            orchestrator.CallProcessed += (_, processed) =>
+                Dispatcher.InvokeAsync(() => AnnounceProcessed(processed));
         }
     }
 
@@ -132,23 +143,103 @@ public partial class MainWindow
     /// title, and a WhatsApp title that has been labelled once is remembered thereafter, so in
     /// practice this appears for genuinely new contacts and nobody else.
     /// </summary>
+    /// <summary>
+    /// Says what became of a recording, once it has been transcribed and analysed.
+    ///
+    /// This is the answer to the question people actually ask after a call — who that was and what
+    /// it was about. Everything needed to answer it was already being produced and written to the
+    /// database; what was missing was anybody saying so. The summary is shown on the contact's
+    /// page, and the only way to learn it was there was to go looking.
+    ///
+    /// Kept to one line on purpose. It arrives minutes after the conversation, unprompted, while
+    /// the user is doing something else; a card that has to be dismissed would be an interruption,
+    /// and the full text is a click away in the archive.
+    /// </summary>
+    private void AnnounceProcessed(CallProcessed processed)
+    {
+        if (DataContext is not ShellViewModel shell) return;
+
+        shell.RefreshAll();
+
+        var length = $"{(int)processed.Duration.TotalMinutes:00}:{processed.Duration.Seconds:00}";
+
+        if (!processed.Succeeded)
+        {
+            shell.Notice = processed.Failure is { Length: > 0 } reason
+                ? $"{processed.ContactName} · {length} görüşmesi işlenemedi: {Core.Asr.FailureText.Summarise(reason)}"
+                : $"{processed.ContactName} · {length} görüşmesi işlenemedi.";
+
+            return;
+        }
+
+        shell.Notice = processed.Summary is { Length: > 0 } summary
+            ? $"{processed.ContactName} · {length} — {FirstSentence(summary)}"
+            : $"{processed.ContactName} · {length} görüşmesi yazıya döküldü.";
+    }
+
+    /// <summary>
+    /// The opening sentence of a summary, for a notice that has one line to work with.
+    ///
+    /// Cut at a sentence boundary rather than a character count, because a summary truncated
+    /// mid-clause can reverse its own meaning — "ödemeyi yapmayacağını söyledi" and
+    /// "ödemeyi yapmayacağını söyledi ama sonra vazgeçti" are different claims about a person.
+    /// </summary>
+    private static string FirstSentence(string summary, int limit = 160)
+    {
+        var text = summary.Trim().ReplaceLineEndings(" ");
+
+        var stop = text.IndexOfAny(['.', '!', '?']);
+        if (stop > 0 && stop < limit) return text[..(stop + 1)];
+
+        return text.Length <= limit ? text : text[..limit].TrimEnd() + "…";
+    }
+
+    /// <summary>True while a labelling dialog is on screen, so a second one cannot stack on it.</summary>
+    private bool _labelling;
+
     private void PromptForLabel(CallFinished finished)
     {
         if (!finished.NeedsLabel) return;
 
-        var dialog = new LabelCallWindow(
-            App.Repository,
-            finished.CallId,
-            finished.Duration,
-            finished.ObservedTitle,
-            finished.App,
-            finished.AudioSummary,
-            finished.HasSilentStream)
-        {
-            Owner = IsVisible ? this : null,
-        };
+        // One dialog at a time.
+        //
+        // Two calls finishing close together used to open two modal windows on top of each other,
+        // and since the dialog does not appear in the taskbar the one underneath was unreachable
+        // until the top one was dealt with. The second call is not lost by skipping it here: it
+        // stays unlabelled and appears on the first screen under "isimlendirilmemiş", which is a
+        // list the user can work through when they choose to.
+        if (_labelling) return;
 
-        dialog.ShowDialog();
+        _labelling = true;
+
+        try
+        {
+            var dialog = new LabelCallWindow(
+                App.Repository,
+                finished.CallId,
+                finished.Duration,
+                finished.ObservedTitle,
+                finished.App,
+                finished.AudioSummary,
+                finished.HasSilentStream)
+            {
+                Owner = IsVisible ? this : null,
+            };
+
+            dialog.ShowDialog();
+        }
+        catch (Exception e)
+        {
+            // A dialog that cannot be built must not take anything else down with it. Without
+            // this, a missing resource key or a bad binding would surface as an unhandled
+            // exception the crash handler swallows, and the call would simply never be labelled
+            // with no explanation anywhere.
+            Services.AppLog.Error("arayüz", e, $"görüşme #{finished.CallId} isimlendirme penceresi açılamadı");
+        }
+        finally
+        {
+            _labelling = false;
+        }
 
         if (DataContext is ShellViewModel viewModel) viewModel.RefreshAll();
     }
@@ -168,15 +259,14 @@ public partial class MainWindow
 
         if (dialog.ShowDialog() != true) return;
 
-        // Carried across explicitly. ToSettings builds a fresh record from the fields the window
-        // shows, so anything it does not show would be silently reset — and resetting the
-        // first-run stamp would bring the setup wizard back every time somebody saved settings.
-        App.Settings = viewModel.ToSettings() with
-        {
-            SetupCompletedAt = App.Settings.SetupCompletedAt,
-            TranscribeGroupCalls = App.Settings.TranscribeGroupCalls,
-            Language = App.Settings.Language,
-        };
+        // No list of settings to carry across by hand any more.
+        //
+        // ToSettings now amends the record the window opened on instead of building a fresh one,
+        // so anything this screen does not display — the first-run stamp, the transcription
+        // language, the retention periods, the data directory — survives on its own. The list
+        // that used to be here had to be extended every time a setting was added, and the two
+        // that were missed were quietly wiped on every save.
+        App.Settings = viewModel.ToSettings();
 
         App.Settings.Save(App.Paths.SettingsFile);
 

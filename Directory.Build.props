@@ -9,4 +9,31 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
   </PropertyGroup>
+
+  <!--
+    The version, in one place, and deliberately not a release number by default.
+
+    It used to be written out three times — nowhere in the projects, "1.0.0" hardcoded in the
+    installer script, and "1.0.0" printed by the publish script — so the three could disagree and
+    the application had no way to know what it was. That matters now that it checks for updates:
+    a build that reports the wrong version either never updates or updates in a loop.
+
+    A local build is 0.0.0-dev on purpose. It is plainly not a release, and it sorts below every
+    real one, so a developer running from the checkout is never offered "an update" to the version
+    they are already ahead of. A release supplies the real number:
+
+        dotnet build -p:VersionPrefix=1.2.0 -p:VersionSuffix=
+
+    VersionPrefix and VersionSuffix rather than Version, because setting Version alone leaves
+    VersionPrefix at its default and the assembly then reports 1.0.0 regardless of what was asked
+    for — a trap this project would otherwise meet the first time it tagged a release candidate.
+  -->
+  <PropertyGroup>
+    <VersionPrefix>0.0.0</VersionPrefix>
+    <VersionSuffix>dev</VersionSuffix>
+
+    <Company>VoiceTranscript</Company>
+    <Product>VoiceTranscript</Product>
+    <Copyright>MIT</Copyright>
+  </PropertyGroup>
 </Project>

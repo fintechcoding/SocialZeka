@@ -1,0 +1,65 @@
+<ui:FluentWindow x:Class="VoiceTranscript.App.Views.MoveCallWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Görüşmeyi başka kişiye taşı"
+                 Width="460" SizeToContent="Height"
+                 WindowStartupLocation="CenterOwner"
+                 ResizeMode="NoResize"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica">
+
+    <StackPanel Margin="0,0,0,16">
+        <ui:TitleBar Title="Görüşmeyi başka kişiye taşı" />
+
+        <StackPanel Margin="20,8,20,0">
+            <TextBlock x:Name="HeadlineText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+
+            <TextBlock x:Name="LedgerNote" Margin="0,8,0,0" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+            <TextBlock Text="Kime taşınsın?" Margin="0,18,0,6" FontWeight="SemiBold" />
+
+            <ui:TextBox x:Name="NameBox"
+                        PlaceholderText="Kişi adı yaz ya da aşağıdan seç"
+                        TextChanged="NameBox_TextChanged" />
+
+            <ListBox x:Name="MatchList" MaxHeight="180" Margin="0,6,0,0"
+                     Visibility="Collapsed"
+                     SelectionChanged="MatchList_SelectionChanged"
+                     BorderThickness="1"
+                     BorderBrush="{DynamicResource ControlElevationBorderBrush}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Name}" Margin="4,2" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!--
+                Ticked by default, and that default is the whole point of the checkbox.
+
+                A call lands under the wrong person because a window title was bound to them: the
+                labelling dialog offers to remember the title and its box is ticked by default, so
+                a title that was never a name — the conversation that happened to be open, an
+                unread badge — becomes a permanent pairing. Until it is removed, every later call
+                showing that title goes to the same wrong contact, and because the contact then
+                looks known the question stops being asked and the mistake becomes invisible.
+
+                Moving the call fixes the past. This is what stops it happening again.
+            -->
+            <CheckBox x:Name="ForgetBox" Margin="0,14,0,0" IsChecked="True"
+                      Content="Bu pencere başlığını eski kişiden çöz"
+                      ToolTip="Yoksa bu başlıkla gelen sonraki görüşmeler yine eski kişiye gider." />
+
+            <TextBlock x:Name="ForgetHint" Margin="26,2,0,0" TextWrapping="Wrap"
+                       Style="{StaticResource Caption}"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                <ui:Button Content="Vazgeç" Margin="0,0,8,0" Click="Cancel_Click" IsCancel="True" />
+                <ui:Button x:Name="MoveButton" Content="Taşı" Appearance="Primary" Click="Move_Click" />
+            </StackPanel>
+        </StackPanel>
+    </StackPanel>
+</ui:FluentWindow>

@@ -6,9 +6,17 @@ Bu proje **iki ayrı makinede** yaşıyor ve bunu bilmeden yapılan her tahmin y
 
 | | Geliştirme makinesi | Hedef makine |
 |---|---|---|
-| GPU | Radeon 780M (iGPU) — **NVIDIA yok** | RTX 4050 Laptop, 6 GB |
-| Ses donanımı | **Yok** (`Win32_SoundDevice` boş) | Gerçek mikrofon + hoparlör |
-| WhatsApp / Telegram | Kurulu ama **dokunulmuyor** | Oturum açık, gerçek aramalar |
+| Kimlik | `DESKTOP-4LOD265` — **Hyper-V sanal makinesi** | Kullanıcının günlük makinesi |
+| GPU | `Microsoft Hyper-V Video` — **NVIDIA yok, `nvidia-smi` yok** | RTX 4050 Laptop, 6 GB |
+| Ses donanımı | **Yok** — `Win32_SoundDevice` gerçekten boş | Gerçek mikrofon + hoparlör |
+| CPU / RAM | Ryzen 7 PRO 8700GE (konak), 7,8 GB | — |
+| WhatsApp / Telegram | Çalışmıyor, **dokunulmuyor** | Oturum açık, gerçek aramalar |
+| Uygulama verisi | Yok — uygulama burada hiç çalışmadı | Gerçek görüşme arşivi |
+
+*(Yukarıdakiler 2026-08-31'de bu makinede ölçüldü, tahmin değil.)*
+
+Sanal makine olması ayrıntı değil, kısıtın kendisi: **ses donanımı yok**, yani WASAPI yakalama
+burada hiçbir koşulda denenemez. Ekran kartı da sanal, dolayısıyla CUDA yolu da öyle.
 
 **Sonuçları:**
 
@@ -26,6 +34,24 @@ Bu proje **iki ayrı makinede** yaşıyor ve bunu bilmeden yapılan her tahmin y
 
 ## Kurulum
 
+### Doğrulanmış ortam (2026-08-31, `DESKTOP-4LOD265`)
+
+| Araç | Sürüm | Nerede | winget kimliği |
+|---|---|---|---|
+| .NET SDK | 10.0.400 | `C:\Program Files\dotnet\dotnet.exe` | `Microsoft.DotNet.SDK.10` |
+| Python | 3.12.10 | `%LOCALAPPDATA%\Programs\Python\Python312\python.exe` | `Python.Python.3.12` |
+| pytest | 9.1.1 | aynı yorumlayıcı | — |
+| Inno Setup | 6.7.3 | `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe` | `JRSoftware.InnoSetup` |
+| GitHub CLI | 2.96.0 | PATH'te | `GitHub.cli` |
+
+> ⚠️ **`dotnet` PATH'te değil.** winget ile kurulduğunda mevcut kabuk oturumu yeni PATH'i
+> görmüyor. Tam yolla çağır ya da yeni bir terminal aç. Bu, "SDK kurulu değil" gibi görünen ama
+> olmayan bir sorundur — beş dakika kaybettirdi, bir daha kaybettirmesin.
+
+> ⚠️ **`python` komutu Microsoft Store kısayoluna düşer.** Kurulum yapılmadan `python` yazılırsa
+> *"Python was not found; run without arguments to install from the Microsoft Store"* çıkar ve
+> çıkış kodu 9009 olur. Bu sahte bir yorumlayıcıdır. Tam yolu kullan.
+
 ```bash
 dotnet restore
 ```
@@ -36,6 +62,33 @@ Python worker'ı için (isteğe bağlı, transkripsiyon denemek istersen):
 py -3.12 -m venv worker/.venv
 worker/.venv/Scripts/python -m pip install -r worker/requirements.txt
 ```
+
+> **Yalnızca `worker/tests` koşacaksan bu venv gerekmez.** O testler sadece standart kütüphane ve
+> `pytest` kullanıyor; `requirements.txt`'teki ağır bağımlılıklar (ctranslate2, faster-whisper,
+> onnxruntime, nvidia-cublas) **gerekmiyor** ve bu makinede işe de yaramaz (GPU yok).
+> `pip install pytest` yeter.
+
+---
+
+## Geliştirme verisini gerçek arşivden ayırmak
+
+Uygulama, kullanıldığı makinede geliştirildiğinde deneysel bir derleme **gerçek görüşme
+arşivinin üstünde** çalışır. Bunu önlemek dikkatle değil, anahtarla olur:
+
+```bash
+VoiceTranscript.exe --data C:\vt-dev
+```
+
+- Öncelik: `--data` > `AppSettings.DataRoot` ayarı > varsayılan
+  (`%LOCALAPPDATA%\VoiceTranscript.Data`).
+- Veri klasörü **günlük açılmadan önce** çözülür; günlüğün ilk satırı hangi klasörün
+  kullanıldığını yazar ve varsayılan değilse işaretler.
+- `--data` verilip arkasına klasör yazılmazsa uygulama **açılmaz**. Sessizce varsayılana düşmek,
+  anahtarın var olma sebebini ortadan kaldırırdı.
+- Bulut klasörü denetimi (`DetectCloudSync`) verilen klasöre de uygulanır.
+
+Karar mantığı `AppPaths.ResolveRoot` içinde ve saftır — Win32'ye de WPF'e de bağlı değil, bu
+yüzden tamamen test edilebilir (`tests/VoiceTranscript.Tests/DataDirectoryTests.cs`).
 
 ---
 
@@ -51,6 +104,40 @@ Bu betik hem C# hem Python testlerini çalıştırır. **PowerShell'den çalış
 > Microsoft.Testing.Platform arasındaki uyumsuzluk yüzünden `dotnet test` **"Zero tests ran"**
 > der ve sıfır çıkış kodu döndürür. Yani testler çalışmamış olur ve başarılı görünür.
 > `test.ps1` test modülünü doğrudan çalıştırarak bunu atlar.
+>
+> **Bu 2026-08-31'de yeniden denendi; çözülmedi.** Denenen iki resmî yol da işe yaramadı:
+>
+> | Denenen | Sonuç |
+> |---|---|
+> | Hiçbiri | `error : Testing with VSTest target is no longer supported ... on .NET 10 SDK` |
+> | Kökte `dotnet.config` → `[dotnet.test.runner] name = "Microsoft.Testing.Platform"` | Yok sayıldı, aynı VSTest hatası |
+> | Kökte `global.json` → `"test": { "runner": "Microsoft.Testing.Platform" }` | VSTest hatası gitti, yerine **"Zero tests ran"** geldi |
+>
+> Test projesi zaten `UseMicrosoftTestingPlatformRunner` ve `TestingPlatformDotnetTestSupport`
+> ayarlarını taşıyor; eksik olan SDK tarafı ve bu sürümde bir çözümü yok. Her iki dosya da geri
+> alındı — depoda yoklar ve **tekrar eklenmemeli.**
+>
+> ⚠️ `VoiceTranscript.Tests.csproj` içindeki yorum "global.json bu işi tamamlar" diyor. **Yanlış.**
+> Öyle bir dosya depoda yok, olsa da çalışmıyor. Yorum düzeltilecek (`YAPILACAKLAR.md` §5.3).
+
+### Bilinen taban çizgisi
+
+2026-08-31, bu makinede, temiz bir depo üzerinde:
+
+| Takım | Sonuç |
+|---|---|
+| `dotnet build VoiceTranscript.slnx -c Debug` | **0 hata**, 22 uyarı, ~1 dk 20 sn |
+| `VoiceTranscript.Tests.exe` | **454 test · 450 geçti · 0 kırık · 4 atlandı**, ~15 sn |
+| `pytest` (`worker/`) | **56 test · 56 geçti**, ~15 sn |
+
+Atlanan 4 test `PythonWorkerHostTests` içinde ve bu makinede Python worker ortamı ile Whisper
+ağırlıkları olmadığı için atlanıyor — beklenen davranış, kusur değil.
+
+22 uyarının hepsi zararsız: NAudio'nun kullanımdan kaldırılmış `MMDevice.AudioClient` özelliği
+(×2) ve xUnit'in `TestContext.Current.CancellationToken` önerisi (×20).
+
+**Bir değişiklikten sonra bu sayılar düşerse sebep senin değişikliğindir.** Taban çizgisi bunun
+için yazılı.
 
 Tek bir sınıfı çalıştırmak:
 

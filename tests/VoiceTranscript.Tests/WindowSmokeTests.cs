@@ -79,6 +79,61 @@ public class WindowSmokeTests
                     () => settings,
                     paths.Root)), failures);
 
+                // The two windows that appear because of a call, rather than because somebody
+                // opened a menu.
+                //
+                // These were the last ones nobody built. That mattered more than it sounds: the
+                // labelling window is shown after every call with a new contact, so a renamed
+                // resource key or an icon that is not a real symbol would surface as the recording
+                // finishing and no question ever being asked — which is indistinguishable from the
+                // recorder failing, and is exactly what was reported.
+                var database = new VoiceTranscript.Core.Storage.Database(
+                    Path.Combine(paths.Root, "smoke.db"));
+
+                database.Migrate();
+                var repository = new VoiceTranscript.Core.Storage.Repository(database);
+
+                Build("Görüşmeyi isimlendir", () => new LabelCallWindow(
+                    repository,
+                    callId: 1,
+                    duration: TimeSpan.FromMinutes(3),
+                    observedTitle: "Serdal",
+                    app: VoiceTranscript.Core.Domain.CallApp.WhatsApp,
+                    audioSummary: "mic: tamam; far: tamam",
+                    hasSilentStream: false), failures);
+
+                Build("Görüşmeyi taşı", () => new MoveCallWindow(
+                    repository,
+                    currentContactName: "Uliana",
+                    observedTitle: "(3) WhatsApp",
+                    app: VoiceTranscript.Core.Domain.CallApp.WhatsApp,
+                    startedAt: DateTimeOffset.Now,
+                    duration: TimeSpan.FromMinutes(3),
+                    ledgerEntries: 2), failures);
+
+                Build("Güncelleme", () => new UpdateWindow(
+                    new VoiceTranscript.App.Services.UpdateService(http, paths),
+                    new VoiceTranscript.Core.Update.Release(
+                        VoiceTranscript.Core.Update.AppVersion.Parse("1.2.0"),
+                        "Yenilikler burada",
+                        "VoiceTranscript-Setup-1.2.0-win-x64.exe",
+                        "https://example/setup.exe",
+                        "https://example/SHA256SUMS",
+                        68_000_000),
+                    new VoiceTranscript.Core.Update.UpdateGuard
+                    {
+                        IsRecording = false,
+                        IsProcessing = false,
+                        QueueDepth = 0,
+                        DataDirectoryOverridden = false,
+                        InstalledNormally = true,
+                        FreeDiskBytes = 10L * 1024 * 1024 * 1024,
+                        InstallerBytes = 68_000_000,
+                        RestorePending = false,
+                    }), failures);
+
+                database.ClearPool();
+
                 try
                 {
                     Directory.Delete(paths.Root, recursive: true);

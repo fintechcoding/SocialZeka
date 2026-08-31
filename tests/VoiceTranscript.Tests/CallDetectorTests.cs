@@ -14,8 +14,21 @@ public class CallDetectorTests
 
     private sealed class Clock
     {
-        private int _seconds;
-        public DateTimeOffset Next() => T0.AddSeconds(_seconds++);
+        private DateTimeOffset _now = T0;
+
+        /// <summary>The current instant, without moving.</summary>
+        public DateTimeOffset Now => _now;
+
+        /// <summary>The current instant, then one second later. Matches the one-hertz poll.</summary>
+        public DateTimeOffset Next()
+        {
+            var now = _now;
+            _now = _now.AddSeconds(1);
+            return now;
+        }
+
+        /// <summary>Jumps forward, for the cases where feeding a sample per second would be absurd.</summary>
+        public void Advance(TimeSpan by) => _now = _now.Add(by);
     }
 
     private static DetectionSample Sample(
@@ -118,8 +131,19 @@ public class CallDetectorTests
         }
     }
 
+    /// <summary>
+    /// A window disappearing must NOT end a call, and this is a deliberate reversal.
+    ///
+    /// It used to, on the reasoning that the call UI going away is conclusive. The flag never
+    /// meant that: it was set by any visible window the messenger had, so minimising Telegram to
+    /// the tray during a conversation — an entirely ordinary thing to do — ended the recording on
+    /// a single sample. The remainder was then filed as a separate call, and if the first fragment
+    /// came in under five seconds it was deleted outright without a word.
+    ///
+    /// Audio decides when a call is over. Windows only say who it was with.
+    /// </summary>
     [Fact]
-    public void CallWindowClosingEndsTheCallImmediately()
+    public void MinimisingTheMessengerDoesNotEndTheCall()
     {
         var detector = new CallDetector();
         var clock = new Clock();
@@ -127,10 +151,169 @@ public class CallDetectorTests
         Feed(detector, clock, 2, true, false, window: true);
         Feed(detector, clock, 3, true, true, window: true);
 
-        var events = Feed(detector, clock, 1, render: true, capture: true, window: false);
+        var events = Feed(detector, clock, 10, render: true, capture: true, window: false);
+
+        Assert.DoesNotContain(events, e => e.Kind == CallEventKind.Ended);
+        Assert.Equal(CallState.InCall, detector.State);
+    }
+
+    /// <summary>
+    /// Silence on both streams is what ends a call, with or without a window.
+    /// </summary>
+    [Fact]
+    public void SustainedSilenceEndsTheCall()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+
+        Feed(detector, clock, 2, true, false, window: true);
+        Feed(detector, clock, 3, true, true, window: true);
+
+        var events = Feed(detector, clock, 10, render: false, capture: false, window: true);
 
         Assert.Equal(CallEventKind.Ended, Assert.Single(events).Kind);
         Assert.Equal(CallState.Idle, detector.State);
+    }
+
+    /// <summary>
+    /// An open chat window is not a ringing telephone.
+    ///
+    /// This is the fault that quietly destroyed hand-started recordings. The window flag alone
+    /// could declare Ringing, and it was set by any window the messenger had — so leaving Telegram
+    /// open held the detector in Ringing indefinitely, and three minutes later the unanswered-ring
+    /// timeout fired Abandoned, which deletes the recording in progress. Every three minutes,
+    /// silently, for a call that never existed.
+    /// </summary>
+    [Fact]
+    public void AnOpenChatWindowAloneIsNotARing()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+
+        var events = Feed(detector, clock, 30, render: false, capture: false, window: true);
+
+        Assert.Empty(events);
+        Assert.Equal(CallState.Idle, detector.State);
+    }
+
+    /// <summary>
+    /// The call panel closing ends the call, even while audio is still flowing.
+    ///
+    /// Reported from real use on Telegram: the call window closed and the recorder carried on,
+    /// because the client kept its audio session open afterwards. Waiting for silence therefore
+    /// left the recording running past the end of the conversation.
+    ///
+    /// This is deliberately not the rule that used to exist and was removed. That one watched a
+    /// flag meaning "the application has any window", so minimising the messenger to the tray cut
+    /// a live recording in half. This watches the specific window identified as the call panel,
+    /// which only became distinguishable once a newly appeared window could be told apart from the
+    /// one showing whichever conversation happened to be open.
+    /// </summary>
+    [Fact]
+    public void TheCallPanelClosingEndsTheCallEvenWhileAudioContinues()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+
+        // Ring, answer, and see the call panel.
+        WithCallWindow(detector, clock, 2, render: true, capture: false);
+        WithCallWindow(detector, clock, 3, render: true, capture: true);
+
+        Assert.Equal(CallState.InCall, detector.State);
+
+        // The panel closes. Both streams are still active — this is the case audio alone misses.
+        var events = new List<CallEvent>();
+        for (var i = 0; i < 3; i++)
+        {
+            var e = detector.Observe(new DetectionSample(
+                clock.Next(), true, true, AppWindowPresent: true,
+                WindowTitle: null, App: CallApp.Telegram,
+                TitleTrust: TitleTrust.None, CallWindowPresent: false));
+
+            if (e is not null) events.Add(e);
+        }
+
+        Assert.Equal(CallEventKind.Ended, Assert.Single(events).Kind);
+        Assert.Equal(CallState.Idle, detector.State);
+    }
+
+    /// <summary>
+    /// One missing sample is not a closed window.
+    ///
+    /// Qt and Chromium both recreate top-level windows during a call — going full screen, a layout
+    /// change — and reacting to a single absent sample would split one conversation into two
+    /// recordings, with the join in the middle of a sentence.
+    /// </summary>
+    [Fact]
+    public void AWindowThatBlinksDoesNotEndTheCall()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+
+        WithCallWindow(detector, clock, 2, render: true, capture: false);
+        WithCallWindow(detector, clock, 3, render: true, capture: true);
+
+        // Gone for exactly one sample, then back.
+        var blink = detector.Observe(new DetectionSample(
+            clock.Next(), true, true, AppWindowPresent: true, WindowTitle: null,
+            App: CallApp.Telegram, TitleTrust: TitleTrust.None, CallWindowPresent: false));
+
+        Assert.Null(blink);
+
+        WithCallWindow(detector, clock, 5, render: true, capture: true);
+
+        Assert.Equal(CallState.InCall, detector.State);
+    }
+
+    /// <summary>Feeds samples in which the identified call panel is open.</summary>
+    private static void WithCallWindow(
+        CallDetector detector, Clock clock, int count, bool render, bool capture)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            detector.Observe(new DetectionSample(
+                clock.Next(), render, capture, AppWindowPresent: true,
+                WindowTitle: "Serdal", App: CallApp.Telegram,
+                TitleTrust: TitleTrust.Likely, CallWindowPresent: true));
+        }
+    }
+
+    /// <summary>
+    /// A call that never falls silent still has to end.
+    ///
+    /// Silence was the only remaining way out of InCall, and a client or driver that leaves its
+    /// session nominally active defeats it — so the recorder ran until the application was closed:
+    /// an ever-growing file, a microphone left open, and no finished call ever offered to the user.
+    /// The ceiling produces an ordinary Ended, so the recording is kept rather than lost.
+    /// </summary>
+    [Fact]
+    public void ACallThatNeverGoesQuietIsClosedOffAtTheCeiling()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+        var options = new CallDetectorOptions();
+
+        Feed(detector, clock, 2, true, false, window: true);
+        Feed(detector, clock, 3, true, true, window: true);
+
+        // One sample per minute, past the ceiling, never quiet.
+        var events = new List<CallEvent>();
+        for (var i = 0; i < (int)options.MaxCallDuration.TotalMinutes + 5; i++)
+        {
+            clock.Advance(TimeSpan.FromMinutes(1));
+            if (detector.Observe(new DetectionSample(clock.Now, true, true, true)) is { } e) events.Add(e);
+        }
+
+        var ended = Assert.Single(events, e => e.Kind == CallEventKind.Ended);
+        Assert.True(ended.Duration >= options.MaxCallDuration);
+
+        // And then it starts again, which is correct rather than a leak.
+        //
+        // The audio really is still flowing, and refusing to re-enter would mean the next genuine
+        // call went unrecorded because a stuck session had poisoned the state. So a session that
+        // never goes quiet produces a series of bounded recordings rather than one that grows
+        // without limit — each of which is finished, written to its row, and offered for labelling.
+        Assert.Contains(events, e => e.Kind == CallEventKind.Started && e.At > ended.At);
     }
 
     // ---- false positives ----------------------------------------------------
