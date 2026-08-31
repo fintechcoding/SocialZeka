@@ -58,7 +58,17 @@ public readonly record struct DetectionSample(
     CallApp App = CallApp.Unknown,
 
     /// <summary>How far <see cref="WindowTitle"/> can be trusted.</summary>
-    TitleTrust TitleTrust = TitleTrust.None);
+    TitleTrust TitleTrust = TitleTrust.None,
+
+    /// <summary>
+    /// The window identified as the call panel is still open.
+    ///
+    /// Not the same as <see cref="AppWindowPresent"/>, and the difference is what makes this
+    /// usable. This refers to one specific window — the one that appeared when the call started,
+    /// carrying the other person's name — so its closing means the call ended, where the
+    /// application merely having no visible window means somebody minimised it.
+    /// </summary>
+    bool CallWindowPresent = false);
 
 public enum CallEventKind
 {
@@ -102,6 +112,8 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
     private DateTimeOffset? _ringingSince;
     private string? _observedTitle;
     private TitleTrust _titleTrust;
+    private bool _sawCallWindow;
+    private int _callWindowGoneStreak;
     private CallApp _app;
 
     public CallState State { get; private set; } = CallState.Idle;
@@ -225,13 +237,37 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
 
     private CallEvent? FromInCall(DetectionSample sample)
     {
-        // Silence ends a call. A disappearing window does not.
+        // The call panel closing ends the call, and it is the better signal of the two.
         //
-        // It used to, on the reasoning that the call UI going away is conclusive. But the flag
-        // meant "the application has a window", so minimising the messenger to the tray — an
-        // ordinary thing to do while talking — ended the recording on a single sample. The rest of
-        // the conversation was then filed as a separate call, and if the first fragment came in
-        // under five seconds it was deleted outright with no notice at all.
+        // Audio is not enough on its own: a client can hold its session open after the
+        // conversation is over — observed on Telegram, where the panel closes and sound keeps
+        // flowing — so waiting for silence leaves the recorder running past the end, sometimes
+        // indefinitely. The window that was opened for this call closing is unambiguous.
+        //
+        // This is not the rule that used to be here and was removed. That one watched a flag
+        // meaning "the application has any window", so minimising the messenger to the tray cut a
+        // recording in half. This watches the specific window identified as the call panel, which
+        // only became possible once a newly appearing window could be told apart from the one
+        // showing whichever conversation was open.
+        //
+        // Two consecutive samples, because Qt and Chromium both recreate top-level windows during
+        // a call — going full screen, a layout change — and a single missing sample would end a
+        // conversation that is still happening.
+        if (_sawCallWindow)
+        {
+            _callWindowGoneStreak = sample.CallWindowPresent ? 0 : _callWindowGoneStreak + 1;
+
+            if (_callWindowGoneStreak >= _options.SamplesBeforeWindowClosesTheCall)
+                return EndCall(sample);
+        }
+        else if (sample.CallWindowPresent)
+        {
+            // Identified after the call was already under way — the panel takes a moment to appear
+            // after the audio starts, and on a restart it may be seen mid-call.
+            _sawCallWindow = true;
+            _callWindowGoneStreak = 0;
+        }
+
         if (_quietSince is { } since && sample.At - since >= _options.SilenceBeforeEnd)
             return EndCall(sample);
 
@@ -253,6 +289,8 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
     {
         State = CallState.InCall;
         _callStartedAt = sample.At;
+        _sawCallWindow = sample.CallWindowPresent;
+        _callWindowGoneStreak = 0;
 
         return new CallEvent(CallEventKind.Started, sample.At, _app, _observedTitle, TimeSpan.Zero);
     }
@@ -280,6 +318,8 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
         _ringingSince = null;
         _observedTitle = null;
         _titleTrust = TitleTrust.None;
+        _sawCallWindow = false;
+        _callWindowGoneStreak = 0;
         _app = CallApp.Unknown;
     }
 }
@@ -301,6 +341,15 @@ public sealed record CallDetectorOptions
 
     /// <summary>Silence before an unanswered ring is written off.</summary>
     public TimeSpan RingingTimeout { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Consecutive samples with the call panel gone before the call is declared over.
+    ///
+    /// Two, not one. Qt and Chromium both recreate top-level windows during a call — going full
+    /// screen, a layout change — and a single missing sample would end a conversation that is
+    /// still happening, splitting it into two recordings.
+    /// </summary>
+    public int SamplesBeforeWindowClosesTheCall { get; init; } = 2;
 
     /// <summary>Nobody rings for this long. Guards against a stuck render session.</summary>
     public TimeSpan MaxRingingDuration { get; init; } = TimeSpan.FromMinutes(3);

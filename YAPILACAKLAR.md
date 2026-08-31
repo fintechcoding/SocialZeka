@@ -269,7 +269,7 @@ olur — bu sesi yazıya dönüştürme süreçlerinde bir yerlerde lazım olabi
   ⚠️ Tespit iş parçacığını **asla** bloke etmemeli (§1.4 zincir A'nın sebebi tam olarak buydu).
   Tepsiye kapatılıp geri açıldığında da doğru durumu göstermeli.
 
-- [ ] **1b.7 — İşlem durumu ekranı: her görüşmenin yazıya dökme ve çözümleme durumu.**
+- [ ] **1b.7 — İşlem durumu ekranı: her görüşmenin yazıya dökme ve çözümleme durumu.** ⬆️ *öncelik yükseldi*
 
   Kullanıcı isteği (2026-08-31): *"Bu görüşmelerin transcript durumlarını, AI analiz durumlarını
   görebileceğimiz bir ekran olsa güzel olmaz mı? Eksik, hatalı olanları tekrar gönderebiliriz,
@@ -278,6 +278,12 @@ olur — bu sesi yazıya dönüştürme süreçlerinde bir yerlerde lazım olabi
   **Karar: yapılacak — ve §1b.5'teki ilerleme ekranının ayrısı değil, aynısı.** "Şu an ne oluyor"
   ile "ne oldu, nesi eksik" aynı sorunun iki zamanı. İki ayrı ekran, kullanıcıyı iki yere bakmaya
   zorlar ve ikisi de yarım kalır.
+
+  **Kullanımdan gelen ikinci gerekçe (2026-08-31):** *"CPU'daysa yavaş olduğu için yazıya dökme
+  sırasını veya durumunu görebileceğimiz bir ekran olsa güzel olur."* GPU yoksa transkripsiyon
+  gerçek zamanın katbekat üstünde sürüyor; kullanıcı o sırada **hiçbir şey göremiyor** ve
+  uygulamanın takıldığını mı yoksa çalıştığını mı bilemiyor. Bu, ekranı "iyi olur"dan
+  "olmadan kullanılmıyor"a taşıyor.
 
   **Bu ekran olsaydı, denetimin bulduğu kusurların çoğunu kullanıcı kendisi yakalardı:**
   K3'ün sonsuza kadar "Sırada" bıraktığı görüşme, zincir C'nin `Recorded(0)`'da dondurduğu kayıt,

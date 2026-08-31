@@ -60,11 +60,26 @@ public sealed record WindowSighting(
 /// <param name="Title">The counterpart's name, when one could be identified. Null otherwise.</param>
 /// <param name="App">Which application the title belongs to.</param>
 /// <param name="Confidence">How far <paramref name="Title"/> can be trusted.</param>
+/// <param name="CallWindowPresent">
+/// The window identified as the call panel is still open.
+///
+/// Distinct from <paramref name="AppWindowPresent"/>, and the distinction is the point. The
+/// previous version of this code had one flag meaning "the application has a window", and used its
+/// disappearance to end calls — so minimising the messenger to the tray cut a recording in half.
+/// This one refers to a specific window: the one that appeared when the call started, carrying the
+/// other person's name. When <i>that</i> closes, the call really is over.
+///
+/// It is worth having because audio alone is not enough. A client can hold its audio session open
+/// for a while after the call ends, and waiting for the streams to fall silent then leaves the
+/// recorder running past the conversation — observed on Telegram, where the panel closes and sound
+/// keeps flowing.
+/// </param>
 public sealed record WindowObservation(
     bool AppWindowPresent,
     string? Title,
     CallApp App,
-    TitleConfidence Confidence);
+    TitleConfidence Confidence,
+    bool CallWindowPresent = false);
 
 /// <summary>
 /// Reads the contact's name off a call window, where the application puts it there.
@@ -343,6 +358,26 @@ public static class CallWindows
         return front is null
             ? new WindowObservation(true, null, app, TitleConfidence.None)
             : new WindowObservation(true, front.Title, front.App, TitleConfidence.Possible);
+    }
+
+    /// <summary>
+    /// Whether a particular window is still among the ones open.
+    ///
+    /// Used to notice that the call panel has closed. Matched on the title because that is the only
+    /// stable identity available across polls: a handle would be better, but Chromium and Qt both
+    /// recreate top-level windows during a call — on a layout change, on going full screen — and a
+    /// recreated handle would read as "the call ended" when nothing happened.
+    /// </summary>
+    public static bool IsStillOpen(IReadOnlyList<WindowSighting> sightings, string? title)
+    {
+        if (string.IsNullOrEmpty(title)) return false;
+
+        foreach (var sighting in sightings)
+        {
+            if (string.Equals(sighting.Title, title, StringComparison.Ordinal)) return true;
+        }
+
+        return false;
     }
 
     /// <summary>

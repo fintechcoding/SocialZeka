@@ -197,6 +197,88 @@ public class CallDetectorTests
     }
 
     /// <summary>
+    /// The call panel closing ends the call, even while audio is still flowing.
+    ///
+    /// Reported from real use on Telegram: the call window closed and the recorder carried on,
+    /// because the client kept its audio session open afterwards. Waiting for silence therefore
+    /// left the recording running past the end of the conversation.
+    ///
+    /// This is deliberately not the rule that used to exist and was removed. That one watched a
+    /// flag meaning "the application has any window", so minimising the messenger to the tray cut
+    /// a live recording in half. This watches the specific window identified as the call panel,
+    /// which only became distinguishable once a newly appeared window could be told apart from the
+    /// one showing whichever conversation happened to be open.
+    /// </summary>
+    [Fact]
+    public void TheCallPanelClosingEndsTheCallEvenWhileAudioContinues()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+
+        // Ring, answer, and see the call panel.
+        WithCallWindow(detector, clock, 2, render: true, capture: false);
+        WithCallWindow(detector, clock, 3, render: true, capture: true);
+
+        Assert.Equal(CallState.InCall, detector.State);
+
+        // The panel closes. Both streams are still active — this is the case audio alone misses.
+        var events = new List<CallEvent>();
+        for (var i = 0; i < 3; i++)
+        {
+            var e = detector.Observe(new DetectionSample(
+                clock.Next(), true, true, AppWindowPresent: true,
+                WindowTitle: null, App: CallApp.Telegram,
+                TitleTrust: TitleTrust.None, CallWindowPresent: false));
+
+            if (e is not null) events.Add(e);
+        }
+
+        Assert.Equal(CallEventKind.Ended, Assert.Single(events).Kind);
+        Assert.Equal(CallState.Idle, detector.State);
+    }
+
+    /// <summary>
+    /// One missing sample is not a closed window.
+    ///
+    /// Qt and Chromium both recreate top-level windows during a call — going full screen, a layout
+    /// change — and reacting to a single absent sample would split one conversation into two
+    /// recordings, with the join in the middle of a sentence.
+    /// </summary>
+    [Fact]
+    public void AWindowThatBlinksDoesNotEndTheCall()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+
+        WithCallWindow(detector, clock, 2, render: true, capture: false);
+        WithCallWindow(detector, clock, 3, render: true, capture: true);
+
+        // Gone for exactly one sample, then back.
+        var blink = detector.Observe(new DetectionSample(
+            clock.Next(), true, true, AppWindowPresent: true, WindowTitle: null,
+            App: CallApp.Telegram, TitleTrust: TitleTrust.None, CallWindowPresent: false));
+
+        Assert.Null(blink);
+
+        WithCallWindow(detector, clock, 5, render: true, capture: true);
+
+        Assert.Equal(CallState.InCall, detector.State);
+    }
+
+    /// <summary>Feeds samples in which the identified call panel is open.</summary>
+    private static void WithCallWindow(
+        CallDetector detector, Clock clock, int count, bool render, bool capture)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            detector.Observe(new DetectionSample(
+                clock.Next(), render, capture, AppWindowPresent: true,
+                WindowTitle: "Serdal", App: CallApp.Telegram,
+                TitleTrust: TitleTrust.Likely, CallWindowPresent: true));
+        }
+    }
+
+    /// <summary>
     /// A call that never falls silent still has to end.
     ///
     /// Silence was the only remaining way out of InCall, and a client or driver that leaves its

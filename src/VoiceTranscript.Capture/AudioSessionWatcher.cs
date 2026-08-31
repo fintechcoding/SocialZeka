@@ -43,6 +43,15 @@ public sealed class AudioSessionWatcher : IDisposable
     /// </summary>
     private IReadOnlyList<WindowSighting>? _previousWindows;
 
+    /// <summary>
+    /// The title of the window identified as the call panel, while it is open.
+    ///
+    /// Held here rather than in the detector because identifying it needs the previous poll, which
+    /// is state this class already keeps. The detector is given the answer — "the call window is
+    /// still there" — and stays free of Win32.
+    /// </summary>
+    private string? _callWindowTitle;
+
     public AudioSessionWatcher(TargetProcesses? targets = null) => _targets = targets ?? new TargetProcesses();
 
     /// <summary>
@@ -90,6 +99,24 @@ public sealed class AudioSessionWatcher : IDisposable
             // conversation happens to be on screen.
             windows = CallWindows.Look(targetPids, app, _previousWindows, out var seen);
             _previousWindows = seen;
+
+            // Lock on to the call panel the first time it is confidently identified, then watch
+            // for it closing.
+            //
+            // This is what tells the recorder a call is over. Audio alone is not enough: a client
+            // can keep its session open after the conversation ends — seen on Telegram, where the
+            // panel closes and sound carries on — and waiting for silence then leaves the recorder
+            // running well past the end, or not stopping at all.
+            if (windows.Confidence == TitleConfidence.Likely && windows.Title is not null)
+                _callWindowTitle = windows.Title;
+
+            var callWindowPresent = CallWindows.IsStillOpen(seen, _callWindowTitle);
+
+            // Released once it is gone, so the next call can lock on to its own panel. The detector
+            // remembers that it had seen one, which is what makes the disappearance meaningful.
+            if (_callWindowTitle is not null && !callWindowPresent) _callWindowTitle = null;
+
+            windows = windows with { CallWindowPresent = callWindowPresent };
         }
         else
         {
@@ -110,7 +137,8 @@ public sealed class AudioSessionWatcher : IDisposable
             // The audio session is the stronger signal for which application is on a call; the
             // window only fills in when no session has been attributed yet.
             App: app != CallApp.Unknown ? app : windows.App,
-            TitleTrust: (TitleTrust)windows.Confidence);
+            TitleTrust: (TitleTrust)windows.Confidence,
+            CallWindowPresent: windows.CallWindowPresent);
     }
 
     /// <summary>
