@@ -326,5 +326,32 @@ public static class Schema
         """,
         "CREATE INDEX IF NOT EXISTS ix_run_started ON processing_run(started_at DESC);",
         "CREATE INDEX IF NOT EXISTS ix_run_stage ON processing_run(stage, started_at DESC);",
+
+        // Conversations the user has put aside to come back to.
+        //
+        // A card is always a conversation, never a free-standing note. The rule the whole product
+        // rests on is that every claim carries a verbatim quote and a timestamp you can play — a
+        // bare "call Ahmet" card has neither, and the moment the board accepts one this stops
+        // being an archive of evidence and becomes a to-do list that happens to sit beside one.
+        //
+        // The lane is a plain string rather than a foreign key to a table of user-named columns.
+        // Fixed lanes are what let the first screen say "Bende: 3 · Onlarda: 1" at all, and let
+        // every empty column carry a sentence explaining what belongs in it. A board that opens
+        // with no columns and a "create a column" button is a second emptiness on top of the one
+        // it was meant to fix.
+        //
+        // ON DELETE CASCADE: a card whose conversation was deleted is a card about nothing.
+        """
+        CREATE TABLE IF NOT EXISTS board_card (
+            call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+            lane       TEXT    NOT NULL,
+            position   INTEGER NOT NULL DEFAULT 0,
+            title      TEXT,
+            remind_on  TEXT,
+            created_at TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_board_lane ON board_card(lane, position);",
+        "CREATE INDEX IF NOT EXISTS ix_board_remind ON board_card(remind_on);",
     ];
 }

@@ -162,6 +162,29 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
 
     /// <summary>Transcribed but never analysed. Not a backlog — see Repository.UnanalysedCount.</summary>
     [ObservableProperty] private int _unanalysed;
+
+    /// <summary>
+    /// What is on the board, in one line: "Bakılacak 3 · Bende 1".
+    ///
+    /// The board is the one part of this archive a person arranged themselves, so it is the part
+    /// worth putting on the screen they see first. Empty until they put something there, and it
+    /// says so rather than drawing four empty columns.
+    /// </summary>
+    [ObservableProperty] private string _boardSummary = "";
+
+    public bool HasBoard => !string.IsNullOrWhiteSpace(BoardSummary);
+
+    /// <summary>
+    /// Cards whose reminder has come due.
+    ///
+    /// The only thing on this screen that asks for something back. Kept short and kept honest: a
+    /// reminder somebody set themselves, on a conversation they chose, arriving on the day they
+    /// asked for it. Nothing here is invented by the application, which is why it can be shown
+    /// every day without becoming wallpaper.
+    /// </summary>
+    public ObservableCollection<DueCard> Due { get; } = [];
+
+    public bool HasDue => Due.Count > 0;
     [ObservableProperty] private bool _hasAnyData;
 
     public sealed record OverdueItem(Commitment Commitment, string ContactName)
@@ -216,6 +239,16 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
             : $"{(int)recorded.TotalMinutes} dk";
         PendingWork = repository.PendingWorkCount();
         Unanalysed = repository.UnanalysedCount();
+
+        LoadBoard();
+
+        // Most serious first, which the code said it was doing and was not: the items were added
+        // in the order they happened to be computed, so a blocking fault could sit below a
+        // suggestion. AttentionKind is declared in severity order, so ordering by it is enough.
+        var ordered = Attention.OrderBy(i => i.Kind).ToList();
+
+        Attention.Clear();
+        foreach (var item in ordered) Attention.Add(item);
         HasAnyData = calls > 0;
 
         Recent.Clear();
@@ -298,4 +331,52 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
                 AttentionAction.OpenSettings));
         }
     }
+
+    /// <summary>
+    /// The board's state, and anything it says is due today.
+    ///
+    /// Both are cheap counts. Neither invents anything: the summary is what the user filed, and
+    /// the due list is reminders they set themselves on conversations they chose. That is what
+    /// makes this safe to show every single day — an application that starts with Windows and
+    /// suggests things of its own accord becomes wallpaper within a week.
+    /// </summary>
+    private void LoadBoard()
+    {
+        var counts = repository.BoardCounts();
+
+        BoardSummary = string.Join(" · ", BoardLane.All
+            .Where(lane => lane != BoardLane.Done && counts.GetValueOrDefault(lane) > 0)
+            .Select(lane => $"{BoardLane.NameOf(lane)} {counts[lane]}"));
+
+        Due.Clear();
+
+        foreach (var card in repository.DueCards())
+        {
+            var call = repository.GetCall(card.CallId);
+            if (call is null) continue;
+
+            var name = call.ContactId is { } id ? repository.GetContact(id)?.Name : null;
+
+            Due.Add(new DueCard(
+                card.CallId,
+                string.IsNullOrWhiteSpace(card.Title)
+                    ? $"{name ?? "İsimsiz"} · {call.StartedAt.ToLocalTime():d MMM}"
+                    : card.Title!,
+                BoardLane.NameOf(card.Lane),
+                card.RemindOn!.Value));
+        }
+
+        OnPropertyChanged(nameof(HasBoard));
+        OnPropertyChanged(nameof(HasDue));
+    }
+}
+
+/// <summary>One reminder that has come due, as the first screen lists it.</summary>
+public sealed record DueCard(long CallId, string Title, string Lane, DateOnly Day)
+{
+    public string When => Day == DateOnly.FromDateTime(DateTime.Now)
+        ? "bugün"
+        : Day < DateOnly.FromDateTime(DateTime.Now)
+            ? $"{(DateOnly.FromDateTime(DateTime.Now).DayNumber - Day.DayNumber)} gün geçti"
+            : Day.ToString("d MMM");
 }

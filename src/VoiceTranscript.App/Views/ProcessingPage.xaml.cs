@@ -46,6 +46,30 @@ public partial class ProcessingPage
         model.Requeue(rows, new ReprocessRequest([], choice.AsrModelId, choice.LlmModel, choice.AnalyseOnly));
     }
 
+    /// <summary>
+    /// Copies the whole failure, so it can be sent to somebody.
+    ///
+    /// The row shows a sentence and the expander shows the original; this is what gets it out of
+    /// the application. A message you can read but not copy is one you end up retyping from a
+    /// screenshot.
+    /// </summary>
+    private void CopyFailure_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: ProcessingRow row }) return;
+        if (row.RawFailure is not { Length: > 0 } text) return;
+
+        try
+        {
+            Clipboard.SetText(text);
+            if (ViewModel is { } model) model.Notice = "Hata metni panoya kopyalandı.";
+        }
+        catch (Exception)
+        {
+            // The clipboard is regularly held by another process. The text is on screen and
+            // selectable either way, so this is not worth a message box.
+        }
+    }
+
     private void DismissNotice_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is { } model) model.Notice = null;

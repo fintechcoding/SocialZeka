@@ -223,43 +223,25 @@ public static class AsrCatalog
                     + "göre farklı bir karardır. Ayrıca 25 MB dosya sınırı vardır; uzun aramalar "
                     + "sıkıştırılıp gerekirse parçalara bölünerek gönderilir.",
         },
-        new()
-        {
-            Id = "cloud-openai-4o-transcribe",
-            DisplayName = "OpenAI gpt-4o-transcribe",
-            Engine = AsrEngineKind.CloudOpenAi,
-            ModelRef = "gpt-4o-transcribe",
-            DefaultBaseUrl = "https://api.openai.com/v1",
-
-            // No Turkish WER figure is given because none has been measured on the datasets the
-            // rest of this table uses. Inventing one to fill the column would make it look
-            // comparable with the others, which is exactly what it is not.
-            DownloadGb = 0,
-            VramGb = 0,
-            RunsOnCpu = true,
-            SpeedHint = "yükleme hızına bağlı",
-            Summary = "Whisper'ın yerine geçen daha yeni model. Ölçülen avantajı sessizlikte: "
-                    + "whisper-1 boş bir kayda metin uydururken bu boş döndürüyor — bu üründe "
-                    + "önemli, çünkü ayrı kaydedilen iki akıştan her biri karşı taraf "
-                    + "konuşurken sessiz.",
-            Warning = "Görüşme SESİ makineden çıkar. Türkçe hata oranı bu tablodaki diğerleriyle "
-                    + "aynı veri kümelerinde ölçülmedi, yani doğrudan karşılaştırılamaz.",
-        },
-        new()
-        {
-            Id = "cloud-openai-4o-mini-transcribe",
-            DisplayName = "OpenAI gpt-4o-mini-transcribe",
-            Engine = AsrEngineKind.CloudOpenAi,
-            ModelRef = "gpt-4o-mini-transcribe",
-            DefaultBaseUrl = "https://api.openai.com/v1",
-            DownloadGb = 0,
-            VramGb = 0,
-            RunsOnCpu = true,
-            SpeedHint = "yükleme hızına bağlı",
-            Summary = "Yukarıdakinin ucuz kardeşi. Uzun arşivleri toplu işlerken maliyet farkı "
-                    + "birikir.",
-            Warning = "Görüşme SESİ makineden çıkar. Türkçe hata oranı ölçülmedi.",
-        },
+        // gpt-4o-transcribe and gpt-4o-mini-transcribe are deliberately NOT here.
+        //
+        // They were added and had to be removed, and the reason is worth keeping so nobody adds
+        // them again. They cannot return word-level timestamps: the API refuses the only response
+        // format that carries timing, with
+        //
+        //     400 — response_format 'verbose_json' is not compatible with model
+        //           'gpt-4o-mini-transcribe'. Use 'json' or 'text' instead.
+        //
+        // verified against the real API. A transcript with no timings breaks the thing this whole
+        // product rests on — every ledger entry carries a quote and a moment you can play, and a
+        // claim you cannot hear is a claim asking to be believed.
+        //
+        // This is also the answer to "how does the application know which models can transcribe":
+        // it cannot be discovered. A provider's /models list returns identifiers, not capabilities,
+        // and the names do not say either — gpt-4o-mini-transcribe is named as if it does exactly
+        // what whisper-1 does. The only honest sources are trying it, or a curated list. This
+        // table is the curated list, which is why the picker offers what is in it rather than
+        // whatever the provider happens to return.
         new()
         {
             Id = "cloud-groq-turbo",

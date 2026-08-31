@@ -153,11 +153,43 @@
                                          a click: one missing package explains every row at once, and
                                          seeing that is what turns eight mysteries into one problem. -->
                                     <TextBlock Text="{Binding Failure}" Margin="0,3,0,0"
-                                               TextTrimming="CharacterEllipsis"
-                                               ToolTip="{Binding RawFailure}"
+                                               TextWrapping="Wrap"
                                                Visibility="{Binding Failure, Converter={StaticResource NullToCollapsed}}"
                                                Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                                Style="{StaticResource Caption}" />
+
+                                    <!--
+                                        The whole reason, on demand.
+
+                                        The summarised sentence has to fit a row; the original is
+                                        what actually names the library, the status code or the
+                                        rejected parameter. It used to live only in a tooltip,
+                                        which cannot be selected, cannot be copied, and disappears
+                                        while you are reading it — on the one screen whose purpose
+                                        is explaining what went wrong.
+                                    -->
+                                    <Expander Margin="0,4,0,0" Padding="0"
+                                              Visibility="{Binding RawFailure, Converter={StaticResource NullToCollapsed}}">
+                                        <Expander.Header>
+                                            <TextBlock Text="Hatanın tamamı" Style="{StaticResource Caption}" />
+                                        </Expander.Header>
+
+                                        <Border Style="{StaticResource QuoteBlock}" Margin="0,6,0,0">
+                                            <StackPanel>
+                                                <TextBox Text="{Binding RawFailure, Mode=OneWay}"
+                                                         IsReadOnly="True" TextWrapping="Wrap"
+                                                         BorderThickness="0" Background="Transparent"
+                                                         MaxHeight="160"
+                                                         VerticalScrollBarVisibility="Auto"
+                                                         FontFamily="Consolas, Cascadia Mono, Segoe UI"
+                                                         FontSize="{StaticResource TextCaption}" />
+
+                                                <ui:Button Content="Kopyala" Appearance="Transparent"
+                                                           HorizontalAlignment="Left" Margin="0,6,0,0"
+                                                           Click="CopyFailure_Click" Tag="{Binding}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Expander>
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0"

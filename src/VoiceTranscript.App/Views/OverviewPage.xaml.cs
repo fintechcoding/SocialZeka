@@ -16,12 +16,32 @@ public partial class OverviewPage
     /// and once learned they stop trying. This makes the shortest question — "what happened
     /// today" — one click from its answer.
     /// </summary>
+    /// <summary>Goes to the board.</summary>
+    private void OpenBoard_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (Window.GetWindow(this)?.DataContext is ShellViewModel shell)
+            shell.Page = ShellPage.Board;
+    }
+
+    /// <summary>Opens the conversation a due reminder points at.</summary>
+    private void DueCard_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: DueCard due }) return;
+
+        Open(due.CallId);
+    }
+
     private void RecentCall_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: RecentCall row }) return;
 
+        Open(row.Call.Id);
+    }
+
+    private void Open(long callId)
+    {
         var window = new CallWindow(new CallWindowViewModel(
-            App.Repository, () => App.Settings, App.HttpClient, row.Call.Id))
+            App.Repository, () => App.Settings, App.HttpClient, callId))
         {
             Owner = Window.GetWindow(this),
         };

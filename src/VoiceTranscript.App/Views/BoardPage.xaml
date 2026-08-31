@@ -1,0 +1,174 @@
+<UserControl x:Class="VoiceTranscript.App.Views.BoardPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:BoardViewModel}">
+
+    <Grid Margin="24,4,24,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="Pano" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}"
+                       Text="Dönmek istediğin görüşmeler. Sıradaki hamle kimdeyse o şeritte durur." />
+        </StackPanel>
+
+        <!--
+            Four fixed lanes, side by side.
+
+            Fixed rather than user-named on purpose. It is what lets the first screen say
+            "Bende 3 · Onlarda 1" at all, and what lets every empty column carry a sentence saying
+            what belongs in it — on a new board all four are empty at once, and four blank
+            rectangles teach nobody anything. There is also a quieter reason: a column somebody
+            names for themselves eventually says something about a person, and "whose move is it"
+            is a fact about a conversation.
+        -->
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Lanes}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="1" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Margin="0,0,10,0" Padding="12" CornerRadius="6"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsEmpty, Converter={StaticResource InverseBoolToVisibility}}">
+                                    <TextBlock Style="{StaticResource PillText}" Text="{Binding Count}" />
+                                </Border>
+                            </StackPanel>
+
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <ItemsControl ItemsSource="{Binding Items}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource SettingCard}" Padding="12,10"
+                                                        Margin="0,0,0,8" Cursor="Hand"
+                                                        MouseLeftButtonUp="Card_Click"
+                                                        ToolTip="Görüşmeyi aç. Sağ tıkla: şerit değiştir, hatırlat, kaldır.">
+
+                                                    <Border.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Şeride taşı">
+                                                                <MenuItem Header="Bakılacak" Tag="bakilacak" Click="Move_Click" />
+                                                                <MenuItem Header="Bende" Tag="bende" Click="Move_Click" />
+                                                                <MenuItem Header="Onlarda" Tag="onlarda" Click="Move_Click" />
+                                                                <MenuItem Header="Kapandı" Tag="kapandi" Click="Move_Click" />
+                                                            </MenuItem>
+
+                                                            <MenuItem Header="Hatırlat">
+                                                                <MenuItem Header="Yarın" Tag="1" Click="Remind_Click" />
+                                                                <MenuItem Header="3 gün sonra" Tag="3" Click="Remind_Click" />
+                                                                <MenuItem Header="Bir hafta sonra" Tag="7" Click="Remind_Click" />
+                                                                <MenuItem Header="Bir ay sonra" Tag="30" Click="Remind_Click" />
+                                                                <Separator />
+                                                                <MenuItem Header="Hatırlatmayı kaldır" Tag="0" Click="Remind_Click" />
+                                                            </MenuItem>
+
+                                                            <Separator />
+
+                                                            <MenuItem Header="Görüşmeyi aç" Click="Open_Click" />
+                                                            <MenuItem Header="Panodan kaldır" Click="Remove_Click" />
+                                                        </ContextMenu>
+                                                    </Border.ContextMenu>
+
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                                                   TextWrapping="Wrap" />
+
+                                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                                            <TextBlock Text="{Binding Length}"
+                                                                       Style="{StaticResource Caption}"
+                                                                       FontFamily="Consolas, Cascadia Mono, Segoe UI" />
+                                                            <TextBlock Text=" · " Style="{StaticResource Caption}" />
+                                                            <TextBlock Text="{Binding AppName}"
+                                                                       Style="{StaticResource Caption}" />
+                                                        </StackPanel>
+
+                                                        <!-- Due today reads differently from due
+                                                             next month, and the difference is the
+                                                             whole point of setting one. -->
+                                                        <Border Margin="0,7,0,0" Padding="6,2" CornerRadius="3"
+                                                                HorizontalAlignment="Left"
+                                                                Visibility="{Binding HasReminder, Converter={StaticResource BoolToVisibility}}">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background"
+                                                                            Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsDue}" Value="True">
+                                                                            <Setter Property="Background"
+                                                                                    Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <ui:SymbolIcon Symbol="Alert24" FontSize="12"
+                                                                               Margin="0,0,5,0" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding ReminderText}"
+                                                                           FontSize="{StaticResource TextCaption}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="{Binding EmptyText}" TextWrapping="Wrap"
+                                               Style="{StaticResource Caption}" Margin="2,4,2,0"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Border Grid.Row="2" Margin="0,12,0,0" Padding="14,10" CornerRadius="6"
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                Visibility="{Binding Notice, Converter={StaticResource NullToCollapsed}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding Notice}" VerticalAlignment="Center"
+                           TextWrapping="Wrap" />
+
+                <ui:Button Grid.Column="1" Appearance="Transparent" Margin="10,0,0,0"
+                           Command="{Binding DismissNoticeCommand}">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="Dismiss24" />
+                    </ui:Button.Icon>
+                </ui:Button>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -201,6 +201,25 @@ public partial class ContactsPage
     }
 
     /// <summary>
+    /// Puts this conversation on the board.
+    ///
+    /// The lane is chosen here rather than defaulted, because "whose move is it" is precisely the
+    /// judgement being made at the moment somebody decides a conversation is not finished with.
+    /// </summary>
+    private void AddToBoard_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.SelectedCall is not { } row) return;
+        if (sender is not FrameworkElement { Tag: string lane }) return;
+
+        App.Repository.PutOnBoard(row.Call.Id, lane);
+
+        if (Window.GetWindow(this)?.DataContext is ViewModels.ShellViewModel shell) shell.Board.Refresh();
+
+        ViewModel.PlaybackMessage =
+            $"Panoya eklendi: {Core.Domain.BoardLane.NameOf(lane)}.";
+    }
+
+    /// <summary>
     /// Redoes this conversation, by a route the user picks.
     ///
     /// Asking is the point. A conversation is being redone because something about it went wrong,

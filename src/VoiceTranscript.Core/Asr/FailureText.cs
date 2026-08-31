@@ -85,11 +85,23 @@ public static class FailureText
         }
 
         // No traceback at all — a message written by this application rather than by Python.
-        var first = raw
+        var lines = raw
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .FirstOrDefault(line => line.Length > 0);
+            .Where(line => line.Length > 0)
+            .ToList();
 
-        return Trim(first ?? "Sebep kaydedilmedi.");
+        if (lines.Count == 0) return "Sebep kaydedilmedi.";
+
+        // A first line ending in a colon is a heading, not the reason.
+        //
+        // "Yapılandırılmış servislerin hiçbiri yazıya dökemedi:" is true and useless on its own —
+        // the sentence naming the actual fault is the one after it. Taking only the first line
+        // showed the user a colon and nothing behind it, on the row whose whole job is to say
+        // what went wrong.
+        if (lines[0].EndsWith(':') && lines.Count > 1)
+            return Trim($"{lines[0]} {lines[1]}");
+
+        return Trim(lines[0]);
     }
 
     /// <summary>Whether there is more to see than the sentence — i.e. whether to offer details.</summary>

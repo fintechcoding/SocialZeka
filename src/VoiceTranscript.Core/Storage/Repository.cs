@@ -1252,6 +1252,132 @@ public sealed class Repository(Database database)
             "SELECT * FROM call_summary WHERE call_id = @callId;", new { callId })?.ToModel();
     }
 
+    // ---- the board ----------------------------------------------------------
+
+    /// <summary>
+    /// Puts a conversation on the board, or moves the one already there.
+    ///
+    /// Keyed on the call rather than given its own identity: a conversation is either on the board
+    /// or it is not, and allowing two cards for one call would mean the same thing sitting in two
+    /// lanes with no way to say which is true.
+    ///
+    /// New cards go to the end of their lane. Anywhere else and adding one would silently reorder
+    /// work somebody had already arranged.
+    /// </summary>
+    public void PutOnBoard(long callId, string lane, string? title = null, DateOnly? remindOn = null)
+    {
+        if (!BoardLane.IsKnown(lane)) lane = BoardLane.ToLookAt;
+
+        using var connection = Open();
+
+        var next = connection.ExecuteScalar<int>(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM board_card WHERE lane = @lane;", new { lane });
+
+        connection.Execute(
+            """
+            INSERT INTO board_card (call_id, lane, position, title, remind_on, created_at)
+            VALUES (@callId, @lane, @next, @title, @remindOn, @now)
+            ON CONFLICT(call_id) DO UPDATE SET
+                lane      = excluded.lane,
+                position  = excluded.position,
+                title     = COALESCE(excluded.title, board_card.title),
+
+                -- Kept, not overwritten. Moving a card between lanes must not lose its reminder:
+                -- the reminder is why the card is on the board at all, and the lane is only where
+                -- it currently sits. Clearing one is what RemindOn(id, null) is for.
+                remind_on = COALESCE(excluded.remind_on, board_card.remind_on);
+            """,
+            new
+            {
+                callId,
+                lane,
+                next,
+                title,
+                remindOn = remindOn?.ToString("yyyy-MM-dd"),
+                now = Iso(DateTimeOffset.UtcNow),
+            });
+    }
+
+    /// <summary>Takes a conversation off the board. The conversation itself is untouched.</summary>
+    public void RemoveFromBoard(long callId)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM board_card WHERE call_id = @callId;", new { callId });
+    }
+
+    /// <summary>Sets or clears the day a card should come back.</summary>
+    public void RemindOn(long callId, DateOnly? day)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            "UPDATE board_card SET remind_on = @day WHERE call_id = @callId;",
+            new { callId, day = day?.ToString("yyyy-MM-dd") });
+    }
+
+    /// <summary>Everything on the board, in lane and position order.</summary>
+    public IReadOnlyList<BoardCard> BoardCards()
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<(long CallId, string Lane, int Position, string? Title, string? RemindOn, string CreatedAt)>(
+                "SELECT call_id, lane, position, title, remind_on, created_at FROM board_card ORDER BY lane, position;")
+                .Select(r => new BoardCard
+                {
+                    CallId = r.CallId,
+                    Lane = r.Lane,
+                    Position = r.Position,
+                    Title = r.Title,
+                    RemindOn = r.RemindOn is null ? null : DateOnly.Parse(r.RemindOn),
+                    CreatedAt = DateTimeOffset.Parse(r.CreatedAt),
+                }),
+        ];
+    }
+
+    /// <summary>
+    /// Cards whose reminder has come due, soonest first.
+    ///
+    /// Compared by day rather than by instant: a reminder set for Tuesday is due on Tuesday
+    /// morning, not at the hour it happened to be created.
+    /// </summary>
+    public IReadOnlyList<BoardCard> DueCards()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<(long CallId, string Lane, string? Title, string RemindOn)>(
+                """
+                SELECT call_id, lane, title, remind_on
+                FROM board_card
+                WHERE remind_on IS NOT NULL AND remind_on <= @today AND lane <> @done
+                ORDER BY remind_on;
+                """,
+                new { today, done = BoardLane.Done })
+                .Select(r => new BoardCard
+                {
+                    CallId = r.CallId,
+                    Lane = r.Lane,
+                    Title = r.Title,
+                    RemindOn = DateOnly.Parse(r.RemindOn),
+                }),
+        ];
+    }
+
+    /// <summary>How many cards are in each lane, for the strip on the first screen.</summary>
+    public IReadOnlyDictionary<string, int> BoardCounts()
+    {
+        using var connection = Open();
+
+        return connection
+            .Query<(string Lane, int Count)>("SELECT lane, COUNT(*) FROM board_card GROUP BY lane;")
+            .ToDictionary(r => r.Lane, r => r.Count);
+    }
+
     // ---- what the work cost -------------------------------------------------
 
     /// <summary>

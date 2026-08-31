@@ -22,6 +22,15 @@ public enum ShellPage
     Contacts,
 
     /// <summary>
+    /// Conversations set aside to come back to.
+    ///
+    /// Its own page rather than a section of the first screen, because it is the one part of this
+    /// application a person arranges themselves — everything else is produced from the audio — and
+    /// arranging needs room.
+    /// </summary>
+    Board,
+
+    /// <summary>
     /// What has been processed, what has not, and what went wrong.
     ///
     /// Its own page rather than a strip on the first screen, because the question it answers —
@@ -85,6 +94,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Ledger = new LedgerViewModel(repository);
         Contacts = new ContactsViewModel(repository);
         Processing = new ProcessingViewModel(repository, settings);
+        Board = new BoardViewModel(repository);
         AiStatus = new AiStatusViewModel(settings, App.HttpClient, repository);
 
         // The service is fetched through a function rather than captured, because it is built
@@ -143,6 +153,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public LedgerViewModel Ledger { get; }
     public ContactsViewModel Contacts { get; }
     public ProcessingViewModel Processing { get; }
+    public BoardViewModel Board { get; }
     public AiStatusViewModel AiStatus { get; }
     public UpdateViewModel Update { get; }
     public SearchViewModel Search { get; }
@@ -276,6 +287,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Contacts.Refresh();
         Processing.Refresh();
         AiStatus.Refresh();
+        Board.Refresh();
 
         // The badge counts what actually needs attention rather than everything in the ledger:
         // a badge that never reaches zero stops being read.

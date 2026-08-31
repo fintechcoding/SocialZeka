@@ -99,9 +99,19 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
+                                    <!--
+                                        Colour follows severity, which it did not before.
+
+                                        The view model has always computed a brush per kind — red
+                                        for broken, amber for wants-a-decision, blue for worth
+                                        knowing — and nothing read it: every notice was drawn amber
+                                        regardless. A screen where a broken recorder and a spelling
+                                        suggestion look identical is a screen where neither reads
+                                        as urgent.
+                                    -->
                                     <ui:SymbolIcon Grid.Column="0" Symbol="{Binding Icon}" FontSize="18"
                                                    Margin="0,0,14,0" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                                   Foreground="{Binding BrushKey, Converter={StaticResource BrushFromKey}}" />
 
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
@@ -168,7 +178,90 @@
 
             <!-- The archive. -->
             <StackPanel Visibility="{Binding Recent.Count, Converter={StaticResource CountToVisibility}}">
-                <TextBlock Text="{loc:T overviewpage.son-gorusmeler}" Style="{StaticResource GroupHeader}" />
+                <!--
+                    ==================== the board, in one line ====================
+
+                    The one part of this archive a person arranged themselves, so the one part
+                    worth putting on the screen they see first. Empty until they file something,
+                    and it says so in a sentence rather than drawing four empty columns — which is
+                    what an empty board looks like and teaches nobody anything.
+                -->
+                <TextBlock Text="Panon" Style="{StaticResource GroupHeader}" />
+
+                <Border Style="{StaticResource HoverCard}" Cursor="Hand"
+                        MouseLeftButtonUp="OpenBoard_Click"
+                        ToolTip="Panoyu aç">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0" Symbol="Board24" FontSize="18" Margin="0,0,14,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                        <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Text="{Binding BoardSummary}"
+                                   Visibility="{Binding HasBoard, Converter={StaticResource BoolToVisibility}}" />
+
+                        <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Style="{StaticResource Secondary}"
+                                   Text="Pano boş. Aşağıdaki görüşmelerden takip etmek istediklerini sağ tıklayıp panoya at."
+                                   Visibility="{Binding HasBoard, Converter={StaticResource InverseBoolToVisibility}}" />
+
+                        <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="14"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </Grid>
+                </Border>
+
+                <!--
+                    ==================== what is due ====================
+
+                    The only thing on this screen that asks for something back, and it is safe to
+                    show every day for one reason: nothing here was invented by the application. A
+                    reminder is something the user set, on a conversation they chose, arriving on
+                    the day they asked for. An application that starts with Windows and suggests
+                    things of its own accord becomes wallpaper within a week.
+                -->
+                <TextBlock Text="Bugün" Style="{StaticResource GroupHeader}" Margin="0,18,0,0"
+                           Visibility="{Binding HasDue, Converter={StaticResource BoolToVisibility}}" />
+
+                <ItemsControl ItemsSource="{Binding Due}"
+                              Visibility="{Binding HasDue, Converter={StaticResource BoolToVisibility}}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource HoverCard}" Cursor="Hand"
+                                    MouseLeftButtonUp="DueCard_Click" ToolTip="Görüşmeyi aç">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ui:SymbolIcon Grid.Column="0" Symbol="Alert24" FontSize="17" Margin="0,0,14,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Lane}" Style="{StaticResource Caption}"
+                                                   Margin="0,2,0,0" />
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Column="2" Text="{Binding When}" VerticalAlignment="Center"
+                                               Style="{StaticResource Caption}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="{loc:T overviewpage.son-gorusmeler}" Style="{StaticResource GroupHeader}"
+                           Margin="0,18,0,0" />
 
                 <ItemsControl ItemsSource="{Binding Recent}">
                     <ItemsControl.ItemTemplate>

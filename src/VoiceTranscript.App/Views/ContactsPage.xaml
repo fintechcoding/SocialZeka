@@ -324,6 +324,21 @@
                                             </MenuItem.Icon>
                                         </MenuItem>
                                         <Separator />
+
+                                        <!-- Onto the board, which is the one part of this archive
+                                             a person arranges themselves. The lane is chosen here
+                                             rather than defaulted, because "whose move is it" is
+                                             the thing being decided at this moment. -->
+                                        <MenuItem Header="Panoya ekle">
+                                            <MenuItem.Icon>
+                                                <ui:SymbolIcon Symbol="Board24" />
+                                            </MenuItem.Icon>
+                                            <MenuItem Header="Bakılacak" Tag="bakilacak" Click="AddToBoard_Click" />
+                                            <MenuItem Header="Bende" Tag="bende" Click="AddToBoard_Click" />
+                                            <MenuItem Header="Onlarda" Tag="onlarda" Click="AddToBoard_Click" />
+                                        </MenuItem>
+
+                                        <Separator />
                                         <MenuItem Header="Başka kişiye taşı…" Click="MoveCall_Click">
                                             <MenuItem.Icon>
                                                 <ui:SymbolIcon Symbol="PersonSwap24" />

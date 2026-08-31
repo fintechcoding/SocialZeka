@@ -13,6 +13,37 @@ namespace VoiceTranscript.Tests;
 /// </summary>
 public class FailureTextTests
 {
+    /// <summary>
+    /// A first line ending in a colon is a heading, not the reason.
+    ///
+    /// The real message a user saw was
+    ///
+    ///     Yapılandırılmış servislerin hiçbiri yazıya dökemedi:
+    ///     OpenAI: 404: Invalid URL (POST /v1/audio/transcriptions)
+    ///
+    /// and the row showed only the first line — true, and useless. The sentence naming the fault
+    /// is the one after it, on the screen whose entire job is saying what went wrong.
+    /// </summary>
+    [Fact]
+    public void AHeadingCarriesTheLineThatActuallyNamesTheFault()
+    {
+        var summary = VoiceTranscript.Core.Asr.FailureText.Summarise(
+            "Yapılandırılmış servislerin hiçbiri yazıya dökemedi:\n"
+            + "OpenAI: 404: Invalid URL (POST /v1/audio/transcriptions)");
+
+        Assert.Contains("404", summary, StringComparison.Ordinal);
+        Assert.Contains("Invalid URL", summary, StringComparison.Ordinal);
+    }
+
+    /// <summary>A single sentence that happens to end in a colon must not lose itself.</summary>
+    [Fact]
+    public void AColonWithNothingAfterItIsStillShown()
+    {
+        var summary = VoiceTranscript.Core.Asr.FailureText.Summarise("Bir şey ters gitti:");
+
+        Assert.Contains("Bir şey ters gitti", summary, StringComparison.Ordinal);
+    }
+
     private const string CublasTraceback = """
         The worker exited with code 1.
         Traceback (most recent call last):
