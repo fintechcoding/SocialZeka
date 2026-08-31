@@ -9,8 +9,17 @@ namespace VoiceTranscript.App.Views;
 
 /// <summary>One way of redoing this recording, as the list offers it.</summary>
 /// <param name="Id">Catalogue identifier or model name, or null to follow the setting.</param>
+/// <param name="Group">Which heading it sits under: where the audio would go.</param>
 public sealed record ReprocessMethod(
-    string? Id, string Name, string Detail, string Icon, bool SendsDataOffMachine, string Speed);
+    string? Id, string Name, string Detail, string Icon, bool SendsDataOffMachine, string Speed,
+    string Group = ReprocessMethod.OnThisMachine)
+{
+    /// <summary>The row that follows the settings, whatever those currently say.</summary>
+    public const string FromSettings = "Ayarlarda seçili";
+
+    public const string OnThisMachine = "Bu makinede";
+    public const string InTheCloud = "Buluta gönderilir";
+}
 
 /// <summary>What the user asked for, once the dialog closes with a yes.</summary>
 /// <param name="AsrModelId">Transcription engine, or null for the configured one.</param>
@@ -79,12 +88,19 @@ public partial class ReprocessWindow
         List<ReprocessMethod> methods =
         [
             new(null, "Ayarlardaki yol", DescribeAsr(_settings), "Settings24",
-                _settings.AsrMode != TranscriptionMode.LocalOnly, ""),
+                _settings.AsrMode != TranscriptionMode.LocalOnly, "",
+                ReprocessMethod.FromSettings),
         ];
 
         // Everything in the catalogue that could actually start here. The catalogue already knows
         // which need a card and which do not, so nothing impossible is offered.
-        foreach (var model in AsrCatalog.All.Where(m => m.RunsOnCpu || m.VramGb > 0))
+        //
+        // Machine first, then cloud, because the headings follow the order rows appear in — and on
+        // a list of ways to handle a recorded phone call, the one that keeps the audio here is the
+        // right one to meet first.
+        foreach (var model in AsrCatalog.All
+                     .Where(m => m.RunsOnCpu || m.VramGb > 0)
+                     .OrderBy(m => m.SendsAudioOffMachine))
         {
             methods.Add(new ReprocessMethod(
                 model.Id,
@@ -96,7 +112,10 @@ public partial class ReprocessWindow
                         : "Bu makinede · işlemcide çalışır",
                 model.SendsAudioOffMachine ? "Cloud24" : "Desktop24",
                 model.SendsAudioOffMachine,
-                SpeedOf(model)));
+                SpeedOf(model),
+                model.SendsAudioOffMachine
+                    ? ReprocessMethod.InTheCloud
+                    : ReprocessMethod.OnThisMachine));
         }
 
         Bind(methods);
@@ -108,11 +127,15 @@ public partial class ReprocessWindow
 
         var provider = _settings.Provider;
 
+        var where = provider.SendsDataOffMachine
+            ? ReprocessMethod.InTheCloud
+            : ReprocessMethod.OnThisMachine;
+
         List<ReprocessMethod> methods =
         [
             new(null, "Ayarlardaki model",
                 $"{provider.DisplayName} · {_settings.ResolvedModelName}",
-                "Settings24", provider.SendsDataOffMachine, ""),
+                "Settings24", provider.SendsDataOffMachine, "", ReprocessMethod.FromSettings),
         ];
 
         // Only the ones this provider is addressed by name, and only for providers that host their
@@ -123,7 +146,8 @@ public partial class ReprocessWindow
             foreach (var pick in VoiceTranscript.Core.Llm.ModelRecommendations.For(provider.Kind))
             {
                 methods.Add(new ReprocessMethod(
-                    pick.Id, pick.Id, pick.Reason, "Lightbulb24", provider.SendsDataOffMachine, ""));
+                    pick.Id, pick.Id, pick.Reason, "Lightbulb24", provider.SendsDataOffMachine,
+                    "", where));
             }
         }
 
@@ -132,7 +156,14 @@ public partial class ReprocessWindow
 
     private void Bind(List<ReprocessMethod> methods)
     {
-        Methods.ItemsSource = methods;
+        // Grouped by where the audio goes. That is the one part of this choice that cannot be
+        // taken back — speed and cost are recoverable mistakes, an upload is not — so it is the
+        // structure of the list rather than a caption on some rows.
+        var view = new System.Windows.Data.ListCollectionView(methods);
+        view.GroupDescriptions.Add(
+            new System.Windows.Data.PropertyGroupDescription(nameof(ReprocessMethod.Group)));
+
+        Methods.ItemsSource = view;
         Methods.SelectedIndex = 0;
     }
 

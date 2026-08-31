@@ -277,8 +277,14 @@ class CloudWhisperEngine(AsrEngine):
 
         body, content_type = _multipart(fields, Path(path))
 
+        # Named in every error below. A real night of failures read "OpenAI: 404: Invalid URL" —
+        # which is impossible against api.openai.com, so the request was going somewhere else
+        # (a base URL left over from trying another provider), and nothing on screen said where.
+        # An error that names the endpoint answers that question the moment it appears.
+        url = f"{self._base_url}/audio/transcriptions"
+
         request = urllib.request.Request(
-            f"{self._base_url}/audio/transcriptions",
+            url,
             data=body,
             method="POST",
             headers={
@@ -296,7 +302,7 @@ class CloudWhisperEngine(AsrEngine):
             if exc.code in RETRYABLE_STATUS:
                 raise _Retryable(
                     "rate_limited" if exc.code == 429 else "api_error",
-                    f"{exc.code}: {detail}",
+                    f"{exc.code} ({url}): {detail}",
                     _retry_after(exc),
                 ) from exc
 
@@ -306,11 +312,11 @@ class CloudWhisperEngine(AsrEngine):
                     f"API anahtarı kabul edilmedi ({exc.code}). Ayarlardan anahtarı denetle.",
                 ) from exc
 
-            raise EngineError("api_error", f"{exc.code}: {detail}") from exc
+            raise EngineError("api_error", f"{exc.code} ({url}): {detail}") from exc
         except urllib.error.URLError as exc:
             # A dropped connection mid-upload is ordinary on a laptop that moved between
             # networks, and is exactly the case retrying exists for.
-            raise _Retryable("network", f"Sunucuya ulaşılamadı: {exc.reason}", None) from exc
+            raise _Retryable("network", f"Sunucuya ulaşılamadı ({url}): {exc.reason}", None) from exc
         except TimeoutError as exc:
             raise _Retryable("timeout", "İstek zaman aşımına uğradı.", None) from exc
 

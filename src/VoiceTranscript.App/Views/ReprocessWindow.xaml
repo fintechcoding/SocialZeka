@@ -68,6 +68,23 @@
                      BorderThickness="0" Background="Transparent"
                      MouseDoubleClick="Methods_DoubleClick"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <!--
+                    Split by where the audio goes, because that is the part of this choice that
+                    cannot be undone. Speed and cost are recoverable mistakes; sending a private
+                    conversation to a hosted service is not, and it should never be something a
+                    person discovers afterwards from a row they skimmed.
+                -->
+                <ListBox.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource GroupHeader}"
+                                           Margin="6,12,0,2" />
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                    </GroupStyle>
+                </ListBox.GroupStyle>
+
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Grid Margin="6,9">
@@ -89,7 +106,7 @@
                                          moment the decision is actually being made. -->
                                     <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
                                             VerticalAlignment="Center"
-                                            Visibility="{Binding SendsAudioOffMachine, Converter={StaticResource BoolToVisibility}}">
+                                            Visibility="{Binding SendsDataOffMachine, Converter={StaticResource BoolToVisibility}}">
                                         <TextBlock Style="{StaticResource PillText}" Text="ses makineden çıkar" />
                                     </Border>
                                 </StackPanel>

@@ -981,3 +981,33 @@ sokmak doğru değil.
 3. Ya da hiç dokunma ve saklama süresi ayarını (§8) gerçekten uygula.
 
 İkincisi en az riskli ve en çok kazandıran. Hedef makinede ölçülmeli.
+
+## 12. 31 Ağustos gece turu — kullanıcı notları
+
+Kullanıcının test sırasında bildirdikleri, geldikleri sırayla. Karşısında durumu.
+
+- [x] **12.1 — Gece boyu süren yeniden deneme dizisi.** Log 00:07–00:40 arası 33 deneme
+  gösteriyor, dakikada bir. Kendini besleyen döngü değil — kuyruk 00:40'ta kendiliğinden boşaldı.
+  Gerçek kusur: her "Tekrar dene" basışı aynı görüşmeyi kuyruğa **bir kopya daha** ekliyordu ve
+  her kopya 60 sn GPU soğuması bekliyordu. İki düzeltme: kuyruk artık tekilleştiriyor
+  (`_inQueue`), GPU soğuması buluta yüklerken uygulanmıyor (`MightUseGpu`).
+- [x] **12.2 — Bulut 404'ü adresini söylemiyor.** "OpenAI: 404: Invalid URL" gerçek
+  api.openai.com'a karşı imkânsız — istek başka yere gidiyor (büyük olasılıkla OpenRouter
+  denemesinden kalan taban URL). Worker artık her hatada tam URL'yi veriyor; orkestratör her
+  denemeden önce "deneniyor: ad @ adres · model" satırı yazıyor. Bir sonraki log kendi cevabını
+  taşıyacak.
+- [x] **12.3 — "Yalnızca yeniden çözümle" hiçbir şey yapmıyordu** otomatik çözümleme kapalıysa:
+  istek tüketiliyor, durum değişiyor, çözümleme çalışmıyor, kimseye bir şey söylenmiyordu. Açık
+  istek artık ayarı eziyor.
+- [x] **12.4 — Çözümleme günlüksüzdü.** Başlangıç (görüşme, satır sayısı, sağlayıcı, adres,
+  model), bitiş (süre, söz/iddia/red sayıları) ve hata (süreyle) artık günlükte. Yapılandırılmış
+  servis yokken sessizce atlanan dal da günlüğe yazıyor.
+- [x] **12.5 — Yeniden işleme ekranında bulut/yerel ayrımı yok.** Liste "Bu makinede" /
+  "Buluta gönderilir" başlıklarıyla gruplanıyor; makine önce. Ayrıca "ses makineden çıkar"
+  rozeti var olmayan bir özelliğe bağlıydı (`SendsAudioOffMachine` — gerçek adı
+  `SendsDataOffMachine`), bu yüzden **yerel modellerde de** görünüyordu. Düzeltildi.
+- [ ] **12.6 — Ana sayfa bir çalışma alanı olmalı.** Kullanıcının tarifi: ayrı kanban sayfası
+  değil; Genel bakış'ta "önemli görüşmeler" paneli — sürükleyip atabileceği, silebileceği,
+  kaydırabileceği. "Anasayfa boş duruyor, workspace gibi orası." → Plan ajanına verildi.
+- [ ] **12.7 — Kişi penceresi bir detay sayfası olmalı.** Foto ekleme, doğum tarihi, kişi
+  hakkında yapılandırılmış bilgiler, "bir sürü alan olabilir". → Plan ajanına verildi.

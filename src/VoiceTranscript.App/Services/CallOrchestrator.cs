@@ -348,6 +348,10 @@ public sealed class CallOrchestrator : IDisposable
         {
             await foreach (var callId in _processing.Reader.ReadAllAsync(cancellationToken))
             {
+                // Released as work starts, not as it ends: from here on the recording is being
+                // processed, and a user asking for a retry after a failure is a new request.
+                _inQueue.TryRemove(callId, out _);
+
                 try
                 {
                     await ProcessAsync(callId, _settings(), cancellationToken);
@@ -375,8 +379,24 @@ public sealed class CallOrchestrator : IDisposable
         }
     }
 
-    /// <summary>Puts a recording in the queue to be transcribed and analysed.</summary>
-    public void Enqueue(long callId) => _processing.Writer.TryWrite(callId);
+    /// <summary>Recordings already waiting, so pressing retry twice does not queue a copy.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, byte> _inQueue = new();
+
+    /// <summary>
+    /// Puts a recording in the queue to be transcribed and analysed. Idempotent.
+    ///
+    /// It has to be: every retry button eventually lands here, and none of them checked whether
+    /// the recording was already waiting. A real night's log showed what that becomes — two
+    /// failing calls retried over thirty times between midnight and half past, one queued copy
+    /// per earlier button press, each attempt burning a minute of cooldown and an upload. The
+    /// queue owning the rule is what makes it impossible to reintroduce from a new button.
+    /// </summary>
+    public void Enqueue(long callId)
+    {
+        if (!_inQueue.TryAdd(callId, 0)) return;
+
+        _processing.Writer.TryWrite(callId);
+    }
 
     /// <summary>
     /// Which engine to use for one queued recording, overriding the setting.
@@ -780,7 +800,11 @@ public sealed class CallOrchestrator : IDisposable
         try
         {
             // The GPU is still busy finishing the call. Starting now makes the machine throttle.
-            if (settings.GpuCooldownSeconds > 0)
+            //
+            // Only when the GPU is about to be used, though. This wait used to apply to cloud
+            // uploads too, where no local model runs at all — so every cloud attempt, including
+            // every retry of a failing one, sat idle for a minute doing nothing anyone wanted.
+            if (settings.GpuCooldownSeconds > 0 && MightUseGpu(callId, settings))
                 await Task.Delay(TimeSpan.FromSeconds(settings.GpuCooldownSeconds), cancellationToken);
 
             // Analysing again does not mean transcribing again.
@@ -790,8 +814,8 @@ public sealed class CallOrchestrator : IDisposable
             // after the fact has finished transcripts already and wants the ledger built from
             // them; charging them the audio a second time is the difference between a minute and
             // an afternoon. The request is consumed here, so it applies once.
-            var keepTranscript =
-                _analyseOnly.TryRemove(call.Id, out _) && _repository.CountSegments(call.Id) > 0;
+            var analyseRequested = _analyseOnly.TryRemove(call.Id, out _);
+            var keepTranscript = analyseRequested && _repository.CountSegments(call.Id) > 0;
 
             if (!keepTranscript) await TranscribeAsync(call, settings, cancellationToken);
             else _repository.SetCallState(call.Id, ProcessingState.Transcribed);
@@ -807,7 +831,11 @@ public sealed class CallOrchestrator : IDisposable
             //
             // The transcript is already written and saved at this point, so declining to analyse
             // costs the ledger entries and the summary, not the conversation.
-            if (settings.AnalyseAutomatically)
+            // An explicit "çözümle" wins over the automatic-analysis switch being off. The
+            // switch governs what happens on its own after a call; it must not swallow a request
+            // the user just made by hand — which it did, silently: "yalnızca yeniden çözümle"
+            // with the switch off consumed the request, changed nothing and said nothing.
+            if (settings.AnalyseAutomatically || analyseRequested)
             {
                 if (await AnalysisServiceReachableAsync(settings, cancellationToken))
                 {
@@ -986,6 +1014,13 @@ public sealed class CallOrchestrator : IDisposable
             var endpoint = endpoints[i];
             cancellationToken.ThrowIfCancellationRequested();
 
+            // The address, in the log, before the attempt. A night of "OpenAI: 404: Invalid URL"
+            // was undiagnosable precisely because nothing recorded where "OpenAI" actually
+            // pointed — it was a leftover custom base URL, and the label said otherwise.
+            AppLog.Write("kayıt",
+                $"deneniyor: {endpoint.ResolvedName} @ {endpoint.ResolvedBaseUrl} "
+                + $"· model {endpoint.ResolvedModel}");
+
             try
             {
                 return await _worker.TranscribeAsync(new TranscriptionRequest
@@ -1019,6 +1054,24 @@ public sealed class CallOrchestrator : IDisposable
         throw new InvalidOperationException(
             "Yapılandırılmış servislerin hiçbiri yazıya dökemedi:" + Environment.NewLine
             + string.Join(Environment.NewLine, failures));
+    }
+
+    /// <summary>
+    /// Whether processing this recording could touch the graphics card.
+    ///
+    /// Peeked, not consumed — the override still belongs to <see cref="TranscribeAsync"/>. Errs
+    /// on the side of true: an unnecessary cooldown wastes a minute, a missing one throttles the
+    /// machine mid-call, and only one of those is felt while somebody is still talking.
+    /// </summary>
+    private bool MightUseGpu(long callId, AppSettings settings)
+    {
+        if (_engineOverride.TryGetValue(callId, out var chosen)
+            && AsrCatalog.TryGet(chosen, out var picked))
+        {
+            return !picked.SendsAudioOffMachine;
+        }
+
+        return settings.AsrMode != TranscriptionMode.CloudOnly;
     }
 
     private async Task TranscribeAsync(Call call, AppSettings settings, CancellationToken cancellationToken)
@@ -1145,8 +1198,16 @@ public sealed class CallOrchestrator : IDisposable
     private async Task<bool> AnalysisServiceReachableAsync(
         AppSettings settings, CancellationToken cancellationToken)
     {
-        // Nothing to ask when there is nothing configured to ask.
-        if (!settings.LlmReachableInPrinciple) return false;
+        // Nothing to ask when there is nothing configured to ask. Logged, because from the
+        // outside this case and a crash look identical: the user asked for analysis and nothing
+        // happened. The log has to say which one it was.
+        if (!settings.LlmReachableInPrinciple)
+        {
+            AppLog.Write("çözümleme",
+                $"atlanıyor: yapılandırılmış bir yapay zekâ servisi yok "
+                + $"(sağlayıcı={settings.Provider.DisplayName}, model={settings.ResolvedModelName})");
+            return false;
+        }
 
         // A hosted service with a key is taken at its word. Probing it costs a request against a
         // metered account to answer a question its first real call answers anyway.
@@ -1197,6 +1258,14 @@ public sealed class CallOrchestrator : IDisposable
         var client = LlmClientFactory.Create(
             _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
 
+        // Every fact needed to reconstruct a failed run from the log alone: which recording, how
+        // much text, which provider at which address, which model. "Çözümleme çalışmıyor" with an
+        // empty log is undiagnosable from a distance — this line is what makes the next such
+        // report carry its own answer.
+        AppLog.Write("çözümleme",
+            $"başlıyor: görüşme #{callId} · {_repository.CountSegments(callId)} satır · "
+            + $"{settings.Provider.DisplayName} @ {settings.ResolvedBaseUrl} · model {settings.ResolvedModelName}");
+
         // The pipeline records its own successful run, tokens and all. A failure has to be
         // recorded from out here, because the pipeline throws rather than returning — and without
         // this the usage screen could only ever report zero failures, which reads as a clean
@@ -1228,6 +1297,9 @@ public sealed class CallOrchestrator : IDisposable
         {
             analysisClock.Stop();
 
+            AppLog.Error("çözümleme", e,
+                $"görüşme #{callId} çözümlenemedi ({analysisClock.Elapsed.TotalSeconds:0} sn sonra)");
+
             _repository.RecordRun(
                 callId,
                 ProcessingStage.Analyse,
@@ -1239,6 +1311,12 @@ public sealed class CallOrchestrator : IDisposable
 
             throw;
         }
+
+        AppLog.Write("çözümleme",
+            $"bitti: görüşme #{callId} · {analysisClock.Elapsed.TotalSeconds:0} sn · "
+            + $"{report.CommitmentsFound} söz, {report.ClaimsFound} iddia, "
+            + $"{report.QuotesRejected} alıntı reddedildi"
+            + (report.Warnings.Count > 0 ? $" · {report.Warnings.Count} uyarı" : ""));
 
         // A model whose quotes mostly cannot be found is not producing usable evidence, and the
         // user should be told to change it rather than left with a quietly empty ledger.
