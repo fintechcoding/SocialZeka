@@ -79,7 +79,18 @@ public partial class ModelPickerWindow
 
         try
         {
-            _all = await ModelDirectory.FetchAsync(_http, _kind, _baseUrl, _apiKey, token);
+            var fetched = await ModelDirectory.FetchAsync(_http, _kind, _baseUrl, _apiKey, token);
+
+            // Winnowed, then ranked.
+            //
+            // OpenAI returns 126 entries on an ordinary account and most are not choices — dated
+            // duplicates of models already listed, speech synthesisers, embedding models. Handed
+            // that list whole, somebody looking for an analysis model is not being offered a
+            // choice, they are being handed a haystack.
+            var winnowed = ModelRecommendations.Winnow(fetched, forTranscription: false);
+            var (recommended, others) = ModelRecommendations.Split(winnowed, _kind);
+
+            _all = [.. recommended, .. others];
 
             if (token.IsCancellationRequested) return;
 

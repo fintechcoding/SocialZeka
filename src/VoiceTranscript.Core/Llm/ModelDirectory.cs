@@ -14,6 +14,15 @@ public sealed record RemoteModel(string Id, string Name, string? Detail)
     /// <summary>Everything worth matching a search against, folded once at construction.</summary>
     public string Haystack { get; } =
         $"{Id} {Name} {Detail}".ToLower(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// One of the few worth trying first — see <see cref="ModelRecommendations"/>.
+    ///
+    /// A marker rather than a separate list, so the recommended ones stay in the same searchable
+    /// collection. Splitting them into two lists would mean a search that finds nothing in the
+    /// short list silently looks like a search that found nothing at all.
+    /// </summary>
+    public bool IsRecommended { get; init; }
 }
 
 /// <summary>

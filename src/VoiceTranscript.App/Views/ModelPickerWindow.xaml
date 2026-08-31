@@ -46,9 +46,23 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Margin="4,5">
-                                <TextBlock Text="{Binding Id}" FontWeight="SemiBold"
-                                           FontFamily="Consolas, Cascadia Mono, Segoe UI"
-                                           TextTrimming="CharacterEllipsis" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Id}" FontWeight="SemiBold"
+                                               FontFamily="Consolas, Cascadia Mono, Segoe UI"
+                                               TextTrimming="CharacterEllipsis" />
+
+                                    <!-- The few worth trying first, marked in place rather than
+                                         split into a separate list: a search that finds nothing in
+                                         a short list looks exactly like a search that found
+                                         nothing at all. -->
+                                    <Border Margin="8,0,0,0" Padding="6,1" CornerRadius="3"
+                                            VerticalAlignment="Center"
+                                            Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                            Visibility="{Binding IsRecommended, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="önerilen" FontSize="10"
+                                                   Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                    </Border>
+                                </StackPanel>
                                 <TextBlock Text="{Binding Name}" Style="{StaticResource Caption}"
                                            TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
                                 <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}"

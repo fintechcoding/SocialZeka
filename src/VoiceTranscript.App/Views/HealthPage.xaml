@@ -142,17 +142,21 @@
                                IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}" />
                 </Grid>
             </Border>
+        </StackPanel>
+            </ScrollViewer>
+        </TabItem>
 
-            <!--
-                Data ownership.
+        <!--
+            ==================== updates ====================
 
-                A product that keeps years of somebody's conversations owes them a way to take
-                those conversations elsewhere. The export is deliberately plain markdown: the
-                honest answer to "what if you stop working on this" has to be "it is a folder of
-                text files you can read in anything".
-            -->
-            <TextBlock Text="{loc:T healthpage.veriler}" Style="{StaticResource GroupHeader}" />
-
+            Its own tab because it is a thing you come here to DO, not a fact about the machine.
+            It sat under "Sistem" beside the health checks, where the page had grown into a single
+            column holding four unrelated jobs — diagnosis, updating, backup and logs — and the one
+            you wanted was always somewhere below the fold.
+        -->
+        <TabItem Header="Güncelleme">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,8,24">
+                <StackPanel MaxWidth="860" HorizontalAlignment="Left">
             <!--
                 ==================== version and updates ====================
 
@@ -247,7 +251,29 @@
                     </ui:Button>
                 </StackPanel>
             </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
 
+        <!--
+            ==================== data ====================
+
+            Backup, export, restore and the log, together — they are all "the archive as files",
+            and they are the things somebody reaches for on the day they stop trusting the
+            application: get my conversations out, take a copy, put one back, send the log.
+        -->
+        <TabItem Header="Veriler">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,8,24">
+                <StackPanel MaxWidth="860" HorizontalAlignment="Left">
+
+            <!--
+                Data ownership.
+
+                A product that keeps years of somebody's conversations owes them a way to take
+                those conversations elsewhere. The export is deliberately plain markdown: the
+                honest answer to "what if you stop working on this" has to be "it is a folder of
+                text files you can read in anything".
+            -->
             <Border Style="{StaticResource SettingCard}">
                 <Grid>
                     <Grid.ColumnDefinitions>
