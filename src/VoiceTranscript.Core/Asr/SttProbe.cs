@@ -69,7 +69,7 @@ public sealed class SttProbe(HttpClient http)
                 };
             }
 
-            var models = ParseModelList(await response.Content.ReadAsStringAsync(ct));
+            var models = TranscriptionFirst(ParseModelList(await response.Content.ReadAsStringAsync(ct)));
             var wanted = endpoint.ResolvedModel;
             var hasModel = models.Count == 0 || models.Contains(wanted, StringComparer.OrdinalIgnoreCase);
 
@@ -98,6 +98,34 @@ public sealed class SttProbe(HttpClient http)
         {
             return new SttTestResult { Message = $"Sunucuya ulaşılamadı: {e.Message}" };
         }
+    }
+
+    /// <summary>
+    /// Puts the models that can actually transcribe at the top of the list.
+    ///
+    /// The endpoint being asked is <c>/v1/models</c>, which answers with everything the provider
+    /// hosts. On OpenAI that is around a hundred entries, almost all of them chat models, and the
+    /// four that transcribe are scattered through it alphabetically. Somebody opening the dropdown
+    /// to pick a transcription model was being handed a list in which the right answers were
+    /// invisible.
+    ///
+    /// Reordered rather than filtered. Matching on the name is a heuristic, and a heuristic that
+    /// hides things is one that will eventually hide the model somebody needs — Deepgram's are
+    /// called "nova", and a provider added tomorrow may call its own something else again. Sorting
+    /// puts the likely answers first and costs nothing when the guess is wrong.
+    /// </summary>
+    public static IReadOnlyList<string> TranscriptionFirst(IReadOnlyList<string> models)
+    {
+        static bool Transcribes(string id) =>
+            id.Contains("whisper", StringComparison.OrdinalIgnoreCase)
+            || id.Contains("transcribe", StringComparison.OrdinalIgnoreCase);
+
+        return
+        [
+            .. models
+                .OrderByDescending(Transcribes)
+                .ThenBy(id => id, StringComparer.OrdinalIgnoreCase),
+        ];
     }
 
     /// <summary>

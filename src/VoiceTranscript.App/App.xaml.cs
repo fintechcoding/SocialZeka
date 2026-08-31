@@ -269,11 +269,15 @@ public partial class App : Application
         var health = new ViewModels.HealthViewModel(
             Paths, Repository, Setup, Hardware, () => Settings, WorkerDirectory);
 
-        var window = new MainWindow
-        {
-            DataContext = new ShellViewModel(Repository, Orchestrator, () => Settings, health, Paths),
-        };
+        var shell = new ShellViewModel(Repository, Orchestrator, () => Settings, health, Paths);
+
+        var window = new MainWindow { DataContext = shell };
         MainWindow = window;
+
+        // The status screen can find an update; installing it goes through the same window and the
+        // same guard as the automatic offer, so there is one path that downloads and verifies a
+        // release rather than two that can disagree about when it is safe to.
+        shell.Update.InstallRequested += (_, release) => OfferUpdate(window, release);
 
         // Watch after the window exists, not before: the watcher needs a window to hook, and
         // this application lives in the tray for weeks at a time, so it will be running when the

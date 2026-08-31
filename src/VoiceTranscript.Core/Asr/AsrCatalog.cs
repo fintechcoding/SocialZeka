@@ -225,6 +225,43 @@ public static class AsrCatalog
         },
         new()
         {
+            Id = "cloud-openai-4o-transcribe",
+            DisplayName = "OpenAI gpt-4o-transcribe",
+            Engine = AsrEngineKind.CloudOpenAi,
+            ModelRef = "gpt-4o-transcribe",
+            DefaultBaseUrl = "https://api.openai.com/v1",
+
+            // No Turkish WER figure is given because none has been measured on the datasets the
+            // rest of this table uses. Inventing one to fill the column would make it look
+            // comparable with the others, which is exactly what it is not.
+            DownloadGb = 0,
+            VramGb = 0,
+            RunsOnCpu = true,
+            SpeedHint = "yükleme hızına bağlı",
+            Summary = "Whisper'ın yerine geçen daha yeni model. Ölçülen avantajı sessizlikte: "
+                    + "whisper-1 boş bir kayda metin uydururken bu boş döndürüyor — bu üründe "
+                    + "önemli, çünkü ayrı kaydedilen iki akıştan her biri karşı taraf "
+                    + "konuşurken sessiz.",
+            Warning = "Görüşme SESİ makineden çıkar. Türkçe hata oranı bu tablodaki diğerleriyle "
+                    + "aynı veri kümelerinde ölçülmedi, yani doğrudan karşılaştırılamaz.",
+        },
+        new()
+        {
+            Id = "cloud-openai-4o-mini-transcribe",
+            DisplayName = "OpenAI gpt-4o-mini-transcribe",
+            Engine = AsrEngineKind.CloudOpenAi,
+            ModelRef = "gpt-4o-mini-transcribe",
+            DefaultBaseUrl = "https://api.openai.com/v1",
+            DownloadGb = 0,
+            VramGb = 0,
+            RunsOnCpu = true,
+            SpeedHint = "yükleme hızına bağlı",
+            Summary = "Yukarıdakinin ucuz kardeşi. Uzun arşivleri toplu işlerken maliyet farkı "
+                    + "birikir.",
+            Warning = "Görüşme SESİ makineden çıkar. Türkçe hata oranı ölçülmedi.",
+        },
+        new()
+        {
             Id = "cloud-groq-turbo",
             DisplayName = "Groq (whisper large-v3-turbo)",
             Engine = AsrEngineKind.CloudOpenAi,

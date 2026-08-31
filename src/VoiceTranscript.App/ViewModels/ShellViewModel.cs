@@ -87,6 +87,18 @@ public sealed partial class ShellViewModel : ObservableObject
         Processing = new ProcessingViewModel(repository);
         AiStatus = new AiStatusViewModel(settings, App.HttpClient, repository);
 
+        // The service is fetched through a function rather than captured, because it is built
+        // after the window exists — the startup check runs on a delay so it cannot hold up the
+        // thing people actually opened the application for.
+        Update = new UpdateViewModel(
+            () => App.Updates,
+            settings,
+            saved =>
+            {
+                App.Settings = saved;
+                saved.Save(paths.SettingsFile);
+            });
+
         // The screen can requeue work but cannot run it; the orchestrator is held here.
         Processing.ReprocessRequested += (_, _) => _ = orchestrator.ProcessBacklogAsync();
         Search = new SearchViewModel(repository);
@@ -124,6 +136,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public ContactsViewModel Contacts { get; }
     public ProcessingViewModel Processing { get; }
     public AiStatusViewModel AiStatus { get; }
+    public UpdateViewModel Update { get; }
     public SearchViewModel Search { get; }
     public AskViewModel Ask { get; }
     public HealthViewModel Health { get; }

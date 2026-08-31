@@ -153,6 +153,101 @@
             -->
             <TextBlock Text="{loc:T healthpage.veriler}" Style="{StaticResource GroupHeader}" />
 
+            <!--
+                ==================== version and updates ====================
+
+                Two ordinary questions the application could not answer about itself: which version
+                is this, and is there a newer one right now. The first is the first thing anybody
+                needs when reporting a problem — "it does this" means nothing without knowing what
+                "it" is. The second mattered because the only check ran once at startup, and this
+                application is meant to stay running for weeks.
+
+                Bound through the window because this card belongs to the shell's update model
+                while the page around it is given the health model.
+            -->
+            <Border Style="{StaticResource SettingCard}"
+                    DataContext="{Binding DataContext.Update, RelativeSource={RelativeSource AncestorType=Window}}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0" Symbol="ArrowSync24" FontSize="18" Margin="0,0,14,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock FontSize="{StaticResource TextBody}">
+                                <Run Text="Sürüm" /><Run Text=" " /><Run
+                                    Text="{Binding CurrentVersion, Mode=OneWay}" FontWeight="SemiBold" />
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                       Text="{Binding LastCheckedText, Mode=OneWay}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" Margin="0,0,10,0"
+                                             VerticalAlignment="Center"
+                                             Visibility="{Binding IsChecking, Converter={StaticResource BoolToVisibility}}" />
+
+                            <ui:Button Content="Güncellemeleri denetle" MinWidth="164"
+                                       Command="{Binding CheckCommand}"
+                                       IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}" />
+
+                            <!-- Only appears once there is something to install. A permanently
+                                 present "install" button over an application that is already
+                                 current is a button that teaches people to ignore it. -->
+                            <ui:Button Content="İndir ve kur" Appearance="Primary" Margin="6,0,0,0"
+                                       Command="{Binding InstallCommand}"
+                                       Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="{Binding Status}" Margin="32,10,0,0" TextWrapping="Wrap"
+                               FontSize="{StaticResource TextSecondary}"
+                               Visibility="{Binding Status, Converter={StaticResource NullToCollapsed}}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusIsGood}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <Grid Margin="32,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Açılışta kendiliğinden denetle" FontSize="{StaticResource TextSecondary}" />
+                            <!-- Said plainly because it is the whole distinction the owner asked
+                                 for: it looks, it never installs on its own. -->
+                            <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                       Text="Yalnızca bakar. Hiçbir sürüm sen onaylamadan kurulmaz." />
+                        </StackPanel>
+
+                        <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                         IsChecked="{Binding CheckAutomatically, Mode=TwoWay}" />
+                    </Grid>
+
+                    <ui:Button Content="Sürümler sayfasını aç" Appearance="Transparent" Margin="26,8,0,0"
+                               HorizontalAlignment="Left" Command="{Binding OpenReleasesCommand}">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="Open24" />
+                        </ui:Button.Icon>
+                    </ui:Button>
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource SettingCard}">
                 <Grid>
                     <Grid.ColumnDefinitions>
