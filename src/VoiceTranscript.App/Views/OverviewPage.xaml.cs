@@ -191,6 +191,15 @@ public partial class OverviewPage
         if (CardOf(sender) is { } card) ViewModel?.RemoveFromBoard(card.CallId);
     }
 
+    /// <summary>Sets or clears the card's reminder; it surfaces in the Bugün tab on that day.</summary>
+    private void PanelRemind_Click(object sender, RoutedEventArgs e)
+    {
+        if (CardOf(sender) is not { } card) return;
+        if ((sender as FrameworkElement)?.Tag is not string tag || !int.TryParse(tag, out var days)) return;
+
+        ViewModel?.RemindCard(card.CallId, days);
+    }
+
     private void RecentOpen_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is RecentCall row) Open(row.Call.Id);

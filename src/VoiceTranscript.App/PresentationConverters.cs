@@ -403,3 +403,20 @@ public sealed class PhotoConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// Visible when two values are equal — the way a list row learns it is the one being worked on.
+///
+/// The alternative was pushing an IsActive flag into every row object and rebuilding the list on
+/// each progress tick, which flickers and loses the selection several times a second.
+/// </summary>
+public sealed class EqualToVisibilityConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object? parameter, CultureInfo culture)
+        => values is [{ } a, { } b, ..] && Equals(a, b)
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

@@ -1390,6 +1390,44 @@ public sealed class Repository(Database database)
         connection.Execute("DELETE FROM contact_field WHERE id = @fieldId;", new { fieldId });
     }
 
+    /// <summary>
+    /// Birthdays falling within the window, soonest first.
+    ///
+    /// Every date here was typed by the user on the person's profile — the application infers
+    /// nothing. Next-occurrence arithmetic is done here rather than in SQL: month/day wraparound
+    /// (a December birthday looked at in January) is exactly the kind of logic SQLite date
+    /// functions make easy to get quietly wrong.
+    /// </summary>
+    public IReadOnlyList<(long ContactId, string Name, DateOnly Day, int DaysAway)> UpcomingBirthdays(
+        DateOnly from, int withinDays)
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<(long Id, string Name, string BirthDate)>(
+            """
+            SELECT c.id, c.name, p.birth_date FROM contact_profile p
+            JOIN contact c ON c.id = p.contact_id
+            WHERE p.birth_date IS NOT NULL;
+            """);
+
+        var upcoming = new List<(long, string, DateOnly, int)>();
+
+        foreach (var (id, name, birth) in rows)
+        {
+            var day = DateOnly.Parse(birth);
+
+            var next = new DateOnly(from.Year, day.Month, Math.Min(day.Day, DateTime.DaysInMonth(from.Year, day.Month)));
+            if (next < from)
+                next = new DateOnly(from.Year + 1, day.Month, Math.Min(day.Day, DateTime.DaysInMonth(from.Year + 1, day.Month)));
+
+            var away = next.DayNumber - from.DayNumber;
+
+            if (away <= withinDays) upcoming.Add((id, name, next, away));
+        }
+
+        return [.. upcoming.OrderBy(u => u.Item4)];
+    }
+
     // ---- tags ---------------------------------------------------------------
     //
     // The user's own words for what a conversation was — "tehdit edildik", "önemli", anything.

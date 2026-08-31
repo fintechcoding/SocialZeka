@@ -227,3 +227,49 @@ public class SttProviderTests
         Assert.True(new SttTestResult { Message = "", Reachable = true, Authorised = true }.IsHealthy);
     }
 }
+
+/// <summary>
+/// Saved model choices that can no longer work are healed, not honoured.
+///
+/// The settings screen once offered OpenAI's gpt-4o transcribe models, so real settings files
+/// carry them — and they reject verbose_json, the one format that carries word timestamps. A
+/// verified failure from a real archive: 400, "Use 'json' or 'text' instead". Honouring the
+/// saved choice means failing on every call forever; healing it means the next run just works.
+/// </summary>
+public class SavedModelHealingTests
+{
+    [Fact]
+    public void AKnownTimestamplessModelIsCoercedToWhisper()
+    {
+        var endpoint = new VoiceTranscript.Core.Asr.SttEndpoint
+        {
+            Kind = "openai",
+            ApiKey = "sk-x",
+            Model = "gpt-4o-mini-transcribe",
+        };
+
+        Assert.Equal("whisper-1", endpoint.ResolvedModel);
+    }
+
+    [Fact]
+    public void AnOrdinaryModelChoiceIsHonoured()
+    {
+        var endpoint = new VoiceTranscript.Core.Asr.SttEndpoint
+        {
+            Kind = "groq",
+            ApiKey = "gsk-x",
+            Model = "whisper-large-v3",
+        };
+
+        Assert.Equal("whisper-large-v3", endpoint.ResolvedModel);
+    }
+
+    [Fact]
+    public void TheOpenAiProviderNoLongerOffersTimestamplessModels()
+    {
+        var provider = VoiceTranscript.Core.Asr.SttProviderCatalog.Find("openai");
+
+        Assert.DoesNotContain("gpt-4o-transcribe", provider.Models);
+        Assert.DoesNotContain("gpt-4o-mini-transcribe", provider.Models);
+    }
+}

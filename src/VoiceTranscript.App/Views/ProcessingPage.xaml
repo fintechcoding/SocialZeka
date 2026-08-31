@@ -162,6 +162,25 @@
                                                    Style="{StaticResource Caption}" VerticalAlignment="Center" />
                                     </StackPanel>
 
+                                    <!-- On the row being worked on, the bar lives on the row too —
+                                         the strip above says the same thing, but the eye scanning
+                                         a list wants the answer where the question is. -->
+                                    <StackPanel Margin="0,4,12,0">
+                                        <StackPanel.Visibility>
+                                            <MultiBinding Converter="{StaticResource EqualToVisibility}">
+                                                <Binding Path="Id" />
+                                                <Binding Path="DataContext.ActiveCallId"
+                                                         RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                            </MultiBinding>
+                                        </StackPanel.Visibility>
+                                        <ProgressBar Height="3" Minimum="0" Maximum="1"
+                                                     Value="{Binding DataContext.ActivePercent, Mode=OneWay,
+                                                             RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                     IsIndeterminate="{Binding DataContext.HasActivePercent,
+                                                             Converter={StaticResource InverseBool},
+                                                             RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                                    </StackPanel>
+
                                     <!-- The reason, when there is one. Shown rather than hidden behind
                                          a click: one missing package explains every row at once, and
                                          seeing that is what turns eight mysteries into one problem. -->

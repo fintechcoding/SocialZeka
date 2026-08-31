@@ -1058,3 +1058,17 @@ Ayrıca §8.1/8.2 (saklama süresi gerçek oldu, ölü ayar silindi) ve ölü ko
 - §1b dayanıklı kuyruk, §3 şifreleme (önce migrasyon makinesi ister), §10 ilişki analitiği,
   12.11 anlamsal arama — hepsi ayrı faz; kapsamları bu dosyada.
 - Ayarlar tam düzen turu (12.9'un kalanı): bölüm sırası/gruplama gözden geçirme.
+
+### 1 Eylül sabahı — kullanıcı logu geldi, konu kapandı
+
+- **12.2 kök nedeni KESİNLEŞTİ (tahmin yanlıştı):** adres doğruydu (`api.openai.com`);
+  sorun kayıtlı uç noktadaki **model**: `gpt-4o-mini-transcribe` verbose_json (kelime zamanı)
+  reddediyor. Ayar ekranı bu modeli hâlâ öneriyordu — listeden çıkarıldı; kayıtlı seçimler
+  `ResolvedModel` içinde whisper-1'e kendiliğinden düzeltiliyor (SavedModelHealingTests).
+- **SHA256SUMS sürüme yüklenmemişti** (benim sürüm süreci hatam) — v0.9.22'ye yüklendi;
+  bundan sonra her sürümde paketle birlikte gidecek.
+- **12.14 — Ana ekran iki sütun oldu:** çalışma alanı sağa sabitlendi (kaydırmayla kaybolmayan
+  bırakma hedefi), iki sekme: Önemli / Bugün. Bugün sekmesi hatırlatmalar + yaklaşan doğum
+  günleri; kartlara sağ tıkla "Hatırlat" (yarın / 3 gün / hafta / ay).
+- **12.15 — İşlemler satır içi ilerleme:** çalışılan satırın kendisinde çubuk
+  (EqualToVisibility çok-değer dönüştürücüsü; satır nesneleri yeniden kurulmuyor).

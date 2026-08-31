@@ -70,7 +70,12 @@ public static class SttProviderCatalog
             DisplayName = "OpenAI",
             BaseUrl = "https://api.openai.com/v1",
             DefaultModel = "whisper-1",
-            Models = ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"],
+            // whisper-1 only. The gpt-4o transcribe models used to be listed here and produced a
+            // verified 400 on a real archive: they refuse verbose_json, which is the only format
+            // that carries word timestamps — and a transcript without timestamps cannot back a
+            // single quote in the ledger. The catalogue already dropped them; offering them here
+            // was the settings screen contradicting the product.
+            Models = ["whisper-1"],
             Summary =
                 "Whisper large-v3 ile aynı aile. Dakika başına ücretli. Kalan bakiye için API " +
                 "uç noktası sunmuyor, bakiyeyi kendi panelinden görürsün.",
@@ -182,8 +187,22 @@ public sealed record SttEndpoint
     public string ResolvedBaseUrl =>
         string.IsNullOrWhiteSpace(BaseUrl) ? Provider.BaseUrl : BaseUrl.TrimEnd('/');
 
+    /// <summary>
+    /// Models that speak the endpoint but cannot return word timestamps.
+    ///
+    /// They were once offered by the settings screen, so real settings files carry them — and a
+    /// saved choice keeps failing long after the list is fixed. Verified against the live API on
+    /// 2026-08-31: both reject verbose_json ("Use 'json' or 'text' instead"), and without
+    /// verbose_json there are no word times, and without word times no quote in the ledger can be
+    /// played. Coerced here so every existing installation heals itself on the next run.
+    /// </summary>
+    private static readonly string[] NoWordTimestamps = ["gpt-4o-transcribe", "gpt-4o-mini-transcribe"];
+
     [JsonIgnore]
-    public string ResolvedModel => string.IsNullOrWhiteSpace(Model) ? Provider.DefaultModel : Model;
+    public string ResolvedModel =>
+        string.IsNullOrWhiteSpace(Model) ? Provider.DefaultModel
+        : NoWordTimestamps.Contains(Model.Trim(), StringComparer.OrdinalIgnoreCase) ? "whisper-1"
+        : Model;
 
     /// <summary>Whether this entry has everything it needs to be tried.</summary>
     [JsonIgnore]

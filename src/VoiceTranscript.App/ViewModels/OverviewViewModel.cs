@@ -187,6 +187,17 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
     public ObservableCollection<DueCard> Due { get; } = [];
 
     public bool HasDue => Due.Count > 0;
+
+    /// <summary>
+    /// Birthdays within the next week, as "Uliana · 3 gün sonra (14 Mart)" lines.
+    ///
+    /// Every date came off a profile the user filled in; the application infers none of them.
+    /// Empty almost always, and the section collapses to nothing then — a permanently empty
+    /// "yaklaşan doğum günleri" box would be the application talking to hear itself.
+    /// </summary>
+    public ObservableCollection<string> Birthdays { get; } = [];
+
+    public bool HasBirthdays => Birthdays.Count > 0;
     [ObservableProperty] private bool _hasAnyData;
 
     public sealed record OverdueItem(Commitment Commitment, string ContactName)
@@ -389,8 +400,19 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
                 card.RemindOn!.Value));
         }
 
+        Birthdays.Clear();
+
+        foreach (var (_, name, day, away) in repository.UpcomingBirthdays(
+                     DateOnly.FromDateTime(DateTime.Today), withinDays: 7))
+        {
+            Birthdays.Add(away == 0
+                ? $"{name} · bugün 🎂"
+                : $"{name} · {away} gün sonra ({day:d MMMM})");
+        }
+
         OnPropertyChanged(nameof(HasBoard));
         OnPropertyChanged(nameof(HasDue));
+        OnPropertyChanged(nameof(HasBirthdays));
     }
 
     // ---- the panel's verbs --------------------------------------------------
@@ -431,6 +453,16 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
 
     public void MoveCardUp(long callId) => Nudge(callId, -1);
     public void MoveCardDown(long callId) => Nudge(callId, +1);
+
+    /// <summary>Reminder in N days, or cleared with zero. Their card, their day, nothing invented.</summary>
+    public void RemindCard(long callId, int days)
+    {
+        repository.RemindOn(callId, days <= 0
+            ? null
+            : DateOnly.FromDateTime(DateTime.Today).AddDays(days));
+
+        LoadBoard();
+    }
 
     private void Nudge(long callId, int delta)
     {
