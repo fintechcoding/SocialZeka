@@ -281,7 +281,18 @@ public partial class App : Application
         // for them at sunset.
         Wpf.Ui.Appearance.SystemThemeWatcher.Watch(window);
 
-        window.Show();
+        // Reconciled on every start rather than only when the setting is changed.
+        //
+        // That repairs a state nobody chose: an entry left behind by an old installer, one a
+        // cleanup utility removed, or a deliberate "no" overturned by a silent update rerunning
+        // the installer with its default task selection.
+        Services.AutoStart.Apply(Settings.StartWithWindows);
+
+        // Started by Windows means straight to the tray. Otherwise the first thing somebody meets
+        // after every boot is a window they did not ask for, from an application whose whole
+        // purpose is to sit quietly until a call happens — which is how a sensible default becomes
+        // the thing people switch off.
+        if (!Services.AutoStart.LaunchedByWindows(e.Args)) window.Show();
 
         // The wizard opens on a first run, and whenever the installer asks for it.
         //

@@ -155,6 +155,37 @@
                             </Grid>
                         </Border>
 
+                        <!--
+                            On by default, and worth defending as one: a call recorder that has to
+                            be remembered and launched before every conversation records nothing,
+                            because the calls worth having a record of are the ones nobody saw
+                            coming.
+
+                            Here rather than only in the installer. As an install-time checkbox it
+                            could not be changed afterwards, and a silent update reruns the
+                            installer with its default selection — so a deliberate "no" could be
+                            overturned by an update approved for unrelated reasons.
+                        -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Power24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Windows açılışında başlat" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Bilgisayar açıldığında sessizce sistem tepsisinde başlar; pencere açılmaz. Kapalıyken uygulamayı elle açmadığın sürece hiçbir görüşme kaydedilmez." />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding StartWithWindows}" />
+                            </Grid>
+                        </Border>
+
                         <TextBlock Text="{loc:T settingswindow.uygulamalar}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
 
                         <Border Style="{StaticResource SettingCard}">

@@ -63,6 +63,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _uiLanguage = Localisation.Available.FirstOrDefault(l => l.Code == settings.UiLanguage);
         if (_uiLanguage.Code is null) _uiLanguage = Localisation.Available[0];
         _showRecordingBar = settings.ShowRecordingBar;
+        _startWithWindows = settings.StartWithWindows;
         _useEchoCancellation = settings.UseEchoCancellation;
         _microphoneDeviceId = settings.MicrophoneDeviceId;
         _outputDeviceId = settings.OutputDeviceId;
@@ -275,6 +276,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Whether a strip appears at the top of the screen while recording.</summary>
     [ObservableProperty] private bool _showRecordingBar = true;
+
+    /// <summary>Whether Windows starts this application at logon. Reconciled by AutoStart on save.</summary>
+    [ObservableProperty] private bool _startWithWindows = true;
 
     /// <summary>Which language the interface is shown in.</summary>
     [ObservableProperty] private (string Code, string Name) _uiLanguage = Localisation.Available[0];
@@ -501,6 +505,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         RecordSignal = RecordSignal,
         RecordAutomatically = RecordAutomatically,
         ShowRecordingBar = ShowRecordingBar,
+        StartWithWindows = StartWithWindows,
         UiLanguage = UiLanguage.Code,
         UseEchoCancellation = UseEchoCancellation,
         MicrophoneDeviceId = SelectedMicrophone?.Id,

@@ -758,3 +758,30 @@ Satırlar konuşma içeriği, kişi veya başlık taşımaz — aşama, motor, s
 olan bu.
 
 **571 test, 0 hata** (28 yeni: 18 sağlayıcı, 10 kullanım).
+
+### v0.9.8 — Windows açılışında başlatma uygulamaya alındı
+
+Vardı, ama yalnızca kurulumdaki bir onay kutusu olarak: işaretlenince
+`{userstartup}` altına bir kısayol yazılıyordu. Üç türlü bozuk:
+
+- işaretlemeyen sonradan fikrini değiştiremiyordu,
+- işaretleyen durdurmak için başlangıç klasörünü bulmak zorundaydı,
+- **sessiz güncelleme kurulumu varsayılan görev seçimiyle yeniden çalıştırıyor**, yani bilinçli
+  bir "hayır" tamamen ilgisiz bir sebeple onaylanan bir güncellemeyle geri alınabiliyordu.
+
+Artık `AppSettings.StartWithWindows` niyeti tutuyor, `Services/AutoStart` her açılışta makineyi
+ona uyduruyor. Bu aynı zamanda kimsenin seçmediği bir durumu da onarır: eski kurulumdan kalan
+girdi, ya da bir temizlik aracının sildiği girdi.
+
+Başlangıç klasörü kısayolu yerine `HKCU\...\Run`: kısayol COM ile yazılmak zorunda, ayrıştırmadan
+okunamıyor ve her "PC'nizi hızlandırın" aracının ilk sildiği şey. Kayıt defteri değeri okumak bir
+çağrı, yazmak bir çağrı, yokluğu da kesin.
+
+Windows'un başlattığı kopya `--tray` alıyor ve pencere açmıyor — yoksa her açılışta karşılaşılan
+ilk şey, tek amacı bir arama olana kadar sessizce beklemek olan bir uygulamanın istenmeyen
+penceresi olurdu. Mantıklı bir varsayılan böyle kapatılan bir şeye dönüşür.
+
+Kurulumdaki görev kaldırıldı, yerine yalnızca masaüstü kısayolu bırakıldı. İki yerden yönetilen
+bir açma-kapama, çeliştiğinde hangisinin kazandığı belirsiz olur.
+
+**576 test, 0 hata.**

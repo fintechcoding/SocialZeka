@@ -270,6 +270,10 @@ public partial class MainWindow
 
         App.Settings.Save(App.Paths.SettingsFile);
 
+        // Applied here rather than only at the next start, because a switch that does nothing
+        // until you reboot is one nobody can tell they have actually thrown.
+        Services.AutoStart.Apply(App.Settings.StartWithWindows);
+
         // The tray tick and the settings page are two views of one switch and have to agree.
         SyncAutoRecordMenu();
     }

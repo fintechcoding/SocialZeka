@@ -83,24 +83,32 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
 turkish.LaunchDescription=VoiceTranscript uygulamasini calistir
-turkish.AutoStartTask=Windows ile birlikte baslat
-turkish.AutoStartInfo=Aramalari yakalayabilmesi icin uygulamanin arka planda calisiyor olmasi gerekir.
+turkish.DesktopTask=Masaustune kisayol ekle
+turkish.DesktopInfo=Ek kisayollar
 turkish.PrepareTask=Gerekli bilesenleri simdi hazirla (Python ve Whisper)
 turkish.PrepareInfo=Kurulum bitince acilan pencere Python'u ve model paketlerini kendisi indirir. Internet gerekir; birkac dakika surer.
 turkish.PrepareDescription=Gerekli bilesenleri hazirla
 turkish.DataNotice=Kayitlar ve ayarlar su klasorde tutulur ve kaldirma isleminde SILINMEZ:%n%n%1
 english.LaunchDescription=Launch VoiceTranscript
-english.AutoStartTask=Start with Windows
-english.AutoStartInfo=The application must be running in the background to capture calls.
+english.DesktopTask=Create a desktop shortcut
+english.DesktopInfo=Additional shortcuts
 english.PrepareTask=Prepare prerequisites now (Python and Whisper)
 english.PrepareInfo=After installing, a window fetches Python and the model packages by itself. Needs internet; takes a few minutes.
 english.PrepareDescription=Prepare prerequisites
 english.DataNotice=Recordings and settings are kept in this folder and are NOT removed when uninstalling:%n%n%1
 
 [Tasks]
-; Checked by default: a recorder that is not running records nothing, and the single most common
-; way this application disappoints is by being closed when a call comes in.
-Name: "autostart"; Description: "{cm:AutoStartTask}"; GroupDescription: "{cm:AutoStartInfo}"
+; Starting with Windows is deliberately NOT here any more.
+;
+; It was an install-time checkbox that wrote a startup-folder shortcut, and that arrangement had
+; no way back: somebody who unchecked it could not change their mind, somebody who checked it had
+; to go and find the shortcut to stop it, and a silent update reruns this installer with its
+; default selection — so a deliberate "no" could be overturned by an update approved for entirely
+; unrelated reasons.
+;
+; The application now owns it, as a visible switch in Settings that it reconciles to the registry
+; on every start. One mechanism, one source of truth, changeable at any time.
+Name: "desktopicon"; Description: "{cm:DesktopTask}"; GroupDescription: "{cm:DesktopInfo}"
 
 ; Also checked by default, and the reason the installer does not merely copy files.
 ;
@@ -115,8 +123,7 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: autostart
-Name: "{userstartup}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: autostart
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
 ; With the prepare task, the application opens straight into the setup wizard and starts working

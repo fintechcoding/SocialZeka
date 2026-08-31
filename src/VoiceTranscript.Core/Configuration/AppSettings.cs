@@ -123,6 +123,19 @@ public sealed record AppSettings
     public bool ShowRecordingBar { get; init; } = true;
 
     /// <summary>
+    /// Whether Windows starts this application at logon.
+    ///
+    /// On by default, because a call recorder that has to be remembered and launched before every
+    /// conversation records nothing: the calls worth having a record of are exactly the ones
+    /// nobody saw coming.
+    ///
+    /// The setting is the intent, and the machine is reconciled to it on every start — see
+    /// <c>AutoStart</c>. It used to be an installer checkbox alone, which meant it could not be
+    /// changed afterwards and a silent update could quietly overturn a deliberate "no".
+    /// </summary>
+    public bool StartWithWindows { get; init; } = true;
+
+    /// <summary>
     /// Group calls are recorded as audio only.
     ///
     /// Every remote participant arrives mixed into a single stream, so who said what stops being
