@@ -23,11 +23,26 @@ public partial class ProcessingPage
         Ask([row], row.ContactName);
     }
 
-    private void ReprocessAll_Click(object sender, RoutedEventArgs e)
+    private void RetranscribeAll_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is not { } model) return;
 
-        Ask(model.AllRows, "");
+        Ask(model.ListedTranscriptRows, "");
+    }
+
+    /// <summary>
+    /// Re-analyses everything the analysis tab lists, straight from the text.
+    ///
+    /// No dialog: the tab has already answered both of the dialog's questions — which half
+    /// (analysis) and from what (the existing transcript). Asking again would be the screen
+    /// forgetting what its own tab means.
+    /// </summary>
+    private void ReanalyseAll_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } model) return;
+
+        model.Requeue(model.ListedAnalysisRows,
+            new ReprocessRequest([], null, null, AnalyseOnly: true));
     }
 
     private void Ask(IReadOnlyList<ProcessingRow> rows, string subject)

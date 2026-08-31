@@ -8,141 +8,9 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:ProcessingViewModel}">
 
-    <Grid Margin="0,4,0,16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <!--
-            Four counts, and they are the whole point of the screen.
-
-            Before this existed, a run of failures caused by one missing Python package looked like
-            eight separate mysteries: the first screen said "N görüşme işlenemedi" and nothing
-            about which, or why, or whether the audio was still there. On a machine without a
-            usable GPU it matters more still — transcription runs several times slower than real
-            time, so an application that is working looks exactly like one that has hung.
-        -->
-        <Grid Grid.Row="0" Margin="0,0,0,16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <Border Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,8,0">
-                <StackPanel>
-                    <TextBlock Text="{Binding WaitingCount}" FontSize="26" FontWeight="SemiBold" />
-                    <TextBlock Text="sırada / işleniyor" Style="{StaticResource Caption}" />
-                </StackPanel>
-            </Border>
-
-            <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="8,0">
-                <StackPanel>
-                    <TextBlock Text="{Binding FailedCount}" FontSize="26" FontWeight="SemiBold"
-                               Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
-                    <TextBlock Text="başarısız" Style="{StaticResource Caption}" />
-                </StackPanel>
-            </Border>
-
-            <Border Grid.Column="2" Style="{StaticResource Panel}" Margin="8,0">
-                <StackPanel>
-                    <TextBlock Text="{Binding WithoutTranscriptCount}" FontSize="26" FontWeight="SemiBold" />
-                    <TextBlock Text="metni yok" Style="{StaticResource Caption}" />
-                </StackPanel>
-            </Border>
-
-            <Border Grid.Column="3" Style="{StaticResource Panel}" Margin="8,0,0,0">
-                <StackPanel>
-                    <TextBlock Text="{Binding ReadyCount}" FontSize="26" FontWeight="SemiBold" />
-                    <TextBlock Text="hazır" Style="{StaticResource Caption}" />
-                </StackPanel>
-            </Border>
-        </Grid>
-
-        <!--
-            What is happening right now.
-
-            Only visible while something is being worked on, and it is the reason the rest of the
-            screen is not enough on its own: a state field saying "Yazıya dökülüyor" is the same
-            whether the job started ten seconds ago or is nearly done. Without a graphics card that
-            distinction is the difference between waiting a minute and waiting an hour.
-        -->
-        <Border Grid.Row="1" Style="{StaticResource Panel}" Margin="0,0,0,12"
-                Visibility="{Binding IsWorkingOnSomething, Converter={StaticResource BoolToVisibility}}">
-            <StackPanel>
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0" Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" Margin="0,0,8,0"
-                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                        <TextBlock Text="{Binding ActiveLine}" VerticalAlignment="Center" FontWeight="SemiBold" />
-                    </StackPanel>
-
-                    <!-- Ends this one job; the queue behind it is untouched. The recording is
-                         parked, not lost — "Yeniden işle" stays one click away. -->
-                    <ui:Button Grid.Column="1" Content="Durdur" Appearance="Secondary" Padding="10,4"
-                               Click="StopCurrent_Click" ToolTip="Bu kaydın işlenmesini durdur" />
-                </Grid>
-
-                <!-- Determinate when the worker gives a fraction, and a moving bar when it does
-                     not — an empty bar sitting at zero reads as stuck. -->
-                <ProgressBar Height="4" Minimum="0" Maximum="1"
-                             Value="{Binding ActivePercent, Mode=OneWay}"
-                             IsIndeterminate="{Binding HasActivePercent, Converter={StaticResource InverseBool}}" />
-            </StackPanel>
-        </Border>
-
-        <Grid Grid.Row="2" Margin="0,0,0,12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <ui:Button Content="Bekleyenler" Margin="0,0,6,0" Command="{Binding ShowWaitingCommand}" />
-                <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowFailedCommand}" />
-                <ui:Button Content="Metni olmayanlar" Margin="0,0,6,0" Command="{Binding ShowWithoutTranscriptCommand}" />
-                <ui:Button Content="Bitenler" Margin="0,0,6,0" Command="{Binding ShowDoneCommand}" />
-                <ui:Button Content="Hepsi" Command="{Binding ShowAllCommand}" />
-            </StackPanel>
-
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <ui:Button Content="Yenile" Margin="0,0,6,0" Command="{Binding RefreshCommand}">
-                    <ui:Button.Icon>
-                        <ui:SymbolIcon Symbol="ArrowClockwise24" />
-                    </ui:Button.Icon>
-                </ui:Button>
-
-                <!--
-                    The action that is almost always the right one. A run of failures usually has a
-                    single cause — a missing package, a service that was down, an expired key — so
-                    once it is fixed, "all of them" is what the user wants, not eight clicks.
-                -->
-                <ui:Button Content="Listedekileri yeniden işle" Appearance="Primary"
-                           Click="ReprocessAll_Click"
-                           ToolTip="Şu an listede görünen bütün görüşmeleri yeniden kuyruğa alır.">
-                    <ui:Button.Icon>
-                        <ui:SymbolIcon Symbol="ArrowSync24" />
-                    </ui:Button.Icon>
-                </ui:Button>
-            </StackPanel>
-        </Grid>
-
-        <Border Grid.Row="3" Style="{StaticResource Panel}">
-            <Grid>
-                <ListBox Style="{StaticResource CleanList}" ItemsSource="{Binding Rows}"
-                         Visibility="{Binding IsEmpty, Converter={StaticResource InverseBoolToVisibility}}"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
+    <UserControl.Resources>
+        <!-- One row, either tab. The faults differ; the anatomy of a row does not. -->
+        <DataTemplate x:Key="ProcessingRowTemplate">
                             <Grid Margin="0,4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -236,55 +104,261 @@
                                            IsEnabled="{Binding HasAudio}"
                                            Click="Reprocess_Click" Tag="{Binding}" />
                             </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+        </DataTemplate>
+    </UserControl.Resources>
 
-                <StackPanel Style="{StaticResource EmptyState}"
-                            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
-                    <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="36" HorizontalAlignment="Center"
-                                   Margin="0,0,0,14"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                    <TextBlock Style="{StaticResource EmptyTitle}" Text="{Binding EmptyMessage}" />
+    <Grid Margin="0,4,0,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            Four counts, and they are the whole point of the screen.
+
+            Before this existed, a run of failures caused by one missing Python package looked like
+            eight separate mysteries: the first screen said "N görüşme işlenemedi" and nothing
+            about which, or why, or whether the audio was still there. On a machine without a
+            usable GPU it matters more still — transcription runs several times slower than real
+            time, so an application that is working looks exactly like one that has hung.
+        -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,8,0">
+                <StackPanel>
+                    <TextBlock Text="{Binding WaitingCount}" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock Text="sırada / işleniyor" Style="{StaticResource Caption}" />
                 </StackPanel>
+            </Border>
 
-                <!--
-                    What just happened.
+            <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="8,0">
+                <StackPanel>
+                    <TextBlock Text="{Binding FailedCount}" FontSize="26" FontWeight="SemiBold"
+                               Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                    <TextBlock Text="başarısız" Style="{StaticResource Caption}" />
+                </StackPanel>
+            </Border>
 
-                    The view model has always written a sentence here — "1 görüşme yeniden kuyruğa
-                    alındı", or the reason nothing could be — and nothing displayed it. Pressing
-                    "Yeniden işle" therefore did its work in silence, which from the outside is
-                    indistinguishable from a button that does not work, and is how somebody
-                    concludes the feature is broken and stops pressing it.
-                -->
-                <Border VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
-                        Margin="12" Padding="14,10" CornerRadius="6"
-                        Background="{DynamicResource ControlFillColorDefaultBrush}"
-                        BorderThickness="1"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        Visibility="{Binding Notice, Converter={StaticResource NullToCollapsed}}">
-                    <Grid>
+            <Border Grid.Column="2" Style="{StaticResource Panel}" Margin="8,0">
+                <StackPanel>
+                    <TextBlock Text="{Binding WithoutTranscriptCount}" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock Text="metni yok" Style="{StaticResource Caption}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="3" Style="{StaticResource Panel}" Margin="8,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="{Binding ReadyCount}" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock Text="hazır" Style="{StaticResource Caption}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!--
+            What is happening right now.
+
+            Only visible while something is being worked on, and it is the reason the rest of the
+            screen is not enough on its own: a state field saying "Yazıya dökülüyor" is the same
+            whether the job started ten seconds ago or is nearly done. Without a graphics card that
+            distinction is the difference between waiting a minute and waiting an hour.
+        -->
+        <Border Grid.Row="1" Style="{StaticResource Panel}" Margin="0,0,0,12"
+                Visibility="{Binding IsWorkingOnSomething, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" Margin="0,0,8,0"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Text="{Binding ActiveLine}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                    </StackPanel>
+
+                    <!-- Ends this one job; the queue behind it is untouched. The recording is
+                         parked, not lost — "Yeniden işle" stays one click away. -->
+                    <ui:Button Grid.Column="1" Content="Durdur" Appearance="Secondary" Padding="10,4"
+                               Click="StopCurrent_Click" ToolTip="Bu kaydın işlenmesini durdur" />
+                </Grid>
+
+                <!-- Determinate when the worker gives a fraction, and a moving bar when it does
+                     not — an empty bar sitting at zero reads as stuck. -->
+                <ProgressBar Height="4" Minimum="0" Maximum="1"
+                             Value="{Binding ActivePercent, Mode=OneWay}"
+                             IsIndeterminate="{Binding HasActivePercent, Converter={StaticResource InverseBool}}" />
+            </StackPanel>
+        </Border>
+
+
+        <!--
+            Two tabs, two questions: did the audio become text, and did the text become a ledger.
+
+            They used to share one list and one set of filters, and the user's verdict is on
+            record: "kafa karıştırıyor ve çok hata çıktı". A call whose analysis failed sat
+            between calls whose transcription failed, wearing the same red, offering the same
+            buttons — different faults, different fixes, indistinguishable rows.
+        -->
+        <TabControl Grid.Row="2" Grid.RowSpan="2" Style="{StaticResource SegmentedTabs}"
+                    Padding="0,10,0,0">
+
+            <TabItem Header="Yazıya dökme">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <ui:SymbolIcon Grid.Column="0" Symbol="Info24" FontSize="16" Margin="0,0,10,0"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <ui:Button Content="Bekleyenler" Margin="0,0,6,0" Command="{Binding ShowTranscriptWaitingCommand}" />
+                            <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowTranscriptFailedCommand}" />
+                            <ui:Button Content="Hepsi" Command="{Binding ShowTranscriptAllCommand}" />
+                        </StackPanel>
 
-                        <TextBlock Grid.Column="1" Text="{Binding Notice}" TextWrapping="Wrap"
-                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <ui:Button Content="Yenile" Margin="0,0,6,0" Command="{Binding RefreshCommand}">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="ArrowClockwise24" />
+                                </ui:Button.Icon>
+                            </ui:Button>
 
-                        <ui:Button Grid.Column="2" Appearance="Transparent" Margin="10,0,0,0"
-                                   Click="DismissNotice_Click">
-                            <ui:Button.Icon>
-                                <ui:SymbolIcon Symbol="Dismiss24" />
-                            </ui:Button.Icon>
-                        </ui:Button>
+                            <ui:Button Content="Listedekileri yeniden yazıya dök" Appearance="Primary"
+                                       Click="RetranscribeAll_Click"
+                                       ToolTip="Bu sekmede görünen bütün görüşmeleri yeniden kuyruğa alır.">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="ArrowSync24" />
+                                </ui:Button.Icon>
+                            </ui:Button>
+                        </StackPanel>
                     </Grid>
-                </Border>
+
+                    <Border Grid.Row="1" Style="{StaticResource Panel}">
+                        <Grid>
+                            <ListBox Style="{StaticResource CleanList}" ItemsSource="{Binding TranscriptRows}"
+                                     ItemTemplate="{StaticResource ProcessingRowTemplate}"
+                                     Visibility="{Binding IsTranscriptEmpty, Converter={StaticResource InverseBoolToVisibility}}"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+
+                            <StackPanel Style="{StaticResource EmptyState}"
+                                        Visibility="{Binding IsTranscriptEmpty, Converter={StaticResource BoolToVisibility}}">
+                                <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="36" HorizontalAlignment="Center"
+                                               Margin="0,0,0,14"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                <TextBlock Style="{StaticResource EmptyTitle}" Text="{Binding TranscriptEmptyMessage}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Çözümleme">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <ui:Button Content="Çözümlenmemişler" Margin="0,0,6,0" Command="{Binding ShowAnalysisUnanalysedCommand}" />
+                            <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowAnalysisFailedCommand}" />
+                            <ui:Button Content="Bitenler" Margin="0,0,6,0" Command="{Binding ShowAnalysisDoneCommand}" />
+                            <ui:Button Content="Hepsi" Command="{Binding ShowAnalysisAllCommand}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <ui:Button Content="Yenile" Margin="0,0,6,0" Command="{Binding RefreshCommand}">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="ArrowClockwise24" />
+                                </ui:Button.Icon>
+                            </ui:Button>
+
+                            <!-- Works from the text: fast, cheap, and possible even when the
+                                 audio has since been swept. -->
+                            <ui:Button Content="Listedekileri yeniden çözümle" Appearance="Primary"
+                                       Click="ReanalyseAll_Click"
+                                       ToolTip="Bu sekmede görünen görüşmelerin defterini metinden yeniden üretir. Ses yeniden işlenmez.">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="Sparkle24" />
+                                </ui:Button.Icon>
+                            </ui:Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="1" Style="{StaticResource Panel}">
+                        <Grid>
+                            <ListBox Style="{StaticResource CleanList}" ItemsSource="{Binding AnalysisRows}"
+                                     ItemTemplate="{StaticResource ProcessingRowTemplate}"
+                                     Visibility="{Binding IsAnalysisEmpty, Converter={StaticResource InverseBoolToVisibility}}"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+
+                            <StackPanel Style="{StaticResource EmptyState}"
+                                        Visibility="{Binding IsAnalysisEmpty, Converter={StaticResource BoolToVisibility}}">
+                                <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="36" HorizontalAlignment="Center"
+                                               Margin="0,0,0,14"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                <TextBlock Style="{StaticResource EmptyTitle}" Text="{Binding AnalysisEmptyMessage}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!--
+            What just happened.
+
+            The view model has always written a sentence here — "1 görüşme yeniden kuyruğa
+            alındı", or the reason nothing could be — and nothing displayed it. Pressing
+            "Yeniden işle" therefore did its work in silence, which from the outside is
+            indistinguishable from a button that does not work.
+        -->
+        <Border Grid.Row="3" VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+                Margin="12" Padding="14,10" CornerRadius="6"
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                Visibility="{Binding Notice, Converter={StaticResource NullToCollapsed}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ui:SymbolIcon Grid.Column="0" Symbol="Info24" FontSize="16" Margin="0,0,10,0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+
+                <TextBlock Grid.Column="1" Text="{Binding Notice}" TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+
+                <ui:Button Grid.Column="2" Appearance="Transparent" Margin="10,0,0,0"
+                           Click="DismissNotice_Click">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="Dismiss24" />
+                    </ui:Button.Icon>
+                </ui:Button>
             </Grid>
         </Border>
     </Grid>

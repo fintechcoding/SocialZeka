@@ -7,19 +7,33 @@ using VoiceTranscript.Core.Storage;
 
 namespace VoiceTranscript.App.ViewModels;
 
-/// <summary>Which recordings the screen is showing.</summary>
-public enum ProcessingFilter
+// The screen asks two different questions, and its history shows what merging them cost: a call
+// whose ANALYSIS failed sat between calls whose TRANSCRIPTION failed, wearing the same red, and
+// the user's verdict was "kafa karıştırıyor ve çok hata çıktı". Did the audio become text, and
+// did the text become a ledger — separate questions, separate tabs, separate filters.
+
+/// <summary>Which rows the transcription tab is showing.</summary>
+public enum TranscriptFilter
 {
-    /// <summary>Anything that is not finished: waiting, running, or failed.</summary>
+    /// <summary>Waiting, running, failed, or still without text.</summary>
     Unfinished,
 
-    /// <summary>Only the ones that failed.</summary>
+    /// <summary>Only the ones whose transcription failed.</summary>
     Failed,
 
-    /// <summary>Only the ones with no transcript at all.</summary>
-    WithoutTranscript,
+    All,
+}
 
-    /// <summary>Finished, one way or another: analysed, transcribed, or deliberately skipped.</summary>
+/// <summary>Which rows the analysis tab is showing. Its universe is calls that have text.</summary>
+public enum AnalyseFilter
+{
+    /// <summary>Text exists, ledger does not — including analysis failures.</summary>
+    Unanalysed,
+
+    /// <summary>Only the ones whose analysis failed.</summary>
+    Failed,
+
+    /// <summary>Ledger built.</summary>
     Done,
 
     All,
@@ -73,6 +87,12 @@ public sealed record ProcessingRow(Call Call, string ContactName, int SegmentCou
 
     public bool IsFailed => Call.State == ProcessingState.Failed;
 
+    /// <summary>The audio never became text. This row belongs to the transcription tab's reds.</summary>
+    public bool TranscriptFailed => IsFailed && !HasTranscript;
+
+    /// <summary>The text exists and the ledger step failed — a different fault, a different tab.</summary>
+    public bool AnalysisFailed => IsFailed && HasTranscript;
+
     public bool IsWorking => Call.State
         is ProcessingState.Transcribing or ProcessingState.Analysing;
 
@@ -112,7 +132,11 @@ public sealed record ProcessingRow(Call Call, string ContactName, int SegmentCou
 public sealed partial class ProcessingViewModel(
     Repository repository, Func<AppSettings>? settings = null) : ObservableObject
 {
-    public ObservableCollection<ProcessingRow> Rows { get; } = [];
+    /// <summary>Did the audio become text — the transcription tab's rows.</summary>
+    public ObservableCollection<ProcessingRow> TranscriptRows { get; } = [];
+
+    /// <summary>Did the text become a ledger — the analysis tab's rows. Only calls with text.</summary>
+    public ObservableCollection<ProcessingRow> AnalysisRows { get; } = [];
 
     /// <summary>
     /// Which engine will do the work, named on the live line.
@@ -138,7 +162,8 @@ public sealed partial class ProcessingViewModel(
         }
     }
 
-    [ObservableProperty] private ProcessingFilter _filter = ProcessingFilter.Unfinished;
+    [ObservableProperty] private TranscriptFilter _transcriptFilter = TranscriptFilter.Unfinished;
+    [ObservableProperty] private AnalyseFilter _analyseFilter = AnalyseFilter.Unanalysed;
 
     [ObservableProperty] private int _waitingCount;
     [ObservableProperty] private int _failedCount;
@@ -192,7 +217,7 @@ public sealed partial class ProcessingViewModel(
         {
             if (ActiveCallId is not { } id) return "";
 
-            var who = Rows.FirstOrDefault(r => r.Id == id)?.ContactName;
+            var who = TranscriptRows.Concat(AnalysisRows).FirstOrDefault(r => r.Id == id)?.ContactName;
             var stage = ActiveStage ?? "İşleniyor";
 
             var line = who is null ? stage : $"{who} · {stage}";
@@ -207,18 +232,26 @@ public sealed partial class ProcessingViewModel(
     /// <summary>Raised when something needs the shell — reprocessing goes through the orchestrator.</summary>
     public event EventHandler<ReprocessRequest>? ReprocessRequested;
 
-    public bool IsEmpty => Rows.Count == 0;
+    public bool IsTranscriptEmpty => TranscriptRows.Count == 0;
+    public bool IsAnalysisEmpty => AnalysisRows.Count == 0;
 
-    public string EmptyMessage => Filter switch
+    public string TranscriptEmptyMessage => TranscriptFilter switch
     {
-        ProcessingFilter.Failed => "Başarısız görüşme yok.",
-        ProcessingFilter.WithoutTranscript => "Metni olmayan görüşme yok.",
-        ProcessingFilter.Done => "Henüz biten iş yok.",
-        ProcessingFilter.Unfinished => "Bekleyen iş yok — her şey işlenmiş.",
+        TranscriptFilter.Failed => "Yazıya dökülemeyen görüşme yok.",
+        TranscriptFilter.Unfinished => "Bekleyen iş yok — her kayıt yazıya dökülmüş.",
         _ => "Henüz kayıt yok.",
     };
 
-    partial void OnFilterChanged(ProcessingFilter value) => Refresh();
+    public string AnalysisEmptyMessage => AnalyseFilter switch
+    {
+        AnalyseFilter.Failed => "Çözümlemesi başarısız görüşme yok.",
+        AnalyseFilter.Done => "Henüz çözümlenmiş görüşme yok.",
+        AnalyseFilter.Unanalysed => "Çözümlenmeyi bekleyen görüşme yok.",
+        _ => "Metni olan görüşme yok — çözümleme metinden çalışır.",
+    };
+
+    partial void OnTranscriptFilterChanged(TranscriptFilter value) => Refresh();
+    partial void OnAnalyseFilterChanged(AnalyseFilter value) => Refresh();
 
     [RelayCommand]
     public void Refresh()
@@ -239,49 +272,71 @@ public sealed partial class ProcessingViewModel(
         WithoutTranscriptCount = rows.Count(r => !r.HasTranscript && r.Call.State != ProcessingState.Skipped);
         ReadyCount = rows.Count(r => r.Call.State == ProcessingState.Analysed);
 
-        var shown = Filter switch
+        // Two tabs, two questions. A call with no text is transcription's business even when its
+        // state says Failed; a call with text and no ledger is analysis's, same state field.
+        var transcript = TranscriptFilter switch
         {
-            ProcessingFilter.Failed => rows.Where(r => r.IsFailed),
-            ProcessingFilter.Done => rows.Where(r =>
-                r.Call.State is ProcessingState.Analysed or ProcessingState.Transcribed
-                    or ProcessingState.Skipped),
-            ProcessingFilter.WithoutTranscript =>
-                rows.Where(r => !r.HasTranscript && r.Call.State != ProcessingState.Skipped),
-            ProcessingFilter.Unfinished =>
-                rows.Where(r => r.IsFailed || r.IsWaiting || r.IsWorking || !r.HasTranscript),
+            ViewModels.TranscriptFilter.Failed => rows.Where(r => r.TranscriptFailed),
+            ViewModels.TranscriptFilter.Unfinished => rows.Where(r =>
+                r.IsWaiting || r.IsWorking || r.TranscriptFailed
+                || (!r.HasTranscript && r.Call.State != ProcessingState.Skipped)),
             _ => rows,
         };
 
-        Rows.Clear();
-        foreach (var row in shown.OrderByDescending(r => r.Call.StartedAt)) Rows.Add(row);
+        var withText = rows.Where(r => r.HasTranscript).ToList();
 
-        OnPropertyChanged(nameof(IsEmpty));
-        OnPropertyChanged(nameof(EmptyMessage));
+        var analysis = AnalyseFilter switch
+        {
+            ViewModels.AnalyseFilter.Failed => withText.Where(r => r.AnalysisFailed),
+            ViewModels.AnalyseFilter.Done => withText.Where(r => r.Call.State == ProcessingState.Analysed),
+            ViewModels.AnalyseFilter.Unanalysed => withText.Where(r =>
+                r.Call.State == ProcessingState.Transcribed || r.AnalysisFailed),
+            _ => withText,
+        };
+
+        TranscriptRows.Clear();
+        foreach (var row in transcript.OrderByDescending(r => r.Call.StartedAt)) TranscriptRows.Add(row);
+
+        AnalysisRows.Clear();
+        foreach (var row in analysis.OrderByDescending(r => r.Call.StartedAt)) AnalysisRows.Add(row);
+
+        OnPropertyChanged(nameof(IsTranscriptEmpty));
+        OnPropertyChanged(nameof(IsAnalysisEmpty));
+        OnPropertyChanged(nameof(TranscriptEmptyMessage));
+        OnPropertyChanged(nameof(AnalysisEmptyMessage));
     }
 
     [RelayCommand]
-    private void ShowFailed() => Filter = ProcessingFilter.Failed;
+    private void ShowTranscriptFailed() => TranscriptFilter = TranscriptFilter.Failed;
 
     [RelayCommand]
-    private void ShowWaiting() => Filter = ProcessingFilter.Unfinished;
+    private void ShowTranscriptWaiting() => TranscriptFilter = TranscriptFilter.Unfinished;
 
     [RelayCommand]
-    private void ShowWithoutTranscript() => Filter = ProcessingFilter.WithoutTranscript;
+    private void ShowTranscriptAll() => TranscriptFilter = TranscriptFilter.All;
 
     [RelayCommand]
-    private void ShowAll() => Filter = ProcessingFilter.All;
+    private void ShowAnalysisUnanalysed() => AnalyseFilter = AnalyseFilter.Unanalysed;
 
     [RelayCommand]
-    private void ShowDone() => Filter = ProcessingFilter.Done;
+    private void ShowAnalysisFailed() => AnalyseFilter = AnalyseFilter.Failed;
+
+    [RelayCommand]
+    private void ShowAnalysisDone() => AnalyseFilter = AnalyseFilter.Done;
+
+    [RelayCommand]
+    private void ShowAnalysisAll() => AnalyseFilter = AnalyseFilter.All;
 
     /// <summary>
-    /// Everything currently listed, for the screen to offer as one batch.
+    /// Everything the visible tab lists, for its batch button.
     ///
     /// The common case by a distance: a run of failures usually has one cause — a missing package,
     /// a service that was down, a key that had expired — so once it is fixed the useful action is
     /// "all of them", not eight separate clicks.
     /// </summary>
-    public IReadOnlyList<ProcessingRow> AllRows => [.. Rows];
+    public IReadOnlyList<ProcessingRow> ListedTranscriptRows => [.. TranscriptRows];
+
+    public IReadOnlyList<ProcessingRow> ListedAnalysisRows => [.. AnalysisRows];
 
     /// <summary>
     /// Puts recordings back in the queue, optionally by a different route.

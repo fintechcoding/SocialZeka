@@ -354,6 +354,9 @@ public sealed partial class AiStatusViewModel(
     /// <summary>Per-engine transcription figures, so a local model and a hosted one can be compared.</summary>
     public ObservableCollection<EngineUsage> Engines { get; } = [];
 
+    /// <summary>Per-model analysis spend, tokens included — the itemised half of the bill.</summary>
+    public ObservableCollection<EngineUsage> AnalysisEngines { get; } = [];
+
     public string WindowName => WindowDays switch
     {
         7 => "Son 7 gün",
@@ -466,6 +469,12 @@ public sealed partial class AiStatusViewModel(
         Engines.Clear();
         foreach (var engine in repository.UsageByEngine(ProcessingStage.Transcribe, since))
             Engines.Add(engine);
+
+        // The paid side, model by model. Transcription is billed by the minute and analysis by
+        // the token, and a bill that looks wrong can only be traced when both are itemised.
+        AnalysisEngines.Clear();
+        foreach (var engine in repository.UsageByEngine(ProcessingStage.Analyse, since))
+            AnalysisEngines.Add(engine);
 
         foreach (var name in new[]
         {

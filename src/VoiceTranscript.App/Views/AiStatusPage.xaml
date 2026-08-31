@@ -286,6 +286,34 @@
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                         <TextBlock Text="{Binding AnalyseLine}" TextWrapping="Wrap" Margin="0,2,0,0" />
 
+                        <!-- Model by model, tokens included. Transcription above is billed by the
+                             minute and this by the token; a bill that looks wrong can only be
+                             traced when both halves are itemised. -->
+                        <ItemsControl ItemsSource="{Binding AnalysisEngines}" Margin="0,6,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="{Binding Engine}"
+                                                   Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" />
+
+                                        <TextBlock Grid.Column="1" Style="{StaticResource Caption}" Margin="12,0,0,0"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                            <Run Text="{Binding Runs, Mode=OneWay}" /><Run Text=" görüşme · " /><Run
+                                                Text="{Binding PromptTokens, Mode=OneWay, StringFormat='{}{0:N0}'}" /><Run
+                                                Text=" giriş + " /><Run
+                                                Text="{Binding CompletionTokens, Mode=OneWay, StringFormat='{}{0:N0}'}" /><Run
+                                                Text=" çıkış jeton" />
+                                        </TextBlock>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
                         <!-- Questions are the same paid endpoint spent for a different reason, so
                              they are counted apart: a bill that looks too large can then be traced
                              to whichever of the two caused it. -->

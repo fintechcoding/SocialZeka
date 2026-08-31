@@ -1072,3 +1072,9 @@ Ayrıca §8.1/8.2 (saklama süresi gerçek oldu, ölü ayar silindi) ve ölü ko
   günleri; kartlara sağ tıkla "Hatırlat" (yarın / 3 gün / hafta / ay).
 - **12.15 — İşlemler satır içi ilerleme:** çalışılan satırın kendisinde çubuk
   (EqualToVisibility çok-değer dönüştürücüsü; satır nesneleri yeniden kurulmuyor).
+- [x] **12.16 — İşlemler iki sekmeye ayrıldı** *(1 Eylül — kullanıcı: "kafa karıştırıyor, çok
+  hata çıktı")*: "Yazıya dökme" (ses→metin: bekleyen/başarısız) ve "Çözümleme" (metin→defter:
+  çözümlenmemiş/başarısız/biten). Metinsiz-başarısız ile metinli-başarısız artık ayrı yerlerde;
+  çözümleme sekmesinin toplu butonu diyalogsuz, doğrudan metinden çalışır.
+- [x] **12.17 — Kullanım ekranına çözümleme jeton dökümü** *(1 Eylül)*: model model,
+  giriş+çıkış jeton; yazıya dökme dakikayla, çözümleme jetonla faturalanır — ikisi de kalemli.
