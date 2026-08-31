@@ -184,10 +184,18 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
 
         var since = Period.Since();
 
-        var hits = repository.Search(Query, limit: 500)
-            .Where(h => ContactFilter is null || h.ContactId == ContactFilter)
-            .Where(h => !OnlyOtherParty || !h.IsMe)
-            .Where(h => since is null || h.CallStartedAt >= since)
+        // Filtered by the database, not afterwards.
+        //
+        // Narrowing in memory meant the filters were applied to the best five hundred matches in
+        // the whole archive: on a common word, one person's lines sit below that and were
+        // discarded before the filter saw them, and the screen then said "sonuç yok" about
+        // something that was said.
+        var hits = repository.Search(
+            Query,
+            limit: 500,
+            contactId: ContactFilter,
+            isMe: OnlyOtherParty ? false : null,
+            since: since)
             .ToList();
 
         ResultCount = hits.Count;

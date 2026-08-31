@@ -623,7 +623,27 @@ public sealed class Repository(Database database)
     /// Turkish is agglutinative, so a search for "kitap" must also reach "kitabı" and
     /// "kitaptan". Without that, an exact-token search finds almost nothing.
     /// </summary>
-    public IReadOnlyList<SearchHit> Search(string query, int limit = 100)
+    /// <summary>
+    /// Where a word was said, most relevant first.
+    ///
+    /// <b>The filters are applied in SQL, and that is the whole point of them being here.</b> The
+    /// search screen used to fetch the best five hundred matches from the entire archive and then
+    /// narrow them to a person, a speaker or a date range in memory. On a common word, one
+    /// person's matches sit below the global five hundred and are thrown away before the filter
+    /// ever sees them — so the screen reported "sonuç yok" for something that was said, in a
+    /// sentence confident enough to be believed. Telling somebody a conversation did not happen
+    /// when it did is the worst answer this product can give.
+    ///
+    /// The hazard was already written down, on <see cref="CallsMentioning"/>, which exists partly
+    /// to avoid it. The search screen did it anyway.
+    /// </summary>
+    /// <param name="isMe">true for the user's own lines, false for the other party's, null for both.</param>
+    public IReadOnlyList<SearchHit> Search(
+        string query,
+        int limit = 100,
+        long? contactId = null,
+        bool? isMe = null,
+        DateTimeOffset? since = null)
     {
         var match = TurkishText.ToMatchQuery(query);
         if (match.Length == 0) return [];
@@ -645,10 +665,20 @@ public sealed class Repository(Database database)
             JOIN call    c  ON c.id = s.call_id
             LEFT JOIN contact ct ON ct.id = c.contact_id
             WHERE segment_fts MATCH @match
+              AND (@contactId IS NULL OR c.contact_id = @contactId)
+              AND (@isMe      IS NULL OR s.is_me      = @isMe)
+              AND (@since     IS NULL OR c.started_at >= @since)
             ORDER BY rank
             LIMIT @limit;
             """,
-            new { match, limit })
+            new
+            {
+                match,
+                limit,
+                contactId,
+                isMe = isMe is null ? (int?)null : isMe.Value ? 1 : 0,
+                since = since is { } s ? Iso(s) : null,
+            })
             .Select(r => r.ToModel())];
     }
 

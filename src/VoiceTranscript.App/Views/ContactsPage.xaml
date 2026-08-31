@@ -662,9 +662,45 @@
                                                                    FontWeight="SemiBold" TextWrapping="Wrap"
                                                                    FontSize="{StaticResource TextBody}" />
 
-                                                        <TextBlock Grid.Column="2" Style="{StaticResource TimeLink}"
-                                                                   Text="{Binding Timestamp}" Margin="10,0,0,0"
-                                                                   VerticalAlignment="Top" />
+                                                        <!--
+                                                            The timestamp plays the moment, and the
+                                                            entry can be dismissed.
+
+                                                            Both commands existed and neither was
+                                                            bound to anything. The timestamp was
+                                                            already drawn in the link style — accent
+                                                            colour, hand cursor, underline on hover —
+                                                            so it invited a click and answered with
+                                                            nothing, on the one screen whose whole
+                                                            argument is that every claim can be
+                                                            checked against the recording.
+
+                                                            Dismissal matters as much: without it
+                                                            false positives pile up until the ledger
+                                                            is noise and gets ignored, and the real
+                                                            findings go with it.
+                                                        -->
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                                    Margin="10,0,0,0" VerticalAlignment="Top">
+                                                            <TextBlock Style="{StaticResource TimeLink}"
+                                                                       Text="{Binding Timestamp}"
+                                                                       ToolTip="{loc:T contactspage.bu-andan-itibaren-dinle}">
+                                                                <TextBlock.InputBindings>
+                                                                    <MouseBinding MouseAction="LeftClick"
+                                                                                  Command="{Binding DataContext.PlayFlagCommand,
+                                                                                            RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  CommandParameter="{Binding}" />
+                                                                </TextBlock.InputBindings>
+                                                            </TextBlock>
+
+                                                            <Button Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                                                    ToolTip="Bu kaydı defterden kaldır"
+                                                                    Command="{Binding DataContext.DismissFlagCommand,
+                                                                              RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                    CommandParameter="{Binding}">
+                                                                <ui:SymbolIcon Symbol="Dismiss24" FontSize="14" />
+                                                            </Button>
+                                                        </StackPanel>
                                                     </Grid>
 
                                                     <!-- The quote travels with the claim, always. A
