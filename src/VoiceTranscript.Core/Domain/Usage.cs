@@ -8,6 +8,15 @@ public static class ProcessingStage
 
     /// <summary>Turning text into a summary and ledger entries. Measured in tokens.</summary>
     public const string Analyse = "analyse";
+
+    /// <summary>
+    /// Answering a question about the archive.
+    ///
+    /// Its own stage rather than folded into analysis, because it is spent differently: analysis
+    /// happens once per call whether anyone is watching, and this happens because somebody asked.
+    /// Told apart, a large bill can be traced to whichever of the two caused it.
+    /// </summary>
+    public const string Ask = "ask";
 }
 
 /// <summary>

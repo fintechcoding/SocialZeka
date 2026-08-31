@@ -362,25 +362,70 @@ public sealed partial class SettingsViewModel : ObservableObject
         LlmStatus = "Sinaniyor...";
         LlmStatusIsGood = false;
 
+        var baseUrl = string.IsNullOrWhiteSpace(LlmBaseUrl)
+            ? SelectedProvider.DefaultBaseUrl
+            : LlmBaseUrl.Trim();
+
         try
         {
-            var endpoint = new SttEndpoint
+            if (string.IsNullOrWhiteSpace(baseUrl))
             {
-                Kind = "custom",
-                BaseUrl = string.IsNullOrWhiteSpace(LlmBaseUrl) ? SelectedProvider.DefaultBaseUrl : LlmBaseUrl,
-                // Local servers take no key; a placeholder keeps the probe from refusing to try.
-                ApiKey = string.IsNullOrWhiteSpace(LlmApiKey) ? "local" : LlmApiKey,
-                Model = string.IsNullOrWhiteSpace(LlmRemoteModel) ? "-" : LlmRemoteModel,
-            };
+                LlmStatus = "Önce sağlayıcının adresini gir.";
+                return;
+            }
 
-            var result = await _probe.TestAsync(endpoint);
+            var key = string.IsNullOrWhiteSpace(LlmApiKey) ? null : LlmApiKey;
 
-            LlmStatus = result.Message;
-            LlmStatusIsGood = result.IsHealthy;
+            // Through the provider's own client, not the transcription probe.
+            //
+            // The probe speaks one dialect: a bearer token and nothing else. Anthropic wants
+            // x-api-key and a version header, so every request it made was rejected with a 400 —
+            // and the probe counts anything that is not a 401 or 403 as authorised. The result was
+            // the worst kind of broken: a green tick over a key that could not work, shown by the
+            // one control whose entire job is to catch that before a conversation is wasted on it.
+            var client = LlmClientFactory.Create(_http, SelectedProvider.Kind, baseUrl, key);
+
+            var reachable = await client.IsAvailableAsync();
 
             DiscoveredLlmModels.Clear();
-            foreach (var model in result.Models.OrderBy(m => m, StringComparer.OrdinalIgnoreCase))
-                DiscoveredLlmModels.Add(model);
+
+            if (!reachable)
+            {
+                LlmStatus = SelectedProvider.RequiresApiKey && key is null
+                    ? $"{SelectedProvider.DisplayName} yanıt vermedi. API anahtarı girilmemiş."
+                    : $"{SelectedProvider.DisplayName} yanıt vermedi. Adresi ve anahtarı kontrol et.";
+
+                return;
+            }
+
+            // Reachable is the answer. The catalogue is a bonus, and a provider that does not
+            // publish one must not turn a working connection into a failure.
+            if (!ModelDirectory.CanFetch(SelectedProvider.Kind))
+            {
+                LlmStatus = "Bağlantı kuruldu.";
+                LlmStatusIsGood = true;
+                return;
+            }
+
+            try
+            {
+                var models = await ModelDirectory.FetchAsync(_http, SelectedProvider.Kind, baseUrl, key);
+
+                foreach (var model in models.Select(m => m.Id).OrderBy(m => m, StringComparer.OrdinalIgnoreCase))
+                    DiscoveredLlmModels.Add(model);
+
+                LlmStatus = $"Bağlantı kuruldu. {DiscoveredLlmModels.Count} model bulundu.";
+                LlmStatusIsGood = true;
+            }
+            catch (LlmException e)
+            {
+                LlmStatus = $"Bağlantı kuruldu, model listesi alınamadı: {e.Message}";
+                LlmStatusIsGood = true;
+            }
+        }
+        catch (Exception e)
+        {
+            LlmStatus = $"Sınanamadı: {e.Message}";
         }
         finally
         {

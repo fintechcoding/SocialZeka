@@ -256,11 +256,29 @@ public sealed class OpenAiCompatibleClient(
             usage?["completion_tokens"]?.GetValue<int>());
     }
 
+    /// <summary>
+    /// Whether the endpoint answers.
+    ///
+    /// The key goes with the request. Without it this asked a hosted provider an unauthenticated
+    /// question, got the 401 it deserved, and reported the service as unreachable — so a correct
+    /// OpenAI or OpenRouter key looked like a broken one on both the settings screen and the
+    /// status page. Local servers ignore the header, so sending it always is simpler than deciding
+    /// when to.
+    /// </summary>
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            using var response = await http.GetAsync(Combine(baseUrl, "models"), cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Get, Combine(baseUrl, "models"));
+
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                request.Headers.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+            }
+
+            using var response = await http.SendAsync(request, cancellationToken);
+
             return response.IsSuccessStatusCode;
         }
         catch (Exception)

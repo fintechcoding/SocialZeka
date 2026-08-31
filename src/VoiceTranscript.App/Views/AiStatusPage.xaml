@@ -219,6 +219,13 @@
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                         <TextBlock Text="{Binding AnalyseLine}" TextWrapping="Wrap" Margin="0,2,0,0" />
 
+                        <!-- Questions are the same paid endpoint spent for a different reason, so
+                             they are counted apart: a bill that looks too large can then be traced
+                             to whichever of the two caused it. -->
+                        <TextBlock Text="{Binding AskLine}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Style="{StaticResource Caption}"
+                                   Visibility="{Binding AskLine, Converter={StaticResource NullToCollapsed}}" />
+
                         <TextBlock Text="{Binding FailureLine}" Margin="0,8,0,0" TextWrapping="Wrap"
                                    Foreground="{DynamicResource SystemFillColorCautionBrush}"
                                    Style="{StaticResource Caption}"

@@ -785,3 +785,36 @@ Kurulumdaki görev kaldırıldı, yerine yalnızca masaüstü kısayolu bırakı
 bir açma-kapama, çeliştiğinde hangisinin kazandığı belirsiz olur.
 
 **576 test, 0 hata.**
+
+### v0.9.9 — Bildirilen işin denetimi ve çıkan dört boşluk
+
+Kullanıcı, kaldırıldığı söylenen "Kişiyi değiştir" düğmesinin hâlâ durduğunu bildirdi. Doğruydu:
+düzenleme hiç uygulanmamıştı (kullanılan komut Python bulunamadığı için başarısız oldu, başka bir
+yöntemle tekrar edilmedi) ve iş yapılmış diye raporlandı.
+
+Bunun üzerine **bildirilen 14 iddianın tamamı** dosyaya karşı denetlendi; bozuk bulunanlar ikinci
+bağımsız bir doğrulayıcıyla teyit edildi. 10'u tam çıktı, 4'ünde gerçek boşluk vardı.
+
+| # | Boşluk | Kullanıcı ne görüyordu |
+|---|---|---|
+| 1 | Anthropic'te "Bağlantıyı sına" ASR problayıcısından geçiyordu | **Yanlış anahtar yeşil onaylanıyordu** |
+| 2 | `succeeded:false` üretimde hiçbir yerden geçmiyordu | Hata sayacı kalıcı 0; tertemiz geçmiş |
+| 2b | `ArchiveQuestions` ölçülmüyordu | "Sor" jetonları faturada var, ekranda yok |
+| 3 | Adres boşken "Modellere gözat" | Sessiz hiçbir şey — mesaj gizli sayfaya yazılıyordu |
+| 4 | `docs/YAPILACAKLAR.md:99` bağlantısı | Taşıma sonrası `docs/docs/...`'e çözülüyordu |
+
+**1 en kötüsüydü**, çünkü düğme bozuk değil *yanlış cevabı doğru diye onaylıyordu*: probe yalnız
+Bearer konuşuyor, Anthropic `x-api-key` + sürüm başlığı istiyor, gelen 400'ü de probe "401 değilse
+yetkilidir" kuralıyla yeşile çeviriyordu. Artık `LlmClientFactory` + `ModelDirectory` üzerinden,
+yani sağlayıcının kendi lehçesiyle.
+
+**Yazdığım test, dokunmadığım eski bir hatayı da yakaladı:** `OpenAiCompatibleClient
+.IsAvailableAsync` isteği yetkilendirme başlığı olmadan atıyordu (`LlmClient.cs:263`). Yani doğru
+bir OpenAI/OpenRouter anahtarı hem ayarlarda hem Durum ekranında "ulaşılamıyor" görünüyordu. Test
+yazmanın karşılığı tam olarak bu.
+
+Ayrıca Signal desteği uçtan uca doğrulandı (süreç adları, `RecordSignal`'in gerçekten okunması,
+kabuk başlıklarının kişi sanılmaması, ayar anahtarı) ve kaynak testi olmadığı için testleri
+yazıldı.
+
+**592 test, 0 hata** (16 yeni).

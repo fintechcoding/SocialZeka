@@ -370,22 +370,23 @@
                             One button that shows what it will do next. The old one drew a play
                             triangle at all times, so the only way to find out whether a silent
                             passage was playing was to press it and hear what changed.
+
+                            Two icons in the Content with their visibility bound, rather than one
+                            icon whose Symbol is swapped by a trigger. An element assigned to
+                            ui:Button.Icon is held in a property rather than placed in the logical
+                            tree, so a binding inside it has no DataContext to inherit and resolves
+                            to nothing — the trigger would never fire and the pause state would be
+                            invisible again, silently. Content is in the tree; this is the shape
+                            the contact page already uses and it is known to work.
                         -->
-                        <ui:Button Appearance="Transparent" Command="{Binding Playback.TogglePlayCommand}">
-                            <ui:Button.Icon>
-                                <ui:SymbolIcon>
-                                    <ui:SymbolIcon.Style>
-                                        <Style TargetType="ui:SymbolIcon">
-                                            <Setter Property="Symbol" Value="Play24" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Playback.IsPlaying}" Value="True">
-                                                    <Setter Property="Symbol" Value="Pause24" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </ui:SymbolIcon.Style>
-                                </ui:SymbolIcon>
-                            </ui:Button.Icon>
+                        <ui:Button Appearance="Transparent" Command="{Binding Playback.TogglePlayCommand}"
+                                   ToolTip="Çal / duraklat">
+                            <Grid>
+                                <ui:SymbolIcon Symbol="Play24"
+                                               Visibility="{Binding Playback.IsPlaying, Converter={StaticResource InverseBoolToVisibility}}" />
+                                <ui:SymbolIcon Symbol="Pause24"
+                                               Visibility="{Binding Playback.IsPlaying, Converter={StaticResource BoolToVisibility}}" />
+                            </Grid>
                         </ui:Button>
 
                         <ui:Button Appearance="Transparent" Command="{Binding Playback.SkipForwardCommand}"

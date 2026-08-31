@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Llm;
 using VoiceTranscript.Core.Storage;
 using VoiceTranscript.Core.Text;
@@ -113,6 +114,14 @@ public sealed class ArchiveQuestions(ILlmClient llm, Repository repository)
 
         LlmResponse response;
 
+        // Counted, because this spends the same money as analysis does.
+        //
+        // It is the one paid call the usage screen could not see. Somebody comparing the figures
+        // against a monthly bill would find a shortfall with no explanation in the product —
+        // which is precisely the silence the usage table was added to end.
+        var startedAt = DateTimeOffset.UtcNow;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
         try
         {
             response = await llm.CompleteAsync(new LlmRequest
@@ -130,9 +139,29 @@ public sealed class ArchiveQuestions(ILlmClient llm, Repository repository)
         }
         catch (LlmException e)
         {
+            clock.Stop();
+
+            // Not attached to a call: a question ranges over the whole archive and belongs to no
+            // single one of them.
+            repository.RecordRun(
+                callId: null, ProcessingStage.Ask, model, startedAt, clock.Elapsed,
+                audio: TimeSpan.Zero, succeeded: false);
+
             return new Answer("", excerpts, false,
                 $"Çözümleme modeline ulaşılamadı: {e.Message}");
         }
+
+        clock.Stop();
+
+        repository.RecordRun(
+            callId: null,
+            ProcessingStage.Ask,
+            model,
+            startedAt,
+            clock.Elapsed,
+            audio: TimeSpan.Zero,
+            promptTokens: response.PromptTokens,
+            completionTokens: response.CompletionTokens);
 
         if (!response.CompletedNormally)
         {

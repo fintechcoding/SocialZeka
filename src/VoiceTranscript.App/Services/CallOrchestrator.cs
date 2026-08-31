@@ -975,19 +975,45 @@ public sealed class CallOrchestrator : IDisposable
         var startedAt = DateTimeOffset.UtcNow;
         var clock = System.Diagnostics.Stopwatch.StartNew();
 
-        var result = model.SendsAudioOffMachine
-            ? await TranscribeInCloudAsync(call, model, settings, cancellationToken)
-            : await _worker.TranscribeAsync(new TranscriptionRequest
-            {
-                Id = $"call-{call.Id}",
-                Engine = EngineNameFor(model),
-                ModelRef = model.ModelRef,
-                Device = settings.AsrDevice,
-                Language = settings.Language,
-                MicPath = call.MicPath,
-                FarPath = call.FarPath,
-                CacheDir = _paths.Models,
-            }, progress: new Progress<Core.Asr.WorkerProgress>(p => Report(call.Id, StageName(p.Stage), p.Percent / 100.0)), cancellationToken);
+        WorkerResult result;
+
+        try
+        {
+            result = model.SendsAudioOffMachine
+                ? await TranscribeInCloudAsync(call, model, settings, cancellationToken)
+                : await _worker.TranscribeAsync(new TranscriptionRequest
+                {
+                    Id = $"call-{call.Id}",
+                    Engine = EngineNameFor(model),
+                    ModelRef = model.ModelRef,
+                    Device = settings.AsrDevice,
+                    Language = settings.Language,
+                    MicPath = call.MicPath,
+                    FarPath = call.FarPath,
+                    CacheDir = _paths.Models,
+                }, progress: new Progress<Core.Asr.WorkerProgress>(p => Report(call.Id, StageName(p.Stage), p.Percent / 100.0)), cancellationToken);
+        }
+        catch (Exception e) when (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // A failure is a run too, and until this existed the usage screen could only ever
+            // report zero of them. Somebody whose transcription had been failing for two days —
+            // which happened, with a missing Python package — saw a spotless history.
+            //
+            // Shutdown is not a failure, hence the filter: the application closing mid-transcript
+            // is not evidence about the engine.
+            clock.Stop();
+
+            _repository.RecordRun(
+                call.Id,
+                ProcessingStage.Transcribe,
+                engine: EngineNameFor(model),
+                startedAt,
+                clock.Elapsed,
+                call.Duration,
+                succeeded: false);
+
+            throw;
+        }
 
         clock.Stop();
 
@@ -1097,16 +1123,43 @@ public sealed class CallOrchestrator : IDisposable
         var client = LlmClientFactory.Create(
             _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
 
-        var report = await new AnalysisPipeline(client, _repository).AnalyseAsync(
-            callId,
-            new AnalysisOptions
-            {
-                Model = settings.ResolvedModelName,
-                // Only a local backend holds the GPU this machine needs back for Whisper.
-                UnloadWhenDone = !settings.Provider.SendsDataOffMachine,
-            },
-            progress: new Progress<string>(stage => Report(callId, stage)),
-            cancellationToken);
+        // The pipeline records its own successful run, tokens and all. A failure has to be
+        // recorded from out here, because the pipeline throws rather than returning — and without
+        // this the usage screen could only ever report zero failures, which reads as a clean
+        // history rather than as a counter that was never wired to anything.
+        var analysisStartedAt = DateTimeOffset.UtcNow;
+        var analysisClock = System.Diagnostics.Stopwatch.StartNew();
+
+        AnalysisReport report;
+
+        try
+        {
+            report = await new AnalysisPipeline(client, _repository).AnalyseAsync(
+                callId,
+                new AnalysisOptions
+                {
+                    Model = settings.ResolvedModelName,
+                    // Only a local backend holds the GPU this machine needs back for Whisper.
+                    UnloadWhenDone = !settings.Provider.SendsDataOffMachine,
+                },
+                progress: new Progress<string>(stage => Report(callId, stage)),
+                cancellationToken);
+        }
+        catch (Exception e) when (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            analysisClock.Stop();
+
+            _repository.RecordRun(
+                callId,
+                ProcessingStage.Analyse,
+                settings.ResolvedModelName,
+                analysisStartedAt,
+                analysisClock.Elapsed,
+                audio: TimeSpan.Zero,
+                succeeded: false);
+
+            throw;
+        }
 
         // A model whose quotes mostly cannot be found is not producing usable evidence, and the
         // user should be told to change it rather than left with a quietly empty ledger.

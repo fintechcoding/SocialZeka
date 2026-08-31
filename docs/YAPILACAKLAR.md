@@ -96,7 +96,7 @@ Kod incelemesinde üç ayrı kusurun üst üste bindiği görüldü. Üçü de t
 
 - [x] **1.4 — İşleme hatalıyken yapılan görüşmede kayıt ekranı hiç çıkmıyor.** ✅ **ÇÖZÜLDÜ — sebep bulundu**
 
-  82 ajanlı denetim tamamlandı (2026-08-31). Tam rapor: [`docs/DENETIM-2026-08-31.md`](docs/DENETIM-2026-08-31.md).
+  82 ajanlı denetim tamamlandı (2026-08-31). Tam rapor: [`DENETIM-2026-08-31.md`](DENETIM-2026-08-31.md).
   74 bulgu üretildi, her biri çürütülmeye gönderildi, **59'u ayakta kaldı.**
 
   **Baş sebep — ve düşündüğümden çok daha kötü.** §1.3'te "isimlendirme penceresi *işlemeyi*
@@ -816,3 +816,65 @@ Aynı sınıf hata en az dört yerde daha var.
   araştırılıyor.
 
 <!-- Yeni maddeler buraya -->
+
+---
+
+## 10. İlişki analitiği — konuşma dengesi ve ton
+
+> **Kullanıcı isteği, 2026-08-31.** İleri faz. Şu an yapılmıyor, ama veri modeli buna hazır
+> olduğu için burada duruyor.
+
+İstenen: *"bu projeyle ilişkilerimin durumunu ve tonunu öğreneceğim, nasıl daha iyi olabilir —
+daha çok ben mi konuşmuşum, daha çok ben mi dinlemişim, ben mi bilgi vermişim, ben mi bilgi
+almışım."*
+
+### Neden bunun büyük kısmı zaten elimizde
+
+İki taraf **ayrı dosyalara** kaydediliyor ve `segment` tablosunda `is_me` bir tahmin değil, sesin
+hangi akıştan geldiği bilgisi. Tek akışlı kaydeden hiçbir araç bunu yapamaz. Yani konuşma payı,
+söz kesme ve sessizlik dağılımı **modele hiç sorulmadan**, doğrudan sayılabilir.
+
+Kişiler sayfasında zaten bir "Konuşma payı" şeridi var (yüzdeler + söz kesme sayısı). Eksik olan,
+bunun **zaman içindeki seyri** ve **kişiler arası karşılaştırma**.
+
+### 10.1 Sayılarak çıkarılabilecekler — model gerekmez
+
+| Soru | Nasıl hesaplanır |
+|---|---|
+| Daha çok ben mi konuştum | `sum(end_ms - start_ms)` — `is_me` kırılımıyla |
+| Kim söz kesiyor | `overlaps_other_speaker`, başlatan tarafa göre |
+| Sıra alışverişi ne kadar canlı | Konuşmacı değişim sayısı / dakika |
+| Kim soru soruyor | Soru işaretiyle biten segment sayısı, `is_me` kırılımı |
+| Sessizlikler | Segmentler arası boşluk, kim doldurmuş |
+| Zaman içinde değişiyor mu | Aynı ölçüler, görüşme tarihine göre seri |
+
+Bunların hiçbiri LLM istemiyor, dolayısıyla **AI servisi kapalıyken de çalışır** ve geriye dönük
+olarak mevcut arşivin tamamına uygulanabilir.
+
+### 10.2 Bilgi verme / bilgi alma — model gerekir
+
+"Ben mi bilgi verdim, ben mi aldım" sayılamaz; ifadenin ne yaptığına bakmak gerekir. Mevcut
+çıkarım şeması zaten `taahhut` ve `iddia` üretiyor; buna **konuşma edimi** eklenebilir: soru,
+bilgi verme, söz verme, ricada bulunma. Kimin ürettiği zaten `is_me` ile biliniyor.
+
+### 10.3 Ton — dikkatli olunacak yer
+
+**Bu ürün duygu okuma verdikçe yalan söylemeye başlar.** Metinden ton çıkarımının doğruluğu
+ölçülüdür ve düşüktür; "bu kişi sana soğuk davranıyor" cümlesi yanlış olduğunda kullanıcının
+gerçek ilişkisine zarar verir. §-boyunca korunan kural burada da geçerli: **hüküm verme, alıntıla
+ve say.**
+
+Dolayısıyla ton için yapılacak olan, bir puan değil: *"son 3 görüşmede sen ortalama %70 konuştun,
+önceki 10 görüşmede %45"* gibi **ölçülen bir değişimi göstermek** ve alıntıyla desteklemek.
+Yorumu kullanıcı yapar.
+
+### 10.4 Nerede görünür
+
+- Kişi sayfasında yeni bir sekme: zaman içinde konuşma payı, soru dengesi, söz kesme
+- Kişiler arası karşılaştırma (kiminle nasıl konuşuyorum)
+- Görüşme penceresinde tek görüşmenin dengesi
+
+### Ön koşullar
+
+- §1b (kuyruk) ve §3 (şifreleme) önce; bu ikisi `segment` okuma yollarını değiştiriyor
+- Geriye dönük hesap için toplu bir yeniden tarama işi gerekir — ses değil, yalnızca metin

@@ -76,7 +76,13 @@ public partial class SettingsWindow
 
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
-            Report("Önce sağlayıcının adresini gir.", isProblem: true);
+            // Reported through LlmStatus, not Report(). Report writes into a label that lives on
+            // the transcription page, and only one category page is visible at a time — so from
+            // the analysis page this message was written to a collapsed TextBlock and the button
+            // did nothing at all, visibly. Which is exactly the state you reach by picking
+            // "Diğer (OpenAI uyumlu)", whose default address is deliberately empty.
+            _viewModel.LlmStatus = "Önce sağlayıcının adresini gir.";
+            _viewModel.LlmStatusIsGood = false;
             return;
         }
 

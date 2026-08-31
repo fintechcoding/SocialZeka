@@ -883,6 +883,7 @@
                                     -->
                                     <ui:Button Grid.Column="1" Margin="8,0,0,0" MinWidth="130"
                                                Content="Modellere gözat…" Click="BrowseModels_Click"
+                                               Visibility="{Binding CanBrowseModels, Converter={StaticResource BoolToVisibility}}"
                                                ToolTip="Sağlayıcıdaki modelleri listeler; arayarak seçebilirsin.">
                                         <ui:Button.Icon>
                                             <ui:SymbolIcon Symbol="Search24" />

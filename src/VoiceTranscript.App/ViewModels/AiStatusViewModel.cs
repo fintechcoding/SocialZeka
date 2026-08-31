@@ -275,6 +275,7 @@ public sealed partial class AiStatusViewModel(
 
     [ObservableProperty] private UsageTotals _transcribeUsage = new();
     [ObservableProperty] private UsageTotals _analyseUsage = new();
+    [ObservableProperty] private UsageTotals _askUsage = new();
 
     /// <summary>Per-engine transcription figures, so a local model and a hosted one can be compared.</summary>
     public ObservableCollection<EngineUsage> Engines { get; } = [];
@@ -282,7 +283,7 @@ public sealed partial class AiStatusViewModel(
     public string WindowName => RecentOnly ? "Son 30 gün" : "Tüm zaman";
     public string OtherWindowName => RecentOnly ? "Tüm zamanı göster" : "Son 30 günü göster";
 
-    public bool HasUsage => TranscribeUsage.Runs > 0 || AnalyseUsage.Runs > 0;
+    public bool HasUsage => TranscribeUsage.Runs > 0 || AnalyseUsage.Runs > 0 || AskUsage.Runs > 0;
 
     public string TranscribeLine => TranscribeUsage.Runs == 0
         ? "Bu aralıkta hiçbir görüşme yazıya dökülmedi."
@@ -313,11 +314,25 @@ public sealed partial class AiStatusViewModel(
               ? $"{Tokens(AnalyseUsage.PromptTokens)} giriş + {Tokens(AnalyseUsage.CompletionTokens)} çıkış jeton"
               : "jeton bildirilmedi");
 
+    /// <summary>
+    /// Questions asked of the archive, counted apart from analysis.
+    ///
+    /// The same paid endpoint, spent for a different reason: analysis runs once per call whether
+    /// anyone is watching, and this runs because somebody asked. Shown separately so a bill that
+    /// looks too large can be traced to whichever of the two caused it.
+    /// </summary>
+    public string AskLine => AskUsage.Runs == 0
+        ? ""
+        : $"Sorular: {AskUsage.Runs} soru · "
+          + (AskUsage.TotalTokens > 0
+              ? $"{Tokens(AskUsage.PromptTokens)} giriş + {Tokens(AskUsage.CompletionTokens)} çıkış jeton"
+              : "jeton bildirilmedi");
+
     public string FailureLine
     {
         get
         {
-            var failures = TranscribeUsage.Failures + AnalyseUsage.Failures;
+            var failures = TranscribeUsage.Failures + AnalyseUsage.Failures + AskUsage.Failures;
 
             return failures == 0 ? "" : $"{failures} deneme başarısız oldu.";
         }
@@ -334,6 +349,7 @@ public sealed partial class AiStatusViewModel(
 
         TranscribeUsage = repository.Usage(ProcessingStage.Transcribe, since);
         AnalyseUsage = repository.Usage(ProcessingStage.Analyse, since);
+        AskUsage = repository.Usage(ProcessingStage.Ask, since);
 
         Engines.Clear();
         foreach (var engine in repository.UsageByEngine(ProcessingStage.Transcribe, since))
@@ -343,7 +359,7 @@ public sealed partial class AiStatusViewModel(
         {
             nameof(WindowName), nameof(OtherWindowName), nameof(HasUsage),
             nameof(TranscribeLine), nameof(SpeedLine), nameof(SpeedIsPoor),
-            nameof(AnalyseLine), nameof(FailureLine),
+            nameof(AnalyseLine), nameof(AskLine), nameof(FailureLine),
         })
         {
             OnPropertyChanged(name);
