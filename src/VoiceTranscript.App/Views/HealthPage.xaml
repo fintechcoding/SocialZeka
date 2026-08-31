@@ -329,6 +329,18 @@
             holds. Binding through the window rather than restructuring the shell keeps one owner
             for it, so the counts stay correct wherever it is shown from.
         -->
+        <!--
+            Which model is doing the work, and what happens when it cannot.
+
+            Beside the other two rather than inside Settings, because it answers a question about
+            right now rather than about a preference: Settings can say what is configured, and only
+            this can say whether it answered.
+        -->
+        <TabItem Header="Yapay zekâ">
+            <views:AiStatusPage
+                DataContext="{Binding DataContext.AiStatus, RelativeSource={RelativeSource AncestorType=Window}}" />
+        </TabItem>
+
         <TabItem Header="İşlemler">
             <views:ProcessingPage
                 DataContext="{Binding DataContext.Processing, RelativeSource={RelativeSource AncestorType=Window}}" />

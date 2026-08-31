@@ -51,6 +51,7 @@ public class WindowSmokeTests
                 Build("Sor", () => new AskPage(), failures);
                 Build("Durum", () => new HealthPage(), failures);
                 Build("İşlem durumu", () => new ProcessingPage(), failures);
+                Build("Yapay zekâ durumu", () => new AiStatusPage(), failures);
 
                 // The windows, not just the pages.
                 //

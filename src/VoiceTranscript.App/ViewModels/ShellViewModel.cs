@@ -85,6 +85,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Ledger = new LedgerViewModel(repository);
         Contacts = new ContactsViewModel(repository);
         Processing = new ProcessingViewModel(repository);
+        AiStatus = new AiStatusViewModel(settings, App.HttpClient);
 
         // The screen can requeue work but cannot run it; the orchestrator is held here.
         Processing.ReprocessRequested += (_, _) => _ = orchestrator.ProcessBacklogAsync();
@@ -111,6 +112,7 @@ public sealed partial class ShellViewModel : ObservableObject
         {
             Processing.ClearProgress();
             Processing.Refresh();
+        AiStatus.Refresh();
         });
         orchestrator.LevelChanged += (_, levels) => OnUi(() => SetLevels(levels.Mic, levels.Far));
 
@@ -121,6 +123,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public LedgerViewModel Ledger { get; }
     public ContactsViewModel Contacts { get; }
     public ProcessingViewModel Processing { get; }
+    public AiStatusViewModel AiStatus { get; }
     public SearchViewModel Search { get; }
     public AskViewModel Ask { get; }
     public HealthViewModel Health { get; }
@@ -251,6 +254,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Ledger.Refresh();
         Contacts.Refresh();
         Processing.Refresh();
+        AiStatus.Refresh();
 
         // The badge counts what actually needs attention rather than everything in the ledger:
         // a badge that never reaches zero stops being read.

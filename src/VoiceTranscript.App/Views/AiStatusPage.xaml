@@ -1,0 +1,138 @@
+<UserControl x:Class="VoiceTranscript.App.Views.AiStatusPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:AiStatusViewModel}">
+
+    <UserControl.Resources>
+        <!--
+            One row per service, in the order it will actually be tried.
+
+            The number is the point of the row. Hosted transcription endpoints are attempted in
+            sequence, so the second one is what runs when the first is out of credit — and somebody
+            who configured three of them expressed a preference they have never been able to see.
+        -->
+        <DataTemplate x:Key="ServiceRow" DataType="{x:Type vm:AiServiceRow}">
+            <Grid Margin="0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Width="24" Height="24" CornerRadius="12" Margin="0,0,12,0"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource SubtleFillColorTertiaryBrush}">
+                    <TextBlock Text="{Binding Order}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               FontSize="{StaticResource TextCaption}" FontWeight="SemiBold" />
+                </Border>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+
+                        <!-- Which one will actually run. Everything below it is a fallback. -->
+                        <Border Margin="8,0,0,0" Padding="6,1" CornerRadius="3"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="etkin" FontSize="{StaticResource TextCaption}"
+                                       Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                        </Border>
+
+                        <!-- Said on every row that has it, not once at the top. The question
+                             "does this conversation leave the machine" is asked per service. -->
+                        <Border Margin="6,0,0,0" Padding="6,1" CornerRadius="3"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                                Visibility="{Binding SendsDataOffMachine, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="ses makineden çıkar" FontSize="{StaticResource TextCaption}" />
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}" Margin="0,2,0,0"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <Ellipse Grid.Column="2" Width="8" Height="8" Margin="12,0,8,0" VerticalAlignment="Center"
+                         Fill="{Binding ReachBrushKey, Converter={StaticResource BrushFromKey}}" />
+
+                <TextBlock Grid.Column="3" Text="{Binding ReachText}" VerticalAlignment="Center"
+                           MinWidth="96" Style="{StaticResource Caption}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="{StaticResource PadPageScroll}">
+        <StackPanel MaxWidth="{StaticResource PageMeasure}" HorizontalAlignment="Left">
+
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Hangi yapay zekâ çalışıyor" FontWeight="SemiBold"
+                               FontSize="{StaticResource TextSubtitle}" />
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                               Text="Sıra, gerçekten denenecek sıradır. Üstteki yanıt vermezse bir alttakine geçilir." />
+                </StackPanel>
+
+                <!-- On demand, never on a timer. These are calls against services somebody is
+                     paying for; polling them to keep a dot green would be spending their money
+                     to decorate a screen. -->
+                <ui:Button Grid.Column="1" Content="Bağlantıları sına" VerticalAlignment="Top"
+                           Command="{Binding CheckCommand}"
+                           IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="PlugConnected24" />
+                    </ui:Button.Icon>
+                </ui:Button>
+            </Grid>
+
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <ui:SymbolIcon Symbol="TextBulletListSquare24" FontSize="16" Margin="0,0,8,0"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Yazıya dökme" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding Transcription}"
+                                  ItemTemplate="{StaticResource ServiceRow}" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Panel}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <ui:SymbolIcon Symbol="Lightbulb24" FontSize="16" Margin="0,0,8,0"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Çözümleme" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Switched off is a choice, not a fault, and it must not read as one. -->
+                    <Border Padding="10" CornerRadius="4" Margin="0,0,0,6"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                            Visibility="{Binding AnalysisDisabled, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource Caption}"
+                                   Text="Otomatik çözümleme kapalı. Görüşmeler yazıya dökülüyor ama özet ve defter çıkarılmıyor. Ayarlar → Çözümleme bölümünden açılır." />
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding Analysis}"
+                                  ItemTemplate="{StaticResource ServiceRow}" />
+
+                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Style="{StaticResource Caption}"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               Text="Çözümleme yapılmazsa görüşme yine yazıya dökülür ve metin saklanır; sonradan bir servis bağlandığında yalnızca çözümleme tekrarlanır, ses yeniden işlenmez." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
