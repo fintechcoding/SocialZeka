@@ -9,7 +9,7 @@ keyfî değil: her faz bir sonrakinin önkoşullarını üretir.*
 Çalışan: kayıt (iki ayrı akış), yerel+bulut yazıya dökme (kendini iyileştiren model seçimi),
 çözümleme (alıntı+zaman damgalı defter), etiketler, kişi profilleri, çalışma alanı, arama
 (FTS5, Türkçe katlama), Sor, kullanım/jeton dökümü, güncelleme (SHA doğrulamalı), otomatik
-başlama, saklama süpürmesi. 691 test, 0 hata. Bilinen açık hata: **yok** — bilinenlerin tümü
+başlama, saklama süpürmesi. 700 test, 0 hata. Bilinen açık hata: **yok** — bilinenlerin tümü
 kapalı ya da aşağıda tasarımıyla duruyor.
 
 ---
@@ -57,7 +57,7 @@ kör). Bulut yükleme parça parça sürdürülebilir (`.cloudparts` var) — ye
 **Tasarım:** kuyruk sırası DB'ye (`queue_position` — 2.1'e bağımlı); işleme aşaması per-call
 kaydedilir; açılışta "kaldığı yerden". **Efor:** 2 gün. **Bağımlılık:** 2.1.
 
-### 2.3 Yedekleme doğrulaması
+### 2.3 Yedekleme doğrulaması ✅ 1 Eylül denetlendi: geri yükleme açılışta Migrate()'ten ÖNCE uygulanıyor (App.xaml.cs), eski yedek aynı açılışta zinciri yürür; zincir MigrationTests ile pinli
 Yedek al/geri yükle var; migrasyonla birleşince sürüm-atlamalı geri yükleme testi gerekir
 (eski yedek yeni sürüme yüklenince 2.1 zinciri koşmalı). **Efor:** yarım gün. **Bağımlılık:** 2.1.
 
