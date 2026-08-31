@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Data;
 
 namespace VoiceTranscript.App;
@@ -105,6 +106,40 @@ public sealed class AsrModeNameConverter : IValueConverter
                 "Her zaman buluta gönder",
             _ => value?.ToString() ?? "",
         };
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Puts my side of the conversation on the right and theirs on the left.
+///
+/// The arrangement everybody already reads without being taught, which is the whole reason to use
+/// it: a transcript is hard enough to follow without also having to learn a layout.
+/// </summary>
+public sealed class SpeakerAlignmentConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is true ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Tints the two sides differently.
+///
+/// Deliberately not the semantic speaker colours used in the transcript stripe: those identify who
+/// is speaking in a list where both sides sit in one column, and reusing them behind a whole
+/// message would flood the window with saturated blocks. Here the position already says who is
+/// speaking, so the fill only has to separate the bubbles from the page.
+/// </summary>
+public sealed class SpeakerBackgroundConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => Application.Current?.TryFindResource(
+               value is true ? "AccentFillColorSecondaryBrush" : "SubtleFillColorSecondaryBrush")
+           ?? Brushes.Transparent;
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();

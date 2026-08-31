@@ -40,6 +40,25 @@ public partial class ContactsPage
         if (sender is System.Windows.Controls.ListBoxItem item) item.IsSelected = true;
     }
 
+    /// <summary>Opens the selected conversation in its own window.</summary>
+    private void CallRow_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        => OpenCall_Click(sender, e);
+
+    private void OpenCall_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.SelectedCall is not { } row) return;
+
+        var window = new CallWindow(new ViewModels.CallWindowViewModel(
+            App.Repository, () => App.Settings, App.HttpClient, row.Call.Id))
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        // Shown rather than shown modally: reading a conversation while looking something up in
+        // the archive is the ordinary way to use this, and a modal window forbids it.
+        window.Show();
+    }
+
     /// <summary>Same for the contact list: the menu must act on the row that was clicked.</summary>
     private void ContactRow_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {

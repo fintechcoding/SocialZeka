@@ -1089,6 +1089,57 @@ public sealed class Repository(Database database)
             });
     }
 
+    /// <summary>
+    /// What the user wrote about a call themselves. Empty when they have written nothing.
+    ///
+    /// Deliberately separate from everything else the archive holds about a conversation. The
+    /// summary, the commitments and the flags were produced by a model and are all replaced when a
+    /// call is analysed again; this is the one thing a person wrote, and reprocessing must never
+    /// touch it.
+    /// </summary>
+    public string GetNote(long callId)
+    {
+        using var connection = Open();
+
+        return connection.QueryFirstOrDefault<string>(
+            "SELECT note FROM call_note WHERE call_id = @callId;", new { callId }) ?? "";
+    }
+
+    /// <summary>Saves a note, or removes it when it has been emptied.</summary>
+    public void SaveNote(long callId, string? note)
+    {
+        using var connection = Open();
+
+        if (string.IsNullOrWhiteSpace(note))
+        {
+            // Cleared rather than stored as an empty string, so "has a note" stays a question the
+            // database can answer without reading the text.
+            connection.Execute("DELETE FROM call_note WHERE call_id = @callId;", new { callId });
+            return;
+        }
+
+        connection.Execute(
+            """
+            INSERT INTO call_note (call_id, note, updated_at)
+            VALUES (@callId, @note, @now)
+            ON CONFLICT(call_id) DO UPDATE SET note = excluded.note, updated_at = excluded.updated_at;
+            """,
+            new { callId, note = note.Trim(), now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>Which of these calls have a note, for showing a marker without loading the text.</summary>
+    public IReadOnlySet<long> CallsWithNotes(IEnumerable<long> callIds)
+    {
+        var ids = callIds.ToList();
+        if (ids.Count == 0) return new HashSet<long>();
+
+        using var connection = Open();
+
+        return connection
+            .Query<long>("SELECT call_id FROM call_note WHERE call_id IN @ids;", new { ids })
+            .ToHashSet();
+    }
+
     public CallSummary? GetSummary(long callId)
     {
         using var connection = Open();

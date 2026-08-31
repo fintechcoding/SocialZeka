@@ -320,6 +320,12 @@
                                 -->
                                 <ListBox.ContextMenu>
                                     <ContextMenu>
+                                        <MenuItem Header="Görüşmeyi aç" Click="OpenCall_Click" FontWeight="SemiBold">
+                                            <MenuItem.Icon>
+                                                <ui:SymbolIcon Symbol="Open24" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                        <Separator />
                                         <MenuItem Header="Başka kişiye taşı…" Click="MoveCall_Click">
                                             <MenuItem.Icon>
                                                 <ui:SymbolIcon Symbol="PersonSwap24" />
@@ -342,6 +348,12 @@
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem" BasedOn="{StaticResource RowItem}">
                                         <EventSetter Event="PreviewMouseRightButtonDown" Handler="CallRow_RightClick" />
+
+                                        <!-- Double-click opens the conversation on its own. The
+                                             column beside a contact is the right shape for browsing
+                                             and the wrong one for reading: a call somebody opened
+                                             deliberately is one they mean to work through. -->
+                                        <EventSetter Event="MouseDoubleClick" Handler="CallRow_DoubleClick" />
                                     </Style>
                                 </ListBox.ItemContainerStyle>
 

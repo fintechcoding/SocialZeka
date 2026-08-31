@@ -20,6 +20,8 @@
             <local:CountToVisibilityConverter x:Key="CountToVisibility" />
             <local:AsrModeNameConverter x:Key="AsrModeName" />
             <local:NullToBoolConverter x:Key="NullToBool" />
+            <local:SpeakerAlignmentConverter x:Key="SpeakerAlignment" />
+            <local:SpeakerBackgroundConverter x:Key="SpeakerBackground" />
             <local:InitialsConverter x:Key="Initials" />
             <local:NameToBrushConverter x:Key="NameBrush" />
             <local:DurationConverter x:Key="Duration" />

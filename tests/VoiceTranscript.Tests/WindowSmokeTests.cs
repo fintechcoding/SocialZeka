@@ -115,6 +115,13 @@ public class WindowSmokeTests
 
                 Build("Kişiyi yeniden adlandır", () => new RenameContactWindow("Serdal"), failures);
 
+                // The densest new markup in the product: four tabs, a chat layout, two
+                // converters and a player, all of which compile cleanly and would throw on
+                // first open if a resource key were wrong.
+                Build("Görüşme penceresi", () => new CallWindow(
+                    new VoiceTranscript.App.ViewModels.CallWindowViewModel(
+                        repository, () => settings, http, callId: 1)), failures);
+
                 Build("Kişileri birleştir", () => new MergeContactWindow(
                     repository,
                     new VoiceTranscript.Core.Domain.Contact { Id = 1, Name = "Serdal" }), failures);

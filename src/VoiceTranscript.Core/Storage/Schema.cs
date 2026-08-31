@@ -279,5 +279,23 @@ public static class Schema
             value TEXT NOT NULL
         );
         """,
+
+        // What the user wrote about a conversation themselves.
+        //
+        // Its own table rather than a column on `call`, and that is forced rather than preferred:
+        // Migrate() runs CREATE TABLE IF NOT EXISTS over this list and there is no ALTER TABLE
+        // machinery, so adding a column would silently do nothing on every database that already
+        // exists — which is all of them.
+        //
+        // Kept apart from the summary on purpose. Everything else the archive holds about a call
+        // was produced by a machine and is replaced whenever the call is analysed again; this is
+        // the one thing a person wrote, and it must survive every reprocess untouched.
+        """
+        CREATE TABLE IF NOT EXISTS call_note (
+            call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+            note       TEXT    NOT NULL,
+            updated_at TEXT    NOT NULL
+        );
+        """,
     ];
 }
