@@ -709,7 +709,7 @@ sonraki görüşme yine Uliana'ya gider.
 - [x] **7.6 — Kişiyi yeniden adlandır.** `UpsertContact` (`Repository.cs:44`) ada göre çalıştığı
   için yeniden adlandırma ayrı bir işlem gerektiriyor; aksi halde yeni ad = yeni kişi olur.
 
-- [ ] **7.7 — Toplu düzeltme.** İsimsiz veya yanlış kişiye düşmüş kayıtları tek ekranda listeleyip
+- [~] **7.7 — Toplu düzeltme.** İsimsiz veya yanlış kişiye düşmüş kayıtları tek ekranda listeleyip
   toplu atama. Tek tek pencere açmak, on iki kayıt için on iki pencere demek.
 
 ---

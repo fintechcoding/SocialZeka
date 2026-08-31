@@ -28,6 +28,122 @@ public partial class ContactsPage
     }
 
     /// <summary>
+    /// Selects the row before its context menu opens.
+    ///
+    /// WPF shows a ListBoxItem's context menu without selecting it first, so a right-click on one
+    /// row while another is selected opens a menu that acts on the other one. For "move this
+    /// conversation to somebody else" that is not a cosmetic problem: it silently moves the wrong
+    /// call, and the user has no reason to suspect it.
+    /// </summary>
+    private void CallRow_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is System.Windows.Controls.ListBoxItem item) item.IsSelected = true;
+    }
+
+    /// <summary>Same for the contact list: the menu must act on the row that was clicked.</summary>
+    private void ContactRow_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is System.Windows.Controls.ListBoxItem item) item.IsSelected = true;
+    }
+
+    /// <summary>
+    /// F2 renames the selected contact.
+    ///
+    /// Because that is what F2 does everywhere else in Windows, and somebody who has just noticed a
+    /// misspelled name will press it before they go looking for a menu. Renaming is not a rare
+    /// operation here — contacts are frequently created from a window title that was never really
+    /// a name — so the fastest route to it is worth having.
+    /// </summary>
+    private void ContactList_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.F2) return;
+        if (ViewModel?.SelectedContact is null) return;
+
+        RenameContact_Click(sender, e);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Opens the folder holding this call's audio, with the file selected.
+    ///
+    /// Useful precisely when something has gone wrong: a call that failed to transcribe still has
+    /// its recording, and being able to reach it is the difference between "the audio is safe" and
+    /// having to take the application's word for it.
+    /// </summary>
+    private void ShowInFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.SelectedCall is not { } row) return;
+
+        var path = row.Call.MicPath ?? row.Call.FarPath;
+
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            MessageBox.Show(
+                "Bu görüşmenin ses dosyası bulunamadı. Kayıt tamamlanmamış olabilir.",
+                "Ses dosyası", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe")
+            {
+                Arguments = $"/select,\"{path}\"",
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Klasör açılamadı: {ex.Message}", "Ses dosyası",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Corrects a contact's name.
+    ///
+    /// Needed as its own action rather than as "delete and retype": the archive keys contacts on
+    /// the name, so retyping makes a second person and leaves the history split between them —
+    /// which is the same failure this whole area of the product exists to repair.
+    /// </summary>
+    private void RenameContact_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { SelectedContact: { } contact } model) return;
+
+        var dialog = new RenameContactWindow(contact.Contact.Name)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        model.RenameSelectedContact(dialog.NewName);
+    }
+
+    /// <summary>
+    /// Folds another contact into this one.
+    ///
+    /// One person becomes two rows for ordinary reasons — a window title that was not a name, a
+    /// different spelling, or the same person reached on two applications, since contacts are keyed
+    /// on (name, app). Leaving them split is not cosmetic: every comparison this product makes is
+    /// per contact, so a divided history makes both halves look complete while the comparison
+    /// across them never happens.
+    /// </summary>
+    private void MergeContact_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { SelectedContact: { } target } model) return;
+
+        var dialog = new MergeContactWindow(App.Repository, target.Contact)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        if (dialog.ShowDialog() != true || dialog.ChosenContactId is not { } source) return;
+
+        model.MergeInto(source);
+    }
+
+    /// <summary>
     /// Moves the selected call to a different person.
     ///
     /// Opened from the call toolbar rather than hidden in a menu, because a call filed under the

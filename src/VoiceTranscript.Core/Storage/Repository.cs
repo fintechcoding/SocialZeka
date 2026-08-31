@@ -559,6 +559,26 @@ public sealed class Repository(Database database)
         transaction.Commit();
     }
 
+    /// <summary>
+    /// How many transcript lines a call has.
+    ///
+    /// Counted rather than loaded, because the processing screen asks this for every call in the
+    /// archive at once and reading the text of all of them to find out whether there is any would
+    /// be several megabytes to answer a yes-or-no question.
+    ///
+    /// It also answers that question better than the state field does. A call can be marked Failed
+    /// and still have a full transcript — the transcription succeeded and the analysis afterwards
+    /// did not — and telling the user "başarısız" about a conversation they can already read is
+    /// both wrong and alarming.
+    /// </summary>
+    public int CountSegments(long callId)
+    {
+        using var connection = Open();
+
+        return connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM segment WHERE call_id = @callId;", new { callId });
+    }
+
     public IReadOnlyList<Segment> GetSegments(long callId)
     {
         using var connection = Open();

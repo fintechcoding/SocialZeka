@@ -20,6 +20,18 @@ public enum ShellPage
     Ledger,
 
     Contacts,
+
+    /// <summary>
+    /// What has been processed, what has not, and what went wrong.
+    ///
+    /// Its own page rather than a strip on the first screen, because the question it answers —
+    /// "is the transcription actually happening" — is asked while looking at a list of recordings,
+    /// and answering it needs room for a reason beside each one. On a machine without a usable GPU
+    /// this is the difference between an application that is working slowly and one that appears
+    /// to have hung.
+    /// </summary>
+    Processing,
+
     Search,
 
     /// <summary>
@@ -72,6 +84,10 @@ public sealed partial class ShellViewModel : ObservableObject
         Overview = new OverviewViewModel(repository, settings, paths);
         Ledger = new LedgerViewModel(repository);
         Contacts = new ContactsViewModel(repository);
+        Processing = new ProcessingViewModel(repository);
+
+        // The screen can requeue work but cannot run it; the orchestrator is held here.
+        Processing.ReprocessRequested += (_, _) => _ = orchestrator.ProcessBacklogAsync();
         Search = new SearchViewModel(repository);
 
         Ask = new AskViewModel(App.HttpClient, repository, settings);
@@ -93,6 +109,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public OverviewViewModel Overview { get; }
     public LedgerViewModel Ledger { get; }
     public ContactsViewModel Contacts { get; }
+    public ProcessingViewModel Processing { get; }
     public SearchViewModel Search { get; }
     public AskViewModel Ask { get; }
     public HealthViewModel Health { get; }
@@ -222,6 +239,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Overview.Refresh();
         Ledger.Refresh();
         Contacts.Refresh();
+        Processing.Refresh();
 
         // The badge counts what actually needs attention rather than everything in the ledger:
         // a badge that never reaches zero stops being read.

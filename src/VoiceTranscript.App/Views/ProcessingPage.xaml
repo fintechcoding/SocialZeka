@@ -1,0 +1,165 @@
+<UserControl x:Class="VoiceTranscript.App.Views.ProcessingPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:ProcessingViewModel}">
+
+    <Grid Margin="24,4,24,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            Four counts, and they are the whole point of the screen.
+
+            Before this existed, a run of failures caused by one missing Python package looked like
+            eight separate mysteries: the first screen said "N görüşme işlenemedi" and nothing
+            about which, or why, or whether the audio was still there. On a machine without a
+            usable GPU it matters more still — transcription runs several times slower than real
+            time, so an application that is working looks exactly like one that has hung.
+        -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,8,0">
+                <StackPanel>
+                    <TextBlock Text="{Binding WaitingCount}" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock Text="sırada / işleniyor" Style="{StaticResource Caption}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="8,0">
+                <StackPanel>
+                    <TextBlock Text="{Binding FailedCount}" FontSize="26" FontWeight="SemiBold"
+                               Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                    <TextBlock Text="başarısız" Style="{StaticResource Caption}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2" Style="{StaticResource Panel}" Margin="8,0">
+                <StackPanel>
+                    <TextBlock Text="{Binding WithoutTranscriptCount}" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock Text="metni yok" Style="{StaticResource Caption}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="3" Style="{StaticResource Panel}" Margin="8,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="{Binding ReadyCount}" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock Text="hazır" Style="{StaticResource Caption}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <ui:Button Content="Bekleyenler" Margin="0,0,6,0" Command="{Binding ShowWaitingCommand}" />
+                <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowFailedCommand}" />
+                <ui:Button Content="Metni olmayanlar" Margin="0,0,6,0" Command="{Binding ShowWithoutTranscriptCommand}" />
+                <ui:Button Content="Hepsi" Command="{Binding ShowAllCommand}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <ui:Button Content="Yenile" Margin="0,0,6,0" Command="{Binding RefreshCommand}">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="ArrowClockwise24" />
+                    </ui:Button.Icon>
+                </ui:Button>
+
+                <!--
+                    The action that is almost always the right one. A run of failures usually has a
+                    single cause — a missing package, a service that was down, an expired key — so
+                    once it is fixed, "all of them" is what the user wants, not eight clicks.
+                -->
+                <ui:Button Content="Listedekileri yeniden işle" Appearance="Primary"
+                           Command="{Binding ReprocessAllCommand}"
+                           ToolTip="Şu an listede görünen bütün görüşmeleri yeniden kuyruğa alır.">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="ArrowSync24" />
+                    </ui:Button.Icon>
+                </ui:Button>
+            </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="2" Style="{StaticResource Panel}">
+            <Grid>
+                <ListBox Style="{StaticResource CleanList}" ItemsSource="{Binding Rows}"
+                         Visibility="{Binding IsEmpty, Converter={StaticResource InverseBoolToVisibility}}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding ContactName}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding When}" Margin="10,0,0,0"
+                                                   Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Length}" Margin="10,0,0,0"
+                                                   FontFamily="Consolas, Cascadia Mono, Segoe UI"
+                                                   Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding AppName}" Margin="10,0,0,0"
+                                                   Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <!-- The reason, when there is one. Shown rather than hidden behind
+                                         a click: one missing package explains every row at once, and
+                                         seeing that is what turns eight mysteries into one problem. -->
+                                    <TextBlock Text="{Binding Failure}" Margin="0,3,0,0"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding RawFailure}"
+                                               Visibility="{Binding Failure, Converter={StaticResource NullToCollapsed}}"
+                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                               Style="{StaticResource Caption}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0"
+                                            MinWidth="170">
+                                    <TextBlock Text="{Binding TranscriptState}" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{Binding AnalysisState}" Style="{StaticResource Caption}"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+
+                                <ui:Button Grid.Column="2" Content="Yeniden işle" VerticalAlignment="Center"
+                                           Appearance="Transparent"
+                                           IsEnabled="{Binding HasAudio}"
+                                           Command="{Binding DataContext.ReprocessCommand,
+                                                     RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                           CommandParameter="{Binding}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <StackPanel Style="{StaticResource EmptyState}"
+                            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
+                    <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="36" HorizontalAlignment="Center"
+                                   Margin="0,0,0,14"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    <TextBlock Style="{StaticResource EmptyTitle}" Text="{Binding EmptyMessage}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

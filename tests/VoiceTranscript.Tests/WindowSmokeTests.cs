@@ -50,6 +50,7 @@ public class WindowSmokeTests
                 Build("Arama", () => new SearchPage(), failures);
                 Build("Sor", () => new AskPage(), failures);
                 Build("Durum", () => new HealthPage(), failures);
+                Build("İşlem durumu", () => new ProcessingPage(), failures);
 
                 // The windows, not just the pages.
                 //
@@ -110,6 +111,12 @@ public class WindowSmokeTests
                     startedAt: DateTimeOffset.Now,
                     duration: TimeSpan.FromMinutes(3),
                     ledgerEntries: 2), failures);
+
+                Build("Kişiyi yeniden adlandır", () => new RenameContactWindow("Serdal"), failures);
+
+                Build("Kişileri birleştir", () => new MergeContactWindow(
+                    repository,
+                    new VoiceTranscript.Core.Domain.Contact { Id = 1, Name = "Serdal" }), failures);
 
                 Build("Güncelleme", () => new UpdateWindow(
                     new VoiceTranscript.App.Services.UpdateService(http, paths),

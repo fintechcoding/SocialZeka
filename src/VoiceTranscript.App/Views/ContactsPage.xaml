@@ -34,7 +34,62 @@
             <ListBox Grid.Row="1" Style="{StaticResource CleanList}"
                      ItemsSource="{Binding Contacts}"
                      SelectedItem="{Binding SelectedContact}"
+                     PreviewKeyDown="ContactList_KeyDown"
                      Visibility="{Binding HasContacts, Converter={StaticResource BoolToVisibility}}">
+
+                <!--
+                    Repairing a contact, on the contact.
+
+                    These three exist because automatic attribution cannot be made reliable: all
+                    the messengers offer is a window title, and a title is sometimes the person,
+                    sometimes the conversation that was open, sometimes an unread counter. Wrong
+                    names and duplicated people are therefore normal, not exceptional, and fixing
+                    them has to be as ordinary as making them.
+
+                    F2 renames, because that is what F2 does everywhere else in Windows and
+                    somebody who has just spotted a misspelling will press it before looking for a
+                    menu.
+                -->
+                <!--
+                    The menu lives on the list, not on the item.
+
+                    A ContextMenu inside an ItemContainerStyle's Setter.Value cannot carry compiled
+                    Click handlers: the generated Connect() maps handlers by index over the file,
+                    and a menu instantiated once per container breaks that mapping. It fails as an
+                    InvalidCastException while the page is being built — caught here only because
+                    the smoke test really constructs every screen.
+
+                    On the list it is created once, and the EventSetter below guarantees the row
+                    under the cursor is selected before it opens, so it always acts on what was
+                    right-clicked.
+                -->
+                <ListBox.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Yeniden adlandır" InputGestureText="F2" Click="RenameContact_Click">
+                            <MenuItem.Icon>
+                                <ui:SymbolIcon Symbol="Rename24" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Başka kişiyle birleştir…" Click="MergeContact_Click">
+                            <MenuItem.Icon>
+                                <ui:SymbolIcon Symbol="PeopleSwap24" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="Kişiyi sil…" Click="DeleteContact_Click">
+                            <MenuItem.Icon>
+                                <ui:SymbolIcon Symbol="Delete24" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                    </ContextMenu>
+                </ListBox.ContextMenu>
+
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <EventSetter Event="PreviewMouseRightButtonDown" Handler="ContactRow_RightClick" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Grid>
@@ -246,6 +301,50 @@
 
                             <ListBox Grid.Row="3" Style="{StaticResource CleanList}"
                                      ItemsSource="{Binding Calls}" SelectedItem="{Binding SelectedCall}">
+
+                                <!--
+                                    The per-call actions, on the call itself.
+
+                                    The toolbar above has the same commands, but a toolbar is the
+                                    wrong place to look when the thing you have noticed is a
+                                    particular row filed under the wrong person. Right-clicking the
+                                    row is where a Windows user reaches first, and putting the
+                                    action on the object removes the step of hunting for it.
+
+                                    The menu is on the list rather than on the item: a ContextMenu
+                                    inside an ItemContainerStyle's Setter.Value cannot carry
+                                    compiled Click handlers, and fails while the page is built.
+                                    The EventSetter selects the row under the cursor first, so the
+                                    menu always acts on what was right-clicked — without it, "move
+                                    this to somebody else" would quietly move a different call.
+                                -->
+                                <ListBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Başka kişiye taşı…" Click="MoveCall_Click">
+                                            <MenuItem.Icon>
+                                                <ui:SymbolIcon Symbol="PersonSwap24" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                        <Separator />
+                                        <MenuItem Header="Yeniden işle" Click="Reprocess_Click">
+                                            <MenuItem.Icon>
+                                                <ui:SymbolIcon Symbol="ArrowSync24" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="Ses dosyasının yerini aç" Click="ShowInFolder_Click">
+                                            <MenuItem.Icon>
+                                                <ui:SymbolIcon Symbol="FolderOpen24" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
+
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                        <EventSetter Event="PreviewMouseRightButtonDown" Handler="CallRow_RightClick" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel>
