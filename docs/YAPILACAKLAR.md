@@ -951,3 +951,41 @@ Yorumu kullanıcı yapar.
       çubuk grafik. Şu an düz metin ve çalışıyor ama sade.
 - [ ] **11.13 Genel olarak UI derinleştirme.** Kullanıcının sözleri: "çok
       detaylandır, gelişmiş UI düşün ve tasarla, basitleştirme."
+
+### 2026-09-01 turu — durum
+
+Yapıldı: 11.1 kişi penceresi · 11.2 yöntem seçimi · 11.3 metin kalitesi ·
+11.5/11.11 servisten ayara kısayol · 11.6 günlüğü temizle · 11.8 pano ·
+11.9 hatırlatmalar · 11.10 görüşme penceresinde çözümleme eylemi ·
+11.12 kullanım grafiği (7/30/tüm zaman + günlük çubuklar)
+
+**Bulut çevirisi hatası kapandı.** Sebep: kataloğa eklediğim `gpt-4o-transcribe`
+ve `gpt-4o-mini-transcribe` kelime düzeyinde zaman damgası veremiyor
+(`verbose_json` reddediliyor, gerçek API'ye karşı doğrulandı). Katalogdan
+çıkarıldı. `whisper-1` doğru çalışıyor — 11 görüşme 208× hızla çevrildi.
+
+#### 11.7 Ses sıkıştırma — neden yapılmadı
+
+İstenen doğru: 46 dakikalık görüşme iki akış için 171 MB, Opus'ta ~10 MB olurdu.
+Ama kayıt biçimini değiştirmek şunların hepsini kırar ve bu makinede **ses
+donanımı olmadığı için hiçbiri sınanamaz**:
+
+| Ne | Nasıl okuyor | Opus'ta ne olur |
+|---|---|---|
+| Dalga formu, çalar | NAudio `AudioFileReader` | Opus/Ogg okumaz |
+| Karıştırma, kesit çıkarma | NAudio | aynı |
+| Python worker | `import wave` (4 dosyada) | WAV bekliyor |
+| Bulut yükleme | zaten Opus'a çeviriyor | etkilenmez |
+
+Yani sıkıştırma, kayıt yolunun tamamının yeniden yazılması demek — ve kayıt
+yolu bu üründe hiç kırılmaması gereken yol. Sınanamayan bir değişikliği oraya
+sokmak doğru değil.
+
+**Yapılabilecek olan, sırayla:**
+1. Yazıya döküldükten *sonra* sıkıştır, çalma/dalga formu için gerektiğinde çöz.
+   Bir kod çözücü gerektirir (PyAV zaten bulut yolunda var).
+2. Ya da 16 kHz mono'yu koru ama sessizliği kırp — konuşma ayrı akışlarda
+   olduğu için her akışın yarısından fazlası sessiz. Kayıpsız, %50+ kazanç.
+3. Ya da hiç dokunma ve saklama süresi ayarını (§8) gerçekten uygula.
+
+İkincisi en az riskli ve en çok kazandıran. Hedef makinede ölçülmeli.
