@@ -19,6 +19,9 @@ public enum ProcessingFilter
     /// <summary>Only the ones with no transcript at all.</summary>
     WithoutTranscript,
 
+    /// <summary>Finished, one way or another: analysed, transcribed, or deliberately skipped.</summary>
+    Done,
+
     All,
 }
 
@@ -210,6 +213,7 @@ public sealed partial class ProcessingViewModel(
     {
         ProcessingFilter.Failed => "Başarısız görüşme yok.",
         ProcessingFilter.WithoutTranscript => "Metni olmayan görüşme yok.",
+        ProcessingFilter.Done => "Henüz biten iş yok.",
         ProcessingFilter.Unfinished => "Bekleyen iş yok — her şey işlenmiş.",
         _ => "Henüz kayıt yok.",
     };
@@ -238,6 +242,9 @@ public sealed partial class ProcessingViewModel(
         var shown = Filter switch
         {
             ProcessingFilter.Failed => rows.Where(r => r.IsFailed),
+            ProcessingFilter.Done => rows.Where(r =>
+                r.Call.State is ProcessingState.Analysed or ProcessingState.Transcribed
+                    or ProcessingState.Skipped),
             ProcessingFilter.WithoutTranscript =>
                 rows.Where(r => !r.HasTranscript && r.Call.State != ProcessingState.Skipped),
             ProcessingFilter.Unfinished =>
@@ -263,6 +270,9 @@ public sealed partial class ProcessingViewModel(
 
     [RelayCommand]
     private void ShowAll() => Filter = ProcessingFilter.All;
+
+    [RelayCommand]
+    private void ShowDone() => Filter = ProcessingFilter.Done;
 
     /// <summary>
     /// Everything currently listed, for the screen to offer as one batch.

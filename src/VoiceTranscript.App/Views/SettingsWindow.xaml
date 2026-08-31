@@ -62,6 +62,14 @@
                 </RadioButton>
 
                 <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
+                             Checked="Category_Checked" Tag="Data">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Folder24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T settingswindow.veriler}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
                              Checked="Category_Checked" Tag="Export">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Save24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
@@ -433,6 +441,36 @@
                                 </StackPanel>
                                 <ui:NumberBox Grid.Column="2" Value="{Binding GpuCooldownSeconds}"
                                               Minimum="0" Maximum="600" Width="120" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                    </StackPanel>
+
+                    <!-- Data: where everything lives and how long it is kept.
+                         Its own section because "kayıt" is about the microphone; what happens to
+                         the files afterwards is a different question asked at a different time. -->
+                    <StackPanel x:Name="PageData" Visibility="Collapsed">
+                        <TextBlock Text="{loc:T settingswindow.veriler}" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,16" TextWrapping="Wrap"
+                                   Text="{loc:T settingswindow.veriler-aciklama}" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Folder24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.veri-klasoru}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock x:Name="DataFolderPath" Style="{StaticResource Caption}"
+                                               Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <ui:Button Grid.Column="2" Content="{loc:T settingswindow.klasoru-ac}"
+                                           VerticalAlignment="Center" Click="OpenDataFolder_Click" />
                             </Grid>
                         </Border>
 

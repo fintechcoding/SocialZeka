@@ -70,6 +70,10 @@ public partial class ProcessingPage
         }
     }
 
+    /// <summary>Ends the running job. The queue behind it is untouched.</summary>
+    private void StopCurrent_Click(object sender, RoutedEventArgs e)
+        => App.Orchestrator?.StopCurrent();
+
     private void DismissNotice_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is { } model) model.Notice = null;

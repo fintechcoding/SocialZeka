@@ -352,9 +352,15 @@ public sealed class CallOrchestrator : IDisposable
                 // processed, and a user asking for a retry after a failure is a new request.
                 _inQueue.TryRemove(callId, out _);
 
+                // Each job gets its own cancellation, linked to shutdown's, so the Durdur button
+                // can end this one recording's work without touching the queue behind it.
+                using var job = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                _currentJob = job;
+                _currentJobCallId = callId;
+
                 try
                 {
-                    await ProcessAsync(callId, _settings(), cancellationToken);
+                    await ProcessAsync(callId, _settings(), job.Token);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -371,11 +377,47 @@ public sealed class CallOrchestrator : IDisposable
                 {
                     AppLog.Error("işleme", e, $"görüşme #{callId} işlenemedi");
                 }
+                finally
+                {
+                    _currentJob = null;
+                }
             }
         }
         catch (OperationCanceledException)
         {
             // Shutting down.
+        }
+    }
+
+    /// <summary>The running job's own cancellation, and whose recording it is working on.</summary>
+    private volatile CancellationTokenSource? _currentJob;
+    private long _currentJobCallId;
+
+    /// <summary>Recordings the user stopped by hand, so the cancel is not mistaken for shutdown.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, byte> _stopRequested = new();
+
+    /// <summary>
+    /// Ends the job being worked on right now, at the user's request.
+    ///
+    /// The distinction from shutdown matters: a shutdown puts the recording back in the queue to
+    /// be resumed, which for a deliberate stop would mean the work restarts on the next launch —
+    /// the exact opposite of what the button promised. A stopped recording is parked as Skipped
+    /// with the reason on it, and "Yeniden işle" remains one click away.
+    /// </summary>
+    public void StopCurrent()
+    {
+        if (_currentJob is not { } job) return;
+
+        _stopRequested[_currentJobCallId] = 1;
+
+        try
+        {
+            job.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The job finished between the check and the cancel. Nothing left to stop.
+            _stopRequested.TryRemove(_currentJobCallId, out _);
         }
     }
 
@@ -875,7 +917,19 @@ public sealed class CallOrchestrator : IDisposable
         // commitments and claims to their ledger.
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _repository.SetCallState(callId, ProcessingState.Queued);
+            if (_stopRequested.TryRemove(callId, out _))
+            {
+                // The user's stop, not a shutdown. Parked rather than requeued: putting it back
+                // in the queue would restart the very work the button just ended.
+                _repository.SetCallState(callId, ProcessingState.Skipped,
+                    "Kullanıcı durdurdu. Yeniden işle ile istediğin zaman tekrar denenebilir.");
+
+                Notice?.Invoke(this, "İşlem durduruldu. Kayıt duruyor, yeniden işlenebilir.");
+            }
+            else
+            {
+                _repository.SetCallState(callId, ProcessingState.Queued);
+            }
         }
         catch (OperationCanceledException e)
         {

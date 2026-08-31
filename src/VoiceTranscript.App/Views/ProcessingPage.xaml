@@ -74,11 +74,23 @@
         <Border Grid.Row="1" Style="{StaticResource Panel}" Margin="0,0,0,12"
                 Visibility="{Binding IsWorkingOnSomething, Converter={StaticResource BoolToVisibility}}">
             <StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                    <ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" Margin="0,0,8,0"
-                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                    <TextBlock Text="{Binding ActiveLine}" VerticalAlignment="Center" FontWeight="SemiBold" />
-                </StackPanel>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" Margin="0,0,8,0"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Text="{Binding ActiveLine}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                    </StackPanel>
+
+                    <!-- Ends this one job; the queue behind it is untouched. The recording is
+                         parked, not lost — "Yeniden işle" stays one click away. -->
+                    <ui:Button Grid.Column="1" Content="Durdur" Appearance="Secondary" Padding="10,4"
+                               Click="StopCurrent_Click" ToolTip="Bu kaydın işlenmesini durdur" />
+                </Grid>
 
                 <!-- Determinate when the worker gives a fraction, and a moving bar when it does
                      not — an empty bar sitting at zero reads as stuck. -->
@@ -98,6 +110,7 @@
                 <ui:Button Content="Bekleyenler" Margin="0,0,6,0" Command="{Binding ShowWaitingCommand}" />
                 <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowFailedCommand}" />
                 <ui:Button Content="Metni olmayanlar" Margin="0,0,6,0" Command="{Binding ShowWithoutTranscriptCommand}" />
+                <ui:Button Content="Bitenler" Margin="0,0,6,0" Command="{Binding ShowDoneCommand}" />
                 <ui:Button Content="Hepsi" Command="{Binding ShowAllCommand}" />
             </StackPanel>
 

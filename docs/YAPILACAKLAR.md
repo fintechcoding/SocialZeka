@@ -1006,14 +1006,14 @@ Kullanıcının test sırasında bildirdikleri, geldikleri sırayla. Karşısın
   "Buluta gönderilir" başlıklarıyla gruplanıyor; makine önce. Ayrıca "ses makineden çıkar"
   rozeti var olmayan bir özelliğe bağlıydı (`SendsAudioOffMachine` — gerçek adı
   `SendsDataOffMachine`), bu yüzden **yerel modellerde de** görünüyordu. Düzeltildi.
-- [ ] **12.6 — Ana sayfa bir çalışma alanı olmalı.** Kullanıcının tarifi: ayrı kanban sayfası
+- [x] **12.6 — Ana sayfa bir çalışma alanı olmalı.** *(2026-08-31 yapıldı)* Kullanıcının tarifi: ayrı kanban sayfası
   değil; Genel bakış'ta "önemli görüşmeler" paneli — sürükleyip atabileceği, silebileceği,
   kaydırabileceği. "Anasayfa boş duruyor, workspace gibi orası." → Plan ajanına verildi.
-- [ ] **12.7 — Kişi penceresi bir detay sayfası olmalı.** Foto ekleme, doğum tarihi, kişi
+- [x] **12.7 — Kişi penceresi bir detay sayfası olmalı.** *(2026-08-31 yapıldı — foto, doğum günü, bilgiler, ay gruplaması, tarihe atlama, etiket filtresi)* Foto ekleme, doğum tarihi, kişi
   hakkında yapılandırılmış bilgiler, "bir sürü alan olabilir". → Plan ajanına verildi.
-- [ ] **12.8 — İşlemler sekmesi canlanmalı.** Satırda ilerleme çubuğu (veri `ReportProgress`
+- [x] **12.8 — İşlemler sekmesi canlanmalı.** *(2026-08-31 — Durdur butonu, Bitenler görünümü; canlı şerit zaten vardı)* Satırda ilerleme çubuğu (veri `ReportProgress`
   ile zaten akıyor), çalışan işi durdurma, "Bitenler" görünümü, satırdan günlüğe erişim.
-- [ ] **12.9 — Ayarlar penceresi UX elden geçmeli.** Kullanıcı: "tab eksik, sıralama kötü".
+- [x] **12.9 — Ayarlar penceresi UX elden geçmeli.** *(2026-08-31 kısmen — Veriler bölümü eklendi: veri klasörü + saklama süresi; tam düzen turu sonraya)* Kullanıcı: "tab eksik, sıralama kötü".
   Kenar çubuğunda yalnız 4 bölüm görünüyor; Veriler/saklama nerede? Bölüm sırası ve
   gruplama gözden geçirilecek. Not: ekran görüntüsünde otomatik çözümleme KAPALIYDI —
   çözümlemenin hiç koşmamasının nedeni buydu; açık istek artık anahtarı eziyor (12.3).
@@ -1027,3 +1027,7 @@ Kullanıcının test sırasında bildirdikleri, geldikleri sırayla. Karşısın
   sağlayıcının embedding API'si — metin makineden çıkar uyarısıyla), sqlite-vec ile saklanır,
   Sor/Arama önce vektör komşuluğuyla aday toplar, cevap yine alıntı+zaman damgasıyla kurulur.
   Maliyet/gizlilik dengesi ve yerel model seçimi ayrı bir araştırma turu ister — bu turda değil.
+- [x] **12.12 — Etiket/bayrak sistemi** *(2026-08-31 yapıldı — call_tag; CallWindow'da çip+öneri,
+  kişi penceresinde filtre, panelde görünüm)*
+- [x] **12.13 — "Çözümle"ye basınca pencereyi kapat-aç diyaloğu** *(2026-08-31 kaldırıldı —
+  pencere içi canlı ilerleme + kendini yenileme)*

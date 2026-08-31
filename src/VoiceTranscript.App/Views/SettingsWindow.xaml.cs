@@ -18,9 +18,32 @@ public partial class SettingsWindow
         _viewModel = viewModel;
         DataContext = viewModel;
 
+        // Null in the smoke test, which constructs every window without an App instance.
+        DataFolderPath.Text = App.Paths?.Root ?? "";
+
         // Show up front which weights are already present, so nobody discovers mid-call that
         // a two-gigabyte download is about to start.
         _ = RefreshModelStatusAsync();
+    }
+
+    /// <summary>
+    /// Opens the data folder in Explorer — the difference between "the archive is safe" and
+    /// having to take the application's word for it.
+    /// </summary>
+    private void OpenDataFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(App.Paths.Root)
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Klasör açılamadı: {ex.Message}", "Veri klasörü",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     /// <summary>
@@ -40,6 +63,7 @@ public partial class SettingsWindow
         PageRecording.Visibility = Visible(tag == "Recording");
         PageTranscription.Visibility = Visible(tag == "Transcription");
         PageAnalysis.Visibility = Visible(tag == "Analysis");
+        PageData.Visibility = Visible(tag == "Data");
         PageExport.Visibility = Visible(tag == "Export");
 
         static Visibility Visible(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
