@@ -22,7 +22,33 @@
     <sys:Double x:Key="TextDisplay">28</sys:Double>
 
     <Thickness x:Key="PadCard">16,12</Thickness>
-    <Thickness x:Key="PadPage">36,20,36,28</Thickness>
+
+    <!--
+        One inset for every page, and one measure for their content.
+
+        These existed and were used by nothing: the five pages each carried their own numbers —
+        24,4,32,24 and 24,4,32,16 and 28,22,28,0 and two more — so moving between them shifted the
+        content left and right at the same time and the window frame visibly jumped. Nobody reads
+        that as a spacing choice; it reads as the application being unfinished.
+
+        The top stays at 4. The rail's status card begins at y=0, and raising only the page top
+        would drop every heading well below it.
+    -->
+    <Thickness x:Key="PadPage">32,4,32,24</Thickness>
+
+    <!--
+        The same, for a page inside a ScrollViewer.
+        The scrollbar takes real width outside the padding, so an equal right inset is not equal.
+    -->
+    <Thickness x:Key="PadPageScroll">32,4,18,24</Thickness>
+
+    <!--
+        How wide page content is allowed to grow.
+        Three different values were in use — 1000, 860, 760 — so the left edge of the text moved
+        depending on which page it was on, which is exactly the kind of thing that is invisible
+        until it is fixed and then obvious.
+    -->
+    <sys:Double x:Key="PageMeasure">900</sys:Double>
 
     <CornerRadius x:Key="RadiusCard">4</CornerRadius>
 

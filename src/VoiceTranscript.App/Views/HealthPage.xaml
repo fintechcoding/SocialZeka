@@ -4,12 +4,24 @@
              xmlns:loc="clr-namespace:VoiceTranscript.App"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:views="clr-namespace:VoiceTranscript.App.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:HealthViewModel}">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,4,32,24">
+    <!--
+        Two tabs rather than two entries in the menu.
+
+        "İşlem durumu" and "Durum" sat next to each other in the navigation and both meant status,
+        which is a distinction the user has to hold in their head rather than read. They are the
+        same question at two levels — is the machinery set up, and is it getting through the work —
+        so they belong on one screen with a tab between them.
+    -->
+    <TabControl Margin="24,8,24,16" Padding="0,12,0,0" BorderThickness="0" Background="Transparent">
+
+        <TabItem Header="Sistem">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,8,24">
         <StackPanel MaxWidth="860" HorizontalAlignment="Left">
 
             <TextBlock Text="{loc:T healthpage.durum}" Style="{StaticResource PageTitle}" />
@@ -307,5 +319,19 @@
                 </StackPanel>
             </Border>
         </StackPanel>
-    </ScrollViewer>
+            </ScrollViewer>
+        </TabItem>
+
+        <!--
+            The processing list, reaching past its own DataContext.
+
+            This page is given a HealthViewModel; the list needs the ProcessingViewModel the shell
+            holds. Binding through the window rather than restructuring the shell keeps one owner
+            for it, so the counts stay correct wherever it is shown from.
+        -->
+        <TabItem Header="İşlemler">
+            <views:ProcessingPage
+                DataContext="{Binding DataContext.Processing, RelativeSource={RelativeSource AncestorType=Window}}" />
+        </TabItem>
+    </TabControl>
 </UserControl>

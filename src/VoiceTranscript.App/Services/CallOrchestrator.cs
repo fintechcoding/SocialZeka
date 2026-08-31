@@ -742,19 +742,19 @@ public sealed class CallOrchestrator : IDisposable
             // costs the ledger entries and the summary, not the conversation.
             if (settings.AnalyseAutomatically)
             {
-                if (settings.LlmReachableInPrinciple)
+                if (await AnalysisServiceReachableAsync(settings, cancellationToken))
                 {
                     await AnalyseAsync(callId, settings, cancellationToken);
                 }
                 else
                 {
                     _repository.SetCallState(callId, ProcessingState.Transcribed,
-                        "Çözümleme yapılmadı: bağlı bir yapay zekâ servisi yok. "
-                        + "Ayarlardan bir sağlayıcı seçip anahtarını girdiğinde bu görüşme "
-                        + "yeniden çözümlenebilir.");
+                        "Çözümleme yapılmadı: çalışan bir yapay zekâ servisi bulunamadı. "
+                        + "Ayarlardan bir sağlayıcı seçip çalıştırdığında bu görüşme yeniden "
+                        + "çözümlenebilir — metin duruyor, yeniden yazıya dökmek gerekmiyor.");
 
                     Notice?.Invoke(this,
-                        "Görüşme yazıya döküldü. Özet çıkarılmadı — bağlı bir yapay zekâ servisi yok.");
+                        "Görüşme yazıya döküldü. Özet çıkarılmadı — çalışan bir yapay zekâ servisi yok.");
 
                     return;
                 }
@@ -1005,6 +1005,73 @@ public sealed class CallOrchestrator : IDisposable
 
         _repository.SetCallState(call.Id, ProcessingState.Transcribed);
     }
+
+    /// <summary>
+    /// Whether there is a model running that analysis can actually talk to.
+    ///
+    /// Transcription and analysis are separate jobs and only one of them is the point of the
+    /// recorder. Writing down what was said needs nothing but this machine; turning that into a
+    /// summary and a ledger needs a language model, and there frequently is not one. When there is
+    /// not, the right outcome is a finished transcript and a plain sentence saying the summary was
+    /// skipped — not a failure, and above all not a wait.
+    ///
+    /// <b>Asked rather than assumed, and this is the part that was missing.</b> The settings alone
+    /// cannot answer it: the default provider is a local server, so a machine that has never run
+    /// one still looks configured. Analysis then went ahead, and every transcript chunk waited on
+    /// a request to a port with nothing behind it. The processing slot was held the whole time and
+    /// every recording made meanwhile queued up behind it.
+    ///
+    /// One short probe, and the answer is remembered for a few minutes: this is asked once per
+    /// recording, recordings arrive minutes apart, and starting a model between two of them is
+    /// something the user would do deliberately and can wait a moment for.
+    /// </summary>
+    private async Task<bool> AnalysisServiceReachableAsync(
+        AppSettings settings, CancellationToken cancellationToken)
+    {
+        // Nothing to ask when there is nothing configured to ask.
+        if (!settings.LlmReachableInPrinciple) return false;
+
+        // A hosted service with a key is taken at its word. Probing it costs a request against a
+        // metered account to answer a question its first real call answers anyway.
+        if (settings.Provider.SendsDataOffMachine) return true;
+
+        if (_analysisReachable is { } remembered
+            && DateTimeOffset.UtcNow - _analysisCheckedAt < TimeSpan.FromMinutes(5))
+        {
+            return remembered;
+        }
+
+        var client = new OpenAiCompatibleClient(
+            _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
+
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+
+        bool reachable;
+
+        try
+        {
+            reachable = await client.IsAvailableAsync(deadline.Token);
+        }
+        catch (Exception)
+        {
+            // Unreachable is the answer, not an error to report. A local server that is not
+            // running is the ordinary case, not a fault.
+            reachable = false;
+        }
+
+        _analysisReachable = reachable;
+        _analysisCheckedAt = DateTimeOffset.UtcNow;
+
+        AppLog.Write("çözümleme", reachable
+            ? $"servis hazır: {settings.ResolvedBaseUrl}"
+            : $"servis yanıt vermiyor, çözümleme atlanıyor: {settings.ResolvedBaseUrl}");
+
+        return reachable;
+    }
+
+    private bool? _analysisReachable;
+    private DateTimeOffset _analysisCheckedAt;
 
     private async Task AnalyseAsync(long callId, AppSettings settings, CancellationToken cancellationToken)
     {

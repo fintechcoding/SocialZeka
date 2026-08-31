@@ -83,7 +83,13 @@ public sealed record RecentCall(Call Call, string ContactName)
         {
             ProcessingState.Recorded or ProcessingState.Queued => "Sırada",
             ProcessingState.Transcribing => "Yazıya dökülüyor",
-            ProcessingState.Transcribed => "Çözümleniyor",
+
+            // Transcribed means the words are written and the analysis did not run — because no
+            // model is configured, or because it was switched off. It is a resting state, not a
+            // busy one, and calling it "Çözümleniyor" made a finished recording sit under a
+            // spinner indefinitely.
+            ProcessingState.Transcribed => "Yazıya döküldü · çözümlenmedi",
+
             ProcessingState.Analysing => "Çözümleniyor",
             ProcessingState.Analysed => "Hazır",
             ProcessingState.Failed => "Başarısız",
@@ -91,9 +97,23 @@ public sealed record RecentCall(Call Call, string ContactName)
             _ => "",
         };
 
+    /// <summary>
+    /// Whether something is actually happening to this recording right now.
+    ///
+    /// Narrower than it was, and the difference is visible on screen. Queued and Transcribed were
+    /// both counted as working, so a list of recordings waiting their turn showed five spinners at
+    /// once — which cannot be true, because processing is serialised behind a single semaphore so
+    /// that Whisper and the analysis model never share the graphics card. Five things claiming to
+    /// be in progress when at most one can be is not a cosmetic problem: it is the screen telling
+    /// the user something they can reason their way to knowing is false.
+    ///
+    /// Queued now reads as waiting, which is what it is, and Transcribed as finished-for-now.
+    /// </summary>
     public bool IsWorking => Call.State
-        is ProcessingState.Queued or ProcessingState.Transcribing
-        or ProcessingState.Transcribed or ProcessingState.Analysing;
+        is ProcessingState.Transcribing or ProcessingState.Analysing;
+
+    /// <summary>Waiting for its turn, with nothing happening to it yet.</summary>
+    public bool IsWaiting => Call.State is ProcessingState.Recorded or ProcessingState.Queued;
 
     public bool IsFailed => Call.State == ProcessingState.Failed;
 }

@@ -85,7 +85,7 @@
                 </ListBox.ContextMenu>
 
                 <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource RowItem}">
                         <EventSetter Event="PreviewMouseRightButtonDown" Handler="ContactRow_RightClick" />
                     </Style>
                 </ListBox.ItemContainerStyle>
@@ -340,7 +340,7 @@
                                 </ListBox.ContextMenu>
 
                                 <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource RowItem}">
                                         <EventSetter Event="PreviewMouseRightButtonDown" Handler="CallRow_RightClick" />
                                     </Style>
                                 </ListBox.ItemContainerStyle>

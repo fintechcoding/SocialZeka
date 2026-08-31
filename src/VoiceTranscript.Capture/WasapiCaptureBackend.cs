@@ -25,6 +25,21 @@ namespace VoiceTranscript.Capture;
 public sealed class WasapiCaptureBackend : IAudioCaptureBackend
 {
     private readonly bool _useEchoCancellation;
+
+    /// <summary>
+    /// Whether this Windows can be told which endpoint to use as the echo-cancellation reference.
+    ///
+    /// Checked before trying rather than after failing, and that distinction cost a conversation.
+    /// The API needs Windows 11 build 22621; on Windows 10 it throws, and the throw did not always
+    /// come from the call the fallback was wrapped around — so the recording failed to start at
+    /// all, with the raw API message shown to a user who has no way to act on it. A call went
+    /// unrecorded because of a feature that only improves speaker separation.
+    ///
+    /// The setting stays on by default because most machines are Windows 11 and it genuinely
+    /// helps there. It simply does nothing here, and says so once.
+    /// </summary>
+    public static bool EchoCancellationSupported =>
+        OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22621);
     private readonly string? _microphoneDeviceId;
     private readonly string? _outputDeviceId;
     private WasapiRecorder? _microphone;
@@ -173,7 +188,7 @@ public sealed class WasapiCaptureBackend : IAudioCaptureBackend
             .WithSharedMode()
             .WithCommunicationsMode();
 
-        if (_useEchoCancellation)
+        if (_useEchoCancellation && EchoCancellationSupported)
         {
             try
             {
@@ -188,6 +203,12 @@ public sealed class WasapiCaptureBackend : IAudioCaptureBackend
                 // means losing the conversation.
                 Interrupted?.Invoke(this, $"Yankı engelleme açılamadı, kayıt onsuz sürüyor: {e.Message}");
             }
+        }
+        else if (_useEchoCancellation)
+        {
+            Interrupted?.Invoke(this,
+                "Yankı engelleme bu Windows sürümünde kullanılamıyor, kayıt onsuz sürüyor. "
+                + "Kulaklık kullanmak konuşmacı ayrımını belirgin şekilde iyileştirir.");
         }
 
         return await Basic().BuildAsync();

@@ -215,14 +215,6 @@
                     </RadioButton>
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
-                                 Command="{Binding NavigateCommand}" CommandParameter="Processing">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="TaskListSquareLtr24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
-                            <TextBlock Text="İşlem durumu" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </RadioButton>
-
-                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Search">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="Search24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
@@ -324,15 +316,6 @@
                         </MultiBinding>
                     </views:AskPage.Visibility>
                 </views:AskPage>
-
-                <views:ProcessingPage Style="{StaticResource PageHost}" DataContext="{Binding Processing}">
-                    <views:ProcessingPage.Visibility>
-                        <MultiBinding Converter="{StaticResource PageVisibility}">
-                            <Binding Path="DataContext.Page" RelativeSource="{RelativeSource AncestorType=Window}" />
-                            <Binding Source="Processing" />
-                        </MultiBinding>
-                    </views:ProcessingPage.Visibility>
-                </views:ProcessingPage>
 
                 <views:SearchPage Style="{StaticResource PageHost}" DataContext="{Binding Search}">
                     <views:SearchPage.Visibility>
