@@ -15,12 +15,12 @@ aradaki tek kanal yazılı olan şeyler. Yazılmayan her bulgu, ikinci kez satı
 | Projeyi ilk kez kurmak, derlemek, test koşmak | [GELISTIRME.md](GELISTIRME.md) |
 | Bir şeyin **neden** böyle yazıldığını anlamak | [MIMARI.md](MIMARI.md) |
 | Geçmişte ne bozuktu, nasıl düzeltildi | [ISLEM-GUNLUGU.md](ISLEM-GUNLUGU.md) |
-| Şu an ne yapılacak, sıra ne | [../YAPILACAKLAR.md](../YAPILACAKLAR.md) |
+| Şu an ne yapılacak, sıra ne | [YAPILACAKLAR.md](YAPILACAKLAR.md) |
 | Bilinen ama henüz düzeltilmemiş kusurların tamamı | [DENETIM-2026-08-31.md](DENETIM-2026-08-31.md) |
 | Ürün ne vaat ediyor, kime | [../PRODUCT.md](../PRODUCT.md) |
 | Kullanıcıya ne anlatılıyor | [../README.md](../README.md), [../OKUBENI.txt](../OKUBENI.txt) |
-| Arayüzün tasarım gerekçeleri | [../PLAN-UI.md](../PLAN-UI.md) |
-| Özgün tasarım planı (büyük ölçüde tamamlandı) | [../PLAN.md](../PLAN.md) |
+| Arayüzün tasarım gerekçeleri | [PLAN-UI.md](PLAN-UI.md) |
+| Özgün tasarım planı (büyük ölçüde tamamlandı) | [PLAN.md](PLAN.md) |
 
 ---
 
@@ -45,7 +45,7 @@ Altı mercek `CallOrchestrator` ve çevresini taradı, 74 bulgunun her biri çü
 veya etiketleme akışına dokunmadan önce buraya bak: dokunacağın satırın zaten bilinen bir kusuru
 olabilir.
 
-**[../YAPILACAKLAR.md](../YAPILACAKLAR.md)** — canlı liste. Öncelik sırası, açık kusurlar
+**[YAPILACAKLAR.md](YAPILACAKLAR.md)** — canlı liste. Öncelik sırası, açık kusurlar
 dosya:satır ile, ve kullanıcının kullanırken bildirdiklerinin toplandığı yer (§9). Bir madde
 bitince silinmiyor; `[x]` işaretlenip gerekçesiyle işlem günlüğüne taşınıyor.
 
