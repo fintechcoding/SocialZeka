@@ -138,6 +138,34 @@ public partial class CallWindow
             "Çözümleme", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
+    /// <summary>
+    /// Produces this transcript again, with an engine the user picks.
+    ///
+    /// Offered beside the quality line because that is where somebody decides the text is not good
+    /// enough — and on this machine the choice is consequential: a local model managed a fifth of
+    /// real time and a hosted one two hundred times it, on the same recordings.
+    /// </summary>
+    private void Retranscribe_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } model || App.Orchestrator is null) return;
+
+        var dialog = new ReprocessWindow(App.Repository, App.Settings, model.Title, count: 1)
+        {
+            Owner = this,
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        var choice = dialog.Choice;
+
+        App.Repository.SetCallState(model.CallId, VoiceTranscript.Core.Domain.ProcessingState.Queued);
+        App.Orchestrator.EnqueueWith(model.CallId, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel);
+
+        MessageBox.Show(
+            "Sıraya alındı. Bittiğinde bu pencereyi kapatıp yeniden açarsan yeni metin görünür.",
+            "Yeniden çevir", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
     /// <summary>Enter asks, because a single-line question box that needs the mouse is not used.</summary>
     private void Question_KeyDown(object sender, KeyEventArgs e)
     {

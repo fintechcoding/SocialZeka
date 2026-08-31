@@ -1337,6 +1337,93 @@ public sealed class Repository(Database database)
             .ToDictionary(r => r.CallId);
     }
 
+    /// <summary>
+    /// One row per day for one stage, oldest first, with empty days filled in.
+    ///
+    /// The gaps matter as much as the bars. A chart drawn only from days that have rows compresses
+    /// a fortnight of silence into nothing and makes a sporadic week look continuous — which is
+    /// the opposite of what somebody is looking at it to find out.
+    /// </summary>
+    public IReadOnlyList<DailyUsage> DailyUsage(string stage, int days)
+    {
+        using var connection = Open();
+
+        var since = DateTimeOffset.UtcNow.Date.AddDays(-(days - 1));
+
+        var rows = connection.Query<(string Day, int Runs, long ElapsedMs, long AudioMs, long Tokens)>(
+            """
+            SELECT substr(started_at, 1, 10)                                AS Day,
+                   COUNT(*)                                                 AS Runs,
+                   COALESCE(SUM(elapsed_ms), 0)                             AS ElapsedMs,
+                   COALESCE(SUM(audio_ms), 0)                               AS AudioMs,
+                   COALESCE(SUM(prompt_tokens), 0)
+                     + COALESCE(SUM(completion_tokens), 0)                  AS Tokens
+            FROM processing_run
+            WHERE stage = @stage AND started_at >= @since
+            GROUP BY Day;
+            """,
+            new { stage, since = Iso(since) })
+            .ToDictionary(r => r.Day);
+
+        List<DailyUsage> series = [];
+
+        for (var i = 0; i < days; i++)
+        {
+            var day = since.AddDays(i);
+            var key = day.ToString("yyyy-MM-dd");
+
+            rows.TryGetValue(key, out var found);
+
+            series.Add(new DailyUsage
+            {
+                Day = DateOnly.FromDateTime(day.Date),
+                Runs = found.Runs,
+                ElapsedMs = found.ElapsedMs,
+                AudioMs = found.AudioMs,
+                Tokens = found.Tokens,
+            });
+        }
+
+        return series;
+    }
+
+    /// <summary>The most recent run of one stage for one call, or null if it has never had one.</summary>
+    public CallRun? LastRun(long callId, string stage)
+    {
+        using var connection = Open();
+
+        return connection.QueryFirstOrDefault<CallRun>(
+            """
+            SELECT call_id AS CallId, engine AS Engine, elapsed_ms AS ElapsedMs,
+                   audio_ms AS AudioMs, succeeded AS Succeeded
+            FROM processing_run
+            WHERE call_id = @callId AND stage = @stage
+            ORDER BY id DESC LIMIT 1;
+            """,
+            new { callId, stage });
+    }
+
+    /// <summary>
+    /// How much of one call's transcript the model was unsure about.
+    ///
+    /// Counted rather than sampled, because it is the honest measure of whether the text can be
+    /// trusted — and on a recording where one side was quiet or the microphone was wrong it is the
+    /// difference between a transcript worth reading and one worth redoing.
+    /// </summary>
+    public (int Lines, int LowConfidence, int Overlapping) TranscriptQuality(long callId)
+    {
+        using var connection = Open();
+
+        return connection.QueryFirst<(int, int, int)>(
+            """
+            SELECT COUNT(*)                                         AS Lines,
+                   COALESCE(SUM(low_confidence), 0)                 AS LowConfidence,
+                   COALESCE(SUM(overlaps_other_speaker), 0)         AS Overlapping
+            FROM segment WHERE call_id = @callId;
+            """,
+            new { callId });
+    }
+
     /// <summary>Totals for one stage over a window. All zero when nothing has run yet.</summary>
     public UsageTotals Usage(string stage, DateTimeOffset? since = null)
     {

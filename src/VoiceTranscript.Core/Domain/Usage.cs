@@ -64,6 +64,30 @@ public record UsageTotals
         ElapsedMs > 0 && AudioMs > 0 ? (double)AudioMs / ElapsedMs : null;
 }
 
+/// <summary>
+/// One day's work, for a chart.
+///
+/// Days with nothing in them are included and left at zero — a chart drawn only from days that
+/// have rows compresses a fortnight of silence into nothing and makes a sporadic week look
+/// continuous, which is the opposite of what the chart is for.
+/// </summary>
+public sealed record DailyUsage
+{
+    public DateOnly Day { get; set; }
+    public int Runs { get; set; }
+    public long ElapsedMs { get; set; }
+    public long AudioMs { get; set; }
+    public long Tokens { get; set; }
+
+    public TimeSpan Audio => TimeSpan.FromMilliseconds(AudioMs);
+    public TimeSpan Elapsed => TimeSpan.FromMilliseconds(ElapsedMs);
+
+    /// <summary>Short label for the axis: "3 Eyl".</summary>
+    public string Label => Day.ToString("d MMM");
+
+    public bool IsEmpty => Runs == 0;
+}
+
 /// <summary>The same totals, for one engine, so two of them can be compared.</summary>
 public sealed record EngineUsage : UsageTotals
 {

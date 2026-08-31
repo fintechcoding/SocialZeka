@@ -87,13 +87,25 @@
                 <!-- On demand, never on a timer. These are calls against services somebody is
                      paying for; polling them to keep a dot green would be spending their money
                      to decorate a screen. -->
-                <ui:Button Grid.Column="1" Content="Bağlantıları sına" VerticalAlignment="Top"
+                <!-- Beside the test, because the two are one gesture: test, see it fail, fix it.
+                     Sending somebody to hunt for Settings in between is where people give up. -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <ui:Button Content="Ayarla" Margin="0,0,8,0"
+                           Command="{Binding OpenSettingsCommand}"
+                           ToolTip="Bu servislerin ayarlarını açar.">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="Settings24" />
+                    </ui:Button.Icon>
+                </ui:Button>
+
+                <ui:Button Content="Bağlantıları sına"
                            Command="{Binding CheckCommand}"
                            IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="PlugConnected24" />
                     </ui:Button.Icon>
                 </ui:Button>
+                </StackPanel>
             </Grid>
 
             <Border Style="{StaticResource Panel}" Margin="0,0,0,12">
@@ -161,10 +173,65 @@
                         <TextBlock Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"
                                    Text="{Binding WindowName}" />
 
-                        <ui:Button Grid.Column="1" Appearance="Transparent"
-                                   Content="{Binding OtherWindowName}"
-                                   Command="{Binding SwitchWindowCommand}" />
+                        <!-- Three lengths rather than a calendar. The questions actually asked
+                             here are "what has this week been like", "is it keeping up this
+                             month", and "what has all of it cost". -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <ui:Button Content="7 gün" Margin="0,0,6,0" Command="{Binding ShowWeekCommand}" />
+                            <ui:Button Content="30 gün" Margin="0,0,6,0" Command="{Binding ShowMonthCommand}" />
+                            <ui:Button Content="Tümü" Command="{Binding ShowEverythingCommand}" />
+                        </StackPanel>
                     </Grid>
+
+                    <!--
+                        One bar per day, scaled to the busiest day in view.
+
+                        Scaled to the window rather than to a fixed maximum: the point is the shape
+                        of this person's own weeks, and a scale chosen for a different archive would
+                        flatten theirs into a line. Empty days are drawn as gaps rather than
+                        skipped, because a fortnight of silence is a fact about the archive and
+                        compressing it out would make a sporadic month look continuous.
+                    -->
+                    <Border Margin="0,0,0,14" Padding="12,10" CornerRadius="6"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                            Visibility="{Binding HasChart, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="Günlük işlenen ses" Style="{StaticResource Caption}"
+                                       Margin="0,0,0,8" />
+
+                            <ItemsControl ItemsSource="{Binding Days}" Height="96">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="14" Margin="2,0" VerticalAlignment="Bottom"
+                                                CornerRadius="2,2,0,0"
+                                                Height="{Binding Height}"
+                                                ToolTip="{Binding Tooltip}"
+                                                Background="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Style="{StaticResource Caption}"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           Text="{Binding Days[0].Label}" />
+
+                                <TextBlock Grid.Column="1" Style="{StaticResource Caption}"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           Text="bugün" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
 
                     <StackPanel Visibility="{Binding HasUsage, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Yazıya dökme" Style="{StaticResource Caption}"

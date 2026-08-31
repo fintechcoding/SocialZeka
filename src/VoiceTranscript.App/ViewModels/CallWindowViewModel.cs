@@ -105,6 +105,20 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _note = "";
     [ObservableProperty] private bool _noteSaved;
 
+    /// <summary>
+    /// How good the text is, and what produced it.
+    ///
+    /// Worth stating because a transcript is evidence, and evidence with an unstated provenance is
+    /// worth less than it looks. The share the model was unsure about is the honest measure of
+    /// whether these words can be leaned on — on a recording where the microphone was wrong or one
+    /// side was quiet it is the difference between a transcript to read and one to redo. Which is
+    /// exactly why the button beside it exists.
+    /// </summary>
+    [ObservableProperty] private string? _qualityLine;
+
+    /// <summary>True when a large share of the lines were uncertain, so it is worth saying louder.</summary>
+    [ObservableProperty] private bool _qualityIsPoor;
+
     public bool HasSummary => !string.IsNullOrWhiteSpace(Summary);
     public bool HasLedger => Commitments.Count > 0 || Claims.Count > 0 || Flags.Count > 0;
     public bool HasTurns => Turns.Count > 0;
@@ -160,11 +174,53 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         Note = _repository.GetNote(CallId);
 
+        LoadQuality();
+
         OnPropertyChanged(nameof(HasSummary));
         OnPropertyChanged(nameof(HasLedger));
         OnPropertyChanged(nameof(HasTurns));
 
         _ = Playback.LoadAsync(call.MicPath, call.FarPath, call.Duration);
+    }
+
+    /// <summary>
+    /// Says what produced this text and how sure it was.
+    ///
+    /// Both halves are facts the archive already held and never showed. Which engine ran matters
+    /// because they differ enormously — on this machine a local model managed a fifth of real time
+    /// and a hosted one two hundred times it — and the uncertain share matters because it is the
+    /// difference between a transcript worth quoting and one worth producing again.
+    /// </summary>
+    private void LoadQuality()
+    {
+        var (lines, lowConfidence, overlapping) = _repository.TranscriptQuality(CallId);
+
+        if (lines == 0)
+        {
+            QualityLine = null;
+            QualityIsPoor = false;
+            return;
+        }
+
+        List<string> parts = [$"{lines} satır"];
+
+        if (lowConfidence > 0)
+            parts.Add($"{lowConfidence} tanesi belirsiz (%{100.0 * lowConfidence / lines:0})");
+
+        if (overlapping > 0) parts.Add($"{overlapping} satırda üst üste konuşma");
+
+        if (_repository.LastRun(CallId, ProcessingStage.Transcribe) is { } run)
+        {
+            parts.Add(run.Engine);
+
+            if (run.SpeedFactor is { } speed) parts.Add($"gerçek zamanın {speed:0.#} katı");
+        }
+
+        QualityLine = string.Join(" · ", parts);
+
+        // A third is the point where the text stops being something to quote from. Said plainly
+        // rather than scored: the reader can see the marked lines and decide.
+        QualityIsPoor = lowConfidence * 3 >= lines;
     }
 
     /// <summary>

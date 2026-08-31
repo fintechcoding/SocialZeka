@@ -28,6 +28,7 @@ public partial class MainWindow
             {
                 previous.PropertyChanged -= OnShellPropertyChanged;
                 previous.Overview.ActionRequested -= OnAttentionAction;
+                previous.AiStatus.SettingsRequested -= OnSettingsRequested;
             }
 
             if (e.NewValue is ShellViewModel next)
@@ -42,6 +43,11 @@ public partial class MainWindow
                 // Subscribed here rather than in the view model because two of these open a
                 // window, and a dialog with no owner falls behind the main window.
                 next.Overview.ActionRequested += OnAttentionAction;
+
+                // The status screen regularly answers "this is not working". Making somebody go
+                // and find Settings at that moment is telling them there is a problem and then
+                // asking them to look for the door.
+                next.AiStatus.SettingsRequested += OnSettingsRequested;
             }
         };
 
@@ -251,6 +257,8 @@ public partial class MainWindow
     }
 
     private void Settings_Click(object sender, RoutedEventArgs e) => OpenSettings();
+
+    private void OnSettingsRequested(object? sender, EventArgs e) => OpenSettings();
 
     private void OpenSettings()
     {

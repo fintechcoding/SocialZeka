@@ -29,6 +29,25 @@ public enum ServiceReach
     Incomplete,
 }
 
+/// <summary>
+/// One day in the usage chart.
+/// </summary>
+/// <param name="Share">Height as a fraction of the busiest day in view, 0–1.</param>
+public sealed record DayBar(string Label, double Minutes, double Share, int Runs)
+{
+    /// <summary>
+    /// Pixel height, with a visible floor for days that had work.
+    ///
+    /// A day with two minutes of audio beside a day with four hours would otherwise round to
+    /// nothing and read as a day off, which is a different fact.
+    /// </summary>
+    public double Height => Runs == 0 ? 0 : Math.Max(3, Share * 90);
+
+    public string Tooltip => Runs == 0
+        ? $"{Label}: kayıt işlenmedi"
+        : $"{Label}: {Runs} görüşme · {Minutes:0} dk ses";
+}
+
 /// <summary>One service in a chain, with its place in the order.</summary>
 /// <param name="Order">1-based. The order they will actually be tried in.</param>
 /// <param name="IsActive">The one that will be used, all being well — the first usable.</param>
@@ -115,6 +134,22 @@ public sealed partial class AiStatusViewModel(
 
     /// <summary>True when analysis is switched off, so its absence is a choice rather than a fault.</summary>
     public bool AnalysisDisabled => !settings().AnalyseAutomatically;
+
+    /// <summary>
+    /// Raised when the user wants to change one of these services.
+    ///
+    /// The screen answers "what is running and is it working", and the answer is regularly "it is
+    /// not". Making them find Settings themselves at that moment is asking somebody who has just
+    /// been told something is wrong to go and look for the door.
+    ///
+    /// An event rather than opening the window here: the shell already owns that flow — building
+    /// the settings model, saving the result, reconciling autostart — and a second copy of it
+    /// would be a second place for the two to drift apart.
+    /// </summary>
+    public event EventHandler? SettingsRequested;
+
+    [RelayCommand]
+    private void OpenSettings() => SettingsRequested?.Invoke(this, EventArgs.Empty);
 
     [RelayCommand]
     public void Refresh()
@@ -273,6 +308,45 @@ public sealed partial class AiStatusViewModel(
     /// </summary>
     [ObservableProperty] private bool _recentOnly = true;
 
+    /// <summary>
+    /// How many days the chart covers. Zero means the whole archive, which has no chart.
+    ///
+    /// Three lengths rather than a date picker: the questions people actually ask here are "what
+    /// has this week been like", "is it keeping up this month", and "what has all of it cost".
+    /// A calendar would answer a question nobody asked and cost a dialog.
+    /// </summary>
+    [ObservableProperty] private int _windowDays = 30;
+
+    /// <summary>One bar per day, empty days included so gaps stay visible.</summary>
+    public ObservableCollection<DayBar> Days { get; } = [];
+
+    public bool HasChart => Days.Any(d => d.Minutes > 0);
+
+    [RelayCommand]
+    private void ShowWeek() => SetWindow(7);
+
+    [RelayCommand]
+    private void ShowMonth() => SetWindow(30);
+
+    [RelayCommand]
+    private void ShowEverything() => SetWindow(0);
+
+    private void SetWindow(int days)
+    {
+        WindowDays = days;
+        RecentOnly = days > 0;
+
+        LoadUsage();
+
+        OnPropertyChanged(nameof(IsWeek));
+        OnPropertyChanged(nameof(IsMonth));
+        OnPropertyChanged(nameof(IsEverything));
+    }
+
+    public bool IsWeek => WindowDays == 7;
+    public bool IsMonth => WindowDays == 30;
+    public bool IsEverything => WindowDays == 0;
+
     [ObservableProperty] private UsageTotals _transcribeUsage = new();
     [ObservableProperty] private UsageTotals _analyseUsage = new();
     [ObservableProperty] private UsageTotals _askUsage = new();
@@ -280,8 +354,44 @@ public sealed partial class AiStatusViewModel(
     /// <summary>Per-engine transcription figures, so a local model and a hosted one can be compared.</summary>
     public ObservableCollection<EngineUsage> Engines { get; } = [];
 
-    public string WindowName => RecentOnly ? "Son 30 gün" : "Tüm zaman";
-    public string OtherWindowName => RecentOnly ? "Tüm zamanı göster" : "Son 30 günü göster";
+    public string WindowName => WindowDays switch
+    {
+        7 => "Son 7 gün",
+        30 => "Son 30 gün",
+        _ => "Tüm zaman",
+    };
+
+    /// <summary>
+    /// Builds the daily bars, scaled to the busiest day in view.
+    ///
+    /// Scaled to the window rather than to a fixed maximum: the point of the chart is the shape of
+    /// one person's own weeks, and a scale chosen for somebody else's archive would flatten theirs
+    /// into a line.
+    /// </summary>
+    private void LoadChart()
+    {
+        Days.Clear();
+
+        if (WindowDays <= 0)
+        {
+            OnPropertyChanged(nameof(HasChart));
+            return;
+        }
+
+        var series = repository.DailyUsage(ProcessingStage.Transcribe, WindowDays);
+        var busiest = series.Max(d => d.AudioMs);
+
+        foreach (var day in series)
+        {
+            Days.Add(new DayBar(
+                day.Label,
+                day.Audio.TotalMinutes,
+                busiest > 0 ? (double)day.AudioMs / busiest : 0,
+                day.Runs));
+        }
+
+        OnPropertyChanged(nameof(HasChart));
+    }
 
     public bool HasUsage => TranscribeUsage.Runs > 0 || AnalyseUsage.Runs > 0 || AskUsage.Runs > 0;
 
@@ -345,7 +455,9 @@ public sealed partial class AiStatusViewModel(
 
     private void LoadUsage()
     {
-        var since = RecentOnly ? DateTimeOffset.UtcNow.AddDays(-30) : (DateTimeOffset?)null;
+        var since = WindowDays > 0 ? DateTimeOffset.UtcNow.AddDays(-WindowDays) : (DateTimeOffset?)null;
+
+        LoadChart();
 
         TranscribeUsage = repository.Usage(ProcessingStage.Transcribe, since);
         AnalyseUsage = repository.Usage(ProcessingStage.Analyse, since);
@@ -357,7 +469,7 @@ public sealed partial class AiStatusViewModel(
 
         foreach (var name in new[]
         {
-            nameof(WindowName), nameof(OtherWindowName), nameof(HasUsage),
+            nameof(WindowName), nameof(HasUsage), nameof(HasChart),
             nameof(TranscribeLine), nameof(SpeedLine), nameof(SpeedIsPoor),
             nameof(AnalyseLine), nameof(AskLine), nameof(FailureLine),
         })
