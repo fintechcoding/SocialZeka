@@ -367,3 +367,39 @@ public sealed class HealthHeadlineConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// A stored photo path as a drawable image, or nothing.
+///
+/// Loaded with OnLoad and a decode width, so the file on disk is never held open — a photo the
+/// image system kept locked could not be replaced or deleted, and both are ordinary actions.
+/// A file that fails to decode (corrupt, half-synced, codec missing) converts to null, and the
+/// initials avatar behind it shows instead: a broken picture must never break the window.
+/// </summary>
+public sealed class PhotoConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not string path || string.IsNullOrWhiteSpace(path)) return null;
+
+        try
+        {
+            var image = new System.Windows.Media.Imaging.BitmapImage();
+            image.BeginInit();
+            image.UriSource = new Uri(path);
+            image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            image.DecodePixelWidth = 112; // 2× the largest avatar, for high-DPI screens.
+            image.EndInit();
+            image.Freeze();
+
+            return image;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

@@ -105,6 +105,46 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _note = "";
     [ObservableProperty] private bool _noteSaved;
 
+    // ---- tags ---------------------------------------------------------------
+    //
+    // The user's own words on the conversation — "tehdit edildik", "önemli". User data, like the
+    // note: reprocessing never touches them, and the vocabulary is theirs alone.
+
+    public ObservableCollection<string> Tags { get; } = [];
+
+    [ObservableProperty] private string _newTag = "";
+
+    /// <summary>Earlier tags, most used first, so labelling stays one vocabulary, not typos.</summary>
+    public ObservableCollection<string> TagSuggestions { get; } = [];
+
+    [RelayCommand]
+    private void AddTag()
+    {
+        var tag = NewTag.Trim();
+        if (tag.Length == 0) return;
+
+        _repository.Tag(CallId, tag);
+        NewTag = "";
+
+        LoadTags();
+    }
+
+    public void RemoveTag(string tag)
+    {
+        _repository.Untag(CallId, tag);
+        LoadTags();
+    }
+
+    private void LoadTags()
+    {
+        Tags.Clear();
+        foreach (var tag in _repository.TagsOf(CallId)) Tags.Add(tag);
+
+        TagSuggestions.Clear();
+        foreach (var (tag, _) in _repository.AllTags().Take(8))
+            if (!Tags.Contains(tag)) TagSuggestions.Add(tag);
+    }
+
     /// <summary>
     /// How good the text is, and what produced it.
     ///
@@ -236,6 +276,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         Note = _repository.GetNote(CallId);
 
+        LoadTags();
         LoadQuality();
 
         OnPropertyChanged(nameof(HasSummary));

@@ -466,6 +466,24 @@ public sealed class Repository(Database database)
             "UPDATE title_binding SET contact_id = @intoContactId WHERE contact_id = @fromContactId;",
             new { intoContactId, fromContactId }, transaction);
 
+        // Profile facts follow the person. Fields simply move; for the profile row the
+        // destination's entries win where both wrote one — a merge must never overwrite what the
+        // user typed on the contact they are keeping.
+        connection.Execute(
+            "UPDATE contact_field SET contact_id = @intoContactId WHERE contact_id = @fromContactId;",
+            new { intoContactId, fromContactId }, transaction);
+
+        connection.Execute(
+            """
+            INSERT INTO contact_profile (contact_id, photo_file, birth_date, updated_at)
+            SELECT @intoContactId, photo_file, birth_date, updated_at
+            FROM contact_profile WHERE contact_id = @fromContactId
+            ON CONFLICT(contact_id) DO UPDATE SET
+                photo_file = COALESCE(contact_profile.photo_file, excluded.photo_file),
+                birth_date = COALESCE(contact_profile.birth_date, excluded.birth_date);
+            """,
+            new { intoContactId, fromContactId }, transaction);
+
         // Deleted last, once nothing points at it. ON DELETE CASCADE would otherwise take the
         // rows that were just moved.
         connection.Execute("DELETE FROM contact WHERE id = @fromContactId;", new { fromContactId }, transaction);
@@ -1252,6 +1270,126 @@ public sealed class Repository(Database database)
             "SELECT * FROM call_summary WHERE call_id = @callId;", new { callId })?.ToModel();
     }
 
+    // ---- contact profile ----------------------------------------------------
+    //
+    // User-entered facts about a person. The analysis pipeline may never write here: the ledger
+    // is the machine's, quotes and all; this is the user's, and needs none.
+
+    public ContactProfile? GetProfile(long contactId)
+    {
+        using var connection = Open();
+
+        var row = connection.QuerySingleOrDefault<(long ContactId, string? PhotoFile, string? BirthDate, string UpdatedAt)?>(
+            "SELECT contact_id, photo_file, birth_date, updated_at FROM contact_profile WHERE contact_id = @contactId;",
+            new { contactId });
+
+        if (row is not { } r) return null;
+
+        return new ContactProfile
+        {
+            ContactId = r.ContactId,
+            PhotoFile = r.PhotoFile,
+            BirthDate = r.BirthDate is null ? null : DateOnly.Parse(r.BirthDate),
+            UpdatedAt = DateTimeOffset.Parse(r.UpdatedAt),
+        };
+    }
+
+    public void SetContactPhoto(long contactId, string? photoFile)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO contact_profile (contact_id, photo_file, updated_at)
+            VALUES (@contactId, @photoFile, @now)
+            ON CONFLICT(contact_id) DO UPDATE SET
+                photo_file = excluded.photo_file, updated_at = excluded.updated_at;
+            """,
+            new { contactId, photoFile, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    public void SetBirthDate(long contactId, DateOnly? day)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO contact_profile (contact_id, birth_date, updated_at)
+            VALUES (@contactId, @day, @now)
+            ON CONFLICT(contact_id) DO UPDATE SET
+                birth_date = excluded.birth_date, updated_at = excluded.updated_at;
+            """,
+            new { contactId, day = day?.ToString("yyyy-MM-dd"), now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    public IReadOnlyList<ContactField> GetFields(long contactId)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<(long Id, long ContactId, string Label, string Value, int Position)>(
+                """
+                SELECT id, contact_id, label, value, position FROM contact_field
+                WHERE contact_id = @contactId ORDER BY position, id;
+                """,
+                new { contactId })
+                .Select(r => new ContactField
+                {
+                    Id = r.Id,
+                    ContactId = r.ContactId,
+                    Label = r.Label,
+                    Value = r.Value,
+                    Position = r.Position,
+                }),
+        ];
+    }
+
+    /// <summary>Adds a labelled fact at the end. Blank halves are refused: a fact needs both.</summary>
+    public long AddField(long contactId, string label, string value)
+    {
+        label = label.Trim();
+        value = value.Trim();
+
+        if (label.Length == 0 || value.Length == 0)
+            throw new ArgumentException("Etiket ve değer boş olamaz.");
+
+        using var connection = Open();
+
+        var next = connection.ExecuteScalar<int>(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM contact_field WHERE contact_id = @contactId;",
+            new { contactId });
+
+        return connection.ExecuteScalar<long>(
+            """
+            INSERT INTO contact_field (contact_id, label, value, position, updated_at)
+            VALUES (@contactId, @label, @value, @next, @now)
+            RETURNING id;
+            """,
+            new { contactId, label, value, next, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    public void UpdateField(long fieldId, string label, string value)
+    {
+        label = label.Trim();
+        value = value.Trim();
+
+        if (label.Length == 0 || value.Length == 0)
+            throw new ArgumentException("Etiket ve değer boş olamaz.");
+
+        using var connection = Open();
+
+        connection.Execute(
+            "UPDATE contact_field SET label = @label, value = @value, updated_at = @now WHERE id = @fieldId;",
+            new { fieldId, label, value, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    public void RemoveField(long fieldId)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM contact_field WHERE id = @fieldId;", new { fieldId });
+    }
+
     // ---- tags ---------------------------------------------------------------
     //
     // The user's own words for what a conversation was — "tehdit edildik", "önemli", anything.
@@ -1961,7 +2099,7 @@ public sealed class Repository(Database database)
     /// Cascades take care of the rows; audio lives on disk and is returned rather than deleted
     /// here so that file removal stays the caller's explicit, auditable step.
     /// </summary>
-    public DeletionResult DeleteContactCompletely(long contactId)
+    public DeletionResult DeleteContactCompletely(long contactId, string? photosDirectory = null)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
@@ -1976,6 +2114,18 @@ public sealed class Repository(Database database)
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .Select(p => p!)
             .ToList();
+
+        // "Completely" includes the face. A delete that scrubs every word but leaves the
+        // person's photo in the data folder has not kept its name.
+        var photo = connection.ExecuteScalar<string?>(
+            "SELECT photo_file FROM contact_profile WHERE contact_id = @contactId;",
+            new { contactId }, transaction);
+
+        var photoPath = photo is not null && photosDirectory is not null
+            ? Path.Combine(photosDirectory, photo)
+            : null;
+
+        if (photoPath is not null) files.Add(photoPath);
 
         // Calls cascade to segments, commitments, claims, flags and summaries, and the segment
         // triggers keep the FTS index in step.

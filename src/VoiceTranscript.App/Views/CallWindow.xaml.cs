@@ -192,6 +192,24 @@ public partial class CallWindow
         model.MarkQueued();
     }
 
+    private void RemoveTag_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is string tag) ViewModel?.RemoveTag(tag);
+
+        e.Handled = true;
+    }
+
+    private void TagBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || ViewModel is not { } model) return;
+
+        // The editable box commits its text on Enter via the binding update below.
+        if (sender is System.Windows.Controls.ComboBox box) model.NewTag = box.Text;
+
+        model.AddTagCommand.Execute(null);
+        e.Handled = true;
+    }
+
     /// <summary>Enter asks, because a single-line question box that needs the mouse is not used.</summary>
     private void Question_KeyDown(object sender, KeyEventArgs e)
     {

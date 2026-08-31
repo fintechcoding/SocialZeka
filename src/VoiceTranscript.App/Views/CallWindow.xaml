@@ -27,6 +27,45 @@
         <StackPanel Grid.Row="1" Margin="20,4,20,0">
             <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="{StaticResource TextTitle}" />
             <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
+
+            <!--
+                The user's labels on this conversation. Their vocabulary, their spelling; a click
+                on ✕ takes one off. The box suggests labels already in use so "önemli" stays one
+                tag rather than four spellings of it.
+            -->
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                <ItemsControl ItemsSource="{Binding Tags}" VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource Pill}" Margin="0,0,6,0"
+                                    Background="{Binding Converter={StaticResource NameBrush}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource PillText}" Foreground="White"
+                                               Text="{Binding}" VerticalAlignment="Center" />
+                                    <TextBlock Text="✕" FontSize="9" Foreground="White" Margin="6,0,0,0"
+                                               VerticalAlignment="Center" Cursor="Hand"
+                                               ToolTip="Etiketi kaldır"
+                                               MouseLeftButtonUp="RemoveTag_Click" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <ComboBox IsEditable="True" MinWidth="150" VerticalAlignment="Center"
+                          ItemsSource="{Binding TagSuggestions}"
+                          Text="{Binding NewTag, UpdateSourceTrigger=PropertyChanged}"
+                          ToolTip="Etiket ekle — örn. önemli, tehdit edildik"
+                          KeyDown="TagBox_KeyDown" />
+
+                <ui:Button Content="Etiketle" Margin="6,0,0,0" Padding="10,4"
+                           Command="{Binding AddTagCommand}" />
+            </StackPanel>
         </StackPanel>
 
         <TabControl Grid.Row="2" Margin="20,14,20,0" Padding="0,14,0,0"

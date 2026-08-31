@@ -317,6 +317,39 @@ public static class Schema
         """,
         "CREATE INDEX IF NOT EXISTS ix_call_tag ON call_tag(tag_folded);",
 
+        // What the user knows about a person: photo, birth date, and free-form labelled facts.
+        //
+        // USER-ENTERED ONLY. Nothing in the analysis pipeline may write these tables. The ledger
+        // holds what the machine heard, each claim with its quote; this holds what the user typed,
+        // which needs no quote because they are its source. The two must never mix — a birthday
+        // "extracted" from a call would be the application asserting things about people, which is
+        // exactly what this product refuses to do.
+        //
+        // Photo and birth date are fixed columns because the application computes with them
+        // (file lifecycle, upcoming-day arithmetic). Everything else is label+value rows: nobody
+        // can enumerate in advance what somebody wants to remember about an acquaintance, and
+        // with no ALTER TABLE machinery every future fixed column would cost another table anyway.
+        """
+        CREATE TABLE IF NOT EXISTS contact_profile (
+            contact_id INTEGER PRIMARY KEY REFERENCES contact(id) ON DELETE CASCADE,
+            photo_file TEXT,
+            birth_date TEXT,
+            updated_at TEXT NOT NULL
+        );
+        """,
+
+        """
+        CREATE TABLE IF NOT EXISTS contact_field (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            contact_id INTEGER NOT NULL REFERENCES contact(id) ON DELETE CASCADE,
+            label      TEXT    NOT NULL,
+            value      TEXT    NOT NULL,
+            position   INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_field_contact ON contact_field(contact_id, position);",
+
         // What each piece of work cost.
         //
         // The question this answers is one the application could not answer at all: how long

@@ -487,7 +487,7 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
     {
         if (SelectedContact is not { } row) return null;
 
-        var result = repository.DeleteContactCompletely(row.Contact.Id);
+        var result = repository.DeleteContactCompletely(row.Contact.Id, App.Paths.Photos);
 
         SelectedContact = null;
         Refresh();

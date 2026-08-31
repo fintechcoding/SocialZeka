@@ -39,6 +39,7 @@
             <local:SearchPeriodNameConverter x:Key="PeriodName" />
             <local:BrushFromKeyConverter x:Key="BrushFromKey" />
             <local:HealthHeadlineConverter x:Key="HealthHeadline" />
+            <local:PhotoConverter x:Key="Photo" />
 
         </ResourceDictionary>
     </Application.Resources>

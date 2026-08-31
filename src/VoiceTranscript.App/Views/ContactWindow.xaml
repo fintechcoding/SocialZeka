@@ -37,11 +37,24 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Style="{StaticResource Avatar}" Margin="0,0,16,0"
-                        Background="{Binding Name, Converter={StaticResource NameBrush}}">
-                    <TextBlock Style="{StaticResource AvatarText}"
-                               Text="{Binding Name, Converter={StaticResource Initials}}" />
-                </Border>
+                <!-- The photo when the user gave one, initials otherwise. The photo is a copy the
+                     archive owns — never a reference into somebody's Downloads folder. -->
+                <Grid Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                    <Border Style="{StaticResource Avatar}" Width="52" Height="52" CornerRadius="26"
+                            Background="{Binding Name, Converter={StaticResource NameBrush}}"
+                            Visibility="{Binding HasPhoto, Converter={StaticResource InverseBoolToVisibility}}">
+                        <TextBlock Style="{StaticResource AvatarText}" FontSize="18"
+                                   Text="{Binding Name, Converter={StaticResource Initials}}" />
+                    </Border>
+
+                    <Border Width="52" Height="52" CornerRadius="26"
+                            Visibility="{Binding HasPhoto, Converter={StaticResource BoolToVisibility}}">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding PhotoPath, Converter={StaticResource Photo}}"
+                                        Stretch="UniformToFill" />
+                        </Border.Background>
+                    </Border>
+                </Grid>
 
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
@@ -53,6 +66,9 @@
                     </StackPanel>
 
                     <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Caption}" Margin="0,4,0,0" />
+
+                    <TextBlock Text="{Binding BirthdayLine}" Style="{StaticResource Caption}" Margin="0,2,0,0"
+                               Visibility="{Binding BirthdayLine, Converter={StaticResource NullToCollapsed}}" />
                 </StackPanel>
 
                 <ui:Button Grid.Column="2" Content="Yenile" Appearance="Transparent"
@@ -70,10 +86,46 @@
             <!-- ================= the conversations ================= -->
             <TabItem Header="Görüşmeler">
                 <Grid>
-                    <ListBox Style="{StaticResource CleanList}" ItemsSource="{Binding Calls}"
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!--
+                        Finding one conversation among months of them.
+
+                        A date picker that jumps, and a tag filter fed only by the labels this
+                        person's conversations actually carry — a list of everybody's tags here
+                        would mostly offer empty results.
+                    -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="4,0,4,10">
+                        <DatePicker x:Name="JumpDate" Width="140" VerticalAlignment="Center"
+                                    SelectedDateChanged="JumpDate_Changed"
+                                    ToolTip="Bu tarihe en yakın görüşmeye git" />
+
+                        <ComboBox ItemsSource="{Binding TagChoices}" SelectedItem="{Binding TagFilter}"
+                                  MinWidth="130" Margin="8,0,0,0" VerticalAlignment="Center"
+                                  ToolTip="Yalnızca bu etiketi taşıyan görüşmeler" />
+
+                        <TextBlock Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="14,0,0,0"
+                                   Text="{Binding Calls.Count, StringFormat='{}{0} görüşme listede'}" />
+                    </StackPanel>
+
+                    <ListBox Grid.Row="1" x:Name="CallList"
+                             Style="{StaticResource CleanList}" ItemsSource="{Binding CallsView}"
                              MouseDoubleClick="CallRow_DoubleClick"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              Visibility="{Binding HasCalls, Converter={StaticResource BoolToVisibility}}">
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource GroupHeader}"
+                                                   Margin="4,10,0,2" />
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="4,8">
@@ -96,8 +148,28 @@
                                                            Visibility="{Binding HasNote, Converter={StaticResource BoolToVisibility}}" />
                                         </StackPanel>
 
-                                        <TextBlock Text="{Binding State}" Style="{StaticResource Caption}"
-                                                   Margin="0,2,0,0" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                            <TextBlock Text="{Binding State}" Style="{StaticResource Caption}"
+                                                       VerticalAlignment="Center" />
+                                            <ItemsControl ItemsSource="{Binding Tags}" Margin="6,0,0,0"
+                                                          VerticalAlignment="Center"
+                                                          Visibility="{Binding HasTags, Converter={StaticResource BoolToVisibility}}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Style="{StaticResource Pill}" Margin="4,0,0,0"
+                                                                Background="{Binding Converter={StaticResource NameBrush}}">
+                                                            <TextBlock Style="{StaticResource PillText}"
+                                                                       Foreground="White" Text="{Binding}" />
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
                                     </StackPanel>
 
                                     <TextBlock Grid.Column="1" Text="{Binding LedgerText}" Margin="12,0"
@@ -112,7 +184,7 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <StackPanel Style="{StaticResource EmptyState}"
+                    <StackPanel Grid.Row="1" Style="{StaticResource EmptyState}"
                                 Visibility="{Binding HasCalls, Converter={StaticResource InverseBoolToVisibility}}">
                         <TextBlock Style="{StaticResource EmptyTitle}" Text="Bu kişiye ait kayıtlı görüşme yok." />
                     </StackPanel>
@@ -273,6 +345,109 @@
                                    Command="{Binding SaveNoteCommand}" />
                     </StackPanel>
                 </Grid>
+            </TabItem>
+
+            <!-- ================= the profile ================= -->
+            <TabItem Header="Hakkında">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+
+                        <!-- The rule, stated where it applies. -->
+                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"
+                                   Text="Bu bilgileri sen girersin. Uygulama kişiler hakkında kendiliğinden hiçbir şey yazmaz; konuşmalardan çıkanlar alıntılarıyla Defter'de durur." />
+
+                        <TextBlock Text="Fotoğraf" Style="{StaticResource GroupHeader}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,18">
+                            <Grid Margin="0,0,14,0">
+                                <Border Style="{StaticResource Avatar}" Width="72" Height="72" CornerRadius="36"
+                                        Background="{Binding Name, Converter={StaticResource NameBrush}}"
+                                        Visibility="{Binding HasPhoto, Converter={StaticResource InverseBoolToVisibility}}">
+                                    <TextBlock Style="{StaticResource AvatarText}" FontSize="24"
+                                               Text="{Binding Name, Converter={StaticResource Initials}}" />
+                                </Border>
+                                <Border Width="72" Height="72" CornerRadius="36"
+                                        Visibility="{Binding HasPhoto, Converter={StaticResource BoolToVisibility}}">
+                                    <Border.Background>
+                                        <ImageBrush ImageSource="{Binding PhotoPath, Converter={StaticResource Photo}}"
+                                                    Stretch="UniformToFill" />
+                                    </Border.Background>
+                                </Border>
+                            </Grid>
+
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:Button Content="Fotoğraf seç" Click="PickPhoto_Click" />
+                                    <ui:Button Content="Kaldır" Margin="8,0,0,0" Appearance="Secondary"
+                                               Command="{Binding RemovePhotoCommand}"
+                                               Visibility="{Binding HasPhoto, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Text="Dosya arşive kopyalanır ve küçültülür; konum gibi gizli veriler (EXIF) atılır." />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Text="Doğum tarihi" Style="{StaticResource GroupHeader}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,18">
+                            <DatePicker SelectedDate="{Binding BirthDatePick}" Width="160" />
+                            <TextBlock Text="{Binding BirthdayLine}" Style="{StaticResource Caption}"
+                                       VerticalAlignment="Center" Margin="12,0,0,0" />
+                        </StackPanel>
+
+                        <TextBlock Text="Bilgiler" Style="{StaticResource GroupHeader}" />
+
+                        <ItemsControl ItemsSource="{Binding Fields}" Margin="0,4,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource HoverCard}" Padding="12,9">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"
+                                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+
+                                            <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6,4"
+                                                       ToolTip="Bu bilgiyi sil" Click="RemoveField_Click">
+                                                <ui:SymbolIcon Symbol="Dismiss24" FontSize="12" />
+                                            </ui:Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0"
+                                   Text="Henüz bilgi yok. Etiket ve değer yazıp ekle — örneğin 'Meslek: Mimar'."
+                                   Visibility="{Binding HasFields, Converter={StaticResource InverseBoolToVisibility}}" />
+
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <ui:TextBox Grid.Column="0" PlaceholderText="Etiket"
+                                        Text="{Binding NewFieldLabel, UpdateSourceTrigger=PropertyChanged}" />
+                            <ui:TextBox Grid.Column="1" PlaceholderText="Değer" Margin="8,0"
+                                        Text="{Binding NewFieldValue, UpdateSourceTrigger=PropertyChanged}" />
+                            <ui:Button Grid.Column="2" Content="Ekle" Appearance="Primary"
+                                       Command="{Binding AddFieldCommand}" />
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,20" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                   Text="{Binding ProfileMessage}"
+                                   Visibility="{Binding ProfileMessage, Converter={StaticResource NullToCollapsed}}" />
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
     </Grid>

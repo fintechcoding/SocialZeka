@@ -95,4 +95,44 @@ public partial class ContactWindow
         model.SearchCommand.Execute(null);
         e.Handled = true;
     }
+
+    /// <summary>
+    /// Scrolls to the conversation nearest the picked day.
+    ///
+    /// A jump, not a filter: filtering to one day usually shows nothing and looks like data loss.
+    /// Landing beside the date keeps the neighbours in view, which is how remembering works —
+    /// "it was around that week".
+    /// </summary>
+    private void JumpDate_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (ViewModel is not { } model || JumpDate.SelectedDate is not { } picked) return;
+        if (model.Calls.Count == 0) return;
+
+        var target = model.Calls
+            .OrderBy(c => Math.Abs((c.Call.StartedAt.LocalDateTime.Date - picked.Date).TotalDays))
+            .First();
+
+        CallList.SelectedItem = target;
+        CallList.ScrollIntoView(target);
+    }
+
+    /// <summary>Brings a photo in. The dialog's filter is honest about what can be decoded.</summary>
+    private void PickPhoto_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } model) return;
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Kişi fotoğrafı seç",
+            Filter = "Resimler|*.jpg;*.jpeg;*.png;*.bmp;*.gif|Tüm dosyalar|*.*",
+        };
+
+        if (dialog.ShowDialog() == true) model.SetPhoto(dialog.FileName);
+    }
+
+    private void RemoveField_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is Core.Domain.ContactField field)
+            ViewModel?.RemoveField(field);
+    }
 }

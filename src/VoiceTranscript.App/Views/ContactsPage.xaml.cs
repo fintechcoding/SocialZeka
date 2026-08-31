@@ -63,7 +63,7 @@ public partial class ContactsPage
 
         ContactWindow.Show(
             Window.GetWindow(this),
-            new ViewModels.ContactWindowViewModel(App.Repository, contact.Contact.Id));
+            new ViewModels.ContactWindowViewModel(App.Repository, contact.Contact.Id, App.Paths.Photos));
     }
 
     /// <summary>

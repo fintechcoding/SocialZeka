@@ -8,11 +8,18 @@ using VoiceTranscript.Core.Storage;
 namespace VoiceTranscript.App.ViewModels;
 
 /// <summary>One of this person's conversations, as the window lists it.</summary>
-public sealed record ContactCall(Call Call, int SegmentCount, bool HasNote, int LedgerEntries)
+public sealed record ContactCall(
+    Call Call, int SegmentCount, bool HasNote, int LedgerEntries, IReadOnlyList<string> Tags)
 {
     public long Id => Call.Id;
 
     public string When => Call.StartedAt.ToLocalTime().ToString("d MMMM yyyy, HH:mm");
+
+    /// <summary>The month heading this row sits under. Months, because a person talked with for
+    /// years produces a list where day headings would outnumber the rows.</summary>
+    public string Month => Call.StartedAt.ToLocalTime().ToString("MMMM yyyy");
+
+    public bool HasTags => Tags.Count > 0;
 
     public string Length => $"{(int)Call.Duration.TotalMinutes:00}:{Call.Duration.Seconds:00}";
 
@@ -77,14 +84,26 @@ public sealed record ContactHit(SearchHit Hit)
 public sealed partial class ContactWindowViewModel : ObservableObject
 {
     private readonly Repository _repository;
+    private readonly string _photosDirectory;
 
-    public ContactWindowViewModel(Repository repository, long contactId)
+    public ContactWindowViewModel(Repository repository, long contactId, string? photosDirectory = null)
     {
         _repository = repository;
+        _photosDirectory = photosDirectory ?? "";
         ContactId = contactId;
+
+        // Month headings over the live collection: the view regroups itself as rows change, so
+        // filtering by tag keeps its headings without any bookkeeping here.
+        var view = new System.Windows.Data.ListCollectionView(Calls);
+        view.GroupDescriptions.Add(
+            new System.Windows.Data.PropertyGroupDescription(nameof(ContactCall.Month)));
+        CallsView = view;
 
         Load();
     }
+
+    /// <summary>The call list as the window shows it: grouped under month headings.</summary>
+    public System.ComponentModel.ICollectionView CallsView { get; }
 
     public long ContactId { get; }
 
@@ -104,6 +123,40 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
     [ObservableProperty] private string _note = "";
     [ObservableProperty] private bool _noteSaved = true;
+
+    // ---- profile: what the user knows about this person ---------------------
+    //
+    // Everything below is user-entered. The pipeline never writes it; the caption on the tab
+    // says so, because the distinction is the product's spine: the ledger is the machine's,
+    // quotes and all — this is the user's, and needs none.
+
+    /// <summary>Absolute path of the stored photo, or null for the initials avatar.</summary>
+    [ObservableProperty] private string? _photoPath;
+
+    public bool HasPhoto => PhotoPath is not null;
+
+    [ObservableProperty] private DateTime? _birthDatePick;
+
+    /// <summary>"14 Mart 1988 · 38 yaşında · 12 gün sonra doğum günü", from the user's own entry.</summary>
+    [ObservableProperty] private string? _birthdayLine;
+
+    [ObservableProperty] private string? _profileMessage;
+
+    public ObservableCollection<ContactField> Fields { get; } = [];
+
+    public bool HasFields => Fields.Count > 0;
+
+    [ObservableProperty] private string _newFieldLabel = "";
+    [ObservableProperty] private string _newFieldValue = "";
+
+    // ---- tag filter over the call list --------------------------------------
+
+    /// <summary>"Hepsi" plus every tag this person's conversations carry.</summary>
+    public ObservableCollection<string> TagChoices { get; } = [];
+
+    [ObservableProperty] private string _tagFilter = AllTags;
+
+    public const string AllTags = "Hepsi";
 
     public bool HasCalls => Calls.Count > 0;
     public bool HasHits => Hits.Count > 0;
@@ -130,17 +183,58 @@ public sealed partial class ContactWindowViewModel : ObservableObject
                   ? $" · {first.ToLocalTime():d MMM yyyy} – {last.ToLocalTime():d MMM yyyy}"
                   : "");
 
+        LoadProfile();
         LoadCalls();
         LoadLedger();
+    }
+
+    private void LoadProfile()
+    {
+        var profile = _repository.GetProfile(ContactId);
+
+        PhotoPath = Services.ContactPhotoStore.PathFor(profile?.PhotoFile, _photosDirectory);
+        BirthDatePick = profile?.BirthDate?.ToDateTime(TimeOnly.MinValue);
+        BirthdayLine = BirthdayLineFor(profile?.BirthDate, DateOnly.FromDateTime(DateTime.Today));
+
+        Fields.Clear();
+        foreach (var field in _repository.GetFields(ContactId)) Fields.Add(field);
+
+        OnPropertyChanged(nameof(HasPhoto));
+        OnPropertyChanged(nameof(HasFields));
+    }
+
+    /// <summary>All arithmetic from the user's own entry — the application infers nothing.</summary>
+    public static string? BirthdayLineFor(DateOnly? birth, DateOnly today)
+    {
+        if (birth is not { } day) return null;
+
+        var age = today.Year - day.Year;
+        var thisYears = new DateOnly(today.Year, day.Month, Math.Min(day.Day, DateTime.DaysInMonth(today.Year, day.Month)));
+
+        if (thisYears > today) age--;
+
+        var next = thisYears >= today
+            ? thisYears
+            : new DateOnly(today.Year + 1, day.Month, Math.Min(day.Day, DateTime.DaysInMonth(today.Year + 1, day.Month)));
+
+        var away = next.DayNumber - today.DayNumber;
+
+        var line = $"{day:d MMMM yyyy} · {age} yaşında";
+
+        if (away == 0) return line + " · bugün doğum günü 🎂";
+        if (away <= 30) return line + $" · {away} gün sonra doğum günü";
+
+        return line;
     }
 
     private void LoadCalls()
     {
         var calls = _repository.ListCalls(ContactId, limit: 200);
 
-        // One query for the notes and one for the ledger, then grouped here. A query per row would
-        // be two hundred round trips every time the window opens.
+        // One query for the notes, one for the ledger, one for the tags, then grouped here.
+        // A query per row would be two hundred round trips every time the window opens.
         var withNotes = _repository.CallsWithNotes(calls.Select(c => c.Id));
+        var tags = _repository.TagsOf(calls.Select(c => c.Id));
 
         var ledger = _repository.GetFlags(ContactId)
             .GroupBy(f => f.CallId)
@@ -148,17 +242,43 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
         Calls.Clear();
 
+        var wanted = TagFilter;
+
         foreach (var call in calls)
         {
+            var callTags = tags.GetValueOrDefault(call.Id, []);
+
+            if (wanted != AllTags && !callTags.Contains(wanted)) continue;
+
             Calls.Add(new ContactCall(
                 call,
                 _repository.CountSegments(call.Id),
                 withNotes.Contains(call.Id),
-                ledger.GetValueOrDefault(call.Id)));
+                ledger.GetValueOrDefault(call.Id),
+                callTags));
+        }
+
+        // The filter list holds what this person's conversations actually carry — offering the
+        // whole archive's vocabulary here would mostly offer empty results.
+        var choices = tags.Values.SelectMany(t => t).Distinct().OrderBy(t => t).ToList();
+
+        TagChoices.Clear();
+        TagChoices.Add(AllTags);
+        foreach (var tag in choices) TagChoices.Add(tag);
+
+        // Written to the field on purpose: going through the property would re-enter LoadCalls.
+        if (!TagChoices.Contains(TagFilter))
+        {
+#pragma warning disable MVVMTK0034
+            _tagFilter = AllTags;
+#pragma warning restore MVVMTK0034
+            OnPropertyChanged(nameof(TagFilter));
         }
 
         OnPropertyChanged(nameof(HasCalls));
     }
+
+    partial void OnTagFilterChanged(string value) => LoadCalls();
 
     private void LoadLedger()
     {
@@ -232,6 +352,70 @@ public sealed partial class ContactWindowViewModel : ObservableObject
     }
 
     partial void OnNoteChanged(string value) => NoteSaved = false;
+
+    // ---- profile commands ---------------------------------------------------
+
+    /// <summary>Brings a picked photo in: copied, shrunk, EXIF stripped. Never referenced in place.</summary>
+    public void SetPhoto(string sourcePath)
+    {
+        var old = _repository.GetProfile(ContactId)?.PhotoFile;
+
+        var stored = Services.ContactPhotoStore.Import(sourcePath, ContactId, _photosDirectory);
+
+        if (stored is null)
+        {
+            ProfileMessage = "Fotoğraf okunamadı. Başka bir dosya dene.";
+            return;
+        }
+
+        _repository.SetContactPhoto(ContactId, stored);
+        Services.ContactPhotoStore.Delete(old, _photosDirectory);
+
+        ProfileMessage = null;
+        LoadProfile();
+    }
+
+    [RelayCommand]
+    private void RemovePhoto()
+    {
+        var old = _repository.GetProfile(ContactId)?.PhotoFile;
+
+        _repository.SetContactPhoto(ContactId, null);
+        Services.ContactPhotoStore.Delete(old, _photosDirectory);
+
+        LoadProfile();
+    }
+
+    partial void OnBirthDatePickChanged(DateTime? value)
+    {
+        _repository.SetBirthDate(ContactId, value is { } day ? DateOnly.FromDateTime(day) : null);
+        BirthdayLine = BirthdayLineFor(
+            value is { } d ? DateOnly.FromDateTime(d) : null, DateOnly.FromDateTime(DateTime.Today));
+    }
+
+    [RelayCommand]
+    private void AddField()
+    {
+        if (string.IsNullOrWhiteSpace(NewFieldLabel) || string.IsNullOrWhiteSpace(NewFieldValue))
+        {
+            ProfileMessage = "Etiket ve değer birlikte gerekir — örneğin 'Meslek: Mimar'.";
+            return;
+        }
+
+        _repository.AddField(ContactId, NewFieldLabel, NewFieldValue);
+
+        NewFieldLabel = "";
+        NewFieldValue = "";
+        ProfileMessage = null;
+
+        LoadProfile();
+    }
+
+    public void RemoveField(ContactField field)
+    {
+        _repository.RemoveField(field.Id);
+        LoadProfile();
+    }
 
     /// <summary>Reloads after something changed elsewhere — a reprocess, a moved call.</summary>
     [RelayCommand]
