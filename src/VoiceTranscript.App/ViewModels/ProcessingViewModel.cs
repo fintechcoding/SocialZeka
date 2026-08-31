@@ -106,6 +106,60 @@ public sealed partial class ProcessingViewModel(Repository repository) : Observa
 
     [ObservableProperty] private string? _notice;
 
+    /// <summary>Which recording is being worked on right now, and how far along it is.</summary>
+    [ObservableProperty] private long? _activeCallId;
+
+    [ObservableProperty] private string? _activeStage;
+    [ObservableProperty] private double _activePercent;
+    [ObservableProperty] private bool _hasActivePercent;
+
+    public bool IsWorkingOnSomething => ActiveCallId is not null;
+
+    /// <summary>
+    /// Records where the current job has got to.
+    ///
+    /// Held here rather than pushed into the row objects because a row is a record and replacing
+    /// it on every progress tick would rebuild the list several times a second — which flickers,
+    /// loses the selection, and costs far more than it shows.
+    /// </summary>
+    public void ReportProgress(long callId, string stage, double? percent)
+    {
+        ActiveCallId = callId;
+        ActiveStage = stage;
+        HasActivePercent = percent is not null;
+        ActivePercent = percent ?? 0;
+
+        OnPropertyChanged(nameof(IsWorkingOnSomething));
+        OnPropertyChanged(nameof(ActiveLine));
+    }
+
+    /// <summary>Clears the live line once nothing is being worked on.</summary>
+    public void ClearProgress()
+    {
+        ActiveCallId = null;
+        ActiveStage = null;
+        HasActivePercent = false;
+
+        OnPropertyChanged(nameof(IsWorkingOnSomething));
+        OnPropertyChanged(nameof(ActiveLine));
+    }
+
+    /// <summary>One line saying what is happening, for the strip above the list.</summary>
+    public string ActiveLine
+    {
+        get
+        {
+            if (ActiveCallId is not { } id) return "";
+
+            var who = Rows.FirstOrDefault(r => r.Id == id)?.ContactName;
+            var stage = ActiveStage ?? "İşleniyor";
+
+            var line = who is null ? stage : $"{who} · {stage}";
+
+            return HasActivePercent ? $"{line} — %{ActivePercent * 100:0}" : line;
+        }
+    }
+
     /// <summary>Raised when something needs the shell — reprocessing goes through the orchestrator.</summary>
     public event EventHandler<IReadOnlyList<long>>? ReprocessRequested;
 

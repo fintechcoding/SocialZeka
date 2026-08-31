@@ -221,6 +221,23 @@ public partial class App : Application
         database.Migrate();
         Repository = new Repository(database);
 
+        // Counters that could already be wrong are corrected once, here.
+        //
+        // Moving a call between contacts used to recalculate only the destination, so the contact
+        // it was taken from went on counting it. Fixing the code does not fix the rows already
+        // written, and a contact saying "1 görüşme" above a list of nine is the archive stating
+        // something the user can see is false — which costs them their trust in the rest of it.
+        try
+        {
+            var corrected = Repository.RecountAllContacts();
+            if (corrected > 0) AppLog.Write("veri", $"{corrected} kişinin görüşme sayacı düzeltildi");
+        }
+        catch (Exception repair)
+        {
+            // Housekeeping. It must never be the reason the application does not start.
+            AppLog.Error("veri", repair, "kişi sayaçları düzeltilemedi");
+        }
+
         WorkerDirectory = ResolveWorkerDirectory();
         Setup = new EnvironmentSetup(Paths);
         Hardware = new HardwareProbe(Paths, Setup, WorkerDirectory);

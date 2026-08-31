@@ -206,7 +206,7 @@ Kod incelemesinde üç ayrı kusurun üst üste bindiği görüldü. Üçü de t
   topluyor. Eksik olan tek şey, canlı yolun da aynı kuyruğu kullanması. Böylece GPU sırası
   yalnızca işlemeyi yavaşlatır, kaydı ve kullanıcı akışını değil.
 
-- [ ] **1.6 — İşleme durumu görünür olsun.** Uzun süren bir işlemenin sessizce sürmesi
+- [x] **1.6 — İşleme durumu görünür olsun.** Uzun süren bir işlemenin sessizce sürmesi
   "bir şey olmuyor" hissi veriyor. Hangi görüşmenin hangi aşamada olduğu (sırada / yazıya
   dökülüyor / çözümleniyor), kaç tanesinin beklediği ve kabaca ne kadar kaldığı ana ekranda
   görünsün. `RecentCall.Status` (`OverviewViewModel.cs:80`) bunun bir kısmını zaten üretiyor;
@@ -263,7 +263,7 @@ olur — bu sesi yazıya dönüştürme süreçlerinde bir yerlerde lazım olabi
   K3 ile birleşince kendi kendini besliyor: sessiz yeniden kuyruk → her açılışta yeniden işleme →
   her seferinde defter büyüyor. Devam edebilirlik bunu düzeltmeden eklenemez.
 
-- [ ] **1b.5 — İlerleme ekranı.** Üç `progress: null` çağrısından ekrana kadar tam yol.
+- [x] **1b.5 — İlerleme ekranı.** Üç `progress: null` çağrısından ekrana kadar tam yol.
   Göstermesi gerekenler: hangi aşama (yükleniyor / mikrofon / karşı taraf / birleştirme /
   çözümleniyor), yüzde, **kaçıncı parça / kaç parça**, kuyrukta kaç iş var, kabaca ne kadar kaldı.
   ⚠️ Tespit iş parçacığını **asla** bloke etmemeli (§1.4 zincir A'nın sebebi tam olarak buydu).

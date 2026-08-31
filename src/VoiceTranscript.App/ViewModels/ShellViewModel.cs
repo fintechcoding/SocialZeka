@@ -101,6 +101,17 @@ public sealed partial class ShellViewModel : ObservableObject
         orchestrator.StateChanged += (_, state) => OnUi(() => OnStateChanged(state));
         orchestrator.Notice += (_, message) => OnUi(() => Notice = message);
         orchestrator.CallFinished += (_, _) => OnUi(RefreshAll);
+
+        // Straight through to the screen, on the UI thread. The worker reports several times a
+        // second while transcribing, so this must not do anything expensive — it sets four fields.
+        orchestrator.ProgressChanged += (_, p) =>
+            OnUi(() => Processing.ReportProgress(p.CallId, p.Stage, p.Percent));
+
+        orchestrator.CallProcessed += (_, _) => OnUi(() =>
+        {
+            Processing.ClearProgress();
+            Processing.Refresh();
+        });
         orchestrator.LevelChanged += (_, levels) => OnUi(() => SetLevels(levels.Mic, levels.Far));
 
         RefreshAll();

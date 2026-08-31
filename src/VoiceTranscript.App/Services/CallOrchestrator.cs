@@ -52,6 +52,12 @@ public sealed record CallProcessed(
     bool Succeeded,
     string? Failure);
 
+/// <summary>Where the recording being processed has got to.</summary>
+/// <param name="CallId">Which recording, so a screen can put the bar on the right row.</param>
+/// <param name="Stage">What is happening, in Turkish, ready to show.</param>
+/// <param name="Percent">0 to 1 when it is known. Null for work that cannot report a fraction.</param>
+public sealed record CallProgress(long CallId, string Stage, double? Percent);
+
 /// <summary>
 /// The background loop that ties everything together.
 ///
@@ -127,6 +133,50 @@ public sealed class CallOrchestrator : IDisposable
 
     /// <summary>Raised when a recording has finished being transcribed and analysed, or has failed.</summary>
     public event EventHandler<CallProcessed>? CallProcessed;
+
+    /// <summary>
+    /// How far along the recording currently being processed is.
+    ///
+    /// This was produced end to end and thrown away. The Python worker emits a stage and a
+    /// percentage for every chunk, the protocol parses it, and the host and the analysis pipeline
+    /// both accept an <see cref="IProgress{T}"/> — and all three call sites passed null, so none of
+    /// it reached a screen.
+    ///
+    /// That is worst exactly where it is needed most. Without a usable graphics card, transcription
+    /// runs several times slower than real time: a long conversation is worked on for the better
+    /// part of an hour, and with nothing on screen saying so, an application that is working looks
+    /// identical to one that has hung.
+    /// </summary>
+    public event EventHandler<CallProgress>? ProgressChanged;
+
+    /// <summary>
+    /// Turns the worker's stage name into something worth putting on a screen.
+    ///
+    /// The worker speaks in the terms it works in — "mic", "far", "merge" — which are meaningful
+    /// to whoever wrote it and to nobody else. What the user needs to know is which half of the
+    /// conversation is being worked on, because that is what tells them roughly how much is left.
+    /// </summary>
+    private static string StageName(string stage) => stage switch
+    {
+        "loading" => "Model yükleniyor",
+        "mic" => "Senin sesin yazıya dökülüyor",
+        "far" => "Karşı tarafın sesi yazıya dökülüyor",
+        "merge" => "Birleştiriliyor",
+        "download" => "Model indiriliyor",
+        _ => "Yazıya dökülüyor",
+    };
+
+    private void Report(long callId, string stage, double? percent = null)
+    {
+        try
+        {
+            ProgressChanged?.Invoke(this, new CallProgress(callId, stage, percent));
+        }
+        catch (Exception e)
+        {
+            AppLog.Error("işleme", e, "ilerleme bildirilemedi");
+        }
+    }
 
     public event EventHandler<string>? Notice;
 
@@ -881,7 +931,7 @@ public sealed class CallOrchestrator : IDisposable
                     MicPath = call.MicPath,
                     FarPath = call.FarPath,
                     CacheDir = _paths.Models,
-                }, progress: null, cancellationToken);
+                }, progress: new Progress<Core.Asr.WorkerProgress>(p => Report(call.Id, StageName(p.Stage), p.Percent / 100.0)), cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -930,7 +980,7 @@ public sealed class CallOrchestrator : IDisposable
                 MicPath = call.MicPath,
                 FarPath = call.FarPath,
                 CacheDir = _paths.Models,
-            }, progress: null, cancellationToken);
+            }, progress: new Progress<Core.Asr.WorkerProgress>(p => Report(call.Id, StageName(p.Stage), p.Percent / 100.0)), cancellationToken);
 
         _repository.ReplaceSegments(call.Id, result.Segments.Select(s => new CoreSegment
         {
@@ -971,7 +1021,7 @@ public sealed class CallOrchestrator : IDisposable
                 // Only a local backend holds the GPU this machine needs back for Whisper.
                 UnloadWhenDone = !settings.Provider.SendsDataOffMachine,
             },
-            progress: null,
+            progress: new Progress<string>(stage => Report(callId, stage)),
             cancellationToken);
 
         // A model whose quotes mostly cannot be found is not producing usable evidence, and the

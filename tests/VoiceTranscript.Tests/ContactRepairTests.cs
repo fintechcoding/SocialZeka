@@ -151,6 +151,45 @@ public sealed class ContactRepairTests : IDisposable
         Assert.Equal(1, _repo.GetContact(serdal)!.CallCount);
     }
 
+    /// <summary>
+    /// Counters already written wrong are corrected on the next start.
+    ///
+    /// Fixing the move operation does not fix the rows a broken move already produced, and the
+    /// symptom is one the user sees immediately: a contact whose row says "1 görüşme" above a list
+    /// of nine. That is the archive stating something visibly false, which costs it trust that the
+    /// rest of the screen depends on.
+    /// </summary>
+    [Fact]
+    public void CountersAlreadyWrittenWrongAreCorrected()
+    {
+        var uliana = _repo.UpsertContact("Uliana", CallApp.WhatsApp);
+
+        // The damage, produced the way the application produces it: a call is inserted already
+        // pointing at a contact, and InsertCall does not touch the counter — only AssignContact
+        // does. That is exactly the shape a recorded call takes when the title resolver already
+        // knew who it was, so the counter was only ever right by the accident of somebody
+        // labelling it afterwards.
+        for (var i = 0; i < 9; i++) Call(uliana, $"2026-08-{20 + i:00}T09:00:00+03:00");
+
+        Assert.Equal(0, _repo.GetContact(uliana)!.CallCount);
+        Assert.Equal(9, _repo.ListCalls(uliana).Count);
+
+        Assert.Equal(1, _repo.RecountAllContacts());
+
+        Assert.Equal(9, _repo.GetContact(uliana)!.CallCount);
+    }
+
+    /// <summary>Nothing to fix means nothing is written, so this is safe to run on every start.</summary>
+    [Fact]
+    public void CorrectCountersAreLeftAlone()
+    {
+        var serdal = _repo.UpsertContact("Serdal", CallApp.WhatsApp);
+        var call = Call(serdal);
+        _repo.AssignContact(call, serdal);
+
+        Assert.Equal(0, _repo.RecountAllContacts());
+    }
+
     // ---- the binding that caused it -----------------------------------------
 
     /// <summary>

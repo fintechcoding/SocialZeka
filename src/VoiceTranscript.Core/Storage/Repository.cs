@@ -319,6 +319,33 @@ public sealed class Repository(Database database)
             $"SELECT COUNT(*) FROM {table} WHERE call_id = @callId;", new { callId }));
     }
 
+    /// <summary>
+    /// Recomputes every contact's counters from the calls themselves.
+    ///
+    /// Run once at startup, because these counters can already be wrong on a database that exists
+    /// today. Until recently, moving a call between contacts recalculated only the destination, so
+    /// the contact it was taken from went on counting it. A contact row saying "1 görüşme" above a
+    /// list of nine is not a cosmetic problem: it is the archive stating something the user can
+    /// see is false, and that costs them their trust in everything else on the screen.
+    ///
+    /// Cheap enough to be unconditional. The call table is small by construction — a few thousand
+    /// rows after years of use — and this is one grouped scan of it.
+    /// </summary>
+    /// <returns>How many contacts were actually wrong.</returns>
+    public int RecountAllContacts()
+    {
+        using var connection = Open();
+
+        return connection.Execute(
+            """
+            UPDATE contact SET
+                call_count   = (SELECT COUNT(*)         FROM call WHERE call.contact_id = contact.id),
+                last_call_at = (SELECT MAX(started_at)  FROM call WHERE call.contact_id = contact.id)
+            WHERE call_count   IS NOT (SELECT COUNT(*)        FROM call WHERE call.contact_id = contact.id)
+               OR last_call_at IS NOT (SELECT MAX(started_at) FROM call WHERE call.contact_id = contact.id);
+            """);
+    }
+
     /// <summary>Recomputes a contact's denormalised counters from the calls themselves.</summary>
     private static void Recount(
         Microsoft.Data.Sqlite.SqliteConnection connection,

@@ -12,6 +12,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -62,7 +63,32 @@
             </Border>
         </Grid>
 
-        <Grid Grid.Row="1" Margin="0,0,0,12">
+        <!--
+            What is happening right now.
+
+            Only visible while something is being worked on, and it is the reason the rest of the
+            screen is not enough on its own: a state field saying "Yazıya dökülüyor" is the same
+            whether the job started ten seconds ago or is nearly done. Without a graphics card that
+            distinction is the difference between waiting a minute and waiting an hour.
+        -->
+        <Border Grid.Row="1" Style="{StaticResource Panel}" Margin="0,0,0,12"
+                Visibility="{Binding IsWorkingOnSomething, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" Margin="0,0,8,0"
+                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                    <TextBlock Text="{Binding ActiveLine}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                </StackPanel>
+
+                <!-- Determinate when the worker gives a fraction, and a moving bar when it does
+                     not — an empty bar sitting at zero reads as stuck. -->
+                <ProgressBar Height="4" Minimum="0" Maximum="1"
+                             Value="{Binding ActivePercent, Mode=OneWay}"
+                             IsIndeterminate="{Binding HasActivePercent, Converter={StaticResource InverseBool}}" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -97,7 +123,7 @@
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="2" Style="{StaticResource Panel}">
+        <Border Grid.Row="3" Style="{StaticResource Panel}">
             <Grid>
                 <ListBox Style="{StaticResource CleanList}" ItemsSource="{Binding Rows}"
                          Visibility="{Binding IsEmpty, Converter={StaticResource InverseBoolToVisibility}}"
