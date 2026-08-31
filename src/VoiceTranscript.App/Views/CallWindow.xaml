@@ -150,6 +150,40 @@
             <TabItem Header="Çözümleme">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                     <StackPanel>
+
+                        <!--
+                            An action rather than an empty page.
+
+                            A conversation with a transcript and no analysis is the ordinary state
+                            when no model was connected at the time, and it was a dead end: the tab
+                            said nothing and offered nothing. Analysing again works from the text,
+                            so it costs a minute rather than the hours transcription would.
+                        -->
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,10"
+                                Visibility="{Binding HasLedger, Converter={StaticResource InverseBoolToVisibility}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Bu görüşme çözümlenmemiş" FontWeight="SemiBold" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                               Text="Metin hazır. Çözümleme sözleri, değişen rakamları ve işaretleri çıkarır — ses yeniden işlenmez, yalnızca metin okunur." />
+                                </StackPanel>
+
+                                <ui:Button Grid.Column="1" Content="Çözümle" Appearance="Primary"
+                                           Margin="14,0,0,0" VerticalAlignment="Center"
+                                           Click="Analyse_Click"
+                                           IsEnabled="{Binding HasTurns}">
+                                    <ui:Button.Icon>
+                                        <ui:SymbolIcon Symbol="Lightbulb24" />
+                                    </ui:Button.Icon>
+                                </ui:Button>
+                            </Grid>
+                        </Border>
+
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,10"
                                 Visibility="{Binding HasSummary, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>

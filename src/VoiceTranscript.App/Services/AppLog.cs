@@ -135,6 +135,53 @@ public static class AppLog
     /// on Friday, and asking somebody to work out which file to attach is asking them to
     /// diagnose it themselves.
     /// </summary>
+    /// <summary>
+    /// Deletes the log files and starts a fresh one.
+    ///
+    /// Worth offering because the log is the thing people are asked to send, and a file carrying
+    /// three days of unrelated history makes the interesting part hard to find — for them and for
+    /// whoever reads it. Clearing before reproducing a fault is the ordinary way to produce a log
+    /// that is about one thing.
+    ///
+    /// Today's file is kept open by this process, so it is emptied in place rather than deleted;
+    /// the rest go.
+    /// </summary>
+    /// <returns>How many files were removed, and any that could not be.</returns>
+    public static (int Removed, int Kept) Clear()
+    {
+        if (_directory is null) return (0, 0);
+
+        var removed = 0;
+        var kept = 0;
+
+        foreach (var file in System.IO.Directory.EnumerateFiles(_directory, "vt-*.log").ToList())
+        {
+            try
+            {
+                if (string.Equals(file, _currentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    // In place: this process holds it open, and deleting it would leave the
+                    // application writing into a file nobody can find.
+                    lock (Gate) File.WriteAllText(file, "");
+                    removed++;
+                }
+                else
+                {
+                    File.Delete(file);
+                    removed++;
+                }
+            }
+            catch (Exception)
+            {
+                kept++;
+            }
+        }
+
+        Write("günlük", "günlük temizlendi");
+
+        return (removed, kept);
+    }
+
     public static string Collect(int days = 3)
     {
         if (_directory is null) return "Günlük yazılmıyor.";

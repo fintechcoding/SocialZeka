@@ -887,6 +887,56 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>
+    /// What the user has written about a person.
+    ///
+    /// The column has existed since the first schema and nothing ever wrote to it — it was read
+    /// into the model on every load and then discarded. Using it now costs nothing and works on
+    /// every database that already exists, which a new column would not: Migrate() has no ALTER
+    /// TABLE machinery.
+    ///
+    /// Distinct from a call note. A call note is about one conversation; this is about the person,
+    /// and it survives every reprocess, rename and merge — it is the one thing here a machine did
+    /// not produce.
+    /// </summary>
+    public void SaveContactNote(long contactId, string? note)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            "UPDATE contact SET notes = @note WHERE id = @contactId;",
+            new { contactId, note = string.IsNullOrWhiteSpace(note) ? null : note.Trim() });
+    }
+
+    /// <summary>
+    /// How much there is of one person, counted rather than sampled.
+    ///
+    /// Deliberately its own query. Deriving these from ListCalls would silently under-report for
+    /// exactly the people this matters most for: that call caps at 200 rows, so somebody with a
+    /// long history would be told they had two hundred conversations and however many hours those
+    /// happened to be.
+    /// </summary>
+    public (int Calls, TimeSpan Recorded, DateTimeOffset? First, DateTimeOffset? Last) ContactTotals(long contactId)
+    {
+        using var connection = Open();
+
+        var row = connection.QueryFirstOrDefault<(int Calls, long Ms, string? First, string? Last)>(
+            """
+            SELECT COUNT(*)                       AS Calls,
+                   COALESCE(SUM(duration_ms), 0)  AS Ms,
+                   MIN(started_at)                AS First,
+                   MAX(started_at)                AS Last
+            FROM call WHERE contact_id = @contactId;
+            """,
+            new { contactId });
+
+        return (
+            row.Calls,
+            TimeSpan.FromMilliseconds(row.Ms),
+            row.First is null ? null : DateTimeOffset.Parse(row.First),
+            row.Last is null ? null : DateTimeOffset.Parse(row.Last));
+    }
+
+    /// <summary>
     /// Recordings that have text but were never analysed.
     ///
     /// Worth its own figure rather than being folded into the queue. It is not a fault and not a

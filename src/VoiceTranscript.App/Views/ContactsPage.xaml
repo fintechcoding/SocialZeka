@@ -88,6 +88,10 @@
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem" BasedOn="{StaticResource RowItem}">
                         <EventSetter Event="PreviewMouseRightButtonDown" Handler="ContactRow_RightClick" />
+
+                        <!-- Double-click opens the person in their own window: their calls, a
+                             search across everything they have said, the ledger, and notes. -->
+                        <EventSetter Event="MouseDoubleClick" Handler="ContactRow_DoubleClick" />
                     </Style>
                 </ListBox.ItemContainerStyle>
 

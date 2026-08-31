@@ -878,3 +878,76 @@ Yorumu kullanıcı yapar.
 
 - §1b (kuyruk) ve §3 (şifreleme) önce; bu ikisi `segment` okuma yollarını değiştiriyor
 - Geriye dönük hesap için toplu bir yeniden tarama işi gerekir — ses değil, yalnızca metin
+
+---
+
+## 11. Kullanıcı istekleri — 2026-08-31 / 09-01 test turu
+
+> Kullanırken söylenenler, sırayla. Yapıldıkça `[x]` işaretlenir, silinmez.
+
+### Yapıldı
+
+- [x] Genel bakışta görüşmeye tıklayınca açılsın — v0.9.13
+- [x] Ayarlarda bulut anahtarı kaydedilmiyordu — v0.9.12
+- [x] Worker zaman aşımı 2 saat → 8 saat — v0.9.12
+- [x] Durum sayfası sekmelere ayrılsın (Sistem · Güncelleme · Veriler · Yapay zekâ · İşlemler) — v0.9.15
+- [x] Model listesi çöplük; en iyiler üstte olsun — v0.9.15
+- [x] Sürüm görme + elle güncelleme denetimi ekranı — v0.9.10
+- [x] Claude API, OpenAI API, OpenRouter canlı model listesi + arama — v0.9.6+
+- [x] Kapanışta kuyruktaki görüşmeler başarısız işaretleniyordu — v0.9.16
+- [x] Worker hatası "exited with code 1" diyordu, sebep kayboluyordu — v0.9.18
+- [x] "Yeniden işle" sessizce çalışıyordu, bildirim görünmüyordu — v0.9.18
+- [x] Genel bakıştaki "işlem bekliyor" sayacı yanlıştı — v0.9.17
+- [x] Arama, olmuş konuşma için "yok" diyebiliyordu — v0.9.14
+- [x] Defterde zaman damgası tıklanabilir görünüp çalışmıyordu — v0.9.14
+
+### Sırada
+
+- [ ] **11.1 Kişi penceresi.** Kişiye çift tıklayınca ayrı pencere: görüşmeleri,
+      satır düzeyinde arama, defter, ve **kişi notu**. Not için `contact.notes`
+      sütunu zaten var ve hiçbir şey yazmıyor. Tasarım: `docs/` çalışma çıktısı.
+- [ ] **11.2 Yeniden işlerken yöntem seçimi.** Yerel / GPU / OpenAI / başka bulut
+      sağlayıcı arasından seçerek yeniden çevirme. Şu an hep ayarlardaki yolu
+      kullanıyor.
+- [ ] **11.3 Transcript kalitesi göstergesi.** Bir görüşmenin metninin ne kadar
+      güvenilir olduğu (belirsiz satır oranı, hangi motorla çevrildiği, hız) ve
+      oradan "başka modelle yeniden çevir".
+- [ ] **11.4 Kullanım ekranı gelişmiş hâli.** Model bazında kırılım, gün seçimi,
+      kota, çubuk grafik. Şu an düz metin.
+- [ ] **11.5 Yapay zekâ satırlarında "aç" düğmesi ve hızlı ayar.** Satırdan
+      doğrudan o servisin ayarına gitmek.
+- [ ] **11.6 Günlüğü temizle düğmesi.** Durum → Veriler altında.
+- [ ] **11.7 Ses kayıtlarını sıkıştırarak sakla.** 46 dakikalık görüşme şu an
+      171 MB (iki akış × 85.6). Opus'ta ~10 MB. Ayrı akış tasarımı korunmalı.
+- [ ] **11.8 Genel bakışı zenginleştir + pano (kanban).** "Önemli görüşmeler"
+      diye sürüklenip bırakılabilen, kategorize edilebilen bir pano.
+      Tasarım hazır: dört sabit şerit (Bakılacak · Bende · Onlarda · Kapandı),
+      kart = görüşme, `call.is_pinned` kullanılmıyor — çengel orada.
+- [ ] **11.9 Hatırlatmalar.** Panodaki kartlara tarih verip o gün hatırlatma.
+
+### Bu turda eklenenler (2026-09-01)
+
+- [x] 11.1 Kişi penceresi — çift tık; görüşmeler, satır düzeyinde arama, defter, kişi notu
+- [x] 11.2 Yeniden işlerken yöntem seçimi — ASR motoru ya da LLM modeli, ölçülen hızlarıyla
+- [x] 11.6 Günlüğü temizle düğmesi
+- [x] Yalnızca yeniden çözümleme — sesi baştan çevirmeden defteri yeniden kurar
+- [x] Görüşme penceresinde "çözümlenmemiş" için eylem — boş sekme yerine düğme
+
+### Açık kalan hata
+
+- [ ] **Bulut çevirisi bazı kayıtlarda patlıyor.** 11 görüşme 208× hızla başarıyla
+      çevrildi; iki tanesi patlıyor. Maydin (00:43) **9 satır çevirip sonra**
+      hata verdi — yani parça parça yükleme yolunda. v0.9.18 artık worker'ın
+      gerçek mesajını gösteriyor; bir sonraki log sebebi söyleyecek.
+
+### Yeni istekler — 2026-09-01
+
+- [ ] **11.10 Görüşme penceresi daha zengin olsun.** Çözümleme yoksa ne yapılacağı
+      artık var; ama ekranda daha fazlası olmalı — kalite göstergesi, hangi motorla
+      çevrildiği, kaç belirsiz satır, oradan yeniden çevirme.
+- [ ] **11.11 Yapay zekâ satırlarına "aç" ve hızlı ayar düğmeleri.** Satırdan
+      doğrudan o servisin ayarına gitmek.
+- [ ] **11.12 Kullanım ekranı gelişmiş hâli.** Model kırılımı, gün seçimi, kota,
+      çubuk grafik. Şu an düz metin ve çalışıyor ama sade.
+- [ ] **11.13 Genel olarak UI derinleştirme.** Kullanıcının sözleri: "çok
+      detaylandır, gelişmiş UI düşün ve tasarla, basitleştirme."

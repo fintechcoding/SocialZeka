@@ -378,6 +378,54 @@ public sealed class CallOrchestrator : IDisposable
     /// <summary>Puts a recording in the queue to be transcribed and analysed.</summary>
     public void Enqueue(long callId) => _processing.Writer.TryWrite(callId);
 
+    /// <summary>
+    /// Which engine to use for one queued recording, overriding the setting.
+    ///
+    /// Held beside the queue rather than in it, because the queue carries identities and putting a
+    /// second value in it would mean changing the channel, the backlog scan and every caller for
+    /// something only the retry path uses.
+    ///
+    /// The reason this exists: a recording that failed on one route is exactly the recording
+    /// somebody wants to try on another — the local model when the upload keeps breaking, or a
+    /// hosted one when the processor would take four hours. Before this, retrying could only
+    /// repeat the route that had already failed, so the button was useless precisely when it was
+    /// needed.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, string> _engineOverride = new();
+
+    /// <summary>
+    /// Recordings to analyse again without transcribing them again.
+    ///
+    /// The expensive half is transcription — hours on a machine without a usable GPU — and it is
+    /// the half that most often does not need repeating. Somebody who connects a model after the
+    /// fact has thirteen finished transcripts and wants the ledger built from them; making them
+    /// pay for the audio a second time is the difference between a minute and an afternoon.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, byte> _analyseOnly = new();
+
+    /// <summary>
+    /// Queues a recording to be redone.
+    /// </summary>
+    /// <param name="asrModelId">An engine from the ASR catalogue, or null to follow the setting.</param>
+    /// <param name="analyseOnly">Keep the existing transcript and only run the analysis again.</param>
+    /// <summary>The analysis model chosen for one recording, overriding the setting.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, string> _llmOverride = new();
+
+    public void EnqueueWith(
+        long callId, string? asrModelId = null, bool analyseOnly = false, string? llmModel = null)
+    {
+        if (string.IsNullOrWhiteSpace(asrModelId)) _engineOverride.TryRemove(callId, out _);
+        else _engineOverride[callId] = asrModelId;
+
+        if (string.IsNullOrWhiteSpace(llmModel)) _llmOverride.TryRemove(callId, out _);
+        else _llmOverride[callId] = llmModel;
+
+        if (analyseOnly) _analyseOnly[callId] = 1;
+        else _analyseOnly.TryRemove(callId, out _);
+
+        Enqueue(callId);
+    }
+
     private static bool IsWatched(CallApp app, AppSettings settings) => app switch
     {
         CallApp.WhatsApp => settings.RecordWhatsApp,
@@ -734,7 +782,18 @@ public sealed class CallOrchestrator : IDisposable
             if (settings.GpuCooldownSeconds > 0)
                 await Task.Delay(TimeSpan.FromSeconds(settings.GpuCooldownSeconds), cancellationToken);
 
-            await TranscribeAsync(call, settings, cancellationToken);
+            // Analysing again does not mean transcribing again.
+            //
+            // Transcription is the expensive half — hours on a machine without a usable GPU — and
+            // it is the half that usually does not need repeating. Somebody who connects a model
+            // after the fact has finished transcripts already and wants the ledger built from
+            // them; charging them the audio a second time is the difference between a minute and
+            // an afternoon. The request is consumed here, so it applies once.
+            var keepTranscript =
+                _analyseOnly.TryRemove(call.Id, out _) && _repository.CountSegments(call.Id) > 0;
+
+            if (!keepTranscript) await TranscribeAsync(call, settings, cancellationToken);
+            else _repository.SetCallState(call.Id, ProcessingState.Transcribed);
 
             // Analysis is attempted only when there is something to analyse with.
             //
@@ -965,7 +1024,14 @@ public sealed class CallOrchestrator : IDisposable
     {
         _repository.SetCallState(call.Id, ProcessingState.Transcribing);
 
-        var model = settings.ResolveAsrModel(await LocalTranscriptionUsableAsync(cancellationToken));
+        // An engine chosen for this one recording wins over the setting, and is consumed as it is
+        // read: a retry that picked the cloud must not silently become the standing choice for
+        // everything queued behind it.
+        var model =
+            _engineOverride.TryRemove(call.Id, out var chosen)
+            && AsrCatalog.TryGet(chosen, out var picked)
+                ? picked
+                : settings.ResolveAsrModel(await LocalTranscriptionUsableAsync(cancellationToken));
 
         if (model.SendsAudioOffMachine)
         {
@@ -1145,7 +1211,12 @@ public sealed class CallOrchestrator : IDisposable
                 callId,
                 new AnalysisOptions
                 {
-                    Model = settings.ResolvedModelName,
+                    // A model chosen for this one recording wins, and is consumed as it is read:
+                    // trying a stronger model on one difficult conversation must not silently
+                    // become the standing choice for everything queued behind it.
+                    Model = _llmOverride.TryRemove(callId, out var chosenLlm)
+                        ? chosenLlm
+                        : settings.ResolvedModelName,
                     // Only a local backend holds the GPU this machine needs back for Whisper.
                     UnloadWhenDone = !settings.Provider.SendsDataOffMachine,
                 },

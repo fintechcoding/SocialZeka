@@ -433,8 +433,14 @@
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <ui:Button Content="{loc:T healthpage.gunlugu-kopyala}" MinWidth="140" Margin="14,0,6,0"
                                        Click="CopyLog_Click" />
-                            <ui:Button Content="{loc:T healthpage.klasoru-ac}" MinWidth="110"
+                            <ui:Button Content="{loc:T healthpage.klasoru-ac}" MinWidth="110" Margin="0,0,6,0"
                                        Click="OpenLogFolder_Click" />
+
+                            <!-- Clearing before reproducing a fault is how you get a log that is
+                                 about one thing. Three days of unrelated history makes the
+                                 interesting part hard to find, for the sender and the reader. -->
+                            <ui:Button Content="Temizle" MinWidth="96" Click="ClearLog_Click"
+                                       ToolTip="Günlük dosyalarını siler. Bir hatayı yeniden denemeden önce temizlemek, gönderilecek günlüğü tek konuya indirir." />
                         </StackPanel>
                     </Grid>
                 </StackPanel>

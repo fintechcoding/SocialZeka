@@ -50,6 +50,23 @@ public partial class ContactsPage
     }
 
     /// <summary>
+    /// Opens a person in their own window.
+    ///
+    /// The page is right for browsing across everybody; this is for working on one person — their
+    /// whole history, a search through everything they have said, and notes about them. It is a
+    /// window rather than a fourth tab because two people can then be open at once, which the
+    /// page cannot do: it holds one selected contact and one player.
+    /// </summary>
+    private void ContactRow_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (ViewModel?.SelectedContact is not { } contact) return;
+
+        ContactWindow.Show(
+            Window.GetWindow(this),
+            new ViewModels.ContactWindowViewModel(App.Repository, contact.Contact.Id));
+    }
+
+    /// <summary>
     /// F2 renames the selected contact.
     ///
     /// Because that is what F2 does everywhere else in Windows, and somebody who has just noticed a
@@ -183,11 +200,37 @@ public partial class ContactsPage
         model.MoveSelectedCall(target, dialog.ForgetTitle);
     }
 
-    private async void Reprocess_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Redoes this conversation, by a route the user picks.
+    ///
+    /// Asking is the point. A conversation is being redone because something about it went wrong,
+    /// and repeating the configured route is the one approach already known to have failed here.
+    /// The dialog also offers re-analysing without re-transcribing, which is the common case once
+    /// a model is connected after the fact: the text is already there, and paying for the audio a
+    /// second time is the difference between a minute and an afternoon.
+    /// </summary>
+    private void Reprocess_Click(object sender, RoutedEventArgs e)
     {
-        if (ViewModel is not { } model || App.Orchestrator is null) return;
+        if (ViewModel is not { SelectedCall: { } row } model || App.Orchestrator is null) return;
 
-        await model.ReprocessSelectedCallAsync(App.Orchestrator);
+        var dialog = new ReprocessWindow(
+            App.Repository, App.Settings, model.SelectedContact?.Name ?? "Görüşme", count: 1)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        var choice = dialog.Choice;
+
+        App.Repository.SetCallState(row.Call.Id, Core.Domain.ProcessingState.Queued);
+
+        App.Orchestrator.EnqueueWith(
+            row.Call.Id, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel);
+
+        model.PlaybackMessage = choice.AnalyseOnly
+            ? "Görüşme yeniden çözümlenmek üzere sıraya alındı."
+            : "Görüşme yeniden işlenmek üzere sıraya alındı.";
     }
 
     /// <summary>

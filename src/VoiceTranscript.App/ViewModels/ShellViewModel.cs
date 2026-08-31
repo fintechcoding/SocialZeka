@@ -100,7 +100,15 @@ public sealed partial class ShellViewModel : ObservableObject
             });
 
         // The screen can requeue work but cannot run it; the orchestrator is held here.
-        Processing.ReprocessRequested += (_, _) => _ = orchestrator.ProcessBacklogAsync();
+        //
+        // Each identity is enqueued with the route the user chose, rather than a blanket backlog
+        // scan. The scan would pick the settings again — the one route already known to have
+        // failed, since that is why the recording is being retried.
+        Processing.ReprocessRequested += (_, request) =>
+        {
+            foreach (var id in request.Ids)
+                orchestrator.EnqueueWith(id, request.AsrModelId, request.AnalyseOnly, request.LlmModel);
+        };
         Search = new SearchViewModel(repository);
 
         Ask = new AskViewModel(App.HttpClient, repository, settings);

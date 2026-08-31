@@ -114,7 +114,7 @@
                     once it is fixed, "all of them" is what the user wants, not eight clicks.
                 -->
                 <ui:Button Content="Listedekileri yeniden işle" Appearance="Primary"
-                           Command="{Binding ReprocessAllCommand}"
+                           Click="ReprocessAll_Click"
                            ToolTip="Şu an listede görünen bütün görüşmeleri yeniden kuyruğa alır.">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="ArrowSync24" />
@@ -170,9 +170,7 @@
                                 <ui:Button Grid.Column="2" Content="Yeniden işle" VerticalAlignment="Center"
                                            Appearance="Transparent"
                                            IsEnabled="{Binding HasAudio}"
-                                           Command="{Binding DataContext.ReprocessCommand,
-                                                     RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                           CommandParameter="{Binding}" />
+                                           Click="Reprocess_Click" Tag="{Binding}" />
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -216,7 +214,7 @@
                                    VerticalAlignment="Center" />
 
                         <ui:Button Grid.Column="2" Appearance="Transparent" Margin="10,0,0,0"
-                                   Command="{Binding DismissNoticeCommand}">
+                                   Click="DismissNotice_Click">
                             <ui:Button.Icon>
                                 <ui:SymbolIcon Symbol="Dismiss24" />
                             </ui:Button.Icon>

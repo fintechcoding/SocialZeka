@@ -136,6 +136,33 @@ public partial class HealthPage
         }
     }
 
+    /// <summary>
+    /// Empties the log, after asking.
+    ///
+    /// Asked because it is not recoverable and the log is the only record of what the application
+    /// did — including the failure somebody may be about to report. Worth having anyway: clearing
+    /// before reproducing a fault is how you get a log about one thing rather than three days of
+    /// unrelated history.
+    /// </summary>
+    private void ClearLog_Click(object sender, RoutedEventArgs e)
+    {
+        var answer = MessageBox.Show(
+            "Günlük dosyaları silinecek. Bu, uygulamanın ne yaptığının tek kaydı — bildirmek "
+            + "istediğin bir hata varsa önce \"Günlüğü kopyala\" ile al.\n\nDevam edilsin mi?",
+            "Günlüğü temizle",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (answer != MessageBoxResult.Yes) return;
+
+        var (removed, kept) = Services.AppLog.Clear();
+
+        Report(kept == 0
+            ? $"Günlük temizlendi ({removed} dosya)."
+            : $"{removed} dosya silindi, {kept} tanesi kullanımda olduğu için kaldı.");
+    }
+
     /// <summary>Says something back, in the same place data actions report themselves.</summary>
     private void Report(string message)
     {

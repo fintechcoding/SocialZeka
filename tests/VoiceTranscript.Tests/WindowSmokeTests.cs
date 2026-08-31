@@ -122,6 +122,17 @@ public class WindowSmokeTests
                     new VoiceTranscript.App.ViewModels.CallWindowViewModel(
                         repository, () => settings, http, callId: 1)), failures);
 
+                // Four tabs, a search list, a ledger and a notes editor — and it reaches the
+                // database on construction, so this also proves the queries behind it run.
+                Build("Kişi penceresi", () => new ContactWindow(
+                    new VoiceTranscript.App.ViewModels.ContactWindowViewModel(
+                        repository, contactId: 1)), failures);
+
+                // Builds both of its lists from the catalogue and from measured usage, so this
+                // covers the queries behind the speed column as well as the markup.
+                Build("Yeniden işle", () => new ReprocessWindow(
+                    repository, settings, "Serdal", count: 1), failures);
+
                 Build("Kişileri birleştir", () => new MergeContactWindow(
                     repository,
                     new VoiceTranscript.Core.Domain.Contact { Id = 1, Name = "Serdal" }), failures);

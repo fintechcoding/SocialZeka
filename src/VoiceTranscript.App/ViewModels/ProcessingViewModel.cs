@@ -22,6 +22,18 @@ public enum ProcessingFilter
     All,
 }
 
+/// <summary>
+/// A request to redo some recordings, and how.
+///
+/// Carries the route rather than leaving it to the settings, because a recording is queued again
+/// precisely when its usual route failed: repeating it is the one thing already known not to work.
+/// </summary>
+/// <param name="AsrModelId">Transcription engine from the catalogue, or null for the configured one.</param>
+/// <param name="LlmModel">Analysis model, or null for the configured one.</param>
+/// <param name="AnalyseOnly">Keep the existing text and rebuild only the ledger.</param>
+public sealed record ReprocessRequest(
+    IReadOnlyList<long> Ids, string? AsrModelId, string? LlmModel, bool AnalyseOnly);
+
 /// <summary>One recording, as this screen shows it.</summary>
 public sealed record ProcessingRow(Call Call, string ContactName, int SegmentCount)
 {
@@ -190,7 +202,7 @@ public sealed partial class ProcessingViewModel(
     }
 
     /// <summary>Raised when something needs the shell — reprocessing goes through the orchestrator.</summary>
-    public event EventHandler<IReadOnlyList<long>>? ReprocessRequested;
+    public event EventHandler<ReprocessRequest>? ReprocessRequested;
 
     public bool IsEmpty => Rows.Count == 0;
 
@@ -252,42 +264,56 @@ public sealed partial class ProcessingViewModel(
     [RelayCommand]
     private void ShowAll() => Filter = ProcessingFilter.All;
 
-    /// <summary>Puts one recording back in the queue.</summary>
-    [RelayCommand]
-    private void Reprocess(ProcessingRow row) => Requeue([row]);
-
     /// <summary>
-    /// Puts everything currently listed back in the queue.
+    /// Everything currently listed, for the screen to offer as one batch.
     ///
     /// The common case by a distance: a run of failures usually has one cause — a missing package,
     /// a service that was down, a key that had expired — so once it is fixed the useful action is
     /// "all of them", not eight separate clicks.
     /// </summary>
-    [RelayCommand]
-    private void ReprocessAll() => Requeue([.. Rows]);
+    public IReadOnlyList<ProcessingRow> AllRows => [.. Rows];
 
-    private void Requeue(IReadOnlyList<ProcessingRow> rows)
+    /// <summary>
+    /// Puts recordings back in the queue, optionally by a different route.
+    ///
+    /// The route matters because a recording is here precisely because its usual one failed.
+    /// Retrying the same way was the button's only behaviour, which made it least useful exactly
+    /// when it was needed.
+    /// </summary>
+    public void Requeue(IReadOnlyList<ProcessingRow> rows, ReprocessRequest? how = null)
     {
-        // A recording whose audio is gone cannot be retried, and saying so is better than queueing
-        // it to fail again in the same way.
-        var possible = rows.Where(r => r.HasAudio).ToList();
+        var analyseOnly = how?.AnalyseOnly == true;
+
+        // What each route needs. Re-analysing works from the text, so a recording whose audio has
+        // gone can still be re-analysed — refusing it because of a missing WAV would block the one
+        // route that was still open to it.
+        var possible = rows
+            .Where(r => analyseOnly ? r.HasTranscript : r.HasAudio)
+            .ToList();
+
         var impossible = rows.Count - possible.Count;
 
         if (possible.Count == 0)
         {
-            Notice = impossible > 0
-                ? "Bu kayıtların ses dosyası yok; yeniden işlenemezler."
-                : "Yeniden işlenecek kayıt yok.";
+            Notice = analyseOnly
+                ? "Bu kayıtların metni yok; önce yazıya dökülmeleri gerekiyor."
+                : impossible > 0
+                    ? "Bu kayıtların ses dosyası yok; yeniden işlenemezler."
+                    : "Yeniden işlenecek kayıt yok.";
             return;
         }
 
         foreach (var row in possible) repository.SetCallState(row.Id, ProcessingState.Queued);
 
-        ReprocessRequested?.Invoke(this, [.. possible.Select(r => r.Id)]);
+        ReprocessRequested?.Invoke(this, how is null
+            ? new ReprocessRequest([.. possible.Select(r => r.Id)], null, null, false)
+            : how with { Ids = [.. possible.Select(r => r.Id)] });
+
+        var what = analyseOnly ? "yeniden çözümlenecek" : "yeniden kuyruğa alındı";
 
         Notice = impossible == 0
-            ? $"{possible.Count} görüşme yeniden kuyruğa alındı."
-            : $"{possible.Count} görüşme kuyruğa alındı. {impossible} tanesinin ses dosyası yok, atlandı.";
+            ? $"{possible.Count} görüşme {what}."
+            : $"{possible.Count} görüşme {what}. {impossible} tanesi atlandı.";
 
         Refresh();
     }

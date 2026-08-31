@@ -106,6 +106,38 @@ public partial class CallWindow
             "kesit", result.Ok ? "görüşmeden kesit yazıldı" : $"kesit alınamadı: {result.Message}");
     }
 
+    /// <summary>
+    /// Analyses this conversation, with a model the user picks.
+    ///
+    /// Offered here because a transcript with no ledger is the ordinary state when no model was
+    /// connected at the time, and the tab was otherwise a dead end. It works from the text, so it
+    /// costs a minute rather than the hours re-transcribing would.
+    /// </summary>
+    private void Analyse_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } model || App.Orchestrator is null) return;
+
+        var dialog = new ReprocessWindow(App.Repository, App.Settings, model.Title, count: 1)
+        {
+            Owner = this,
+        };
+
+        // Opened straight onto the analysis half: that is what the button said it would do, and a
+        // dialog that reopens on the other option is a dialog that gets misread.
+        dialog.ModeAnalyse.IsChecked = true;
+
+        if (dialog.ShowDialog() != true) return;
+
+        var choice = dialog.Choice;
+
+        App.Repository.SetCallState(model.CallId, VoiceTranscript.Core.Domain.ProcessingState.Queued);
+        App.Orchestrator.EnqueueWith(model.CallId, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel);
+
+        MessageBox.Show(
+            "Sıraya alındı. Bittiğinde bu pencereyi kapatıp yeniden açarsan çözümleme görünür.",
+            "Çözümleme", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
     /// <summary>Enter asks, because a single-line question box that needs the mouse is not used.</summary>
     private void Question_KeyDown(object sender, KeyEventArgs e)
     {
