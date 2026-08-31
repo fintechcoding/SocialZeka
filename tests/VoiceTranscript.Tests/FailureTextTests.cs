@@ -127,4 +127,28 @@ public class FailureTextTests
         // Cut at a space: a Turkish word broken in half reads as a typo rather than a truncation.
         Assert.DoesNotContain("kelim…", summary);
     }
+    /// <summary>
+    /// A dead local server is not an internet problem.
+    ///
+    /// A real failure read "İnternet bağlantısı kurulamadı" for a llama server at
+    /// 127.0.0.1 — sending the user to check their Wi-Fi when the fix was starting a
+    /// program on their own machine.
+    /// </summary>
+    [Fact]
+    public void ALocalServerBeingDownIsNotBlamedOnTheInternet()
+    {
+        var summary = FailureText.Summarise(
+            "LlamaServer adresine ulaşılamadı (http://127.0.0.1:8080/v1): connection refused");
+
+        Assert.DoesNotContain("İnternet", summary);
+        Assert.Contains("Yerel", summary);
+    }
+
+    [Fact]
+    public void ARealRemoteConnectionFailureStillSaysInternet()
+    {
+        var summary = FailureText.Summarise("HttpRequestException: connection failure to api.openai.com");
+
+        Assert.Contains("İnternet", summary);
+    }
 }

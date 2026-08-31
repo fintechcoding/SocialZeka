@@ -372,6 +372,11 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
             var summary = repository.GetSummary(card.CallId)?.Summary;
             var firstSentence = summary?.Split('.', 2)[0].Trim();
 
+            var photo = call.ContactId is { } pid
+                ? Services.ContactPhotoStore.PathFor(
+                    repository.GetProfile(pid)?.PhotoFile, App.Paths?.Photos ?? "")
+                : null;
+
             Board.Add(new PanelCard(
                 card.CallId,
                 name ?? "İsimsiz",
@@ -379,7 +384,8 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
                 $"{(int)call.Duration.TotalMinutes:00}:{call.Duration.Seconds:00}",
                 string.IsNullOrWhiteSpace(firstSentence) ? null : firstSentence + ".",
                 tags.GetValueOrDefault(card.CallId, []),
-                card.RemindOn));
+                card.RemindOn,
+                photo));
         }
 
         Due.Clear();
@@ -481,8 +487,11 @@ public sealed record PanelCard(
     string Length,
     string? SummaryLine,
     IReadOnlyList<string> Tags,
-    DateOnly? RemindOn)
+    DateOnly? RemindOn,
+    string? PhotoPath = null)
 {
+    public bool HasPhoto => PhotoPath is not null;
+
     public string When => StartedAt.ToLocalTime().ToString("d MMMM, HH:mm");
 
     public bool HasSummary => SummaryLine is not null;

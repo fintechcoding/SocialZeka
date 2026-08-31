@@ -64,12 +64,33 @@ public static class FailureText
         ("timed out", "İşlem zaman aşımına uğradı."),
     ];
 
+    /// <summary>
+    /// Addresses on this machine, where "internet" is the wrong diagnosis.
+    ///
+    /// A real failure read "İnternet bağlantısı kurulamadı" for a llama server at 127.0.0.1 —
+    /// sending the user to check their Wi-Fi when the fix was starting a program. The generic
+    /// connection sentence must never fire for a local address.
+    /// </summary>
+    private static bool MentionsLocalAddress(string lowered) =>
+        lowered.Contains("127.0.0.1", StringComparison.Ordinal)
+        || lowered.Contains("localhost", StringComparison.Ordinal)
+        || lowered.Contains("[::1]", StringComparison.Ordinal);
+
     /// <summary>The one sentence to show. Never null, never a traceback.</summary>
     public static string Summarise(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return "Sebep kaydedilmedi.";
 
         var lowered = raw.ToLowerInvariant();
+
+        if (MentionsLocalAddress(lowered)
+            && (lowered.Contains("connection", StringComparison.Ordinal)
+                || lowered.Contains("ulaşılamadı", StringComparison.Ordinal)
+                || lowered.Contains("refused", StringComparison.Ordinal)))
+        {
+            return "Yerel yapay zekâ sunucusu çalışmıyor. Sunucuyu başlatmak ya da Ayarlar'dan "
+                 + "başka bir sağlayıcı seçmek gerekiyor — internetle ilgisi yok.";
+        }
 
         foreach (var (marker, sentence) in Known)
             if (lowered.Contains(marker, StringComparison.Ordinal))

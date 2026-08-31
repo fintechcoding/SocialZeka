@@ -92,10 +92,59 @@ public partial class OverviewPage
     {
         e.Effects = e.Data.GetDataPresent(DragFormat) ? DragDropEffects.Move : DragDropEffects.None;
         e.Handled = true;
+
+        if (e.Effects == DragDropEffects.None)
+        {
+            DropLine.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ShowDropLineAt(DropIndex(e));
+    }
+
+    private void BoardPanel_DragLeave(object sender, DragEventArgs e)
+        => DropLine.Visibility = Visibility.Collapsed;
+
+    /// <summary>
+    /// Draws the landing line above the card at the given index — or under the last one.
+    ///
+    /// Positioned with a margin rather than an adorner: the panel is one small vertical pile,
+    /// and an adorner layer would be machinery for a two-pixel rectangle.
+    /// </summary>
+    private void ShowDropLineAt(int index)
+    {
+        if (ViewModel is not { } model || model.Board.Count == 0)
+        {
+            DropLine.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        FrameworkElement? anchor;
+        double y;
+
+        if (index < model.Board.Count)
+        {
+            anchor = FindCard(model.Board[index]);
+            if (anchor is null) return;
+
+            y = anchor.TranslatePoint(new Point(0, 0), BoardPanel).Y - 2;
+        }
+        else
+        {
+            anchor = FindCard(model.Board[^1]);
+            if (anchor is null) return;
+
+            y = anchor.TranslatePoint(new Point(0, anchor.ActualHeight), BoardPanel).Y + 1;
+        }
+
+        DropLine.Margin = new Thickness(6, Math.Max(0, y), 6, 0);
+        DropLine.Visibility = Visibility.Visible;
     }
 
     private void BoardPanel_Drop(object sender, DragEventArgs e)
     {
+        DropLine.Visibility = Visibility.Collapsed;
+
         if (ViewModel is not { } model) return;
         if (!e.Data.GetDataPresent(DragFormat)) return;
         if (e.Data.GetData(DragFormat) is not long callId) return;

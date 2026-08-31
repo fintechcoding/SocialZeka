@@ -104,11 +104,21 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <Border Grid.Column="0" Style="{StaticResource Avatar}" Margin="0,0,12,0"
-                                    Background="{Binding Name, Converter={StaticResource NameBrush}}">
-                                <TextBlock Style="{StaticResource AvatarText}"
-                                           Text="{Binding Name, Converter={StaticResource Initials}}" />
-                            </Border>
+                            <Grid Grid.Column="0" Margin="0,0,12,0">
+                                <Border Style="{StaticResource Avatar}"
+                                        Background="{Binding Name, Converter={StaticResource NameBrush}}"
+                                        Visibility="{Binding HasPhoto, Converter={StaticResource InverseBoolToVisibility}}">
+                                    <TextBlock Style="{StaticResource AvatarText}"
+                                               Text="{Binding Name, Converter={StaticResource Initials}}" />
+                                </Border>
+                                <Border Width="36" Height="36" CornerRadius="18"
+                                        Visibility="{Binding HasPhoto, Converter={StaticResource BoolToVisibility}}">
+                                    <Border.Background>
+                                        <ImageBrush ImageSource="{Binding PhotoPath, Converter={StaticResource Photo}}"
+                                                    Stretch="UniformToFill" />
+                                    </Border.Background>
+                                </Border>
+                            </Grid>
 
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold"

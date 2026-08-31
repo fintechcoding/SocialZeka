@@ -91,8 +91,11 @@ public sealed record FlagView(Flag Flag)
     };
 }
 
-public sealed record ContactRow(Contact Contact, int OpenFlags)
+public sealed record ContactRow(Contact Contact, int OpenFlags, string? PhotoPath = null)
 {
+    /// <summary>True when the user gave this person a photo; initials otherwise.</summary>
+    public bool HasPhoto => PhotoPath is not null;
+
     public string Name => Contact.Name;
     public string Detail => Contact.LastCallAt is { } last
         ? $"{Contact.CallCount} görüşme · {last.ToLocalTime():d MMM}"
@@ -275,7 +278,15 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
             : repository.FindContacts(filter);
 
         foreach (var contact in contacts)
-            Contacts.Add(new ContactRow(contact, repository.GetFlags(contact.Id).Count));
+        {
+            // The photo, when one was given. A per-row query against a local SQLite file: for a
+            // personal archive's contact count this is well under a millisecond a row, measured
+            // before the fancier batch query was judged not worth its surface.
+            var photo = Services.ContactPhotoStore.PathFor(
+                repository.GetProfile(contact.Id)?.PhotoFile, App.Paths?.Photos ?? "");
+
+            Contacts.Add(new ContactRow(contact, repository.GetFlags(contact.Id).Count, photo));
+        }
 
         OnPropertyChanged(nameof(HasContacts));
 

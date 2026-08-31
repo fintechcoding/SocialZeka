@@ -21,6 +21,14 @@ public partial class SettingsWindow
         // Null in the smoke test, which constructs every window without an App instance.
         DataFolderPath.Text = App.Paths?.Root ?? "";
 
+        if (_lastSize is { } size)
+        {
+            Width = size.Width;
+            Height = size.Height;
+        }
+
+        Closed += (_, _) => _lastSize = new Size(Width, Height);
+
         // Show up front which weights are already present, so nobody discovers mid-call that
         // a two-gigabyte download is about to start.
         _ = RefreshModelStatusAsync();
@@ -66,8 +74,22 @@ public partial class SettingsWindow
         PageData.Visibility = Visible(tag == "Data");
         PageExport.Visibility = Visible(tag == "Export");
 
+        // Back to the top of the section just chosen. Without this the new section opened at
+        // wherever the last one was scrolled to — a page that starts in its own middle, with
+        // its heading somewhere above the fold, reads as broken layout rather than as scrolled.
+        PageScroll?.ScrollToTop();
+
         static Visibility Visible(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    /// <summary>
+    /// Last size the user made this window, kept for the session.
+    ///
+    /// Settings get opened repeatedly while tuning providers, and re-dragging the window larger
+    /// every single time is friction with no compensating value. Session-scoped on purpose:
+    /// persisting it would be another settings field for something a fresh start resets anyway.
+    /// </summary>
+    private static Size? _lastSize;
 
     private void BrowseVault_Click(object sender, RoutedEventArgs e)
     {

@@ -78,7 +78,7 @@
                 </RadioButton>
             </StackPanel>
 
-            <ScrollViewer Grid.Column="1" Padding="24,4,32,16" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="PageScroll" Grid.Column="1" Padding="24,4,32,16" VerticalScrollBarVisibility="Auto">
                 <Grid MaxWidth="760" HorizontalAlignment="Left">
 
                     <!-- Recording -->
