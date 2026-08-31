@@ -68,7 +68,7 @@ public sealed partial class AskViewModel : ObservableObject
     /// nothing about the setting that actually changed.
     /// </summary>
     private ArchiveQuestions QuestionsFor(AppSettings settings) =>
-        new(new OpenAiCompatibleClient(
+        new(LlmClientFactory.Create(
                 _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey),
             _repository);
 

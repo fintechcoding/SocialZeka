@@ -12,11 +12,15 @@ namespace VoiceTranscript.App.ViewModels;
 
 /// <summary>One turn in the conversation, laid out as a message.</summary>
 public sealed partial class ChatTurn(
-    string speaker, string text, int startMs, bool isMe, bool lowConfidence) : ObservableObject
+    string speaker, string text, int startMs, int endMs, bool isMe, bool lowConfidence) : ObservableObject
 {
     public string Speaker { get; } = speaker;
     public string Text { get; } = text;
     public int StartMs { get; } = startMs;
+
+    /// <summary>Where the line finishes. Needed to cut a clip that does not stop mid-word.</summary>
+    public int EndMs { get; } = endMs;
+
     public bool IsMe { get; } = isMe;
 
     /// <summary>Whisper was unsure. Marked rather than hidden — an uncertain line is still evidence.</summary>
@@ -125,6 +129,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
                 segment.IsMe ? "Ben" : contact ?? "Karşı taraf",
                 segment.Text,
                 segment.StartMs,
+                segment.EndMs,
                 segment.IsMe,
                 segment.LowConfidence));
         }
@@ -215,11 +220,38 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void PlayExcerpt(Excerpt excerpt)
     {
+        // The stand-in only ever reaches PlayTurn, which reads the moment and the speaker, so its
+        // end is nominal — it exists for the case where the transcript has been re-run since the
+        // citation was made and no line starts at exactly that millisecond any more.
         var turn = Turns.FirstOrDefault(t => t.StartMs == excerpt.StartMs)
-                   ?? new ChatTurn("", "", excerpt.StartMs, excerpt.IsMe, false);
+                   ?? new ChatTurn("", "", excerpt.StartMs, excerpt.StartMs, excerpt.IsMe, false);
 
         PlayTurn(turn);
     }
+
+    /// <summary>
+    /// The stretch covered by a line and the <paramref name="following"/> lines after it.
+    ///
+    /// Counted in turns rather than in seconds because that is how somebody thinks about it: "what
+    /// I asked and what they said back" is two turns whether the reply came instantly or after
+    /// twenty seconds of thinking. A fixed number of seconds would cut one of those two cases in
+    /// half, and it would be the case where the pause was the interesting part.
+    /// </summary>
+    public (int FromMs, int ToMs) ExchangeRange(ChatTurn turn, int following)
+    {
+        var index = Turns.IndexOf(turn);
+
+        if (index < 0) return (turn.StartMs, turn.EndMs);
+
+        var last = Turns[Math.Min(index + Math.Max(0, following), Turns.Count - 1)];
+
+        // Max, not simply the last turn's end: the speakers are recorded separately and can
+        // overlap, so a later turn can finish before an earlier one does.
+        return (turn.StartMs, Math.Max(last.EndMs, turn.EndMs));
+    }
+
+    /// <summary>Who the call is with, for labelling an export. Null when it was never attributed.</summary>
+    public string? ContactName => Title == "İsimsiz" ? null : Title;
 
     // ---- questions about this call -----------------------------------------
 
@@ -253,7 +285,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         {
             var call = _repository.GetCall(CallId);
 
-            var client = new OpenAiCompatibleClient(
+            var client = LlmClientFactory.Create(
                 _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
 
             // Narrowed to this call by contact and by the day it happened. ArchiveQuestions has no

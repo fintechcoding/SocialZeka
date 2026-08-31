@@ -210,7 +210,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>True when the chosen provider is addressed by a model identifier it hosts.</summary>
     public bool UsesRemoteModelName =>
-        SelectedProvider.Kind is LlmProviderKind.OpenRouter or LlmProviderKind.OpenAiCompatible;
+        SelectedProvider.Kind is LlmProviderKind.OpenRouter or LlmProviderKind.OpenAiCompatible
+                              or LlmProviderKind.Anthropic or LlmProviderKind.OpenAi;
+
+    /// <summary>Whether the provider publishes a catalogue that can be browsed and searched.</summary>
+    public bool CanBrowseModels => ModelDirectory.CanFetch(SelectedProvider.Kind);
 
     [ObservableProperty] private AsrModel _selectedAsrModel;
     [ObservableProperty] private LocalLlmModel _selectedLlmModel;
@@ -253,6 +257,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         DiscoveredLlmModels.Clear();
 
         OnPropertyChanged(nameof(UsesRemoteModelName));
+        OnPropertyChanged(nameof(CanBrowseModels));
         Revalidate();
     }
     partial void OnSelectedAsrModelChanged(AsrModel value) => Revalidate();

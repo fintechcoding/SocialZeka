@@ -14,6 +14,12 @@ public enum LlmProviderKind
     /// <summary>OpenRouter. Cloud: transcript-derived text leaves the machine.</summary>
     OpenRouter,
 
+    /// <summary>Anthropic directly. Speaks /v1/messages, not chat-completions — see AnthropicClient.</summary>
+    Anthropic,
+
+    /// <summary>OpenAI directly. Chat-completions, so the ordinary client serves it.</summary>
+    OpenAi,
+
     /// <summary>Any other endpoint speaking the OpenAI chat-completions API.</summary>
     OpenAiCompatible,
 }
@@ -84,6 +90,26 @@ public static class LlmProviders
             RequiresApiKey = true,
             Summary = "Çok daha güçlü modellere erişim verir. Karşılığında görüşme metinleri "
                     + "OpenRouter üzerinden seçtiğin modelin sağlayıcısına gider.",
+        },
+        new()
+        {
+            Kind = LlmProviderKind.Anthropic,
+            DisplayName = "Anthropic / Claude (bulut)",
+            DefaultBaseUrl = "https://api.anthropic.com/v1",
+            SendsDataOffMachine = true,
+            RequiresApiKey = true,
+            Summary = "Kendi Anthropic anahtarınla doğrudan Claude. Türkçe'de ve şemaya uyan "
+                    + "çıktıda güçlü. Görüşme metinleri Anthropic'e gider.",
+        },
+        new()
+        {
+            Kind = LlmProviderKind.OpenAi,
+            DisplayName = "OpenAI / GPT (bulut)",
+            DefaultBaseUrl = "https://api.openai.com/v1",
+            SendsDataOffMachine = true,
+            RequiresApiKey = true,
+            Summary = "Kendi OpenAI anahtarınla doğrudan GPT modelleri. Görüşme metinleri "
+                    + "OpenAI'a gider.",
         },
         new()
         {

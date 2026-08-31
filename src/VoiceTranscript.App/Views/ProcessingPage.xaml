@@ -8,7 +8,7 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:ProcessingViewModel}">
 
-    <Grid Margin="24,4,24,16">
+    <Grid Margin="0,4,0,16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />

@@ -359,7 +359,8 @@ public sealed record AppSettings
     /// </summary>
     [JsonIgnore]
     public bool UsesRemoteModelName =>
-        LlmProvider is LlmProviderKind.OpenRouter or LlmProviderKind.OpenAiCompatible;
+        LlmProvider is LlmProviderKind.OpenRouter or LlmProviderKind.OpenAiCompatible
+                    or LlmProviderKind.Anthropic or LlmProviderKind.OpenAi;
 
     /// <summary>
     /// The exact string sent as the model in a chat request.
@@ -411,7 +412,7 @@ public sealed record AppSettings
         {
             problems.Add(
                 $"{Provider.DisplayName} için model adı yazılmalı, örneğin " +
-                $"\"{RemoteModelSuggestions.First()}\".");
+                $"\"{SuggestionsFor(LlmProvider).First()}\".");
         }
 
         if (LlmProvider == LlmProviderKind.OpenAiCompatible && string.IsNullOrWhiteSpace(LlmBaseUrl))
@@ -449,6 +450,28 @@ public sealed record AppSettings
         "openai/gpt-5-mini",
         "deepseek/deepseek-chat",
     ];
+
+    /// <summary>
+    /// Starting points for one provider, since the identifier spelling is provider-specific.
+    ///
+    /// The same model is "anthropic/claude-haiku-4.5" through OpenRouter and "claude-haiku-4-5"
+    /// against Anthropic directly. Offering the OpenRouter spelling to somebody who picked
+    /// Anthropic produces a rejection that names neither the model nor the format, so the two
+    /// lists are kept apart.
+    ///
+    /// Still only suggestions. The real list is fetched from the provider — see ModelDirectory —
+    /// because any list compiled here starts rotting the day it is written.
+    /// </summary>
+    public static IReadOnlyList<string> SuggestionsFor(LlmProviderKind kind) => kind switch
+    {
+        LlmProviderKind.Anthropic =>
+            ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-1"],
+
+        LlmProviderKind.OpenAi =>
+            ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1"],
+
+        _ => RemoteModelSuggestions,
+    };
 
     /// <summary>Whether conversation-derived text would leave the machine as configured.</summary>
     [JsonIgnore]

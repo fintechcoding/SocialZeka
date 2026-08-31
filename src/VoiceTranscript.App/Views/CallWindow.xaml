@@ -3,6 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+                 xmlns:controls="clr-namespace:VoiceTranscript.App.Controls"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  mc:Ignorable="d"
@@ -28,8 +29,8 @@
             <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
         </StackPanel>
 
-        <TabControl Grid.Row="2" Margin="20,12,20,0" Padding="0,12,0,0"
-                    BorderThickness="0" Background="Transparent">
+        <TabControl Grid.Row="2" Margin="20,14,20,0" Padding="0,14,0,0"
+                    Style="{StaticResource SegmentedTabs}">
 
             <!-- ================= the conversation ================= -->
             <TabItem Header="Görüşme">
@@ -53,8 +54,46 @@
                                         <Border MaxWidth="520" Padding="12,9" CornerRadius="8"
                                                 Cursor="Hand"
                                                 MouseLeftButtonUp="Turn_Click"
+                                                ToolTip="Bu andan itibaren dinle. Sağ tıkla: kesit çıkar."
                                                 HorizontalAlignment="{Binding IsMe, Converter={StaticResource SpeakerAlignment}}"
                                                 Background="{Binding IsMe, Converter={StaticResource SpeakerBackground}}">
+
+                                            <!--
+                                                Cutting an exchange out of a call.
+
+                                                The unit is a line plus the replies that followed
+                                                it, because that is the unit people argue about. An
+                                                answer on its own invites "you took that out of
+                                                context", and the answer to that has to be built
+                                                into what gets exported rather than argued about
+                                                afterwards — so the menu counts replies, and the
+                                                words are written beside the audio with the date on
+                                                them.
+                                            -->
+                                            <Border.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Ses kesiti çıkar">
+                                                        <MenuItem Header="Yalnızca bu satır" Tag="0"
+                                                                  Click="ExportExchange_Click" />
+                                                        <MenuItem Header="Bu satır ve cevabı" Tag="1"
+                                                                  Click="ExportExchange_Click" />
+                                                        <MenuItem Header="Bu satır ve sonraki 3" Tag="3"
+                                                                  Click="ExportExchange_Click" />
+                                                        <MenuItem Header="Bu satır ve sonraki 5" Tag="5"
+                                                                  Click="ExportExchange_Click" />
+                                                        <MenuItem Header="Bu satır ve sonraki 10" Tag="10"
+                                                                  Click="ExportExchange_Click" />
+                                                    </MenuItem>
+
+                                                    <Separator />
+
+                                                    <MenuItem Header="Bu andan itibaren dinle"
+                                                              Click="PlayFromHere_Click" />
+                                                    <MenuItem Header="Metni kopyala"
+                                                              Click="CopyTurn_Click" />
+                                                </ContextMenu>
+                                            </Border.ContextMenu>
+
                                             <StackPanel>
                                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
                                                     <TextBlock Text="{Binding Speaker}" FontWeight="SemiBold"
@@ -272,50 +311,120 @@
 
         <!-- The player stays put across tabs: somebody asking a question about a passage should
              not lose the passage by changing tab to ask. -->
-        <Border Grid.Row="3" Margin="20,12,20,16" Padding="12" CornerRadius="6"
+        <Border Grid.Row="3" Margin="20,12,20,16" Padding="12,10" CornerRadius="6"
                 Background="{DynamicResource SubtleFillColorSecondaryBrush}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+            <StackPanel>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ui:Button Appearance="Transparent" Command="{Binding Playback.SkipBackCommand}"
-                               ToolTip="10 saniye geri">
-                        <ui:Button.Icon>
-                            <ui:SymbolIcon Symbol="ArrowCounterclockwise24" />
-                        </ui:Button.Icon>
-                    </ui:Button>
+                <!--
+                    The timeline, and it is draggable.
 
-                    <ui:Button Appearance="Transparent" Command="{Binding Playback.TogglePlayCommand}">
-                        <ui:Button.Icon>
-                            <ui:SymbolIcon Symbol="Play24" />
-                        </ui:Button.Icon>
-                    </ui:Button>
+                    Two mirrored waveforms: you above the line, the other party below. No recorder
+                    that captures a call as one mixed stream can draw this, because it does not
+                    know whose sound is whose at any moment; here it is two files, so the shape is
+                    a fact rather than a guess.
 
-                    <ui:Button Appearance="Transparent" Command="{Binding Playback.SkipForwardCommand}"
-                               ToolTip="10 saniye ileri">
-                        <ui:Button.Icon>
-                            <ui:SymbolIcon Symbol="ArrowClockwise24" />
-                        </ui:Button.Icon>
-                    </ui:Button>
-                </StackPanel>
+                    Drawn here as well as on the contact page because this window is where somebody
+                    reads a conversation properly, and reading involves going back. Without a
+                    timeline the only way back is clicking a line you can still see — which fails
+                    for exactly the passage you are hunting for, the one scrolled off the screen.
+                -->
+                <Grid Height="56" Margin="0,0,0,6" Background="Transparent" Cursor="Hand"
+                      controls:Scrubbable.Player="{Binding Playback}"
+                      ToolTip="Tıkla ya da sürükle — o andan dinlersin."
+                      Visibility="{Binding Playback.IsLoaded, Converter={StaticResource BoolToVisibility}}">
+                    <Viewbox Stretch="Fill">
+                        <Canvas Width="1000" Height="68">
+                            <Polygon Points="{Binding Playback.MicShape}"
+                                     Fill="{StaticResource MeBrush}" Opacity="0.85" />
+                            <Polygon Points="{Binding Playback.FarShape}"
+                                     Fill="{StaticResource ThemBrush}" Opacity="0.85" />
 
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="14,0"
-                           Style="{StaticResource Caption}"
-                           Text="{Binding Playback.ChannelName}" />
+                            <!-- Centre line, so the two bands read as one timeline. -->
+                            <Line X1="0" Y1="34" X2="1000" Y2="34" StrokeThickness="0.6"
+                                  Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" />
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Playback.PositionText}"
-                               FontFamily="Consolas, Cascadia Mono, Segoe UI" />
-                    <TextBlock Text=" / " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                    <TextBlock Text="{Binding Playback.DurationText}"
-                               FontFamily="Consolas, Cascadia Mono, Segoe UI"
-                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                </StackPanel>
-            </Grid>
+                            <Line Y1="0" Y2="68" StrokeThickness="1.6"
+                                  X1="{Binding Playback.PlayheadX}"
+                                  X2="{Binding Playback.PlayheadX}"
+                                  Stroke="{DynamicResource AccentFillColorDefaultBrush}" />
+                        </Canvas>
+                    </Viewbox>
+                </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:Button Appearance="Transparent" Command="{Binding Playback.SkipBackCommand}"
+                                   ToolTip="10 saniye geri">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="ArrowCounterclockwise24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+
+                        <!--
+                            One button that shows what it will do next. The old one drew a play
+                            triangle at all times, so the only way to find out whether a silent
+                            passage was playing was to press it and hear what changed.
+                        -->
+                        <ui:Button Appearance="Transparent" Command="{Binding Playback.TogglePlayCommand}">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon>
+                                    <ui:SymbolIcon.Style>
+                                        <Style TargetType="ui:SymbolIcon">
+                                            <Setter Property="Symbol" Value="Play24" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Playback.IsPlaying}" Value="True">
+                                                    <Setter Property="Symbol" Value="Pause24" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ui:SymbolIcon.Style>
+                                </ui:SymbolIcon>
+                            </ui:Button.Icon>
+                        </ui:Button>
+
+                        <ui:Button Appearance="Transparent" Command="{Binding Playback.SkipForwardCommand}"
+                                   ToolTip="10 saniye ileri">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="ArrowClockwise24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+
+                        <!--
+                            Which voice, and it is a button rather than a label. The two sides are
+                            recorded separately, so pulling one out of a passage where both talked
+                            at once is possible here and nowhere else — but only if the control
+                            says so by being pressable.
+                        -->
+                        <ui:Button Appearance="Transparent" Margin="8,0,0,0"
+                                   Command="{Binding Playback.SwitchSpeakerCommand}"
+                                   Content="{Binding Playback.ChannelName}"
+                                   ToolTip="Tüm görüşme, sen, karşı taraf arasında geçiş yapar.">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="PersonVoice24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="14,0"
+                               Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis"
+                               Text="{Binding TranscriptMessage}" />
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Playback.PositionText}"
+                                   FontFamily="Consolas, Cascadia Mono, Segoe UI" />
+                        <TextBlock Text=" / " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <TextBlock Text="{Binding Playback.DurationText}"
+                                   FontFamily="Consolas, Cascadia Mono, Segoe UI"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
         </Border>
     </Grid>
 </ui:FluentWindow>

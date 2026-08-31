@@ -58,6 +58,44 @@ public partial class SettingsWindow
         }
     }
 
+    /// <summary>
+    /// Opens the provider's catalogue so a model can be found by searching rather than recalled.
+    ///
+    /// The key is passed through because two of the three providers refuse to list anything
+    /// without one. When it is missing the dialog says so plainly instead of returning an empty
+    /// list, since "no models" and "you have not entered your key" are different problems with
+    /// very different fixes.
+    /// </summary>
+    private void BrowseModels_Click(object sender, RoutedEventArgs e)
+    {
+        var provider = _viewModel.SelectedProvider;
+
+        var baseUrl = string.IsNullOrWhiteSpace(_viewModel.LlmBaseUrl)
+            ? provider.DefaultBaseUrl
+            : _viewModel.LlmBaseUrl.Trim();
+
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            Report("Önce sağlayıcının adresini gir.", isProblem: true);
+            return;
+        }
+
+        var dialog = new ModelPickerWindow(
+            App.HttpClient,
+            provider.Kind,
+            provider.DisplayName,
+            baseUrl,
+            string.IsNullOrWhiteSpace(_viewModel.LlmApiKey) ? null : _viewModel.LlmApiKey,
+            _viewModel.LlmRemoteModel)
+        {
+            Owner = this,
+        };
+
+        if (dialog.ShowDialog() != true || dialog.ChosenModel is not { Length: > 0 } chosen) return;
+
+        _viewModel.LlmRemoteModel = chosen;
+    }
+
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.Revalidate();

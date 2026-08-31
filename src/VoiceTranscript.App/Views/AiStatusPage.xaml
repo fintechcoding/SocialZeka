@@ -68,7 +68,7 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="{StaticResource PadPageScroll}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,18,24">
         <StackPanel MaxWidth="{StaticResource PageMeasure}" HorizontalAlignment="Left">
 
             <Grid Margin="0,0,0,12">
@@ -131,6 +131,103 @@
                     <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Style="{StaticResource Caption}"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                Text="Çözümleme yapılmazsa görüşme yine yazıya dökülür ve metin saklanır; sonradan bir servis bağlandığında yalnızca çözümleme tekrarlanır, ses yeniden işlenmez." />
+                </StackPanel>
+            </Border>
+
+            <!--
+                ==================== what it has actually cost ====================
+
+                Two figures the application knew and never said.
+
+                Transcription speed is the important one. On a machine without a usable GPU this
+                runs several times slower than real time — a forty-seven minute call once took
+                three and a half hours — and while that is happening a working application is
+                indistinguishable from a hung one. Stating the measured multiple turns "it seems
+                stuck" into "it is running at 0.4×, which for this hardware is expected".
+
+                Token counts are the other. A hosted model spends real money silently, and the
+                first notice used to be the monthly bill.
+            -->
+            <TextBlock Text="Kullanım" Style="{StaticResource GroupHeader}" Margin="0,20,0,0" />
+
+            <Border Style="{StaticResource Panel}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"
+                                   Text="{Binding WindowName}" />
+
+                        <ui:Button Grid.Column="1" Appearance="Transparent"
+                                   Content="{Binding OtherWindowName}"
+                                   Command="{Binding SwitchWindowCommand}" />
+                    </Grid>
+
+                    <StackPanel Visibility="{Binding HasUsage, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Yazıya dökme" Style="{StaticResource Caption}"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <TextBlock Text="{Binding TranscribeLine}" TextWrapping="Wrap" Margin="0,2,0,0" />
+
+                        <TextBlock Text="{Binding SpeedLine}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Visibility="{Binding SpeedLine, Converter={StaticResource NullToCollapsed}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                                    <Style.Triggers>
+                                        <!-- Below real time is a fact worth colouring: it means the
+                                             backlog grows for as long as calls keep being made. -->
+                                        <DataTrigger Binding="{Binding SpeedIsPoor}" Value="True">
+                                            <Setter Property="Foreground"
+                                                    Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!-- Per engine, because "transcription is slow" is not actionable and
+                             "the local model runs at 0.4× and the hosted one at 12×" is. -->
+                        <ItemsControl ItemsSource="{Binding Engines}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="{Binding Engine}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Style="{StaticResource Caption}" />
+
+                                        <TextBlock Grid.Column="1" Margin="12,0,0,0"
+                                                   Style="{StaticResource Caption}"
+                                                   FontFamily="Consolas, Cascadia Mono, Segoe UI">
+                                            <Run Text="{Binding Runs, Mode=OneWay}" /><Run Text=" görüşme · " /><Run
+                                                Text="{Binding SpeedFactor, Mode=OneWay, StringFormat='{}{0:0.0}×'}" />
+                                        </TextBlock>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Separator Margin="0,12" />
+
+                        <TextBlock Text="Çözümleme" Style="{StaticResource Caption}"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <TextBlock Text="{Binding AnalyseLine}" TextWrapping="Wrap" Margin="0,2,0,0" />
+
+                        <TextBlock Text="{Binding FailureLine}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                   Style="{StaticResource Caption}"
+                                   Visibility="{Binding FailureLine, Converter={StaticResource NullToCollapsed}}" />
+                    </StackPanel>
+
+                    <TextBlock TextWrapping="Wrap" Style="{StaticResource Caption}"
+                               Visibility="{Binding HasUsage, Converter={StaticResource InverseBoolToVisibility}}"
+                               Text="Henüz ölçülecek bir iş yapılmadı. İlk görüşme işlendiğinde burada hız, süre ve jeton sayıları görünür." />
                 </StackPanel>
             </Border>
         </StackPanel>

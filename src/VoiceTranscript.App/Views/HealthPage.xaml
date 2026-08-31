@@ -18,7 +18,7 @@
         same question at two levels — is the machinery set up, and is it getting through the work —
         so they belong on one screen with a tab between them.
     -->
-    <TabControl Margin="24,8,24,16" Padding="0,12,0,0" BorderThickness="0" Background="Transparent">
+    <TabControl Margin="24,10,24,16" Padding="0,14,0,0" Style="{StaticResource SegmentedTabs}">
 
         <TabItem Header="Sistem">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,8,24">

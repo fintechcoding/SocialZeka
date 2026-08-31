@@ -699,3 +699,62 @@ Kullanıcının istediği, henüz yapılmamış olanlar:
   `Localisation.T()` çağırmak yeterli.
 - **Telegram sohbet dökümü içe aktarma** — kullanıcı isteğiyle *opsiyonel* olarak planlandı,
   birincil değil. `Import/TelegramExport.cs` ayrıştırıcı hazır, arayüze bağlanmadı.
+
+---
+
+## 2026-08-31 — v0.9.7: oynatıcı, kesit çıkarma, Claude/OpenAI, kullanım istatistiği
+
+Kullanıcı uygulamayı çalıştırırken bildirdiklerinin toplu turu. Hepsi tek sürümde toplandı.
+
+### Arayüz
+
+| Bulgu | Sebep | Ne yapıldı |
+|---|---|---|
+| "Durum" sekmeleri kaymış görünüyor | `TabControl` zaten `Margin="24"` veriyordu, gömülü sayfalar kendi `24`'ünü ekliyordu → içerik 48'den başlıyordu, sekme şeridi 24'ten | `ProcessingPage` kök `Grid` 0'a, `AiStatusPage` `PadPageScroll` yerine `0,4,18,24` |
+| Sekmeler birbirinden ayırt edilemiyor | WPF-UI varsayılan şeridi seçili sekmeyi saç teli bir çizgi ve çok hafif bir zeminle işaretliyor | `SegmentedTabs` / `SegmentedTabItem` stilleri (`Theme.xaml`): seçili olan kenarlıklı dolu hap + yarı kalın yazı, altında ayırıcı çizgi |
+| Görüşme penceresindeki oynatıcı yetersiz | Dalga formu yok, sürükleme yok, ▶ ikonu hiç ⏸ olmuyordu | Aynalı dalga formu, sürüklenebilir zaman çubuğu, durumu gösteren ikon, konuşmacı değiştirme düğmesi |
+| "Kişiyi değiştir" düğmesi gereksiz | Sağ tık menüsüne taşınmıştı, araç çubuğunda hangi görüşmeye uygulanacağı belirsizdi | Araç çubuğundan kaldırıldı |
+
+**Sürükleme** `Controls/Scrubbable.cs` ile eklendi — iliştirilmiş özellik, çünkü iki ekran çok
+farklı şeyler çiziyor ve ortak olan yalnızca X koordinatını ana çevirme aritmetiği. `SeekTo`
+sürükleme sırasında kullanılamaz: dosyayı yeniden açıp cihazı yeniden başlatıyor, fare hareketi
+başına bir kez. `ScrubTo`/`EndScrub` konumu ayrı taşır, sesi bir kez yerleştirir.
+
+### Sohbet kabarcığında sağ tık → ses kesiti
+
+`ClipExporter.ExportExchange`. Birim bir satır **ve ardından gelen cevaplar** — çünkü insanların
+tartıştığı birim bu. Cevabın tek başına kesilmesi "bağlamından koparmışsın" itirazını davet eder;
+bunun cevabı sonradan tartışılmak yerine çıktının içine konur. Menü cevap sayar (0/1/3/5/10).
+
+Sesin yanına tarih, kişi ve konuşulanları taşıyan bir `.txt` yazılır — bir yıl sonra dosya bir
+klasördeki otuzdan biri olduğunda hangi görüşmeden geldiğini hatırlatan şey bu.
+
+### Yapay zekâ sağlayıcıları
+
+Anthropic **aynı protokol değil**: `/v1/messages`, `x-api-key`, sürüm başlığı, sistem istemi
+üst düzey alan, yanıt içerik blokları dizisi. Mevcut istemciyle bunların hiçbirini anlatmayan bir
+400 alınıyordu. Ayrı `AnthropicClient`. Yapılandırılmış çıktı zorlanmış bir *tool* ile alınıyor;
+`response_format` yok ve nazikçe JSON istemek eşdeğer değil.
+
+- `LlmProviderKind`: `Anthropic`, `OpenAi` eklendi (enum metin olarak saklanıyor, sıra güvenli)
+- `LlmClientFactory` — beş çağrı yeri doğrudan `new OpenAiCompatibleClient` yapıyordu
+- `ModelDirectory` — sağlayıcıdan **canlı** model listesi; OpenRouter fiyat ve bağlam uzunluğuyla
+- `ModelPickerWindow` — arama kutulu seçici. OpenRouter tek başına birkaç yüz model yayımlıyor;
+  filtresiz bir liste metin kutusundan daha kötü bir arayüz olurdu. Arama kimlik, ad ve fiyat
+  satırında birden yürür: insanlar "haiku", "ucuz", "128k" diye arıyor ve bunların yalnızca biri
+  kimlikte.
+
+### Kullanım istatistiği (`processing_run`)
+
+Uygulamanın bildiği ama hiç söylemediği iki sayı. **Gerçek zaman çarpanı** önemli olan: 1'in
+altı, bir saatlik konuşmanın işlenmesinin bir saatten uzun sürdüğü, yani aramalar sürdükçe
+birikmenin büyüdüğü anlamına gelir — ve bu sırada çalışan bir uygulama takılmış olandan ayırt
+edilemez. Gözlenen en kötü değer 0,4× (47 dakikalık görüşme, 3,5 saat).
+
+İkincisi jeton: bulut modeli sessizce gerçek para harcıyor, ilk haber aylık fatura oluyordu.
+
+Satırlar konuşma içeriği, kişi veya başlık taşımaz — aşama, motor, süre, jeton. Yine de
+`ON DELETE CASCADE`: "her şey silinecek" birebir doğru kalsın diye. Toplamlar küçülür, dürüst
+olan bu.
+
+**571 test, 0 hata** (28 yeni: 18 sağlayıcı, 10 kullanım).

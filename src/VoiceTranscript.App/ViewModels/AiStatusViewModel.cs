@@ -4,7 +4,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Asr;
 using VoiceTranscript.Core.Configuration;
+using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Llm;
+using VoiceTranscript.Core.Storage;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -87,7 +89,8 @@ public sealed partial class AiServiceRow(
 ///   configured by default and is usually not running. Settings can only answer the first
 ///   question; this asks the second, out loud, on demand.
 /// </summary>
-public sealed partial class AiStatusViewModel(Func<AppSettings> settings, HttpClient http) : ObservableObject
+public sealed partial class AiStatusViewModel(
+    Func<AppSettings> settings, HttpClient http, Repository repository) : ObservableObject
 {
     /// <summary>Transcription, in the order it will be attempted.</summary>
     public ObservableCollection<AiServiceRow> Transcription { get; } = [];
@@ -126,6 +129,8 @@ public sealed partial class AiStatusViewModel(Func<AppSettings> settings, HttpCl
 
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(AnalysisDisabled));
+
+        LoadUsage();
     }
 
     private void BuildTranscription(AppSettings current)
@@ -220,7 +225,7 @@ public sealed partial class AiStatusViewModel(Func<AppSettings> settings, HttpCl
             // the answer somebody opening this screen is most likely looking for.
             if (current.LlmReachableInPrinciple)
             {
-                var client = new OpenAiCompatibleClient(
+                var client = LlmClientFactory.Create(
                     http, current.LlmProvider, current.ResolvedBaseUrl, current.LlmApiKey);
 
                 Analysis[0].Reach = await ReachAsync(
@@ -255,6 +260,110 @@ public sealed partial class AiStatusViewModel(Func<AppSettings> settings, HttpCl
             IsChecking = false;
         }
     }
+
+    // ---- what it has cost ---------------------------------------------------
+
+    /// <summary>
+    /// Whether the figures cover the last thirty days or the whole archive.
+    ///
+    /// Two windows rather than one because they answer different questions. "How fast is this
+    /// machine" is a question about now — it changes when a driver breaks or a GPU is added, and a
+    /// lifetime average buries that under months of old runs. "What has this cost me" is a
+    /// question about the total.
+    /// </summary>
+    [ObservableProperty] private bool _recentOnly = true;
+
+    [ObservableProperty] private UsageTotals _transcribeUsage = new();
+    [ObservableProperty] private UsageTotals _analyseUsage = new();
+
+    /// <summary>Per-engine transcription figures, so a local model and a hosted one can be compared.</summary>
+    public ObservableCollection<EngineUsage> Engines { get; } = [];
+
+    public string WindowName => RecentOnly ? "Son 30 gün" : "Tüm zaman";
+    public string OtherWindowName => RecentOnly ? "Tüm zamanı göster" : "Son 30 günü göster";
+
+    public bool HasUsage => TranscribeUsage.Runs > 0 || AnalyseUsage.Runs > 0;
+
+    public string TranscribeLine => TranscribeUsage.Runs == 0
+        ? "Bu aralıkta hiçbir görüşme yazıya dökülmedi."
+        : $"{TranscribeUsage.Runs} görüşme · {Span(TranscribeUsage.Audio)} ses · "
+          + $"{Span(TranscribeUsage.Elapsed)} işlem süresi";
+
+    /// <summary>
+    /// The speed line, and the reason this screen exists.
+    ///
+    /// Below one means an hour of conversation costs more than an hour to transcribe, so the
+    /// backlog grows for as long as calls keep being made. That is a thing somebody needs told
+    /// plainly rather than left to infer from a progress bar that never empties.
+    /// </summary>
+    public string SpeedLine => TranscribeUsage.SpeedFactor switch
+    {
+        null => "",
+        < 1 => $"Gerçek zamanın {TranscribeUsage.SpeedFactor:0.0} katı — ses, işlenmesinden hızlı "
+             + "birikiyor. GPU yoksa beklenen davranış budur.",
+        { } speed => $"Gerçek zamanın {speed:0.0} katı hızda işleniyor.",
+    };
+
+    public bool SpeedIsPoor => TranscribeUsage.SpeedFactor is < 1;
+
+    public string AnalyseLine => AnalyseUsage.Runs == 0
+        ? "Bu aralıkta hiçbir görüşme çözümlenmedi."
+        : $"{AnalyseUsage.Runs} görüşme · {Span(AnalyseUsage.Elapsed)} · "
+          + (AnalyseUsage.TotalTokens > 0
+              ? $"{Tokens(AnalyseUsage.PromptTokens)} giriş + {Tokens(AnalyseUsage.CompletionTokens)} çıkış jeton"
+              : "jeton bildirilmedi");
+
+    public string FailureLine
+    {
+        get
+        {
+            var failures = TranscribeUsage.Failures + AnalyseUsage.Failures;
+
+            return failures == 0 ? "" : $"{failures} deneme başarısız oldu.";
+        }
+    }
+
+    [RelayCommand]
+    private void SwitchWindow() => RecentOnly = !RecentOnly;
+
+    partial void OnRecentOnlyChanged(bool value) => LoadUsage();
+
+    private void LoadUsage()
+    {
+        var since = RecentOnly ? DateTimeOffset.UtcNow.AddDays(-30) : (DateTimeOffset?)null;
+
+        TranscribeUsage = repository.Usage(ProcessingStage.Transcribe, since);
+        AnalyseUsage = repository.Usage(ProcessingStage.Analyse, since);
+
+        Engines.Clear();
+        foreach (var engine in repository.UsageByEngine(ProcessingStage.Transcribe, since))
+            Engines.Add(engine);
+
+        foreach (var name in new[]
+        {
+            nameof(WindowName), nameof(OtherWindowName), nameof(HasUsage),
+            nameof(TranscribeLine), nameof(SpeedLine), nameof(SpeedIsPoor),
+            nameof(AnalyseLine), nameof(FailureLine),
+        })
+        {
+            OnPropertyChanged(name);
+        }
+    }
+
+    /// <summary>Durations in the units people say them in — never "0.03 saat".</summary>
+    private static string Span(TimeSpan span) => span.TotalHours >= 1
+        ? $"{(int)span.TotalHours} sa {span.Minutes} dk"
+        : span.TotalMinutes >= 1
+            ? $"{(int)span.TotalMinutes} dk"
+            : $"{(int)span.TotalSeconds} sn";
+
+    /// <summary>Token counts, abbreviated. A raw 1_284_339 is not a number anybody reads.</summary>
+    private static string Tokens(long count) => count switch
+    {
+        >= 1_000_000 => $"{count / 1_000_000.0:0.0}M",
+        >= 1_000 => $"{count / 1_000.0:0.0}B",
+        _ => count.ToString(),
+    };
 
     /// <summary>
     /// One bounded attempt. Unreachable is an answer, not an error.

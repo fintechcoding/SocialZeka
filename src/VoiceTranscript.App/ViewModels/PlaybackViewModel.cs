@@ -288,6 +288,57 @@ public sealed partial class PlaybackViewModel : ObservableObject, IDisposable
         _ticker.Start();
     }
 
+    /// <summary>
+    /// Moves to a fraction without disturbing playback. Used while a drag is in progress.
+    ///
+    /// Dragging cannot go through <see cref="SeekTo"/>: that reopens the file and restarts the
+    /// device, and a drag produces one of those per mouse move. The result is an audible stutter
+    /// and, on a long recording, a window that stops redrawing — so the position is moved on its
+    /// own during the drag and the audio is repositioned once, when the button comes back up.
+    /// </summary>
+    public void ScrubTo(double fraction)
+    {
+        if (Duration <= TimeSpan.Zero) return;
+
+        IsScrubbing = true;
+        Position = TimeSpan.FromSeconds(Duration.TotalSeconds * Math.Clamp(fraction, 0, 1));
+
+        // The transcript follows the drag. Watching the lines go past is how somebody finds the
+        // passage they are looking for, so it has to happen while the finger is still down.
+        PositionChanged?.Invoke(this, (int)Position.TotalMilliseconds);
+    }
+
+    /// <summary>
+    /// Ends a drag and moves the audio to where it was left.
+    ///
+    /// Whether it plays afterwards is whatever it was doing before: somebody scrubbing a paused
+    /// recording is looking for a place, not asking to be talked at.
+    /// </summary>
+    public void EndScrub()
+    {
+        if (!IsScrubbing) return;
+
+        IsScrubbing = false;
+
+        var path = CurrentPath;
+        if (path is null || !File.Exists(path)) return;
+
+        if (IsPlaying)
+        {
+            _player.PlayFrom(path, Position);
+            _ticker.Start();
+        }
+        else
+        {
+            // Positioned but held. Pressing play afterwards resumes from here, because
+            // TogglePlay starts at Position.
+            _player.Stop();
+        }
+    }
+
+    /// <summary>True while the user is dragging, so the ticker does not fight them for the playhead.</summary>
+    [ObservableProperty] private bool _isScrubbing;
+
     /// <summary>Ten seconds back. The length of a sentence somebody just missed.</summary>
     [RelayCommand]
     private void SkipBack() => Nudge(TimeSpan.FromSeconds(-10));
@@ -299,7 +350,18 @@ public sealed partial class PlaybackViewModel : ObservableObject, IDisposable
     {
         if (Duration <= TimeSpan.Zero) return;
 
-        SeekTo((Position + by).TotalSeconds / Duration.TotalSeconds);
+        var fraction = (Position + by).TotalSeconds / Duration.TotalSeconds;
+
+        // Skipping while stopped moves the mark and leaves it stopped. Starting playback because
+        // somebody wanted to look ten seconds earlier is the player deciding what they meant.
+        if (IsPlaying)
+        {
+            SeekTo(fraction);
+            return;
+        }
+
+        ScrubTo(fraction);
+        EndScrub();
     }
 
     /// <summary>
@@ -339,6 +401,10 @@ public sealed partial class PlaybackViewModel : ObservableObject, IDisposable
 
     private void Tick()
     {
+        // A drag owns the playhead while it lasts. Without this the ticker writes the device's
+        // position back twenty times a second and the handle springs out from under the cursor.
+        if (IsScrubbing) return;
+
         Position = _player.Position;
         PositionChanged?.Invoke(this, (int)Position.TotalMilliseconds);
 

@@ -968,6 +968,13 @@ public sealed class CallOrchestrator : IDisposable
                 $"Bu görüşme yazıya dökülmek üzere {model.DisplayName} servisine yükleniyor.");
         }
 
+        // Wall clock rather than the worker's own reported figure, and for both routes. What
+        // somebody wants to know is how long their machine takes to turn a call into text, which
+        // includes loading the model and reading the files — the parts that dominate on a machine
+        // without a usable GPU, and exactly the parts the worker's internal timer excludes.
+        var startedAt = DateTimeOffset.UtcNow;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
         var result = model.SendsAudioOffMachine
             ? await TranscribeInCloudAsync(call, model, settings, cancellationToken)
             : await _worker.TranscribeAsync(new TranscriptionRequest
@@ -981,6 +988,16 @@ public sealed class CallOrchestrator : IDisposable
                 FarPath = call.FarPath,
                 CacheDir = _paths.Models,
             }, progress: new Progress<Core.Asr.WorkerProgress>(p => Report(call.Id, StageName(p.Stage), p.Percent / 100.0)), cancellationToken);
+
+        clock.Stop();
+
+        _repository.RecordRun(
+            call.Id,
+            ProcessingStage.Transcribe,
+            engine: result.ModelRef ?? result.Engine ?? model.DisplayName,
+            startedAt,
+            clock.Elapsed,
+            call.Duration);
 
         _repository.ReplaceSegments(call.Id, result.Segments.Select(s => new CoreSegment
         {
@@ -1041,7 +1058,7 @@ public sealed class CallOrchestrator : IDisposable
             return remembered;
         }
 
-        var client = new OpenAiCompatibleClient(
+        var client = LlmClientFactory.Create(
             _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
 
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -1077,7 +1094,7 @@ public sealed class CallOrchestrator : IDisposable
     {
         _repository.SetCallState(callId, ProcessingState.Analysing);
 
-        var client = new OpenAiCompatibleClient(
+        var client = LlmClientFactory.Create(
             _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
 
         var report = await new AnalysisPipeline(client, _repository).AnalyseAsync(

@@ -4,6 +4,7 @@
              xmlns:loc="clr-namespace:VoiceTranscript.App"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:controls="clr-namespace:VoiceTranscript.App.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -525,7 +526,7 @@
                                     <StackPanel>
                                         <Grid x:Name="WaveformHost" Height="76" Margin="0,0,0,8"
                                               Background="Transparent"
-                                              MouseLeftButtonDown="Waveform_Click"
+                                              controls:Scrubbable.Player="{Binding Playback}"
                                               Cursor="Hand"
                                               ToolTip="{loc:T contactspage.tikla-oradan-dinle}">
                                             <Viewbox Stretch="Fill">

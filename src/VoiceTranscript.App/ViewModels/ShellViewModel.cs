@@ -85,7 +85,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Ledger = new LedgerViewModel(repository);
         Contacts = new ContactsViewModel(repository);
         Processing = new ProcessingViewModel(repository);
-        AiStatus = new AiStatusViewModel(settings, App.HttpClient);
+        AiStatus = new AiStatusViewModel(settings, App.HttpClient, repository);
 
         // The screen can requeue work but cannot run it; the orchestrator is held here.
         Processing.ReprocessRequested += (_, _) => _ = orchestrator.ProcessBacklogAsync();

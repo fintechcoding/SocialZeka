@@ -297,5 +297,34 @@ public static class Schema
             updated_at TEXT    NOT NULL
         );
         """,
+
+        // What each piece of work cost.
+        //
+        // The question this answers is one the application could not answer at all: how long
+        // transcription actually takes on this machine, and how much is being spent on analysis.
+        // Both matter here more than they would elsewhere. Without a usable GPU transcription runs
+        // several times slower than real time — a forty-seven minute call once took three and a
+        // half hours — and a machine that is working looks exactly like one that has hung. And a
+        // hosted model is somebody's money, spent silently, with the bill arriving monthly.
+        //
+        // No conversation content, no contact, no title: a row is a stage, an engine, a duration
+        // and a token count. Cascaded on delete anyway, so "her şey silinecek" stays literally
+        // true — the totals shrink, which is the honest outcome.
+        """
+        CREATE TABLE IF NOT EXISTS processing_run (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id           INTEGER REFERENCES call(id) ON DELETE CASCADE,
+            stage             TEXT    NOT NULL,
+            engine            TEXT    NOT NULL,
+            started_at        TEXT    NOT NULL,
+            elapsed_ms        INTEGER NOT NULL DEFAULT 0,
+            audio_ms          INTEGER NOT NULL DEFAULT 0,
+            prompt_tokens     INTEGER,
+            completion_tokens INTEGER,
+            succeeded         INTEGER NOT NULL DEFAULT 1
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_run_started ON processing_run(started_at DESC);",
+        "CREATE INDEX IF NOT EXISTS ix_run_stage ON processing_run(stage, started_at DESC);",
     ];
 }

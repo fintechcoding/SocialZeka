@@ -61,6 +61,46 @@ public sealed record AnalysisReport(
 /// </summary>
 public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 {
+    /// <summary>
+    /// Counts what analysing one call actually spent.
+    ///
+    /// A wrapper rather than a counter at each call site because there are four of them —
+    /// extraction, its retry, the summary and the conversation fallback — and a token total that
+    /// silently omits one of them is worse than no total at all: it would read as accurate.
+    /// </summary>
+    private sealed class Metered(ILlmClient inner) : ILlmClient
+    {
+        private long _prompt;
+        private long _completion;
+
+        public LlmProviderKind Kind => inner.Kind;
+
+        public (long Prompt, long Completion) Reading =>
+            (Interlocked.Read(ref _prompt), Interlocked.Read(ref _completion));
+
+        public async Task<LlmResponse> CompleteAsync(
+            LlmRequest request, CancellationToken cancellationToken = default)
+        {
+            var response = await inner.CompleteAsync(request, cancellationToken);
+
+            // Not every provider reports usage, and a missing count is left out rather than
+            // guessed from the text length — an invented number here would be spent money the
+            // user could not reconcile against their bill.
+            if (response.PromptTokens is { } prompt) Interlocked.Add(ref _prompt, prompt);
+            if (response.CompletionTokens is { } completion) Interlocked.Add(ref _completion, completion);
+
+            return response;
+        }
+
+        public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
+            inner.IsAvailableAsync(cancellationToken);
+
+        public Task UnloadAsync(string model, CancellationToken cancellationToken = default) =>
+            inner.UnloadAsync(model, cancellationToken);
+    }
+
+    private readonly Metered _llm = new(llm);
+
     public async Task<AnalysisReport> AnalyseAsync(
         long callId,
         AnalysisOptions options,
@@ -81,6 +121,10 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         var segments = repository.GetSegments(callId);
         if (segments.Count == 0)
             return new AnalysisReport(0, 0, 0, [], null, ["Bu görüşmenin metni yok."]);
+
+        var startedAt = DateTimeOffset.UtcNow;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var before = _llm.Reading;
 
         List<string> warnings = [];
         List<Commitment> commitments = [];
@@ -176,7 +220,24 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         }
 
         if (options.UnloadWhenDone)
-            await llm.UnloadAsync(options.Model, cancellationToken);
+            await _llm.UnloadAsync(options.Model, cancellationToken);
+
+        clock.Stop();
+
+        // Differenced rather than read absolutely: one pipeline instance can analyse several
+        // calls, and attributing the running total to whichever call happened to be last would
+        // make the per-call figures nonsense.
+        var after = _llm.Reading;
+
+        repository.RecordRun(
+            callId,
+            ProcessingStage.Analyse,
+            options.Model,
+            startedAt,
+            clock.Elapsed,
+            audio: TimeSpan.Zero,
+            promptTokens: (int)(after.Prompt - before.Prompt),
+            completionTokens: (int)(after.Completion - before.Completion));
 
         return new AnalysisReport(commitments.Count, claims.Count, rejected, flags, summary, warnings);
     }
@@ -184,7 +245,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
     private async Task<JsonNode?> ExtractAsync(
         TranscriptChunk chunk, string context, AnalysisOptions options, CancellationToken cancellationToken)
     {
-        var response = await llm.CompleteAsync(new LlmRequest
+        var response = await _llm.CompleteAsync(new LlmRequest
         {
             Model = options.Model,
             SystemPrompt = ExtractionPrompt.SystemPrompt,
@@ -287,7 +348,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
             LlmResponse response;
             try
             {
-                response = await llm.CompleteAsync(new LlmRequest
+                response = await _llm.CompleteAsync(new LlmRequest
                 {
                     Model = options.Model,
                     SystemPrompt = "Sen tarafsız bir çözümleyicisin. Sadece istenen sınıflandırmayı yap.",
@@ -383,7 +444,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
         try
         {
-            var response = await llm.CompleteAsync(new LlmRequest
+            var response = await _llm.CompleteAsync(new LlmRequest
             {
                 Model = options.Model,
                 SystemPrompt = ExtractionPrompt.SummarySystemPrompt,
@@ -419,7 +480,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
         try
         {
-            var response = await llm.CompleteAsync(new LlmRequest
+            var response = await _llm.CompleteAsync(new LlmRequest
             {
                 Model = options.Model,
                 SystemPrompt = ExtractionPrompt.ConversationSummarySystemPrompt,

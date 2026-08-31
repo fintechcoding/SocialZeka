@@ -1147,6 +1147,109 @@ public sealed class Repository(Database database)
             "SELECT * FROM call_summary WHERE call_id = @callId;", new { callId })?.ToModel();
     }
 
+    // ---- what the work cost -------------------------------------------------
+
+    /// <summary>
+    /// Records one completed piece of work.
+    ///
+    /// Deliberately never throws. This is bookkeeping attached to the side of a pipeline that has
+    /// just succeeded at something the user cares about, and letting a statistics insert turn a
+    /// finished transcript into a failed call would be the tail wagging the dog.
+    /// </summary>
+    public void RecordRun(
+        long? callId,
+        string stage,
+        string engine,
+        DateTimeOffset startedAt,
+        TimeSpan elapsed,
+        TimeSpan audio,
+        int? promptTokens = null,
+        int? completionTokens = null,
+        bool succeeded = true)
+    {
+        try
+        {
+            using var connection = Open();
+
+            connection.Execute(
+                """
+                INSERT INTO processing_run
+                    (call_id, stage, engine, started_at, elapsed_ms, audio_ms,
+                     prompt_tokens, completion_tokens, succeeded)
+                VALUES
+                    (@callId, @stage, @engine, @startedAt, @elapsedMs, @audioMs,
+                     @promptTokens, @completionTokens, @succeeded);
+                """,
+                new
+                {
+                    callId,
+                    stage,
+                    engine = string.IsNullOrWhiteSpace(engine) ? "bilinmiyor" : engine,
+                    startedAt = Iso(startedAt),
+                    elapsedMs = (long)elapsed.TotalMilliseconds,
+                    audioMs = (long)audio.TotalMilliseconds,
+                    promptTokens,
+                    completionTokens,
+                    succeeded = succeeded ? 1 : 0,
+                });
+        }
+        catch (Exception)
+        {
+            // See above.
+        }
+    }
+
+    /// <summary>Totals for one stage over a window. All zero when nothing has run yet.</summary>
+    public UsageTotals Usage(string stage, DateTimeOffset? since = null)
+    {
+        using var connection = Open();
+
+        return connection.QueryFirstOrDefault<UsageTotals>(
+            """
+            SELECT
+                COUNT(*)                                     AS Runs,
+                COALESCE(SUM(succeeded = 0), 0)              AS Failures,
+                COALESCE(SUM(elapsed_ms), 0)                 AS ElapsedMs,
+                COALESCE(SUM(audio_ms), 0)                   AS AudioMs,
+                COALESCE(SUM(prompt_tokens), 0)              AS PromptTokens,
+                COALESCE(SUM(completion_tokens), 0)          AS CompletionTokens
+            FROM processing_run
+            WHERE stage = @stage AND (@since IS NULL OR started_at >= @since);
+            """,
+            new { stage, since = since is { } s ? Iso(s) : null }) ?? new UsageTotals();
+    }
+
+    /// <summary>
+    /// Per-engine breakdown for one stage, busiest first.
+    ///
+    /// The point is comparison. "Transcription is slow" is not actionable; "the local model runs
+    /// at 0.4× real time and the hosted one at 12×" is a decision.
+    /// </summary>
+    public IReadOnlyList<EngineUsage> UsageByEngine(string stage, DateTimeOffset? since = null)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<EngineUsage>(
+                """
+                SELECT
+                    engine                              AS Engine,
+                    COUNT(*)                            AS Runs,
+                    COALESCE(SUM(succeeded = 0), 0)     AS Failures,
+                    COALESCE(SUM(elapsed_ms), 0)        AS ElapsedMs,
+                    COALESCE(SUM(audio_ms), 0)          AS AudioMs,
+                    COALESCE(SUM(prompt_tokens), 0)     AS PromptTokens,
+                    COALESCE(SUM(completion_tokens), 0) AS CompletionTokens
+                FROM processing_run
+                WHERE stage = @stage AND (@since IS NULL OR started_at >= @since)
+                GROUP BY engine
+                ORDER BY Runs DESC;
+                """,
+                new { stage, since = since is { } s ? Iso(s) : null }),
+        ];
+    }
+
     // ---- deletion -----------------------------------------------------------
 
     /// <summary>

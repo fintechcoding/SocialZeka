@@ -832,9 +832,33 @@
                                 Visibility="{Binding UsesRemoteModelName, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>
                                 <TextBlock Text="{loc:T settingswindow.model-adi}" FontSize="{StaticResource TextBody}" />
-                                <ComboBox IsEditable="True" Margin="0,8,0,0"
-                                          Text="{Binding LlmRemoteModel, UpdateSourceTrigger=PropertyChanged}"
-                                          ItemsSource="{Binding DiscoveredLlmModels}" />
+
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ComboBox Grid.Column="0" IsEditable="True"
+                                              Text="{Binding LlmRemoteModel, UpdateSourceTrigger=PropertyChanged}"
+                                              ItemsSource="{Binding DiscoveredLlmModels}" />
+
+                                    <!--
+                                        Asks the provider what it actually has, rather than trusting
+                                        a list written months ago. An identifier that no longer
+                                        exists is refused with a message that usually does not
+                                        mention the model, so a typo here presents as "analysis
+                                        stopped working" and stays unexplained.
+                                    -->
+                                    <ui:Button Grid.Column="1" Margin="8,0,0,0" MinWidth="130"
+                                               Content="Modellere gözat…" Click="BrowseModels_Click"
+                                               ToolTip="Sağlayıcıdaki modelleri listeler; arayarak seçebilirsin.">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="Search24" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+
                                 <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0"
                                            Text="{loc:T settingswindow.baglantiyi-sinadiginda-liste-saglayicinin}" />
                             </StackPanel>

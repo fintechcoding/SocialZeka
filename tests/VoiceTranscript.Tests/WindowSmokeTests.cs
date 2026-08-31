@@ -126,6 +126,17 @@ public class WindowSmokeTests
                     repository,
                     new VoiceTranscript.Core.Domain.Contact { Id = 1, Name = "Serdal" }), failures);
 
+                // Constructed only, never shown, so the fetch its Loaded handler starts never
+                // runs — which is what makes this safe to build against a real HttpClient with
+                // no network.
+                Build("Model seçici", () => new ModelPickerWindow(
+                    http,
+                    VoiceTranscript.Core.Llm.LlmProviderKind.OpenRouter,
+                    "OpenRouter (bulut)",
+                    "https://openrouter.ai/api/v1",
+                    apiKey: null,
+                    currentModel: "anthropic/claude-haiku-4.5"), failures);
+
                 Build("Güncelleme", () => new UpdateWindow(
                     new VoiceTranscript.App.Services.UpdateService(http, paths),
                     new VoiceTranscript.Core.Update.Release(

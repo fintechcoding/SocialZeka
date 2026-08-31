@@ -12,22 +12,6 @@ public partial class ContactsPage
     private ContactsViewModel? ViewModel => DataContext as ContactsViewModel;
 
     /// <summary>
-    /// Clicking the waveform plays from that point.
-    ///
-    /// Position is taken as a fraction of the strip rather than in pixels, because the drawing is
-    /// scaled to whatever width the window happens to be. Working in pixels would put the
-    /// playhead somewhere else on a resized window, and a player that lands near the moment
-    /// rather than on it is one nobody uses to check a quote.
-    /// </summary>
-    private void Waveform_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        if (ViewModel is not { } model || sender is not System.Windows.FrameworkElement strip) return;
-        if (strip.ActualWidth <= 0) return;
-
-        model.Playback.SeekTo(e.GetPosition(strip).X / strip.ActualWidth);
-    }
-
-    /// <summary>
     /// Selects the row before its context menu opens.
     ///
     /// WPF shows a ListBoxItem's context menu without selecting it first, so a right-click on one
