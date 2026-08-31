@@ -51,8 +51,14 @@ public sealed class WorkerException(string code, string message) : Exception(mes
 /// CUDA context is never held across a machine suspend, which invalidates it unrecoverably.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed class PythonWorkerHost(PythonWorkerOptions options)
+public sealed partial class PythonWorkerHost(PythonWorkerOptions options)
 {
+    /// <summary>A huggingface download line: "Fetching 4 files:  25%|██▌ | 1/4 …".</summary>
+    [System.Text.RegularExpressions.GeneratedRegex(@"Fetching \d+ files:\s*(?<pct>\d+)%")]
+    private static partial System.Text.RegularExpressions.Regex FetchingRegex();
+
+    private static System.Text.RegularExpressions.Regex FetchingLine => FetchingRegex();
+
     /// <summary>
     /// Asks the worker what it can actually do here: which engines import, whether CUDA is
     /// usable, and which runtime DLLs are missing. Drives what the settings UI offers, so the
@@ -254,6 +260,21 @@ public sealed class PythonWorkerHost(PythonWorkerOptions options)
         process.ErrorDataReceived += (_, e) =>
         {
             if (e.Data is null) return;
+
+            // Model downloads narrate themselves here — huggingface writes "Fetching 4 files:
+            // 25%" to stderr, not to the protocol. On a real machine that was five silent
+            // minutes: the screen said "Model yükleniyor %0" while gigabytes came down, which
+            // is exactly what an application that has hung says. Lifted into a progress event
+            // so the strip can say what is actually happening.
+            var fetching = FetchingLine.Match(e.Data);
+            if (fetching.Success && double.TryParse(fetching.Groups["pct"].Value, out var pct))
+            {
+                events.Writer.TryWrite(new Core.Asr.WorkerProgress
+                {
+                    Stage = "indiriliyor",
+                    Percent = pct,
+                });
+            }
 
             // Keep only the tail: a stack trace is useful, megabytes of warnings are not.
             lock (stderr)

@@ -62,10 +62,92 @@ public sealed class Database(string path)
     /// </summary>
     public void ClearPool() => SqliteConnection.ClearPool(new SqliteConnection(_connectionString));
 
-    /// <summary>Creates the schema if it is not there yet. Safe to call on every start.</summary>
-    public void Migrate()
+    /// <summary>
+    /// Brings the database to the current schema, whatever it is today. Safe on every start.
+    ///
+    /// Baseline plus delta. A fresh database is created whole from <see cref="Schema.Statements"/>
+    /// and stamped current. An existing one first gets the baseline replayed (idempotent — it only
+    /// ever CREATEs IF NOT EXISTS, which is how new tables have always arrived), then any
+    /// <see cref="Migrations.Steps"/> above its stored version, in order, each in its own
+    /// transaction — and before the first of those runs, the whole file is snapshotted beside
+    /// itself. An upgrade that goes wrong must leave a database to go back to; "the migration
+    /// failed" and "the archive is gone" are different sentences.
+    /// </summary>
+    /// <param name="steps">Overridable for tests; production always means <see cref="Migrations.Steps"/>.</param>
+    public void Migrate(IReadOnlyList<Migrations.Step>? steps = null)
     {
+        steps ??= Migrations.Steps;
+
         using var connection = Open();
+
+        var stored = StoredVersion(connection);
+        var fresh = stored == 0 && !TableExists(connection, "call");
+
+        // A fresh database skips the steps entirely: the baseline below creates it already in
+        // its final shape, and replaying history onto it would alter columns it was born with.
+        List<Migrations.Step> pending = fresh
+            ? []
+            : [.. steps.Where(s => s.Version > stored).OrderBy(s => s.Version)];
+
+        // The snapshot, before anything changes shape. VACUUM INTO writes a consistent copy
+        // without closing the pooled connections that keep the live file open on Windows.
+        if (pending.Count > 0)
+        {
+            var backup = $"{Path}.premigration-v{stored}";
+
+            try
+            {
+                if (File.Exists(backup)) File.Delete(backup);
+
+                using var vacuum = connection.CreateCommand();
+                vacuum.CommandText = "VACUUM INTO $target;";
+                vacuum.Parameters.AddWithValue("$target", backup);
+                vacuum.ExecuteNonQuery();
+            }
+            catch (Exception e)
+            {
+                // No snapshot, no migration. Proceeding without one turns any step bug into
+                // data loss; refusing turns it into an error message, and only one of those
+                // can be apologised for.
+                throw new InvalidOperationException(
+                    $"Veritabanı yedeği alınamadı, şema güncellemesi yapılmadı: {e.Message}", e);
+            }
+        }
+
+        ApplyBaseline(connection);
+
+        foreach (var step in pending)
+        {
+            using var transaction = connection.BeginTransaction();
+
+            foreach (var sql in step.Sql)
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = sql;
+                command.ExecuteNonQuery();
+            }
+
+            WriteVersion(connection, transaction, step.Version);
+            transaction.Commit();
+        }
+
+        // Fresh databases are born at the latest version; existing ones have now walked to it.
+        var final = Math.Max(Schema.Version, Latest(steps));
+
+        if (StoredVersion(connection) < final)
+        {
+            using var transaction = connection.BeginTransaction();
+            WriteVersion(connection, transaction, final);
+            transaction.Commit();
+        }
+    }
+
+    private static int Latest(IReadOnlyList<Migrations.Step> steps) =>
+        steps.Count == 0 ? 0 : steps.Max(s => s.Version);
+
+    private void ApplyBaseline(SqliteConnection connection)
+    {
         using var transaction = connection.BeginTransaction();
 
         foreach (var statement in Schema.Statements)
@@ -76,14 +158,37 @@ public sealed class Database(string path)
             command.ExecuteNonQuery();
         }
 
-        using var version = connection.CreateCommand();
-        version.Transaction = transaction;
-        version.CommandText = "INSERT INTO setting(key, value) VALUES('schema_version', $v) " +
-                              "ON CONFLICT(key) DO UPDATE SET value = excluded.value;";
-        version.Parameters.AddWithValue("$v", Schema.Version.ToString());
-        version.ExecuteNonQuery();
-
         transaction.Commit();
+    }
+
+    /// <summary>The version this database last recorded, or zero for none.</summary>
+    public static int StoredVersion(SqliteConnection connection)
+    {
+        if (!TableExists(connection, "setting")) return 0;
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT value FROM setting WHERE key = 'schema_version';";
+
+        return int.TryParse(command.ExecuteScalar() as string, out var version) ? version : 0;
+    }
+
+    private static bool TableExists(SqliteConnection connection, string name)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $name;";
+        command.Parameters.AddWithValue("$name", name);
+
+        return command.ExecuteScalar() is not null;
+    }
+
+    private static void WriteVersion(SqliteConnection connection, SqliteTransaction transaction, int version)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "INSERT INTO setting(key, value) VALUES('schema_version', $v) " +
+                              "ON CONFLICT(key) DO UPDATE SET value = excluded.value;";
+        command.Parameters.AddWithValue("$v", version.ToString());
+        command.ExecuteNonQuery();
     }
 
     /// <summary>

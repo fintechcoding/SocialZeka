@@ -163,6 +163,7 @@ public sealed class CallOrchestrator : IDisposable
         "far" => "Karşı tarafın sesi yazıya dökülüyor",
         "merge" => "Birleştiriliyor",
         "download" => "Model indiriliyor",
+        "indiriliyor" => "Model indiriliyor",
         _ => "Yazıya dökülüyor",
     };
 

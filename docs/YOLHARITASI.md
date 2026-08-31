@@ -24,19 +24,19 @@ kayıpsız ~%50 kazanım. Zaman damgaları bozulmasın diye kırpma HARİTASI `c
 ve oynatıcı/kesit dışa aktarma haritayı uygular. **Efor:** 2-3 gün; testler sentetik WAV'la
 bu VM'de koşabilir. **Kabul:** eski kayıt açılır, alıntı zamanları şaşmaz, disk ölçülür küçülür.
 
-### 1.2 Ayarlar tam düzen turu (12.9 kalanı)
+### 1.2 Ayarlar tam düzen turu (12.9 kalanı) ✅ 1 Eylül: kaydırma sıfırlama + oturum içi pencere boyu yapıldı; bölüm sırası zaten doğruydu
 Bölüm sırası kullanım sıklığına göre; Çözümleme bölümünde sağlayıcı-anahtar-model tek akış;
 bölüm değiştirince kaydırma sıfırlanması düzeltilir; pencere boyu hatırlanır. **Efor:** yarım gün.
 
-### 1.3 Panel ekleme çizgisi + liste fotoğrafları (UI-PLAN 3.3/3.4 kalanı)
+### 1.3 Panel ekleme çizgisi + liste fotoğrafları ✅ 1 Eylül yapıldı
 Sürüklerken ekleme göstergesi; Kişiler sayfası ve panel kartlarında profil fotoğrafı
 (DecodePixelWidth=56, donma ölçülürse vazgeç). **Efor:** yarım gün.
 
-### 1.4 Yerel sunucu hata dili
+### 1.4 Yerel sunucu hata dili ✅ 1 Eylül yapıldı (testli)
 "İnternet bağlantısı kurulamadı" 127.0.0.1 için yanlış sınıf — yerel adresler için
 "Yerel sunucu çalışmıyor (adres)" densin. **Efor:** saatlik.
 
-### 1.5 Model indirme görünürlüğü
+### 1.5 Model indirme görünürlüğü ✅ 1 Eylül yapıldı (HF "Fetching" satırları ilerleme olayına çevriliyor)
 Kullanıcı logunda HF "Fetching files" çıktısı ham aktı. İndirme worker'dan yüzdeyle
 raporlansın, İşlemler şeridinde "model indiriliyor %60" görünsün. **Efor:** 1 gün.
 
@@ -44,7 +44,7 @@ raporlansın, İşlemler şeridinde "model indiriliyor %60" görünsün. **Efor:
 
 ## Faz 2 — Altyapı (diğer her şeyin önkoşulu)
 
-### 2.1 Şema migrasyon makinesi ⚠️ her şeyin kilidi
+### 2.1 Şema migrasyon makinesi ✅ 1 Eylül yapıldı (Migrations.Steps + VACUUM INTO yedeği + 7 test) — kilit açıldı
 **Sorun:** Migrate() yalnız CREATE TABLE IF NOT EXISTS; sütun eklenemez. Bugüne dek her özellik
 yeni tabloyla çözüldü ama bu sonsuza dek süremez (şifreleme, kırpma haritası sütun ister).
 **Tasarım:** `schema_version` tablosu + sıralı migrasyon listesi (her biri idempotent SQL ya da
