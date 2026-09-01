@@ -14,6 +14,22 @@ public enum SetupStepKind
 {
     Python,
     Packages,
+
+    /// <summary>
+    /// The NVIDIA runtime the GPU path needs — in practice, one library.
+    ///
+    /// Its own row because it has its own answer. "Whisper packages are installed" and "the
+    /// graphics card can actually be used" are different questions, and folding them together
+    /// let a machine report everything green and then fail every transcription on a missing
+    /// cublas64_12.dll — after the call had ended, when the recording was the only copy of the
+    /// conversation left.
+    ///
+    /// Everything behind this row already existed: EnvironmentSetup.DescribeGpu works out the
+    /// state and InstallGpuRuntimeAsync fixes it. What was missing was anywhere that said so,
+    /// so the answer and its button were both unreachable.
+    /// </summary>
+    Gpu,
+
     Hardware,
     Audio,
     Model,
@@ -137,6 +153,13 @@ public sealed partial class SetupViewModel : ObservableObject
                 Title = "Whisper paketleri",
                 Icon = SymbolRegular.Box24,
                 Purpose = "Sabitlenmiş sürümler ve CUDA kitaplık yolu, ayrı bir ortama kurulur.",
+            },
+            new SetupStep
+            {
+                Kind = SetupStepKind.Gpu,
+                Title = "Ekran kartı",
+                Icon = SymbolRegular.Flash24,
+                Purpose = "NVIDIA kartı varsa hesaplama kütüphanesi kurulur — CUDA Toolkit gerekmez.",
             },
             new SetupStep
             {
@@ -292,6 +315,13 @@ public sealed partial class SetupViewModel : ObservableObject
                      {
                          SetupStepKind.Python,
                          SetupStepKind.Packages,
+
+                         // After the packages, because it installs into the environment they
+                         // create; before the model and the measurement, because both are far
+                         // slower on a processor and there is no reason to measure a machine in
+                         // a state it is about to leave.
+                         SetupStepKind.Gpu,
+
                          SetupStepKind.Model,
                          SetupStepKind.Hardware,
                      })
@@ -342,6 +372,7 @@ public sealed partial class SetupViewModel : ObservableObject
 
             Apply(Step(SetupStepKind.Python), report.Python, "Kur");
             Apply(Step(SetupStepKind.Packages), report.Packages, "Kur");
+            Apply(Step(SetupStepKind.Gpu), report.Cuda, "Kur");
             Apply(Step(SetupStepKind.Model), report.Model, "İndir");
 
             Append($"Denetim: Python={report.Python.State} ({report.Python.Detail})");
@@ -426,6 +457,7 @@ public sealed partial class SetupViewModel : ObservableObject
             {
                 SetupStepKind.Python => await _setup.InstallPythonAsync(progress, Token),
                 SetupStepKind.Packages => await _setup.CreateEnvironmentAsync(_workerDirectory, progress, Token),
+                SetupStepKind.Gpu => await _setup.InstallGpuRuntimeAsync(_workerDirectory, progress, Token),
                 SetupStepKind.Model => await DownloadModelAsync(progress),
                 SetupStepKind.Hardware => await MeasureHardwareAsync(progress),
                 SetupStepKind.Audio => await TestAudioAsync(),
@@ -440,7 +472,8 @@ public sealed partial class SetupViewModel : ObservableObject
                 // in the chain reads it and decides it is not needed — which is exactly how the
                 // hardware measurement came to be skipped after a successful package install.
                 // The steps that verify themselves set their own state and are left alone.
-                if (step.Kind is SetupStepKind.Python or SetupStepKind.Packages or SetupStepKind.Model)
+                if (step.Kind is SetupStepKind.Python or SetupStepKind.Packages
+                    or SetupStepKind.Gpu or SetupStepKind.Model)
                     step.State = PrerequisiteState.Working;
             }
             else

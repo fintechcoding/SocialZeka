@@ -160,7 +160,21 @@ public sealed class WorkerSelfTest : WorkerEvent
     public string Engine { get; init; } = "";
     public string ModelRef { get; init; } = "";
     public string Repository { get; init; } = "";
+    /// <summary>The device the model was really built on — cuda or cpu, never "auto".</summary>
     public string Device { get; init; } = "";
+
+    /// <summary>
+    /// The precision in use, which is itself evidence.
+    ///
+    /// int8_float16 is a GPU compute type; CTranslate2 refuses it on a processor. Seeing it here
+    /// settles the question a flat graph in Task Manager cannot: Windows does not show CUDA work
+    /// in the default GPU panels at all.
+    /// </summary>
+    public string ComputeType { get; init; } = "";
+
+    /// <summary>What was asked for, when that differs from what happened.</summary>
+    public string RequestedDevice { get; init; } = "";
+
     public double LoadSeconds { get; init; }
     public double TranscribeSeconds { get; init; }
 
@@ -177,9 +191,18 @@ public sealed class WorkerSelfTest : WorkerEvent
 
     public string Note { get; init; } = "";
 
+    /// <summary>Where it ran, in words rather than a device string.</summary>
+    public string Where => Device switch
+    {
+        "cuda" => $"Ekran kartında çalıştı ({ComputeType})",
+        "cpu" when RequestedDevice == "cuda" => "İşlemcide çalıştı — ekran kartı kullanılamadı",
+        "cpu" => "İşlemcide çalıştı",
+        _ => "Çalışıyor",
+    };
+
     /// <summary>Plain-language verdict for the settings window.</summary>
     public string Summary =>
-        $"Çalışıyor. Yükleme {LoadSeconds:0.0} sn, gerçek zamanın {SpeedFactor:0.0} katı hızda işliyor" +
+        $"{Where}. Yükleme {LoadSeconds:0.0} sn, gerçek zamanın {SpeedFactor:0.0} katı hızda işliyor" +
         (HallucinatedOnSilence.Count > 0
             ? $". Sessizlikte metin uydurdu ({HallucinatedOnSilence.Count} parça) — kayıtta bu filtreleniyor."
             : ".");

@@ -47,6 +47,7 @@ class FasterWhisperEngine(AsrEngine):
     def __init__(self) -> None:
         self._model = None
         self._device = "cpu"
+        self._compute_type = "int8"
         self._device_label: str | None = None
 
     @classmethod
@@ -106,6 +107,20 @@ class FasterWhisperEngine(AsrEngine):
                 compute_type=compute_type,
             )
             self._device = device
+            self._compute_type = compute_type
+
+            # Said out loud, after the model is really built.
+            #
+            # The "gpu: ..." line above names the card that was *selected*, which is not the same
+            # claim as "the work ran there", and nothing anywhere stated the device finally used
+            # or its precision. Somebody watching a flat NVIDIA graph in Task Manager has no way
+            # to check — Windows does not show CUDA compute in the default GPU panels at all —
+            # and the honest answer to "did it use the graphics card?" should not require reading
+            # the source. int8_float16 is itself the proof: CTranslate2 refuses it on a processor.
+            sys.stderr.write(
+                f"engine ready: device={device} index={index} compute_type={compute_type} "
+                f"model={options.model_ref}\n")
+            sys.stderr.flush()
         except Exception as exc:
             message = str(exc)
             if "cublas" in message.lower() or "cudnn" in message.lower():
@@ -117,6 +132,20 @@ class FasterWhisperEngine(AsrEngine):
                 )
                 raise EngineError("cuda_runtime", message + hint) from exc
             raise EngineError("model_load_failed", message) from exc
+
+    @property
+    def device(self) -> str:
+        """The device the model was really built on — not the one that was requested.
+
+        These differ, and the difference is the whole question somebody asks when they watch a
+        graphics card sit idle. "auto" was being reported back verbatim, which answered nothing.
+        """
+        return self._device
+
+    @property
+    def compute_type(self) -> str:
+        """The precision in use. int8_float16 is GPU-only and is itself proof of where this ran."""
+        return self._compute_type
 
     @staticmethod
     def _resolve_device(options: EngineOptions) -> tuple[str, str]:

@@ -319,7 +319,13 @@ def self_test(
         "engine": engine_name,
         "model_ref": model_ref,
         "repository": _resolve_repository(model_ref),
-        "device": device,
+        # What it RESOLVED to, not what was asked for. Reporting the request back ("auto") was
+        # the answer to a question nobody had, and this is the field the "Sına" button shows.
+        # int8_float16 cannot run on a processor, so the pair together is proof of where the
+        # work happened.
+        "device": getattr(engine, "device", device),
+        "compute_type": getattr(engine, "compute_type", compute_type),
+        "requested_device": device,
         "load_seconds": round(load_seconds, 2),
         "transcribe_seconds": round(transcribe_seconds, 2),
         "speed_factor": round(speed, 1),
