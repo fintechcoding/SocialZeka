@@ -378,9 +378,14 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
         Summary = null;
         TranscriptMessage = null;
 
+        CallActions.Clear();
+        OnPropertyChanged(nameof(HasCallActions));
+
         OnPropertyChanged(nameof(HasCall));
 
         if (value is null) return;
+
+        LoadCallActions(value.Call.Id);
 
         var contactName = SelectedContact?.Name ?? "Karşı taraf";
 
@@ -485,6 +490,31 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
         InterruptionSummary = myCuts + theirCuts == 0
             ? "Kimse kimsenin sözünü kesmedi."
             : $"Söz kesme: sen {myCuts}, karşı taraf {theirCuts}.";
+    }
+
+    // ---- the selected call's open suggestions --------------------------------
+    //
+    // The same rows the call window shows, read-only-ish here: Yaptım and Gizle work in
+    // place, routing (reminder/board) stays in the call window where its dialogs live.
+
+    public ObservableCollection<ActionRow> CallActions { get; } = [];
+
+    public bool HasCallActions => CallActions.Count > 0;
+
+    private void LoadCallActions(long callId)
+    {
+        CallActions.Clear();
+        foreach (var action in repository.ActionsOf(callId, includeClosed: false))
+            CallActions.Add(new ActionRow(action));
+
+        OnPropertyChanged(nameof(HasCallActions));
+    }
+
+    public void SetCallActionStatus(ActionRow row, Core.Domain.ActionStatus status)
+    {
+        repository.SetActionStatus(row.Item.Id, status);
+        CallActions.Remove(row);
+        OnPropertyChanged(nameof(HasCallActions));
     }
 
     /// <summary>Raised when an action needs something only the shell can do.</summary>

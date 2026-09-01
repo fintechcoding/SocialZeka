@@ -249,6 +249,66 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     public bool HasLedger => Commitments.Count > 0 || Claims.Count > 0 || Flags.Count > 0;
     public bool HasTurns => Turns.Count > 0;
 
+    // ---- who did the talking --------------------------------------------------
+    //
+    // The same strip the contacts page wears, here at the user's request: facts with the
+    // seconds behind them ("sen %62 konuştun"), never a judgement about who interrupts.
+
+    [ObservableProperty] private double _talkRatio = 0.5;
+    [ObservableProperty] private string? _talkSummary;
+    [ObservableProperty] private string? _interruptionSummary;
+
+    public bool HasTalkStats => TalkSummary is not null;
+
+    private void ComputeTalkStats(IReadOnlyList<Segment> segments)
+    {
+        TalkSummary = null;
+        InterruptionSummary = null;
+        TalkRatio = 0.5;
+
+        if (segments.Count > 0)
+        {
+            var mine = TimeSpan.Zero;
+            var theirs = TimeSpan.Zero;
+
+            foreach (var segment in segments)
+            {
+                var length = TimeSpan.FromMilliseconds(Math.Max(0, segment.EndMs - segment.StartMs));
+                if (segment.IsMe) mine += length; else theirs += length;
+            }
+
+            var total = mine + theirs;
+            if (total > TimeSpan.Zero)
+            {
+                TalkRatio = mine.TotalSeconds / total.TotalSeconds;
+
+                TalkSummary =
+                    $"Sen {mine.TotalMinutes:0.#} dk (%{TalkRatio * 100:0}), " +
+                    $"karşı taraf {theirs.TotalMinutes:0.#} dk (%{(1 - TalkRatio) * 100:0})";
+
+                var ordered = segments.OrderBy(s => s.StartMs).ToList();
+                var myCuts = 0;
+                var theirCuts = 0;
+
+                for (var i = 1; i < ordered.Count; i++)
+                {
+                    var previous = ordered[i - 1];
+                    var current = ordered[i];
+
+                    if (current.IsMe == previous.IsMe || current.StartMs >= previous.EndMs) continue;
+
+                    if (current.IsMe) myCuts++; else theirCuts++;
+                }
+
+                InterruptionSummary = myCuts + theirCuts == 0
+                    ? "Kimse kimsenin sözünü kesmedi."
+                    : $"Söz kesme: sen {myCuts}, karşı taraf {theirCuts}.";
+            }
+        }
+
+        OnPropertyChanged(nameof(HasTalkStats));
+    }
+
     /// <summary>
     /// Whether analysis has actually run — which is NOT the same as the ledger having rows.
     /// The "çözümlenmemiş" card used to key on ledger emptiness, so an ordinary conversation
@@ -310,6 +370,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         var segments = _repository.GetSegments(CallId);
 
         UpdateConsistencyCostLine(segments.Sum(s => s.Text.Length));
+        ComputeTalkStats(segments);
 
         Turns.Clear();
         foreach (var segment in segments)

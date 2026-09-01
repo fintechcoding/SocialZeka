@@ -610,6 +610,76 @@
                                             </StackPanel>
                                         </ScrollViewer>
                                     </TabItem>
+
+                                    <!-- The selected call's open suggestions — same rows as the
+                                         call window, revised in when the action layer arrived.
+                                         Yaptım/Gizle work here; routing keeps its dialogs there. -->
+                                    <TabItem Header="Aksiyonlar">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <StackPanel>
+                                                <Border Style="{StaticResource Panel}"
+                                                        Visibility="{Binding HasCallActions, Converter={StaticResource BoolToVisibility}}">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,6"
+                                                                   Text="Öneridir — sen onaylamadan hiçbir yere yazılmaz." />
+
+                                                        <ItemsControl ItemsSource="{Binding CallActions}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border BorderThickness="0,0,0,1" Padding="0,8"
+                                                                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                                                                        <Grid>
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                                <ColumnDefinition Width="*" />
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                            </Grid.ColumnDefinitions>
+
+                                                                            <ui:SymbolIcon Grid.Column="0" Symbol="{Binding KindIcon}" FontSize="15"
+                                                                                           Margin="0,2,10,0" VerticalAlignment="Top"
+                                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                                                            <StackPanel Grid.Column="1">
+                                                                                <TextBlock Text="{Binding Action}" TextWrapping="Wrap" />
+                                                                                <TextBlock Text="{Binding Reason}" Style="{StaticResource Caption}"
+                                                                                           TextWrapping="Wrap" Margin="0,2,0,0"
+                                                                                           Visibility="{Binding Reason, Converter={StaticResource NullToCollapsed}}" />
+                                                                                <TextBlock Text="{Binding DeadlineText}" Style="{StaticResource Caption}"
+                                                                                           Margin="0,2,0,0"
+                                                                                           Visibility="{Binding HasDeadline, Converter={StaticResource BoolToVisibility}}" />
+                                                                            </StackPanel>
+
+                                                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                                                                                <ui:Button Content="Yaptım" Padding="8,3" Margin="0,0,4,0"
+                                                                                           Click="CallActionDone_Click" />
+                                                                                <ui:Button Content="Gizle" Padding="8,3" Appearance="Transparent"
+                                                                                           Click="CallActionHide_Click"
+                                                                                           ToolTip="Bir daha önerilmez." />
+                                                                            </StackPanel>
+                                                                        </Grid>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <TextBlock Text="Bu görüşme için açık öneri yok — çözümleme sonrası burada belirir; kurmak ve yönlendirmek için görüşmeyi aç."
+                                                           Margin="0,4,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Secondary}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasCallActions}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </TabItem>
                                 </TabControl>
 
                                 <!--

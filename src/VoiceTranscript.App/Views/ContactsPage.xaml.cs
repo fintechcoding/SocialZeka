@@ -28,6 +28,19 @@ public partial class ContactsPage
     private void CallRow_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
         => OpenCall_Click(sender, e);
 
+    /// <summary>The user's verdict on one suggestion, applied where they read it.</summary>
+    private void CallActionDone_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ViewModels.ActionRow row) return;
+        ViewModel?.SetCallActionStatus(row, Core.Domain.ActionStatus.Done);
+    }
+
+    private void CallActionHide_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ViewModels.ActionRow row) return;
+        ViewModel?.SetCallActionStatus(row, Core.Domain.ActionStatus.Hidden);
+    }
+
     private void OpenCall_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel?.SelectedCall is not { } row) return;

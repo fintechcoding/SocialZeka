@@ -196,8 +196,30 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
+
+                    <!-- Who did the talking — the same thin strip the contacts page wears,
+                         here at the user's request. Facts with seconds behind them; the
+                         interruption line is a count, never a complaint. -->
+                    <StackPanel Grid.Row="1" Margin="0,0,10,10"
+                                Visibility="{Binding HasTalkStats, Converter={StaticResource BoolToVisibility}}">
+                        <Grid Height="6" Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=me}" />
+                                <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=them}" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="{StaticResource MeBrush}"
+                                    CornerRadius="3,0,0,3" />
+                            <Border Grid.Column="1" Background="{StaticResource ThemBrush}"
+                                    CornerRadius="0,3,3,0" />
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap">
+                            <Run Text="{Binding TalkSummary, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding InterruptionSummary, Mode=OneWay}" />
+                        </TextBlock>
+                    </StackPanel>
 
                     <!--
                         What produced this text, and how sure it was.
@@ -242,7 +264,7 @@
                         </Grid>
                     </Border>
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,4,10,4"
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,4,10,4"
                                   Visibility="{Binding HasTurns, Converter={StaticResource BoolToVisibility}}">
                         <ItemsControl ItemsSource="{Binding Turns}">
                             <ItemsControl.ItemTemplate>
@@ -343,7 +365,7 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <StackPanel Grid.Row="1" Style="{StaticResource EmptyState}"
+                    <StackPanel Grid.Row="2" Style="{StaticResource EmptyState}"
                                 Visibility="{Binding HasTurns, Converter={StaticResource InverseBoolToVisibility}}">
                         <ui:SymbolIcon Symbol="DocumentText24" FontSize="32" HorizontalAlignment="Center"
                                        Margin="0,0,12,0"

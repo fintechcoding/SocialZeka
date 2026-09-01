@@ -1460,3 +1460,15 @@ TAKVİM SAYFASI seçildi; "görüşme detayında sıkıntı varsa uyarı çıks�
   overlay brifingi Faz 4'te duruyor (kayıt başlarken açık konular).
 - Ertelenen: haftalarca açık kalan uygulamada brifin GÜN DÖNÜMÜNDE yeniden tetiklenmesi
   (şimdilik yalnız açılışta) → V3 havuzu.
+
+## 24. 1 Eylül — v2.1.4 canlı test turu (v2.1.5)
+
+- [x] **24.1 Konuşma payı barı görüşme penceresinde:** Kişiler sayfasındaki ince şerit
+  (Sen %N / karşı taraf %M + söz kesme sayıları) aynen görüşme penceresinin Görüşme
+  sekmesine, kalite satırının altına eklendi. Aynı dil: saniyeleri arkasında duran sayılar,
+  asla "seni sürekli bölüyor" hükmü değil.
+- [x] **24.2 Kişiler sayfası sekme revizyonu:** seçili görüşmenin alt sekmeleri artık
+  Konuşma / Özet / AKSİYONLAR — açık öneriler görüşme penceresindeki satır düzeniyle
+  (tur ikonu + gerekçe + vade), Yaptım/Gizle yerinde çalışır; →Hatırlatıcı/→Önemliler
+  yönlendirmesi diyaloglarıyla birlikte görüşme penceresinde kaldı (sayfa hafif kalsın
+  diye bilinçli). Tutarlılık/Okuma panelleri de aynı gerekçeyle sayfaya kopyalanmadı.
