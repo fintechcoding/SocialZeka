@@ -294,30 +294,7 @@ public sealed class CallOrchestrator : IDisposable
 
                 try
                 {
-                    switch (callEvent.Kind)
-                    {
-                        case CallEventKind.Started:
-                            // The switch is honoured here rather than by stopping the watcher, so
-                            // that the status card can still say "a call is happening and I am
-                            // deliberately not recording it" — which is the reassurance somebody
-                            // who turned it off wants.
-                            if (!settings.RecordAutomatically)
-                            {
-                                Notice?.Invoke(this, "Otomatik kayıt kapalı — bu görüşme kaydedilmiyor.");
-                                break;
-                            }
-
-                            await BeginRecordingAsync(callEvent, settings);
-                            break;
-
-                        case CallEventKind.Ended:
-                            await FinishRecordingAsync(callEvent, settings);
-                            break;
-
-                        case CallEventKind.Abandoned:
-                            DiscardRecording();
-                            break;
-                    }
+                    await ApplyDetectedEventAsync(callEvent, settings);
                 }
                 catch (Exception e)
                 {
@@ -561,12 +538,87 @@ public sealed class CallOrchestrator : IDisposable
         Notice?.Invoke(this, "Elle kayıt başladı. Bitirmek için Kaydı durdur.");
     }
 
-    /// <summary>Stops a hand-started recording and puts it through the usual processing.</summary>
+    /// <summary>
+    /// Carries out one detected event.
+    ///
+    /// Lifted out of the consumer loop so it can be driven directly by a test. Every branch here
+    /// can destroy a recording, and none of them was reachable from a test before — which is how
+    /// an unguarded Abandoned arm survived long enough to delete a real conversation.
+    /// </summary>
+    private async Task ApplyDetectedEventAsync(CallEvent callEvent, AppSettings settings)
+    {
+            switch (callEvent.Kind)
+            {
+                case CallEventKind.Started:
+                    // The switch is honoured here rather than by stopping the watcher, so
+                    // that the status card can still say "a call is happening and I am
+                    // deliberately not recording it" — which is the reassurance somebody
+                    // who turned it off wants.
+                    if (!settings.RecordAutomatically)
+                    {
+                        Notice?.Invoke(this, "Otomatik kayıt kapalı — bu görüşme kaydedilmiyor.");
+                        break;
+                    }
+
+                    await BeginRecordingAsync(callEvent, settings);
+                    break;
+
+                // Neither of these touches a hand-started recording.
+                //
+                // The detector watches WhatsApp and Telegram audio sessions and knows
+                // nothing about the button. While a manual recording is running, an
+                // unrelated call ending — or a two-second notification tone that goes
+                // quiet — used to end or destroy it.
+                //
+                // Abandoned was the worse of the two. It calls DiscardRecording, which
+                // deletes both WAV files and stores "Çok kısa kayıt" over the row; a
+                // forty-minute meeting recorded on purpose was unrecoverable, and the
+                // trigger was an incoming call the user simply ignored. Ended merely cut
+                // the recording short, which is bad enough.
+                //
+                // The rule is the one the button implies: a recording somebody started
+                // ends when somebody stops it.
+                case CallEventKind.Ended:
+                    if (!IsManualRecording) await FinishRecordingAsync(callEvent, settings);
+                    break;
+
+                case CallEventKind.Abandoned:
+                    if (!IsManualRecording) DiscardRecording();
+                    break;
+            }
+    }
+
+    /// <summary>
+    /// Drives one detected event synchronously. Production goes through the channel.
+    ///
+    /// Public so it can be tested. Every branch it reaches can destroy a recording and none was
+    /// reachable from a test before, which is how an unguarded "abandoned" arm survived long
+    /// enough to delete a conversation somebody had deliberately recorded.
+    /// </summary>
+    public void HandleDetectedEventForTests(CallEvent callEvent) =>
+        ApplyDetectedEventAsync(callEvent, _settings()).GetAwaiter().GetResult();
+
+    /// <summary>
+    /// Stops a hand-started recording and puts it through the usual processing.
+    ///
+    /// The flag is cleared before the recorder is checked, and that order is the point. Cleared
+    /// after, any path that disposed the recorder without clearing it left this method returning
+    /// at the guard for ever — so the button stayed on "Kaydı durdur" with nothing behind it, and
+    /// pressing it did nothing, permanently, until the application was restarted.
+    /// </summary>
     public async Task StopManualRecordingAsync(CancellationToken cancellationToken = default)
     {
-        if (!IsManualRecording || _recorder is null) return;
+        if (!IsManualRecording) return;
 
         IsManualRecording = false;
+
+        if (_recorder is null)
+        {
+            // The recorder went away underneath a running manual recording. Nothing to finish,
+            // but the interface has to come back to a state somebody can act from.
+            UpdateState();
+            return;
+        }
 
         await FinishRecordingAsync(
             new CallEvent(CallEventKind.Ended, DateTimeOffset.Now, CallApp.Unknown, null, TimeSpan.Zero),
@@ -825,6 +877,11 @@ public sealed class CallOrchestrator : IDisposable
             _recorder.Dispose();
             _recorder = null;
             _currentCallId = null;
+
+            // Whatever route got here, the button must not be left claiming a recording that no
+            // longer exists.
+            IsManualRecording = false;
+            UpdateState();
         }
     }
 

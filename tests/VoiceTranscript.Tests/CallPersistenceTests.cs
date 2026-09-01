@@ -3,6 +3,7 @@ using System.Net.Http;
 using VoiceTranscript.App.Services;
 using VoiceTranscript.Core.Audio;
 using VoiceTranscript.Core.Configuration;
+using VoiceTranscript.Core.Detection;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
 using VoiceTranscript.Worker;
@@ -149,6 +150,79 @@ public class CallPersistenceTests : IDisposable
 
         var call = Assert.Single(_repository.ListCalls());
         return call.Id;
+    }
+
+    /// <summary>
+    /// A hand-started recording survives whatever the call detector thinks is happening.
+    ///
+    /// The detector watches WhatsApp and Telegram audio sessions and knows nothing about the
+    /// button. It reaches "Abandoned" whenever one of those applications makes a noise for a
+    /// couple of seconds and then goes quiet — an incoming call nobody answered, a notification
+    /// tone — and that arm called DiscardRecording with no guard at all.
+    ///
+    /// So recording a forty-minute meeting by hand and receiving one ignored WhatsApp call
+    /// during it deleted the meeting: both WAV files unlinked, the row stamped "Çok kısa kayıt",
+    /// nothing recoverable. The button then stayed on "Kaydı durdur" for ever, because the flag
+    /// that says a manual recording is running was never cleared and the stop path returns at a
+    /// guard that requires a recorder which no longer exists.
+    /// </summary>
+    [Fact]
+    public async Task AHandStartedRecordingIsNotDestroyedByTheDetector()
+    {
+        var mic = WriteWav("manual-mic.wav", 8);
+        var far = WriteWav("manual-far.wav", 8);
+
+        FileAudioSource? source = null;
+
+        var settings = new AppSettings
+        {
+            AnalyseAutomatically = false,
+            ExportToObsidian = false,
+            ExportToNotion = false,
+            GpuCooldownSeconds = 0,
+        };
+
+        var worker = new PythonWorkerHost(new PythonWorkerOptions
+        {
+            PythonExecutable = "python",
+            WorkerDirectory = _root,
+            ModelCacheDirectory = _paths.Models,
+            Timeout = TimeSpan.FromSeconds(2),
+        });
+
+        using var http = new HttpClient();
+
+        using var orchestrator = new CallOrchestrator(
+            _paths,
+            _repository,
+            () => settings,
+            worker,
+            http,
+            _ => source = new FileAudioSource(mic, far));
+
+        await orchestrator.StartManualRecordingAsync();
+        Assert.True(orchestrator.IsManualRecording);
+
+        Assert.NotNull(source);
+        source!.Replay(TimeSpan.FromSeconds(30));
+
+        // What an ignored incoming call looks like to the detector, while the user is recording.
+        orchestrator.HandleDetectedEventForTests(
+            new CallEvent(CallEventKind.Abandoned, DateTimeOffset.Now, CallApp.WhatsApp, null, TimeSpan.Zero));
+
+        // Still recording, and still the user's to stop.
+        Assert.True(orchestrator.IsManualRecording);
+
+        await orchestrator.StopManualRecordingAsync();
+
+        Assert.False(orchestrator.IsManualRecording);
+
+        var call = Assert.Single(_repository.ListCalls());
+        var stored = _repository.GetCall(call.Id)!;
+
+        Assert.NotEqual(ProcessingState.Skipped, stored.State);
+        Assert.False(string.IsNullOrWhiteSpace(stored.MicPath), "mikrofon kaydı silinmiş");
+        Assert.True(File.Exists(stored.MicPath), stored.MicPath);
     }
 
     [Fact]
