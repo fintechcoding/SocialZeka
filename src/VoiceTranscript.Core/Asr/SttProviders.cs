@@ -95,6 +95,35 @@ public static class SttProviderCatalog
             Balance = BalanceProbe.None,
             SignupUrl = "https://console.groq.com/keys",
         },
+
+        // Both verified against live documentation (September 2026): OpenAI request shape,
+        // verbose_json accepted, segment/word timestamps returned — the whole contract.
+        new()
+        {
+            Kind = "together",
+            DisplayName = "Together AI",
+            BaseUrl = "https://api.together.xyz/v1",
+            DefaultModel = "openai/whisper-large-v3",
+            Models = ["openai/whisper-large-v3"],
+            Summary =
+                "Whisper large-v3, saati ~$0.09. Ayırt edici özelliği limitleri: 4 saate kadar " +
+                "kayıt, 80 MB yükleme — uzun görüşmeler için biçilmiş. Bakiye ucu yok.",
+            Balance = BalanceProbe.None,
+            SignupUrl = "https://api.together.ai/settings/api-keys",
+        },
+        new()
+        {
+            Kind = "openrouter",
+            DisplayName = "OpenRouter",
+            BaseUrl = "https://openrouter.ai/api/v1",
+            DefaultModel = "openai/whisper-1",
+            Models = ["openai/whisper-1"],
+            Summary =
+                "Tek anahtarla birden çok sağlayıcıya kapı; verbose_json'u destekleyen modellere " +
+                "aynen geçirir. Bakiye ucu sunan tek uyumlu sağlayıcı — kalan kredi burada görünür.",
+            Balance = BalanceProbe.OpenRouterKey,
+            SignupUrl = "https://openrouter.ai/keys",
+        },
         new()
         {
             Kind = "elevenlabs",

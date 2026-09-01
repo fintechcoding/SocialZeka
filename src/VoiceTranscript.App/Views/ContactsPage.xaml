@@ -393,6 +393,26 @@
                                             </Grid>
                                             <TextBlock Text="{Binding Status}" Style="{StaticResource Caption}"
                                                        Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+
+                                            <!-- The user's labels, on this list too: a call marked
+                                                 "tehdit" must be findable wherever calls are. -->
+                                            <ItemsControl ItemsSource="{Binding Tags}" Margin="0,3,0,0"
+                                                          Visibility="{Binding HasTags, Converter={StaticResource BoolToVisibility}}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Style="{StaticResource Pill}" Margin="0,0,4,2"
+                                                                Background="{Binding Converter={StaticResource NameBrush}}">
+                                                            <TextBlock Style="{StaticResource PillText}"
+                                                                       Foreground="White" Text="{Binding}" />
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>

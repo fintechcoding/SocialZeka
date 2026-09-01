@@ -258,7 +258,7 @@ public partial class MainWindow
 
     private void Settings_Click(object sender, RoutedEventArgs e) => OpenSettings();
 
-    private void OnSettingsRequested(object? sender, EventArgs e) => OpenSettings();
+    private void OnSettingsRequested(object? sender, string? section) => OpenSettings(section);
 
     /// <summary>
     /// Opens the settings, optionally straight at one section.

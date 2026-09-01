@@ -49,6 +49,9 @@ public record UsageTotals
 
     public long TotalTokens => PromptTokens + CompletionTokens;
 
+    /// <summary>Whether the provider reported any tokens at all — zeros are "not reported", not "free".</summary>
+    public bool HasTokens => TotalTokens > 0;
+
     public bool IsEmpty => Runs == 0;
 
     /// <summary>

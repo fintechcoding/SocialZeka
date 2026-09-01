@@ -12,13 +12,30 @@ namespace VoiceTranscript.App.Views;
 /// <param name="Group">Which heading it sits under: where the audio would go.</param>
 public sealed record ReprocessMethod(
     string? Id, string Name, string Detail, string Icon, bool SendsDataOffMachine, string Speed,
-    string Group = ReprocessMethod.OnThisMachine)
+    string Group = ReprocessMethod.OnThisMachine, bool SendsAudio = true)
 {
     /// <summary>The row that follows the settings, whatever those currently say.</summary>
     public const string FromSettings = "Ayarlarda seçili";
 
     public const string OnThisMachine = "Bu makinede";
     public const string InTheCloud = "Buluta gönderilir";
+
+    /// <summary>
+    /// WHAT would leave the machine, told truthfully per row. Transcription uploads audio;
+    /// analysis sends words. The badge used to say "ses" on analysis models too, which was
+    /// simply false — and a privacy label caught lying once is distrusted everywhere.
+    /// </summary>
+    public string OffMachineLabel => SendsAudio ? "ses makineden çıkar" : "metin makineden çıkar";
+}
+
+/// <summary>Which single job this dialog is being opened for. One purpose per dialog.</summary>
+public enum ReprocessKind
+{
+    /// <summary>Audio → text, with a chosen engine.</summary>
+    Transcribe,
+
+    /// <summary>Text → ledger, with a chosen model. Never touches the audio.</summary>
+    Analyse,
 }
 
 /// <summary>What the user asked for, once the dialog closes with a yes.</summary>
@@ -49,11 +66,16 @@ public partial class ReprocessWindow
     private readonly AppSettings _settings;
     private readonly IReadOnlyDictionary<string, double> _measured;
 
-    public ReprocessWindow(Repository repository, AppSettings settings, string subject, int count)
+    private readonly ReprocessKind _kind;
+
+    public ReprocessWindow(
+        Repository repository, AppSettings settings, string subject, int count,
+        ReprocessKind kind = ReprocessKind.Transcribe)
     {
         InitializeComponent();
 
         _settings = settings;
+        _kind = kind;
 
         Subject.Text = count == 1 ? subject : $"{count} görüşme";
 
@@ -62,24 +84,37 @@ public partial class ReprocessWindow
             .Where(e => e.SpeedFactor is not null)
             .ToDictionary(e => e.Engine, e => e.SpeedFactor!.Value, StringComparer.OrdinalIgnoreCase);
 
-        ShowTranscriptionEngines();
+        // One purpose per dialog: the title, the reassurance and the list all follow the button
+        // that opened it, and nothing asks the user "hangi yarı?" a second time.
+        if (kind == ReprocessKind.Analyse)
+        {
+            Title = "Yeniden çözümle";
+            Bar.Title = "Yeniden çözümle";
+            StartButton.Content = "Yeniden çözümle";
+            Reassurance.Text = "Mevcut metinden çalışır; ses yeniden işlenmez. "
+                             + "Kişi, etiket ve notların korunur.";
 
-        Hint.Text = _measured.Count == 0
-            ? "Hız sütunu, bu makinede ölçüldükçe dolar."
-            : "Hız, bu makinede gerçekten ölçülen değerlerdir.";
+            ShowAnalysisModels();
+            _ = ProbeAnalysisServiceAsync();
+
+            Hint.Text = "Modeli seç; defter ve özet metinden yeniden üretilir.";
+        }
+        else
+        {
+            Title = "Yeniden çevir";
+            Bar.Title = "Yeniden çevir";
+            StartButton.Content = "Yeniden çevir";
+
+            ShowTranscriptionEngines();
+
+            Hint.Text = _measured.Count == 0
+                ? "Hız sütunu, bu makinede ölçüldükçe dolar."
+                : "Hız, bu makinede gerçekten ölçülen değerlerdir.";
+        }
     }
 
     /// <summary>What was chosen. Valid once the dialog closes with a result.</summary>
     public ReprocessChoice Choice { get; private set; } = new(null, null, false);
-
-    private void Mode_Changed(object sender, RoutedEventArgs e)
-    {
-        // Fires while the window is still being built, before the list exists.
-        if (Methods is null) return;
-
-        if (ModeAnalyse.IsChecked == true) ShowAnalysisModels();
-        else ShowTranscriptionEngines();
-    }
 
     private void ShowTranscriptionEngines()
     {
@@ -135,7 +170,8 @@ public partial class ReprocessWindow
         [
             new(null, "Ayarlardaki model",
                 $"{provider.DisplayName} · {_settings.ResolvedModelName}",
-                "Settings24", provider.SendsDataOffMachine, "", ReprocessMethod.FromSettings),
+                "Settings24", provider.SendsDataOffMachine, "", ReprocessMethod.FromSettings,
+                SendsAudio: false),
         ];
 
         // Only the ones this provider is addressed by name, and only for providers that host their
@@ -147,11 +183,63 @@ public partial class ReprocessWindow
             {
                 methods.Add(new ReprocessMethod(
                     pick.Id, pick.Id, pick.Reason, "Lightbulb24", provider.SendsDataOffMachine,
-                    "", where));
+                    "", where, SendsAudio: false));
             }
         }
 
         Bind(methods);
+    }
+
+    /// <summary>
+    /// Asks the configured analysis service whether it answers, before the user commits work to
+    /// it — and, where the provider exposes one, reads the remaining balance. The alternative
+    /// flow was "seç, bekle, patla": pick a model, watch a queue, read a 401 later.
+    /// </summary>
+    private async Task ProbeAnalysisServiceAsync()
+    {
+        var provider = _settings.Provider;
+
+        ServiceLine.Visibility = Visibility.Visible;
+        ServiceText.Text = $"{provider.DisplayName} yoklanıyor…";
+
+        try
+        {
+            var client = Core.Llm.LlmClientFactory.Create(
+                App.HttpClient, _settings.LlmProvider, _settings.ResolvedBaseUrl, _settings.LlmApiKey);
+
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var reachable = await client.IsAvailableAsync(deadline.Token);
+
+            if (!reachable)
+            {
+                ServiceIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.PlugDisconnected24;
+                ServiceText.Text = $"{provider.DisplayName} yanıt vermiyor ({_settings.ResolvedBaseUrl}). "
+                                 + "Ayarlar → Çözümleme bölümünden denetle.";
+                return;
+            }
+
+            ServiceIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.PlugConnected24;
+            ServiceText.Text = $"{provider.DisplayName} bağlandı.";
+
+            // Balance, only where an endpoint for it exists. OpenRouter publishes one; OpenAI
+            // and Anthropic do not, and pretending otherwise would just be a broken number.
+            if (_settings.LlmProvider == Core.Llm.LlmProviderKind.OpenRouter)
+            {
+                var balance = await Core.Llm.LlmBalance.OpenRouterAsync(
+                    App.HttpClient, _settings.LlmApiKey, deadline.Token);
+
+                if (balance is not null) ServiceText.Text += $" {balance}";
+            }
+            else if (provider.SendsDataOffMachine)
+            {
+                ServiceText.Text += " Bakiye ucu sunmuyor — kalanı sağlayıcının panelinden gör.";
+            }
+        }
+        catch (Exception)
+        {
+            ServiceIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.PlugDisconnected24;
+            ServiceText.Text = $"{provider.DisplayName} yoklanamadı.";
+        }
     }
 
     private void Bind(List<ReprocessMethod> methods)
@@ -200,7 +288,7 @@ public partial class ReprocessWindow
     {
         if (Methods.SelectedItem is not ReprocessMethod method) return;
 
-        Choice = ModeAnalyse.IsChecked == true
+        Choice = _kind == ReprocessKind.Analyse
             ? new ReprocessChoice(null, method.Id, AnalyseOnly: true)
             : new ReprocessChoice(method.Id, null, AnalyseOnly: false);
 

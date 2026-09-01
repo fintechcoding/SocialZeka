@@ -17,6 +17,9 @@
             who configured three of them expressed a preference they have never been able to see.
         -->
         <DataTemplate x:Key="ServiceRow" DataType="{x:Type vm:AiServiceRow}">
+            <!-- The row is a door: "yanıt vermiyor" and the place to fix it are one click apart. -->
+            <Border Background="Transparent" Cursor="Hand" ToolTip="Ayarlarını aç"
+                    MouseLeftButtonUp="ServiceRow_Click">
             <Grid Margin="0,6">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -51,7 +54,7 @@
                                 VerticalAlignment="Center"
                                 Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
                                 Visibility="{Binding SendsDataOffMachine, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="ses makineden çıkar" FontSize="{StaticResource TextCaption}" />
+                            <TextBlock Text="{Binding OffMachineLabel}" FontSize="{StaticResource TextCaption}" />
                         </Border>
                     </StackPanel>
 
@@ -65,6 +68,7 @@
                 <TextBlock Grid.Column="3" Text="{Binding ReachText}" VerticalAlignment="Center"
                            MinWidth="96" Style="{StaticResource Caption}" />
             </Grid>
+            </Border>
         </DataTemplate>
     </UserControl.Resources>
 
@@ -177,9 +181,12 @@
                              here are "what has this week been like", "is it keeping up this
                              month", and "what has all of it cost". -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <ui:Button Content="7 gün" Margin="0,0,6,0" Command="{Binding ShowWeekCommand}" />
-                            <ui:Button Content="30 gün" Margin="0,0,6,0" Command="{Binding ShowMonthCommand}" />
-                            <ui:Button Content="Tümü" Command="{Binding ShowEverythingCommand}" />
+                            <ui:Button Content="7 gün" Margin="0,0,6,0" Command="{Binding ShowWeekCommand}"
+                                       Appearance="{Binding WindowDays, Converter={StaticResource FilterAppearance}, ConverterParameter=7}" />
+                            <ui:Button Content="30 gün" Margin="0,0,6,0" Command="{Binding ShowMonthCommand}"
+                                       Appearance="{Binding WindowDays, Converter={StaticResource FilterAppearance}, ConverterParameter=30}" />
+                            <ui:Button Content="Tümü" Command="{Binding ShowEverythingCommand}"
+                                       Appearance="{Binding WindowDays, Converter={StaticResource FilterAppearance}, ConverterParameter=0}" />
                         </StackPanel>
                     </Grid>
 
@@ -301,13 +308,22 @@
                                         <TextBlock Grid.Column="0" Text="{Binding Engine}"
                                                    Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" />
 
+                                        <!-- Zeros mean "the provider did not report", never
+                                             "free" — so they are not printed as numbers. -->
                                         <TextBlock Grid.Column="1" Style="{StaticResource Caption}" Margin="12,0,0,0"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                   Visibility="{Binding HasTokens, Converter={StaticResource BoolToVisibility}}">
                                             <Run Text="{Binding Runs, Mode=OneWay}" /><Run Text=" görüşme · " /><Run
                                                 Text="{Binding PromptTokens, Mode=OneWay, StringFormat='{}{0:N0}'}" /><Run
                                                 Text=" giriş + " /><Run
                                                 Text="{Binding CompletionTokens, Mode=OneWay, StringFormat='{}{0:N0}'}" /><Run
                                                 Text=" çıkış jeton" />
+                                        </TextBlock>
+
+                                        <TextBlock Grid.Column="1" Style="{StaticResource Caption}" Margin="12,0,0,0"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                   Visibility="{Binding HasTokens, Converter={StaticResource InverseBoolToVisibility}}">
+                                            <Run Text="{Binding Runs, Mode=OneWay}" /><Run Text=" görüşme · jeton bildirilmedi" />
                                         </TextBlock>
                                     </Grid>
                                 </DataTemplate>

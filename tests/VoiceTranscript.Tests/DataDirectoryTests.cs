@@ -172,6 +172,8 @@ public class SettingsSurviveSavingTests
         nameof(AppSettings.ObsidianVaultPath), nameof(AppSettings.ExportToNotion),
         nameof(AppSettings.NotionApiKey), nameof(AppSettings.NotionDatabaseId),
         nameof(AppSettings.AudioRetentionDays), nameof(AppSettings.SttEndpoints),
+        nameof(AppSettings.RecordSignal), nameof(AppSettings.StartWithWindows),
+        nameof(AppSettings.TrimSilenceAfterProcessing),
     ];
 
     private static AppSettings RoundTrip(AppSettings original)

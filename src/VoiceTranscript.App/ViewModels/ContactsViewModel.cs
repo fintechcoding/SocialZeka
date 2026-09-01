@@ -348,8 +348,11 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
 
         _allCalls.Clear();
 
-        foreach (var call in repository.ListCalls(value.Contact.Id))
-            _allCalls.Add(new RecentCall(call, value.Contact.Name));
+        var calls = repository.ListCalls(value.Contact.Id);
+        var tags = repository.TagsOf(calls.Select(c => c.Id));
+
+        foreach (var call in calls)
+            _allCalls.Add(new RecentCall(call, value.Contact.Name, tags.GetValueOrDefault(call.Id, [])));
 
         // The filters are deliberately not reset when the contact changes: somebody narrowing to
         // "this week" is usually working through several people with the same question.

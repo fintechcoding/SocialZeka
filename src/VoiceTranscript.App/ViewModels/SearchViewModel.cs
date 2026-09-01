@@ -121,6 +121,11 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
     /// <summary>Only show what the other party said. Useful for "what did they promise".</summary>
     [ObservableProperty] private bool _onlyOtherParty;
 
+    /// <summary>"Hepsi" plus every label in the archive: the user's own vocabulary as a filter.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<string> TagChoices { get; } = ["Hepsi"];
+
+    [ObservableProperty] private string _tagChoice = "Hepsi";
+
     /// <summary>
     /// How far back to look.
     ///
@@ -160,6 +165,14 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
             ContactChoices.Add(new ContactChoice(contact.Id, contact.Name));
 
         SelectedContact = ContactChoices.FirstOrDefault(c => c.Id == previous) ?? ContactChoices[0];
+
+        // The tag filter alongside the contact filter: both are ways the user already sliced
+        // their archive by hand, and a slice you cannot search is a slice that stops mattering.
+        var keptTag = TagChoice;
+        TagChoices.Clear();
+        TagChoices.Add("Hepsi");
+        foreach (var (tag, _) in repository.AllTags()) TagChoices.Add(tag);
+        TagChoice = TagChoices.Contains(keptTag) ? keptTag : "Hepsi";
     }
 
     public sealed record SearchGroup(string ContactName, long? ContactId, IReadOnlyList<SearchResult> Results)
@@ -195,7 +208,8 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
             limit: 500,
             contactId: ContactFilter,
             isMe: OnlyOtherParty ? false : null,
-            since: since)
+            since: since,
+            tag: TagChoice == "Hepsi" ? null : TagChoice)
             .ToList();
 
         ResultCount = hits.Count;

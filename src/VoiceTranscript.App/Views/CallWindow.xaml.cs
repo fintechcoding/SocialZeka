@@ -38,6 +38,12 @@ public partial class CallWindow
             orchestrator.CallProcessed += onProcessed;
         }
 
+        // Enter in the tag box must reach our handler even when the suggestion dropdown is
+        // open: the ComboBox's own class handler consumes the key while closing the list, and a
+        // plain KeyDown binding then never fires — typing a tag and pressing Enter did nothing
+        // precisely when the suggestions were showing.
+        TagBox.AddHandler(KeyDownEvent, new KeyEventHandler(TagBox_KeyDown), handledEventsToo: true);
+
         // The player holds a file handle and a wave device. Left alive, a window somebody opened
         // and closed keeps the recording locked, and the next thing that tries to delete or
         // re-process it fails for a reason nobody could guess from the message.
@@ -143,14 +149,14 @@ public partial class CallWindow
     {
         if (ViewModel is not { } model || App.Orchestrator is null) return;
 
-        var dialog = new ReprocessWindow(App.Repository, App.Settings, model.Title, count: 1)
+        // The analyse-only dialog: models, availability and — where published — balance.
+        // Its title, list and verb all follow the button that opened it; nothing asks "hangi
+        // yarı?" a second time.
+        var dialog = new ReprocessWindow(
+            App.Repository, App.Settings, model.Title, count: 1, ReprocessKind.Analyse)
         {
             Owner = this,
         };
-
-        // Opened straight onto the analysis half: that is what the button said it would do, and a
-        // dialog that reopens on the other option is a dialog that gets misread.
-        dialog.ModeAnalyse.IsChecked = true;
 
         if (dialog.ShowDialog() != true) return;
 
@@ -197,6 +203,24 @@ public partial class CallWindow
         if ((sender as FrameworkElement)?.DataContext is string tag) ViewModel?.RemoveTag(tag);
 
         e.Handled = true;
+    }
+
+    /// <summary>Onto the important pile, from inside the conversation.</summary>
+    private void ToBoard_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } model) return;
+
+        App.Repository.PutOnBoard(model.CallId, Core.Domain.BoardLane.ToLookAt);
+    }
+
+    /// <summary>A reminder in one step: onto the pile if needed, and dated.</summary>
+    private void Remind_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } model) return;
+        if ((sender as FrameworkElement)?.Tag is not string tag || !int.TryParse(tag, out var days)) return;
+
+        App.Repository.PutOnBoard(model.CallId, Core.Domain.BoardLane.ToLookAt);
+        App.Repository.RemindOn(model.CallId, DateOnly.FromDateTime(DateTime.Today).AddDays(days));
     }
 
     private void TagBox_KeyDown(object sender, KeyEventArgs e)

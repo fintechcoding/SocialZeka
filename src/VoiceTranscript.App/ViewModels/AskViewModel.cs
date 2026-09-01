@@ -152,6 +152,7 @@ public sealed partial class AskViewModel : ObservableObject
         Answer = null;
         IsInsufficient = false;
         Citations.Clear();
+        OnPropertyChanged(nameof(HasCitations));
 
         try
         {

@@ -1081,35 +1081,46 @@ Ayrıca §8.1/8.2 (saklama süresi gerçek oldu, ölü ayar silindi) ve ölü ko
 
 ## 13. 1 Eylül ikinci tur — kullanıcının akış eleştirisi (ekran görüntülü)
 
-- [ ] **13.1** Çözümleme sekmesindeki satır butonu "Yeniden işle" diyor ve ses+metin diyaloğu
+- [x] **13.1** *(yapıldı — AnalysisRowTemplate: "Yeniden çözümle", metin yeter)* Çözümleme sekmesindeki satır butonu "Yeniden işle" diyor ve ses+metin diyaloğu
   açıyor — o sekmede "Yeniden çözümle" deyip doğrudan metinden koşmalı (toplu buton zaten öyle).
-- [ ] **13.2** "Çözümleme yapılmadı: çalışan servis yok" BİLGİ mesajı, kırmızı hata genişleticisi
+- [x] **13.2** *(yapıldı — StateNote bilgi görünümü, hata genişleticisi yalnız gerçek hatada)* "Çözümleme yapılmadı: çalışan servis yok" BİLGİ mesajı, kırmızı hata genişleticisi
   ("Hatanın tamamı") içinde gösteriliyor — bilgi ve hata ayrışmalı; bilgiye "servis bağla" yolu.
-- [ ] **13.3** Üstteki 4 sayaç sekmeyle konuşmuyor (Çözümleme sekmesinde 8 satırlık çözümlenmemiş
+- [x] **13.3** *(yapıldı — sayaçlar sekme-hizalı ve tıklanır kapılar)* Üstteki 4 sayaç sekmeyle konuşmuyor (Çözümleme sekmesinde 8 satırlık çözümlenmemiş
   kayıt varken hepsi 0 gibi okunuyor) — sayaçlar sekme başına anlamlı olmalı.
-- [ ] **13.4** Yapay zekâ ekranında servis satırına tıklayınca AYARLARIN İLGİLİ BÖLÜMÜ açılmalı
+- [x] **13.4** *(yapıldı — servis satırı tıklanınca ayarların ilgili bölümü açılıyor)* Yapay zekâ ekranında servis satırına tıklayınca AYARLARIN İLGİLİ BÖLÜMÜ açılmalı
   (çözümleme satırı → Çözümleme bölümü, model seçimi Ollama/OpenRouter/…).
-- [ ] **13.5** Kullanım dökümünde ham kimlikler ("cloud-openai", "large-v3") — görünen ad basılmalı.
-- [ ] **13.6** Tarih/ay adları İngilizce ("30 Aug", "3 Aug") — kültür UiLanguage'a bağlanmalı.
-- [ ] **13.7** Etiket/bayraklar ikonlarıyla listelerde görünmeli (İşlemler satırları dahil);
+- [x] **13.5** *(yapıldı — AsrCatalog.DisplayFor; kullanım ve kalite satırları insanca)* Kullanım dökümünde ham kimlikler ("cloud-openai", "large-v3") — görünen ad basılmalı.
+- [x] **13.6** *(yapıldı — kültür UiLanguage'a bağlandı, tek noktadan)* Tarih/ay adları İngilizce ("30 Aug", "3 Aug") — kültür UiLanguage'a bağlanmalı.
+- [x] **13.7** *(yapıldı — etiket pilleri son görüşmeler/kişi sayfası/pencerelerde; kutuya ikon+ipucu)* Etiket/bayraklar ikonlarıyla listelerde görünmeli (İşlemler satırları dahil);
   CallWindow'daki etiket kutusu çıplak — placeholder/ikon yok.
-- [ ] **13.8** Genel: UI'yi sıfırdan kullanıcı gözüyle yürü — "nereye basarım, ne olur, ne olmalı".
-- [ ] **13.9** Hatırlatma sistemi var ama girişi neredeyse yok: yalnız paneldeki kartın sağ tık
+- [x] **13.8** *(yapıldı — 57+6 ajanlık iki denetim: 48 doğrulanmış bulgu + 24 akış değişikliği uygulandı)* Genel: UI'yi sıfırdan kullanıcı gözüyle yürü — "nereye basarım, ne olur, ne olmalı".
+- [x] **13.9** *(yapıldı — Hatırlat: CallWindow başlığında, son görüşme ve kişi penceresi satır menülerinde; Bugün kartında Tamamlandı)* Hatırlatma sistemi var ama girişi neredeyse yok: yalnız paneldeki kartın sağ tık
   menüsünde. Görüşmenin KENDİSİNDEN eklenebilmeli — CallWindow'da "Hatırlat" (görüşmeyi panele
   ekleyip gün seçtiren tek adım), son görüşmeler/kişi penceresi satırlarında da aynı. Boş durum
   metni de buna göre değişmeli.
-- [ ] **13.10** "Çözümle"den açılan diyalog yalnız çözümleme ekranı olmalı: başlık "Yeniden
+- [x] **13.10** *(yapıldı — amaca özel çözümleme diyaloğu: erişim sınaması + OpenRouter bakiyesi + "metin makineden çıkar")* "Çözümle"den açılan diyalog yalnız çözümleme ekranı olmalı: başlık "Yeniden
   çözümle", mod seçici gizli, sadece AKTİF sağlayıcının modelleri. Rozet hatası: çözümleme
   satırlarında "ses makineden çıkar" yazıyor — doğrusu "metin makineden çıkar" (ses gitmez).
   Sağlayıcı erişimi diyalog açılırken sınanmalı; bakiye ucu sunan sağlayıcıda (ör. OpenRouter)
   kalan kredi gösterilmeli, sunmayanda (OpenAI/Anthropic) "bakiye ucu yok, panelden bak" denmeli.
-- [ ] **13.11** Simetrik olarak "Sesi yazıya dök / Yeniden çevir" de KENDİNE özel popup açmalı:
+- [x] **13.11** *(yapıldı — mod seçici kalktı; butonun kendisi diyaloğu seçiyor)* Simetrik olarak "Sesi yazıya dök / Yeniden çevir" de KENDİNE özel popup açmalı:
   yalnız yazıya dökme motorları (Bu makinede / Buluta gönderilir grupları), mod seçici yok.
   Sonuç: iki ayrı amaca özel diyalog; hangisinin açılacağını basılan buton belirler — kullanıcıya
   bir daha "hangi yarı?" sorulmaz. (13.10 ile birlikte tek yeniden düzenleme.)
 - [x] **13.12 — OpenAI yeni modelleri temperature'ı reddediyor** *(gerçek logdan: "does not
   support 0.2... Only the default (1)"; gpt-5.6-sol çözümlemesini bloke etti)*. max_tokens'la
   aynı sınıf: 400 'unsupported_value/temperature' gelirse alan düşürülüp bir kez yeniden denenir.
-- [ ] **13.13** Kişi penceresi Görüşmeler filtresi "kurumsal" olmalı: tarih aralığı + hazır
+- [x] **13.13** *(yapıldı — tarih aralığı+durum+etiket+süre+notlu+sıralama+Temizle)* Kişi penceresi Görüşmeler filtresi "kurumsal" olmalı: tarih aralığı + hazır
   dönemler (bu hafta/ay/3 ay/yıl), durum (çözümlenmiş/çözümlenmemiş/başarısız), etiket, asgari
   süre, notlu/defterli anahtarları, sıralama (yeni/eski/uzun) — tek filtre çubuğu + Temizle.
+- [x] **13.14 — Gelen arama & yön** *(1 Eylül)*: gelen aramalar zaten yakalanıyor (ses temelli
+  tespit yön ayrımı yapmaz; loglardaki Ringing→Idle açılmamış aramalardı). YÖN artık tespit
+  ediliyor: zil hoparlörde çalarken mikrofon kapalıysa gelen, çevirmede açıksa giden;
+  Direction sütunu ilk kez doluyor, ekranlarda ↓/↑. Ortasından görülen çağrıya dürüst boşluk.
+- [x] **13.15 — Uyumlu STT araştırması** *(1 Eylül, canlı doküman doğrulamalı)*: Claude'da STT
+  YOK; Groq birebir uyumlu (katalogda); Together AI eklendi (4 saat/1 GB — uzun görüşmeler);
+  OpenRouter STT + kredi ucu eklendi; Fireworks kapanmış; Voxtral Türkçe'siz; gpt-4o-transcribe
+  hâlâ verbose_json'suz. Canlı matris (Claude/Qwen/DeepSeek/Gemini çözümleme) 4/4 geçti.
+- Ertelenen ciladan kalanlar (bilinçli): yeni ekranların tam loc:T taraması (CallWindow/
+  AiStatus/panel), Theme jetonları, özel-tarih seçici penceresi, kurulum-sonrası "şimdi çözümle"
+  köprüsü, etiket piline tıklayınca arama, bayrak/etiket ikon ayrımı, son sınama zamanı satırı.

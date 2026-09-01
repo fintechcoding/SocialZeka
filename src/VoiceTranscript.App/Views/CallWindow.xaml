@@ -24,30 +24,67 @@
 
         <ui:TitleBar Grid.Row="0" Title="{Binding Title}" />
 
+        <!-- One band under the title bar (which already shows the name — repeating it in 20pt
+             spent a full line saying nothing new): the facts, the user's labels, and the two
+             verbs a conversation being read most often needs. -->
         <StackPanel Grid.Row="1" Margin="20,4,20,0">
-            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="{StaticResource TextTitle}" />
-            <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding Subtitle}" Style="{StaticResource Caption}"
+                           VerticalAlignment="Center" />
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <!-- A reminder from inside the conversation, one step: onto the pile, dated.
+                         The system existed and had no doorway where conversations are read. -->
+                    <ui:DropDownButton Content="Hatırlat" Padding="10,4" Margin="0,0,6,0">
+                        <ui:DropDownButton.Icon>
+                            <ui:SymbolIcon Symbol="Clock24" />
+                        </ui:DropDownButton.Icon>
+                        <ui:DropDownButton.Flyout>
+                            <ContextMenu>
+                                <MenuItem Header="Yarın" Tag="1" Click="Remind_Click" />
+                                <MenuItem Header="3 gün sonra" Tag="3" Click="Remind_Click" />
+                                <MenuItem Header="1 hafta sonra" Tag="7" Click="Remind_Click" />
+                                <MenuItem Header="1 ay sonra" Tag="30" Click="Remind_Click" />
+                            </ContextMenu>
+                        </ui:DropDownButton.Flyout>
+                    </ui:DropDownButton>
+
+                    <ui:Button Content="Önemlilere ekle" Padding="10,4" Click="ToBoard_Click"
+                               ToolTip="Ana ekrandaki önemli görüşmeler paneline koyar.">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="Board24" />
+                        </ui:Button.Icon>
+                    </ui:Button>
+                </StackPanel>
+            </Grid>
 
             <!--
                 The user's labels on this conversation. Their vocabulary, their spelling; a click
                 on ✕ takes one off. The box suggests labels already in use so "önemli" stays one
-                tag rather than four spellings of it.
+                tag rather than four spellings of it — and it wraps, because labels multiply.
             -->
-            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+            <WrapPanel Margin="0,8,0,0">
                 <ItemsControl ItemsSource="{Binding Tags}" VerticalAlignment="Center">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" />
+                            <WrapPanel />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Style="{StaticResource Pill}" Margin="0,0,6,0"
+                            <Border Style="{StaticResource Pill}" Margin="0,0,6,4"
                                     Background="{Binding Converter={StaticResource NameBrush}}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource PillText}" Foreground="White"
                                                Text="{Binding}" VerticalAlignment="Center" />
-                                    <TextBlock Text="✕" FontSize="9" Foreground="White" Margin="6,0,0,0"
+                                    <!-- Padded so the target is a fingertip, not a pinhead. -->
+                                    <TextBlock Text="✕" FontSize="10" Foreground="White"
+                                               Padding="7,3" Margin="2,-3,-6,-3"
                                                VerticalAlignment="Center" Cursor="Hand"
                                                ToolTip="Etiketi kaldır"
                                                MouseLeftButtonUp="RemoveTag_Click" />
@@ -57,15 +94,39 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <ComboBox IsEditable="True" MinWidth="150" VerticalAlignment="Center"
-                          ItemsSource="{Binding TagSuggestions}"
-                          Text="{Binding NewTag, UpdateSourceTrigger=PropertyChanged}"
-                          ToolTip="Etiket ekle — örn. önemli, tehdit edildik"
-                          KeyDown="TagBox_KeyDown" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <ui:SymbolIcon Symbol="Tag24" FontSize="14" Margin="0,0,6,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                <ui:Button Content="Etiketle" Margin="6,0,0,0" Padding="10,4"
-                           Command="{Binding AddTagCommand}" />
-            </StackPanel>
+                    <Grid>
+                        <ComboBox x:Name="TagBox" IsEditable="True" MinWidth="150" VerticalAlignment="Center"
+                                  ItemsSource="{Binding TagSuggestions}"
+                                  Text="{Binding NewTag, UpdateSourceTrigger=PropertyChanged}"
+                                  ToolTip="Etiket ekle — örn. önemli, tehdit edildik" />
+
+                        <!-- The box looked like an empty mystery; the hint gives it a name.
+                             HitTestVisible=False so it never steals a click from the box. -->
+                        <TextBlock Text="etiket ekle…" Margin="10,0,0,0" VerticalAlignment="Center"
+                                   IsHitTestVisible="False"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding NewTag}" Value="">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+
+                    <ui:Button Content="Etiketle" Margin="6,0,0,0" Padding="10,4"
+                               Command="{Binding AddTagCommand}" />
+                </StackPanel>
+            </WrapPanel>
         </StackPanel>
 
         <TabControl Grid.Row="2" Margin="20,14,20,0" Padding="0,14,0,0"

@@ -52,7 +52,8 @@ public sealed record DayBar(string Label, double Minutes, double Share, int Runs
 /// <param name="Order">1-based. The order they will actually be tried in.</param>
 /// <param name="IsActive">The one that will be used, all being well — the first usable.</param>
 public sealed partial class AiServiceRow(
-    int order, string name, string detail, bool isActive, bool sendsDataOffMachine) : ObservableObject
+    int order, string name, string detail, bool isActive, bool sendsDataOffMachine,
+    bool transcription = true) : ObservableObject
 {
     public int Order { get; } = order;
     public string Name { get; } = name;
@@ -61,6 +62,16 @@ public sealed partial class AiServiceRow(
 
     /// <summary>Whether using this one means the conversation leaves the machine.</summary>
     public bool SendsDataOffMachine { get; } = sendsDataOffMachine;
+
+    /// <summary>Which half of the pipeline this row belongs to — it decides where a click lands.</summary>
+    public bool IsTranscription { get; } = transcription;
+
+    /// <summary>
+    /// WHAT leaves the machine, said truthfully per row. Transcription uploads the audio;
+    /// analysis sends the words. The badge used to say "ses" on both, which for the analysis
+    /// row was simply false — and a privacy label that is wrong once is distrusted everywhere.
+    /// </summary>
+    public string OffMachineLabel => IsTranscription ? "ses makineden çıkar" : "metin makineden çıkar";
 
     [ObservableProperty] private ServiceReach _reach = ServiceReach.Unknown;
 
@@ -146,10 +157,14 @@ public sealed partial class AiStatusViewModel(
     /// the settings model, saving the result, reconciling autostart — and a second copy of it
     /// would be a second place for the two to drift apart.
     /// </summary>
-    public event EventHandler? SettingsRequested;
+    public event EventHandler<string?>? SettingsRequested;
 
     [RelayCommand]
-    private void OpenSettings() => SettingsRequested?.Invoke(this, EventArgs.Empty);
+    private void OpenSettings() => SettingsRequested?.Invoke(this, "Analysis");
+
+    /// <summary>A service row was clicked: open settings at the section that configures it.</summary>
+    public void OpenSectionFor(bool transcription)
+        => SettingsRequested?.Invoke(this, transcription ? "Transcription" : "Analysis");
 
     [RelayCommand]
     public void Refresh()
@@ -225,7 +240,8 @@ public sealed partial class AiStatusViewModel(
             provider.DisplayName,
             $"{current.ResolvedModelName} · {current.ResolvedBaseUrl}",
             isActive: true,
-            provider.SendsDataOffMachine)
+            provider.SendsDataOffMachine,
+            transcription: false)
         {
             Reach = reach,
         });
@@ -468,7 +484,12 @@ public sealed partial class AiStatusViewModel(
 
         Engines.Clear();
         foreach (var engine in repository.UsageByEngine(ProcessingStage.Transcribe, since))
-            Engines.Add(engine);
+        {
+            // The row stores what the worker reported ("cloud-openai", "large-v3"); the screen
+            // owes the user the human name — plumbing ids leaking into the wallpaper was met
+            // and named by the user.
+            Engines.Add(engine with { Engine = AsrCatalog.DisplayFor(engine.Engine) });
+        }
 
         // The paid side, model by model. Transcription is billed by the minute and analysis by
         // the token, and a bill that looks wrong can only be traced when both are itemised.

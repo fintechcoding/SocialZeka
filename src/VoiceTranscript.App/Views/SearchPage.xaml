@@ -84,6 +84,12 @@
                 </ComboBox.ItemTemplate>
             </ComboBox>
 
+            <!-- The labels the user put on conversations, as a filter: "işaretlediklerimin
+                 içinde ara" was impossible archive-wide until this box existed. -->
+            <ComboBox ItemsSource="{Binding TagChoices}" SelectedItem="{Binding TagChoice}"
+                      MinWidth="120" Margin="8,0,0,0" VerticalAlignment="Center"
+                      ToolTip="Yalnızca bu etiketi taşıyan görüşmelerde ara" />
+
             <CheckBox Content="{loc:T searchpage.yalnizca-karsi-taraf}" Margin="16,0,0,0"
                       IsChecked="{Binding OnlyOtherParty}" VerticalAlignment="Center"
                       ToolTip="{loc:T searchpage.kimin-ne-soyledigi-tahmin-degil-iki-akis-a}" />

@@ -185,9 +185,9 @@
                                                VerticalAlignment="Center"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Windows açılışında başlat" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Text="{loc:T settingswindow.windows-acilisinda-baslat}" FontSize="{StaticResource TextBody}" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="Bilgisayar açıldığında sessizce sistem tepsisinde başlar; pencere açılmaz. Kapalıyken uygulamayı elle açmadığın sürece hiçbir görüşme kaydedilmez." />
+                                               Text="{loc:T settingswindow.windows-acilisinda-baslat-aciklama}" />
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                                                  IsChecked="{Binding StartWithWindows}" />
@@ -940,7 +940,7 @@
                                         stopped working" and stays unexplained.
                                     -->
                                     <ui:Button Grid.Column="1" Margin="8,0,0,0" MinWidth="130"
-                                               Content="Modellere gözat…" Click="BrowseModels_Click"
+                                               Content="{loc:T settingswindow.modellere-gozat}" Click="BrowseModels_Click"
                                                Visibility="{Binding CanBrowseModels, Converter={StaticResource BoolToVisibility}}"
                                                ToolTip="Sağlayıcıdaki modelleri listeler; arayarak seçebilirsin.">
                                         <ui:Button.Icon>
