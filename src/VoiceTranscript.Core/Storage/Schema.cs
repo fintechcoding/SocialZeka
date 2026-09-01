@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 7;
+    public const int Version = 8;
 
     public static readonly string[] Statements =
     [
@@ -44,6 +44,16 @@ public static class Schema
             app           INTEGER NOT NULL DEFAULT 0,
             times_used    INTEGER NOT NULL DEFAULT 0,
             last_used_at  TEXT    NOT NULL,
+
+            -- Set once this pattern has been seen belonging to two different people.
+            --
+            -- That is proof the title does not identify anybody — it is the chat that happened to
+            -- be open, or a WebView2 page title, or the application's own furniture. Before this
+            -- existed, the first person labelled against such a title captured every later call:
+            -- WhatsApp put every conversation under whoever was named first, silently, with no
+            -- prompt, because ResolveTitle found a match and filed the call without asking.
+            unreliable    INTEGER NOT NULL DEFAULT 0,
+
             UNIQUE(title_pattern, app)
         );
         """,

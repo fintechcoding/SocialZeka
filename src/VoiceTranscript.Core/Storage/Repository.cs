@@ -129,22 +129,54 @@ public sealed class Repository(Database database)
     /// window "WhatsApp" and nothing more, so the user labels the call once and this makes the
     /// next one automatic — accuracy grows with use instead of depending on a fragile scrape.
     /// </summary>
-    public void RememberTitle(string title, long contactId, CallApp app)
+    /// <summary>
+    /// Remembers that a window title belongs to a contact, and notices when it cannot.
+    ///
+    /// Returns true when the binding was kept, false when this title has now been shown to
+    /// identify nobody — the caller says so, because the user has just been promised that
+    /// labelling once means never being asked again.
+    ///
+    /// The rebind that used to happen here is what made every WhatsApp conversation "Uliana".
+    /// A title bound to one person and later offered for another was simply reassigned, so the
+    /// pattern went on capturing calls — it just captured them for whoever was named most
+    /// recently. Two different people behind one title is not a conflict to resolve, it is proof
+    /// the title means nothing, and the only correct response is to stop using it.
+    /// </summary>
+    public bool RememberTitle(string title, long contactId, CallApp app)
     {
         var pattern = TurkishText.StripFormatting(title);
-        if (pattern.Length == 0) return;
+        if (pattern.Length == 0) return false;
 
         using var connection = Open();
+
+        var existing = connection.QueryFirstOrDefault<long?>(
+            "SELECT contact_id FROM title_binding WHERE title_pattern = @pattern AND app = @app;",
+            new { pattern, app = (int)app });
+
+        if (existing is { } bound && bound != contactId)
+        {
+            connection.Execute(
+                """
+                UPDATE title_binding
+                   SET unreliable = 1, last_used_at = @now
+                 WHERE title_pattern = @pattern AND app = @app;
+                """,
+                new { pattern, app = (int)app, now = Iso(DateTimeOffset.UtcNow) });
+
+            return false;
+        }
+
         connection.Execute(
             """
             INSERT INTO title_binding (title_pattern, contact_id, app, times_used, last_used_at)
             VALUES (@pattern, @contactId, @app, 1, @now)
             ON CONFLICT(title_pattern, app) DO UPDATE SET
-                contact_id   = excluded.contact_id,
                 times_used   = title_binding.times_used + 1,
                 last_used_at = excluded.last_used_at;
             """,
             new { pattern, contactId, app = (int)app, now = Iso(DateTimeOffset.UtcNow) });
+
+        return true;
     }
 
     public long? ResolveTitle(string? title, CallApp app)
@@ -153,8 +185,27 @@ public sealed class Repository(Database database)
         if (pattern.Length == 0) return null;
 
         using var connection = Open();
+
+        // Patterns known to identify nobody are not consulted. Filing a call under a name on
+        // this evidence is worse than leaving it unnamed: an unnamed call asks a question, and a
+        // wrongly named one quietly corrupts two people's histories at once.
         return connection.QueryFirstOrDefault<long?>(
-            "SELECT contact_id FROM title_binding WHERE title_pattern = @pattern AND app = @app;",
+            """
+            SELECT contact_id FROM title_binding
+             WHERE title_pattern = @pattern AND app = @app AND unreliable = 0;
+            """,
+            new { pattern, app = (int)app });
+    }
+
+    /// <summary>Forgets a learned title, so the next call with it asks again.</summary>
+    public void ForgetTitle(string title, CallApp app)
+    {
+        var pattern = TurkishText.StripFormatting(title);
+        if (pattern.Length == 0) return;
+
+        using var connection = Open();
+        connection.Execute(
+            "DELETE FROM title_binding WHERE title_pattern = @pattern AND app = @app;",
             new { pattern, app = (int)app });
     }
 
@@ -465,6 +516,29 @@ public sealed class Repository(Database database)
         connection.Execute(
             "UPDATE title_binding SET contact_id = @intoContactId WHERE contact_id = @fromContactId;",
             new { intoContactId, fromContactId }, transaction);
+
+        // A merge can clear the distrust it caused.
+        //
+        // A title is marked unreliable when it is claimed by two contacts, because that normally
+        // proves the title identifies nobody. There is one innocent way to reach that state: the
+        // same person entered twice under two spellings, each learning the title honestly. The
+        // merge is the evidence that they were one person all along, so the contradiction is
+        // gone and the binding is worth trusting again.
+        //
+        // Only for the surviving contact's own patterns, and only where no other contact still
+        // claims them — a title genuinely shared by two different people stays distrusted.
+        connection.Execute(
+            """
+            UPDATE title_binding
+               SET unreliable = 0
+             WHERE contact_id = @intoContactId
+               AND NOT EXISTS (
+                   SELECT 1 FROM call
+                    WHERE call.observed_title = title_binding.title_pattern
+                      AND call.contact_id IS NOT NULL
+                      AND call.contact_id <> @intoContactId);
+            """,
+            new { intoContactId }, transaction);
 
         // Profile facts follow the person. Fields simply move; for the profile row the
         // destination's entries win where both wrote one — a merge must never overwrite what the

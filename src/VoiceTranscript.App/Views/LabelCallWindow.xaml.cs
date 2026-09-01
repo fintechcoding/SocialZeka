@@ -159,9 +159,35 @@ public partial class LabelCallWindow
         var contactId = _repository.UpsertContact(name, _app);
         _repository.AssignContact(_callId, contactId);
 
-        // Remembering the title is what makes the next call with this person automatic.
+        // Remembering the title is what makes the next call with this person automatic — when the
+        // title identifies a person at all.
+        //
+        // It frequently does not. Telegram names the counterpart in its call window; WhatsApp
+        // shows whatever chat was open, or a WebView2 page title, which is the same string for
+        // everybody. Bound to the first person labelled, such a title then swallowed every call
+        // that followed — "her konuşmayı Uliana zannediyor" — silently, because the binding was
+        // consulted before anybody was asked.
+        //
+        // The repository now refuses to rebind a title that already belongs to somebody else and
+        // reports that it has stopped trusting it. Said out loud rather than swallowed: the user
+        // was promised they would not be asked again, and going quiet on that promise looks like
+        // the feature breaking rather than the application declining to guess.
         if (RememberBox.IsChecked == true && !string.IsNullOrWhiteSpace(_observedTitle))
-            _repository.RememberTitle(_observedTitle, contactId, _app);
+        {
+            if (!_repository.RememberTitle(_observedTitle, contactId, _app))
+            {
+                MessageBox.Show(
+                    $"Bu görüşme {name} olarak kaydedildi.\n\n" +
+                    "Ama pencere başlığı hatırlanmadı: aynı başlık daha önce başka bir kişiye " +
+                    "bağlanmıştı, yani kimi aradığını söylemiyor. Bu uygulamada başlık çoğu zaman " +
+                    "o an açık olan sohbetin adıdır.\n\n" +
+                    "Bundan sonra bu uygulamadaki görüşmeler için kim olduğu sorulacak — yanlış " +
+                    "kişiye yazmaktansa sormak daha doğru.",
+                    "Başlık kişiyi tanımlamıyor",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+        }
 
         Outcome = LabelOutcome.Saved;
         DialogResult = true;

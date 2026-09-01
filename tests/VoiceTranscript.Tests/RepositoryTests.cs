@@ -473,4 +473,62 @@ public sealed class RepositoryTests : IDisposable
         Assert.Empty(_repo.GetFlags(contact, includeDismissed: true));
         Assert.Empty(_repo.GetAllClaims(contact));
     }
+
+    /// <summary>
+    /// A window title that turns out to belong to two people stops being trusted.
+    ///
+    /// This is the defect that made every WhatsApp conversation "Uliana". The title was bound to
+    /// the first contact labelled against it and then consulted before anybody was asked, so each
+    /// later call was filed under that person without a prompt. Rebinding on conflict — what the
+    /// code used to do — did not help: the pattern went on capturing calls, it just captured them
+    /// for whoever had been named most recently.
+    ///
+    /// The failure is silent in the worst way. Nothing errors, the archive looks full, and two
+    /// people's histories are quietly merged — which also corrupts the ledger, because a price
+    /// that "changed" did so between two different conversations with two different people.
+    /// </summary>
+    [Fact]
+    public void ATitleClaimedByTwoPeopleStopsIdentifyingAnybody()
+    {
+        var uliana = _repo.UpsertContact("Uliana", CallApp.WhatsApp);
+        var gurhan = _repo.UpsertContact("Gurhan", CallApp.WhatsApp);
+
+        // WhatsApp shows whichever chat was open, so the same string arrives for both calls.
+        const string shared = "WhatsApp Sohbet";
+
+        Assert.True(_repo.RememberTitle(shared, uliana, CallApp.WhatsApp));
+        Assert.Equal(uliana, _repo.ResolveTitle(shared, CallApp.WhatsApp));
+
+        // The second person behind the same title is the proof that it identifies nobody.
+        Assert.False(_repo.RememberTitle(shared, gurhan, CallApp.WhatsApp));
+
+        // And from then on it names nobody at all — asking is better than answering wrongly.
+        Assert.Null(_repo.ResolveTitle(shared, CallApp.WhatsApp));
+    }
+
+    [Fact]
+    public void ATitleThatKeepsNamingOnePersonGoesOnWorking()
+    {
+        // The Telegram case, which is the reason the feature exists: the call window really is
+        // titled with the counterpart. Learning to distrust titles must not break it.
+        var ahmet = _repo.UpsertContact("Ahmet", CallApp.Telegram);
+
+        Assert.True(_repo.RememberTitle("Ahmet", ahmet, CallApp.Telegram));
+        Assert.True(_repo.RememberTitle("Ahmet", ahmet, CallApp.Telegram));
+
+        Assert.Equal(ahmet, _repo.ResolveTitle("Ahmet", CallApp.Telegram));
+    }
+
+    [Fact]
+    public void AWrongBindingCanBeForgotten()
+    {
+        // The way out for somebody who has already been filed under the wrong person.
+        var contact = _repo.UpsertContact("Berk", CallApp.Telegram);
+
+        _repo.RememberTitle("Berk", contact, CallApp.Telegram);
+        Assert.Equal(contact, _repo.ResolveTitle("Berk", CallApp.Telegram));
+
+        _repo.ForgetTitle("Berk", CallApp.Telegram);
+        Assert.Null(_repo.ResolveTitle("Berk", CallApp.Telegram));
+    }
 }

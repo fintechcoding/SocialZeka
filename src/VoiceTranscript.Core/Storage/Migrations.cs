@@ -117,5 +117,37 @@ public static class Migrations
                 );
                 """,
             ]),
+
+        // v8 — a learned title can be known to be worthless, and the ones already poisoned are
+        // cleaned out.
+        //
+        // The fault this repairs, in the words of the person who hit it: "her konuşmayı
+        // WhatsApp'da Uliana zannediyor". A window title was bound to a contact the first time a
+        // call was labelled, and every later call carrying the same title was filed under that
+        // person without a prompt. On WhatsApp the observed title is not the caller at all — it
+        // is whatever chat was open, or a WebView2 page title — so one labelling swallowed every
+        // conversation that followed.
+        //
+        // The repair is evidence-based rather than a guess: a pattern is marked unreliable when
+        // the calls carrying it already belong to more than one contact. That is proof from the
+        // user's own archive that the title does not identify anybody, and it leaves alone the
+        // Telegram bindings, which are genuinely per-person and are the reason this feature
+        // exists.
+        new(8, "Kişiyi tanımlamayan pencere başlıklarını işaretle ve temizle",
+            [
+                "ALTER TABLE title_binding ADD COLUMN unreliable INTEGER NOT NULL DEFAULT 0;",
+
+                """
+                UPDATE title_binding
+                   SET unreliable = 1
+                 WHERE title_pattern IN (
+                       SELECT observed_title
+                         FROM call
+                        WHERE observed_title IS NOT NULL
+                          AND contact_id IS NOT NULL
+                        GROUP BY observed_title
+                       HAVING COUNT(DISTINCT contact_id) > 1);
+                """,
+            ]),
     ];
 }
