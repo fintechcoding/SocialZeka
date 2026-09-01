@@ -216,15 +216,10 @@
                                     <ContextMenu>
                                         <MenuItem Header="Görüşmeyi aç" Click="RecentOpen_Click" />
                                         <MenuItem Header="Önemlilere ekle" Click="RecentToBoard_Click" />
-                                        <!-- A reminder from the conversation itself, one step:
-                                             onto the pile and dated. The system existed and had
-                                             no doorway anywhere a conversation is actually seen. -->
-                                        <MenuItem Header="Hatırlat">
-                                            <MenuItem Header="Yarın" Tag="1" Click="RecentRemind_Click" />
-                                            <MenuItem Header="3 gün sonra" Tag="3" Click="RecentRemind_Click" />
-                                            <MenuItem Header="1 hafta sonra" Tag="7" Click="RecentRemind_Click" />
-                                            <MenuItem Header="1 ay sonra" Tag="30" Click="RecentRemind_Click" />
-                                        </MenuItem>
+                                        <!-- One doorway for reminders everywhere: the dialog
+                                             asks for the reason as well as the day, so the card
+                                             that comes back says why it came back. -->
+                                        <MenuItem Header="Hatırlat…" Click="RecentRemind_Click" />
                                     </ContextMenu>
                                 </Border.ContextMenu>
                                 <Grid>
@@ -270,9 +265,14 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border Style="{StaticResource Pill}" Margin="0,0,6,0"
-                                                            Background="{Binding Converter={StaticResource NameBrush}}">
-                                                        <TextBlock Style="{StaticResource PillText}"
-                                                                   Foreground="White" Text="{Binding}" />
+                                                            Background="{Binding Converter={StaticResource TagBrush}}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
+                                                                           FontSize="11" Foreground="White" Margin="0,0,3,0"
+                                                                           VerticalAlignment="Center" />
+                                                            <TextBlock Style="{StaticResource PillText}"
+                                                                       Foreground="White" Text="{Binding}" VerticalAlignment="Center" />
+                                                        </StackPanel>
                                                     </Border>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
@@ -421,16 +421,10 @@
                                                 <MenuItem Header="Yukarı taşı" Click="PanelUp_Click" />
                                                 <MenuItem Header="Aşağı taşı" Click="PanelDown_Click" />
                                                 <Separator />
-                                                <!-- The user's own reminder on their own card:
-                                                     it lands in the Bugün tab on the day asked. -->
-                                                <MenuItem Header="Hatırlat">
-                                                    <MenuItem Header="Yarın" Tag="1" Click="PanelRemind_Click" />
-                                                    <MenuItem Header="3 gün sonra" Tag="3" Click="PanelRemind_Click" />
-                                                    <MenuItem Header="1 hafta sonra" Tag="7" Click="PanelRemind_Click" />
-                                                    <MenuItem Header="1 ay sonra" Tag="30" Click="PanelRemind_Click" />
-                                                    <Separator />
-                                                    <MenuItem Header="Hatırlatmayı kaldır" Tag="0" Click="PanelRemind_Click" />
-                                                </MenuItem>
+                                                <!-- The dialog carries reason, date and removal
+                                                     in one place — a reminder is set, changed
+                                                     and cancelled through the same door. -->
+                                                <MenuItem Header="Hatırlat…" Click="PanelRemind_Click" />
                                                 <Separator />
                                                 <MenuItem Header="Panelden kaldır" Click="PanelRemove_Click" />
                                             </ContextMenu>
@@ -481,9 +475,14 @@
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate>
                                                                 <Border Style="{StaticResource Pill}" Margin="4,0,0,0"
-                                                                        Background="{Binding Converter={StaticResource NameBrush}}">
-                                                                    <TextBlock Style="{StaticResource PillText}"
-                                                                               Foreground="White" Text="{Binding}" />
+                                                                        Background="{Binding Converter={StaticResource TagBrush}}">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
+                                                                                       FontSize="11" Foreground="White" Margin="0,0,3,0"
+                                                                                       VerticalAlignment="Center" />
+                                                                        <TextBlock Style="{StaticResource PillText}"
+                                                                                   Foreground="White" Text="{Binding}" VerticalAlignment="Center" />
+                                                                    </StackPanel>
                                                                 </Border>
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>

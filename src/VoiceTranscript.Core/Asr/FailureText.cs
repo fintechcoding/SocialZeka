@@ -26,6 +26,11 @@ public static class FailureText
         @"^(?<type>[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Exit))\s*:\s*(?<message>.+)$",
         RegexOptions.Compiled | RegexOptions.Multiline);
 
+    /// <summary>The "message" field of a JSON error body, wherever it sits in the text.</summary>
+    private static readonly Regex JsonMessage = new(
+        "\"message\"\\s*:\\s*\"(?<value>(?:[^\"\\\\]|\\\\.)*)\"",
+        RegexOptions.Compiled);
+
     /// <summary>
     /// Known faults, and what somebody can actually do about each.
     ///
@@ -95,6 +100,24 @@ public static class FailureText
         foreach (var (marker, sentence) in Known)
             if (lowered.Contains(marker, StringComparison.Ordinal))
                 return sentence;
+
+        // An HTTP error body carried whole. The server already wrote the one sentence that
+        // matters — its "message" field — and everything around it is JSON punctuation. Cutting
+        // the raw body at the first line produced the memorable «OpenAi 400 döndürdü: {», which
+        // is a hat with no head under it.
+        var body = JsonMessage.Match(raw);
+        if (body.Success)
+        {
+            var message = Regex.Unescape(body.Groups["value"].Value).Trim();
+            var brace = raw.IndexOf('{');
+            var prefix = brace > 0 ? raw[..brace].Trim() : "";
+
+            // "OpenAi 400 döndürdü:" says who answered; keep it when it is a short heading
+            // rather than a traceback.
+            return prefix.Length is > 0 and <= 80 && !prefix.Contains('\n')
+                ? Trim($"{prefix} {message}")
+                : Trim(message);
+        }
 
         // The last exception line: a traceback that re-raises ends with the fault that actually
         // stopped the job, and the earlier ones are the frames it passed through.

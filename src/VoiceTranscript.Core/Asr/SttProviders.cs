@@ -245,6 +245,21 @@ public sealed record SttEndpoint
     /// <summary>The single string the Python worker expects: base URL, key and model.</summary>
     public string ToModelRef() => $"{ResolvedBaseUrl}|{ApiKey}|{ResolvedModel}";
 
+    /// <summary>
+    /// The same reference with the key struck out, for anything that outlives the request.
+    ///
+    /// The worker echoes the full three-part reference back in its result, and that echo was
+    /// recorded into processing_run verbatim — which put a live API key into the database and,
+    /// from there, in plain text onto the conversation window's provenance line. A credential's
+    /// lifetime is the request; storage and screens get "url|model" and nothing else.
+    /// </summary>
+    public static string ScrubRef(string reference)
+    {
+        var parts = reference.Split('|');
+
+        return parts.Length == 3 ? $"{parts[0]}|{parts[2]}" : reference;
+    }
+
     public static SttEndpoint FromProvider(SttProviderInfo provider) => new()
     {
         Kind = provider.Kind,

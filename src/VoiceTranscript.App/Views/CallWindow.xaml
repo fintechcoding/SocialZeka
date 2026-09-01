@@ -38,21 +38,14 @@
                            VerticalAlignment="Center" />
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <!-- A reminder from inside the conversation, one step: onto the pile, dated.
-                         The system existed and had no doorway where conversations are read. -->
-                    <ui:DropDownButton Content="Hatırlat" Padding="10,4" Margin="0,0,6,0">
-                        <ui:DropDownButton.Icon>
+                    <!-- One doorway for reminders: the dialog asks for the reason as well as
+                         the day, so the card that comes back says why it came back. -->
+                    <ui:Button Content="Hatırlat" Padding="10,4" Margin="0,0,6,0" Click="Remind_Click"
+                               ToolTip="Sebep ve tarihle bir hatırlatma kurar; günü gelince ana ekranda belirir.">
+                        <ui:Button.Icon>
                             <ui:SymbolIcon Symbol="Clock24" />
-                        </ui:DropDownButton.Icon>
-                        <ui:DropDownButton.Flyout>
-                            <ContextMenu>
-                                <MenuItem Header="Yarın" Tag="1" Click="Remind_Click" />
-                                <MenuItem Header="3 gün sonra" Tag="3" Click="Remind_Click" />
-                                <MenuItem Header="1 hafta sonra" Tag="7" Click="Remind_Click" />
-                                <MenuItem Header="1 ay sonra" Tag="30" Click="Remind_Click" />
-                            </ContextMenu>
-                        </ui:DropDownButton.Flyout>
-                    </ui:DropDownButton>
+                        </ui:Button.Icon>
+                    </ui:Button>
 
                     <ui:Button Content="Önemlilere ekle" Padding="10,4" Click="ToBoard_Click"
                                ToolTip="Ana ekrandaki önemli görüşmeler paneline koyar.">
@@ -77,9 +70,15 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
+                            <!-- Outlook dresses a category in an icon and a colour; so does a
+                                 tag here. Both come from the user's own definitions, with a
+                                 hashed colour for a word never defined. -->
                             <Border Style="{StaticResource Pill}" Margin="0,0,6,4"
-                                    Background="{Binding Converter={StaticResource NameBrush}}">
+                                    Background="{Binding Converter={StaticResource TagBrush}}">
                                 <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
+                                                   FontSize="12" Foreground="White" Margin="0,0,4,0"
+                                                   VerticalAlignment="Center" />
                                     <TextBlock Style="{StaticResource PillText}" Foreground="White"
                                                Text="{Binding}" VerticalAlignment="Center" />
                                     <!-- Padded so the target is a fingertip, not a pinhead. -->
@@ -125,6 +124,16 @@
 
                     <ui:Button Content="Etiketle" Margin="6,0,0,0" Padding="10,4"
                                Command="{Binding AddTagCommand}" />
+
+                    <!-- The wardrobe door: where tags get their icon and colour, and where the
+                         default vocabulary is edited. Beside the box because the moment you
+                         wish a tag looked different is the moment you are using one. -->
+                    <ui:Button Margin="4,0,0,0" Padding="8,4" Appearance="Transparent"
+                               Click="ManageTags_Click" ToolTip="Etiketleri düzenle — ad, simge, renk">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="Settings24" />
+                        </ui:Button.Icon>
+                    </ui:Button>
                 </StackPanel>
             </WrapPanel>
         </StackPanel>

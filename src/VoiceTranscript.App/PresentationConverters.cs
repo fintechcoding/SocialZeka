@@ -435,3 +435,76 @@ public sealed class FilterToAppearanceConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// A tag's icon: the symbol from its definition, or the plain tag glyph for a word the user
+/// typed without ever dressing it up. Never throws on an unknown symbol name — a definition
+/// written by an older or newer version of the application must degrade, not crash a list.
+/// </summary>
+public sealed class TagToIconConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var def = Services.TagPalette.Find(value as string ?? "");
+
+        return def is not null
+               && Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(def.Icon, out var symbol)
+            ? symbol
+            : Wpf.Ui.Controls.SymbolRegular.Tag24;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// A tag's colour: from its definition when it has one, otherwise hashed from the name the same
+/// way contacts get theirs — so an undefined tag is still stably, legibly coloured.
+/// </summary>
+public sealed class TagToBrushConverter : IValueConverter
+{
+    private static readonly NameToBrushConverter Fallback = new();
+
+    private static readonly Dictionary<string, SolidColorBrush> Cache = new(StringComparer.Ordinal);
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var tag = value as string ?? "";
+        var def = Services.TagPalette.Find(tag);
+
+        if (def is null) return Fallback.Convert(tag, targetType, parameter, culture);
+
+        lock (Cache)
+        {
+            if (Cache.TryGetValue(def.Color, out var cached)) return cached;
+
+            try
+            {
+                var brush = new SolidColorBrush(
+                    (Color)ColorConverter.ConvertFromString(def.Color));
+                brush.Freeze();
+                Cache[def.Color] = brush;
+                return brush;
+            }
+            catch (FormatException)
+            {
+                return Fallback.Convert(tag, targetType, parameter, culture);
+            }
+        }
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>A SymbolRegular from its stored name, falling back rather than throwing.</summary>
+public sealed class SymbolFromNameConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(value as string ?? "", out var symbol)
+            ? symbol
+            : Wpf.Ui.Controls.SymbolRegular.Tag24;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

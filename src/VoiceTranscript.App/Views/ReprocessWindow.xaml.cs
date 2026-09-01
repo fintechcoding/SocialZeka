@@ -242,17 +242,62 @@ public partial class ReprocessWindow
         }
     }
 
+    private System.Windows.Data.ListCollectionView? _view;
+    private string _scope = "All";
+
     private void Bind(List<ReprocessMethod> methods)
     {
         // Grouped by where the audio goes. That is the one part of this choice that cannot be
         // taken back — speed and cost are recoverable mistakes, an upload is not — so it is the
         // structure of the list rather than a caption on some rows.
-        var view = new System.Windows.Data.ListCollectionView(methods);
-        view.GroupDescriptions.Add(
+        _view = new System.Windows.Data.ListCollectionView(methods);
+        _view.GroupDescriptions.Add(
             new System.Windows.Data.PropertyGroupDescription(nameof(ReprocessMethod.Group)));
 
-        Methods.ItemsSource = view;
+        Methods.ItemsSource = _view;
         Methods.SelectedIndex = 0;
+
+        // The filter only earns its place when both worlds are actually on the list — with a
+        // dozen local engines above the cloud rows, "Bulut" saves a scroll to the bottom.
+        var worlds = methods
+            .Where(m => m.Group != ReprocessMethod.FromSettings)
+            .Select(m => m.Group)
+            .Distinct()
+            .Count();
+
+        ScopeBar.Visibility = worlds > 1 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Narrows the list to one world. The settings row is never filtered out: the default
+    /// route staying visible is what makes "hiçbirini seçme" a real option.
+    /// </summary>
+    private void Scope_Click(object sender, RoutedEventArgs e)
+    {
+        if (_view is null || sender is not FrameworkElement { Tag: string scope }) return;
+
+        _scope = scope;
+
+        foreach (var (button, tag) in new[]
+                 {
+                     (ScopeAllButton, "All"), (ScopeLocalButton, "Local"), (ScopeCloudButton, "Cloud"),
+                 })
+        {
+            button.Appearance = tag == _scope
+                ? Wpf.Ui.Controls.ControlAppearance.Primary
+                : Wpf.Ui.Controls.ControlAppearance.Secondary;
+        }
+
+        _view.Filter = _scope switch
+        {
+            "Local" => o => o is ReprocessMethod m
+                && m.Group is ReprocessMethod.FromSettings or ReprocessMethod.OnThisMachine,
+            "Cloud" => o => o is ReprocessMethod m
+                && m.Group is ReprocessMethod.FromSettings or ReprocessMethod.InTheCloud,
+            _ => null,
+        };
+
+        if (Methods.SelectedItem is null) Methods.SelectedIndex = 0;
     }
 
     private static string DescribeAsr(AppSettings settings) => settings.AsrMode switch

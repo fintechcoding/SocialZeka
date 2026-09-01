@@ -34,5 +34,20 @@ public static class Migrations
         // the screen can say why a file is smaller than its duration suggests.
         new(3, "Görüşme tablosuna sessizlik kırpma damgası",
             ["ALTER TABLE call ADD COLUMN trimmed_at TEXT;"]),
+
+        // v4 — tags gain a face: icon and colour per tag, Outlook-category style, plus the
+        // form that edits the default vocabulary. Definitions only; call_tag rows are untouched.
+        new(4, "Etiket görünümleri tablosu (ikon ve renk)",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS tag_def (
+                    tag_folded TEXT    PRIMARY KEY,
+                    tag        TEXT    NOT NULL,
+                    icon       TEXT    NOT NULL,
+                    color      TEXT    NOT NULL,
+                    position   INTEGER NOT NULL DEFAULT 0
+                );
+                """,
+            ]),
     ];
 }

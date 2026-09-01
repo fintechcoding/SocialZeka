@@ -274,6 +274,51 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
     public IReadOnlyList<string> SortChoices { get; } = [SortNewest, SortOldest, SortLongest];
 
+    // The 95% case is "browse, maybe pick a period" — so the period is one visible row of
+    // chips, and everything rarer folds into a labelled panel behind a badge that counts what
+    // is on. Seven bare controls in a row taught nobody anything; the user said so.
+
+    public const string PresetAll = "Tümü";
+    public const string PresetMonth = "Bu ay";
+    public const string PresetQuarter = "3 ay";
+    public const string PresetYear = "1 yıl";
+
+    [ObservableProperty] private string _periodPreset = PresetAll;
+
+    partial void OnPeriodPresetChanged(string value)
+    {
+        // One reload, not three: the preset writes both dates through the fields and refreshes
+        // itself, so choosing "Bu ay" is one click and one query.
+        _reloading = true;
+
+        var today = DateTime.Today;
+
+        (FilterFrom, FilterTo) = value switch
+        {
+            PresetMonth => (new DateTime(today.Year, today.Month, 1), (DateTime?)null),
+            PresetQuarter => (today.AddMonths(-3), (DateTime?)null),
+            PresetYear => (today.AddYears(-1), (DateTime?)null),
+            _ => ((DateTime?)null, (DateTime?)null),
+        };
+
+        _reloading = false;
+        LoadCalls();
+    }
+
+    /// <summary>How many advanced filters are on — the number on the Filtreler badge.</summary>
+    public int ActiveFilterCount =>
+        (StateFilter != AllStates ? 1 : 0)
+        + (TagFilter != AllTags && TagFilter is not null ? 1 : 0)
+        + (MinMinutes > 0 ? 1 : 0)
+        + (OnlyNoted ? 1 : 0)
+        + (FilterFrom is not null || FilterTo is not null ? 1 : 0);
+
+    /// <summary>Whether the advanced panel is open. State only; the view draws it.</summary>
+    [ObservableProperty] private bool _filtersOpen;
+
+    [RelayCommand]
+    private void SetPreset(string preset) => PeriodPreset = preset;
+
     /// <summary>One line saying what the list is currently NOT showing — a silent filter is a
     /// list that looks like data loss.</summary>
     public bool FiltersActive =>
@@ -327,6 +372,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(FiltersActive));
+        OnPropertyChanged(nameof(ActiveFilterCount));
     }
 
     private void LoadCallsCore()

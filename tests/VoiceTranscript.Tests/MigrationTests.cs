@@ -192,5 +192,13 @@ public sealed class MigrationTests : IDisposable
 
         Assert.True(ColumnExists("trimmed_at"));
         Assert.Equal(Schema.Version, Stored());
+
+        // v4: the tag wardrobe arrived by step for old databases, by baseline for fresh ones.
+        using (var connection = new Database(_path).Open())
+        {
+            using var probe = connection.CreateCommand();
+            probe.CommandText = "SELECT COUNT(*) FROM tag_def;";
+            Assert.Equal(0L, probe.ExecuteScalar());
+        }
     }
 }

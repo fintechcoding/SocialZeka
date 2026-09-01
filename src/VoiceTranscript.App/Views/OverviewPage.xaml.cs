@@ -258,9 +258,10 @@ public partial class OverviewPage
     private void PanelRemind_Click(object sender, RoutedEventArgs e)
     {
         if (CardOf(sender) is not { } card) return;
-        if ((sender as FrameworkElement)?.Tag is not string tag || !int.TryParse(tag, out var days)) return;
 
-        ViewModel?.RemindCard(card.CallId, days);
+        RemindWindow.Open(
+            Window.GetWindow(this), App.Repository, card.CallId, $"{card.ContactName} · {card.When}");
+        ViewModel?.Refresh();
     }
 
     private void RecentOpen_Click(object sender, RoutedEventArgs e)
@@ -288,11 +289,11 @@ public partial class OverviewPage
     private void RecentRemind_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is not RecentCall row) return;
-        if ((sender as FrameworkElement)?.Tag is not string tag || !int.TryParse(tag, out var days)) return;
-        if (ViewModel is not { } model) return;
 
-        if (model.Board.All(c => c.CallId != row.Call.Id)) model.AddToBoard(row.Call.Id);
-
-        model.RemindCard(row.Call.Id, days);
+        // The dialog itself puts the call on the board when saved — no card is created for a
+        // reminder the user then cancels.
+        RemindWindow.Open(
+            Window.GetWindow(this), App.Repository, row.Call.Id, $"{row.ContactName} · {row.When}");
+        ViewModel?.Refresh();
     }
 }

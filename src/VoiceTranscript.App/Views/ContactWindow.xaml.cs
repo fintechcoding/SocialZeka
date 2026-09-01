@@ -151,13 +151,40 @@ public partial class ContactWindow
         App.Repository.PutOnBoard(row.Id, Core.Domain.BoardLane.ToLookAt);
     }
 
+    private void RowRetranscribe_Click(object sender, RoutedEventArgs e)
+        => RowReprocess(sender, ReprocessKind.Transcribe);
+
+    private void RowReanalyse_Click(object sender, RoutedEventArgs e)
+        => RowReprocess(sender, ReprocessKind.Analyse);
+
+    /// <summary>Same dialog the Kişiler page opens, aimed by the verb that was clicked.</summary>
+    private void RowReprocess(object sender, ReprocessKind kind)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ContactCall row
+            || App.Orchestrator is null)
+        {
+            return;
+        }
+
+        var dialog = new ReprocessWindow(
+            App.Repository, App.Settings, ViewModel?.Name ?? "Görüşme", count: 1, kind)
+        {
+            Owner = this,
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        var choice = dialog.Choice;
+
+        App.Repository.SetCallState(row.Id, Core.Domain.ProcessingState.Queued);
+        App.Orchestrator.EnqueueWith(row.Id, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel);
+    }
+
     /// <summary>A reminder in one step: onto the pile if needed, and dated.</summary>
     private void RowRemind_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is not ContactCall row) return;
-        if ((sender as FrameworkElement)?.Tag is not string tag || !int.TryParse(tag, out var days)) return;
 
-        App.Repository.PutOnBoard(row.Id, Core.Domain.BoardLane.ToLookAt);
-        App.Repository.RemindOn(row.Id, DateOnly.FromDateTime(DateTime.Today).AddDays(days));
+        RemindWindow.Open(this, App.Repository, row.Id, $"{ViewModel?.Name} · {row.When}");
     }
 }

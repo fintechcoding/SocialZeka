@@ -1264,7 +1264,9 @@ public sealed class CallOrchestrator : IDisposable
         _repository.RecordRun(
             call.Id,
             ProcessingStage.Transcribe,
-            engine: result.ModelRef ?? result.Engine ?? model.DisplayName,
+            // Scrubbed: the worker echoes the full "url|key|model" reference, and recording it
+            // verbatim put a live API key into the database and onto the provenance line.
+            engine: Core.Asr.SttEndpoint.ScrubRef(result.ModelRef ?? result.Engine ?? model.DisplayName),
             startedAt,
             clock.Elapsed,
             call.Duration);

@@ -364,7 +364,11 @@ def _to_segments(payload: dict, offset: float) -> list[Segment]:
         Word(
             start=float(word.get("start", 0.0)) + offset,
             end=float(word.get("end", 0.0)) + offset,
-            text=str(word.get("word", "")),
+            # faster-whisper's convention, imposed here: every word carries its leading space,
+            # so downstream text is rebuilt with plain "".join. OpenAI's verbose_json words come
+            # bare, and joining them bare glued whole sentences into single words —
+            # "aloalonapıyonbirtanem" on a real call.
+            text=_with_leading_space(str(word.get("word", ""))),
             probability=None,
         )
         for word in words_payload
@@ -409,6 +413,19 @@ def _to_segments(payload: dict, offset: float) -> list[Segment]:
             words=words,
         )
     ]
+
+
+def _with_leading_space(token: str) -> str:
+    """Give a bare word the leading space the local engines' words already carry.
+
+    Downstream code rebuilds segment text with ``"".join(w.text ...)`` on the assumption —
+    true for faster-whisper and whisper.cpp — that each word brings its own separator. A word
+    that already starts with whitespace passes through untouched, so applying this to a
+    well-behaved provider changes nothing.
+    """
+    if not token or token[0].isspace():
+        return token
+    return " " + token
 
 
 def _as_float(value: object) -> float | None:

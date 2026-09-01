@@ -133,6 +133,14 @@ public class WindowSmokeTests
                 Build("Yeniden işle", () => new ReprocessWindow(
                     repository, settings, "Serdal", count: 1), failures);
 
+                // Reads the call's existing card on construction, so the prefill query runs too.
+                Build("Hatırlat", () => new RemindWindow(
+                    repository, callId: 1, subject: "Serdal · 12 Mart"), failures);
+
+                // Loads the definitions and renders every offered icon name through the
+                // converter, so an invalid SymbolRegular in the choices would fail here.
+                Build("Etiketler", () => new TagManagerWindow(repository), failures);
+
                 Build("Kişileri birleştir", () => new MergeContactWindow(
                     repository,
                     new VoiceTranscript.Core.Domain.Contact { Id = 1, Name = "Serdal" }), failures);

@@ -40,7 +40,28 @@
                            VerticalAlignment="Center" />
             </StackPanel>
 
-            <TextBlock x:Name="ListHeading" Style="{StaticResource GroupHeader}" Margin="0,16,0,0" />
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="ListHeading" Grid.Column="0" Style="{StaticResource GroupHeader}"
+                           VerticalAlignment="Center" />
+
+                <!-- Where the list gets long, the choice that matters most — does the audio stay
+                     here — becomes a filter instead of a scroll. The settings row survives every
+                     filter, so the default is never out of sight. -->
+                <StackPanel x:Name="ScopeBar" Grid.Column="1" Orientation="Horizontal"
+                            Visibility="Collapsed">
+                    <ui:Button x:Name="ScopeAllButton" Content="Tümü" Padding="10,4" Margin="0,0,6,0"
+                               Appearance="Primary" Tag="All" Click="Scope_Click" />
+                    <ui:Button x:Name="ScopeLocalButton" Content="Bu makinede" Padding="10,4" Margin="0,0,6,0"
+                               Appearance="Secondary" Tag="Local" Click="Scope_Click" />
+                    <ui:Button x:Name="ScopeCloudButton" Content="Bulut" Padding="10,4"
+                               Appearance="Secondary" Tag="Cloud" Click="Scope_Click" />
+                </StackPanel>
+            </Grid>
         </StackPanel>
 
         <Border Grid.Row="2" Margin="20,0,20,0" CornerRadius="6" BorderThickness="1"

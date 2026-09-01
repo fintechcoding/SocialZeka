@@ -156,9 +156,18 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         foreach (var tag in _repository.TagsOf(CallId)) Tags.Add(tag);
 
         TagSuggestions.Clear();
+
+        // Defined vocabulary first — the tags the user gave a face — then whatever else is in
+        // use. Suggestions are why the manager's definitions show up before their first use.
+        foreach (var def in Services.TagPalette.All)
+            if (!Tags.Contains(def.Tag)) TagSuggestions.Add(def.Tag);
+
         foreach (var (tag, _) in _repository.AllTags().Take(8))
-            if (!Tags.Contains(tag)) TagSuggestions.Add(tag);
+            if (!Tags.Contains(tag) && !TagSuggestions.Contains(tag)) TagSuggestions.Add(tag);
     }
+
+    /// <summary>Re-reads tags and suggestions — called after the tag manager saves.</summary>
+    public void ReloadTags() => LoadTags();
 
     /// <summary>
     /// How good the text is, and what produced it.

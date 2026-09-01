@@ -323,6 +323,17 @@ public static class AsrCatalog
             }
         }
 
+        // A cloud endpoint reference: "url|model" now, "url|key|model" in rows written before
+        // the key was scrubbed out. Rendered as host and model — and never, under any parsing
+        // outcome, the middle part of a three-part reference, because that part was the key.
+        if (value.Contains('|'))
+        {
+            var parts = value.Split('|');
+            var host = Uri.TryCreate(parts[0], UriKind.Absolute, out var url) ? url.Host : parts[0];
+
+            return parts.Length >= 2 ? $"{host} · {parts[^1]}" : host;
+        }
+
         return value;
     }
 

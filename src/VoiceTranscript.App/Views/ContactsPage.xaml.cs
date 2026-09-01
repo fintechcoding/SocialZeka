@@ -227,12 +227,18 @@ public partial class ContactsPage
     /// a model is connected after the fact: the text is already there, and paying for the audio a
     /// second time is the difference between a minute and an afternoon.
     /// </summary>
-    private void Reprocess_Click(object sender, RoutedEventArgs e)
+    private void Retranscribe_Click(object sender, RoutedEventArgs e)
+        => Reprocess(ReprocessKind.Transcribe);
+
+    private void Reanalyse_Click(object sender, RoutedEventArgs e)
+        => Reprocess(ReprocessKind.Analyse);
+
+    private void Reprocess(ReprocessKind kind)
     {
         if (ViewModel is not { SelectedCall: { } row } model || App.Orchestrator is null) return;
 
         var dialog = new ReprocessWindow(
-            App.Repository, App.Settings, model.SelectedContact?.Name ?? "Görüşme", count: 1)
+            App.Repository, App.Settings, model.SelectedContact?.Name ?? "Görüşme", count: 1, kind)
         {
             Owner = Window.GetWindow(this),
         };

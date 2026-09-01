@@ -160,4 +160,52 @@ public sealed class TagTests : IDisposable
 
         Assert.Empty(_repo.AllTags());
     }
+
+    // ---- definitions: the tag wardrobe -------------------------------------------------------
+
+    [Fact]
+    public void ADefinitionRoundTripsAndUpdatesInPlace()
+    {
+        _repo.SaveTagDef(new TagDef("Önemli", "Flag24", "#E81123", 0));
+        _repo.SaveTagDef(new TagDef("İş", "Briefcase24", "#0078D4", 1));
+
+        // Spelling variants are one definition: identity is the folded form.
+        _repo.SaveTagDef(new TagDef("ÖNEMLİ", "Star24", "#107C10", 0));
+
+        var defs = _repo.TagDefs();
+
+        Assert.Equal(2, defs.Count);
+        Assert.Equal("ÖNEMLİ", defs[0].Tag);
+        Assert.Equal("Star24", defs[0].Icon);
+        Assert.Equal("#107C10", defs[0].Color);
+    }
+
+    [Fact]
+    public void DeletingADefinitionNeverTouchesTheTaggings()
+    {
+        var call = Call();
+        _repo.Tag(call, "Tehdit");
+        _repo.SaveTagDef(new TagDef("Tehdit", "Warning24", "#D13438", 0));
+
+        _repo.DeleteTagDef("tehdit"); // folded identity
+
+        Assert.Empty(_repo.TagDefs());
+        Assert.Contains("Tehdit", _repo.TagsOf(call));
+    }
+
+    [Fact]
+    public void SeedingFillsAnEmptyTableOnceAndNeverAgain()
+    {
+        _repo.SeedDefaultTagDefs();
+        var seeded = _repo.TagDefs();
+        Assert.NotEmpty(seeded);
+
+        // The user prunes the vocabulary; a restart must not push the defaults back.
+        foreach (var def in seeded) _repo.DeleteTagDef(def.Tag);
+        _repo.SaveTagDef(new TagDef("Benim", "Flag24", "#E81123", 0));
+
+        _repo.SeedDefaultTagDefs();
+
+        Assert.Equal(["Benim"], _repo.TagDefs().Select(d => d.Tag));
+    }
 }

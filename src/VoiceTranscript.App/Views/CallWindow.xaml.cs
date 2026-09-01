@@ -217,10 +217,16 @@ public partial class CallWindow
     private void Remind_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is not { } model) return;
-        if ((sender as FrameworkElement)?.Tag is not string tag || !int.TryParse(tag, out var days)) return;
 
-        App.Repository.PutOnBoard(model.CallId, Core.Domain.BoardLane.ToLookAt);
-        App.Repository.RemindOn(model.CallId, DateOnly.FromDateTime(DateTime.Today).AddDays(days));
+        RemindWindow.Open(this, App.Repository, model.CallId, model.Title);
+    }
+
+    /// <summary>Opens the tag wardrobe; on save the palette reloads, so pills repaint themselves.</summary>
+    private void ManageTags_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new TagManagerWindow(App.Repository) { Owner = this };
+
+        if (dialog.ShowDialog() == true) ViewModel?.ReloadTags();
     }
 
     private void TagBox_KeyDown(object sender, KeyEventArgs e)

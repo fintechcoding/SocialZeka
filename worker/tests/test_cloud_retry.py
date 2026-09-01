@@ -167,6 +167,30 @@ def test_segments_are_offset_onto_the_call_timeline():
     assert segments[1].words[0].start == pytest.approx(1202.1)
 
 
+def test_bare_cloud_words_gain_the_leading_space_the_local_engines_carry():
+    """
+    OpenAI's verbose_json words are bare tokens — no whitespace, no parameter to change it —
+    while faster-whisper's carry their leading space. Downstream text is rebuilt with
+    ``"".join``, which on bare tokens glued whole sentences into single words: a real call
+    rendered as "aloalonapıyonbirtanem". The cloud parser must impose the local convention.
+    """
+    payload = {
+        "segments": [{"start": 0.0, "end": 3.0, "text": "az bekle canım"}],
+        "words": [
+            {"word": "az", "start": 0.0, "end": 0.4},
+            {"word": "bekle", "start": 0.5, "end": 0.9},
+            {"word": "canım", "start": 1.0, "end": 1.4},
+        ],
+    }
+
+    words = cloud_engine._to_segments(payload, offset=0.0)[0].words
+
+    assert "".join(w.text for w in words).strip() == "az bekle canım"
+
+    # A provider that already sends the space is passed through, not double-spaced.
+    assert cloud_engine._with_leading_space(" bekle") == " bekle"
+
+
 def test_a_flat_text_response_still_produces_one_segment():
     """Not every provider returns segments. One correctly placed segment beats losing the call."""
     segments = cloud_engine._to_segments({"text": "sadece metin"}, offset=60.0)

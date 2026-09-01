@@ -12,26 +12,28 @@ namespace VoiceTranscript.App.ViewModels;
 // the user's verdict was "kafa karıştırıyor ve çok hata çıktı". Did the audio become text, and
 // did the text become a ledger — separate questions, separate tabs, separate filters.
 
-/// <summary>Which rows the transcription tab is showing.</summary>
+/// <summary>
+/// Which rows the transcription tab is showing. Three DISJOINT states, deliberately: a
+/// separate "Başarısızlar" filter overlapped "Bekleyenler" (a failure IS pending work), so the
+/// same row appeared under two buttons and the user called the arrangement absurd — correctly.
+/// A failed row is a pending row with a red reason on it, and the reason is already visible.
+/// </summary>
 public enum TranscriptFilter
 {
-    /// <summary>Waiting, running, failed, or still without text.</summary>
+    /// <summary>Waiting, running, failed, or still without text — everything not done.</summary>
     Unfinished,
 
-    /// <summary>Only the ones whose transcription failed.</summary>
-    Failed,
+    /// <summary>The text exists.</summary>
+    Done,
 
     All,
 }
 
-/// <summary>Which rows the analysis tab is showing. Its universe is calls that have text.</summary>
+/// <summary>Which rows the analysis tab is showing. Same three disjoint states.</summary>
 public enum AnalyseFilter
 {
-    /// <summary>Text exists, ledger does not — including analysis failures.</summary>
+    /// <summary>Text exists, ledger does not — analysis failures included, worn in red.</summary>
     Unanalysed,
-
-    /// <summary>Only the ones whose analysis failed.</summary>
-    Failed,
 
     /// <summary>Ledger built.</summary>
     Done,
@@ -262,20 +264,17 @@ public sealed partial class ProcessingViewModel(
 
     public string TranscriptEmptyMessage => TranscriptFilter switch
     {
-        TranscriptFilter.Failed => "Yazıya dökülemeyen görüşme yok.",
+        TranscriptFilter.Done => "Yazıya dökülmüş görüşme yok.",
         TranscriptFilter.Unfinished => "Bekleyen iş yok — her kayıt yazıya dökülmüş.",
         _ => "Henüz kayıt yok.",
     };
 
     public string AnalysisEmptyMessage => AnalyseFilter switch
     {
-        AnalyseFilter.Failed => "Çözümlemesi başarısız görüşme yok.",
         AnalyseFilter.Done => "Henüz çözümlenmiş görüşme yok.",
         AnalyseFilter.Unanalysed => "Çözümlenmeyi bekleyen görüşme yok.",
         _ => "Metni olan görüşme yok — çözümleme metinden çalışır.",
     };
-
-    partial void OnTranscriptFilterChanged(TranscriptFilter value) => Refresh();
     partial void OnAnalyseFilterChanged(AnalyseFilter value) => Refresh();
 
     [RelayCommand]
@@ -302,7 +301,7 @@ public sealed partial class ProcessingViewModel(
         // state says Failed; a call with text and no ledger is analysis's, same state field.
         var transcript = TranscriptFilter switch
         {
-            ViewModels.TranscriptFilter.Failed => rows.Where(r => r.TranscriptFailed),
+            ViewModels.TranscriptFilter.Done => rows.Where(r => r.HasTranscript),
             ViewModels.TranscriptFilter.Unfinished => rows.Where(r =>
                 r.IsWaiting || r.IsWorking || r.TranscriptFailed
                 || (!r.HasTranscript && r.Call.State != ProcessingState.Skipped)),
@@ -313,7 +312,6 @@ public sealed partial class ProcessingViewModel(
 
         var analysis = AnalyseFilter switch
         {
-            ViewModels.AnalyseFilter.Failed => withText.Where(r => r.AnalysisFailed),
             ViewModels.AnalyseFilter.Done => withText.Where(r => r.Call.State == ProcessingState.Analysed),
             ViewModels.AnalyseFilter.Unanalysed => withText.Where(r =>
                 r.Call.State == ProcessingState.Transcribed || r.AnalysisFailed),
@@ -333,7 +331,7 @@ public sealed partial class ProcessingViewModel(
     }
 
     [RelayCommand]
-    private void ShowTranscriptFailed() => TranscriptFilter = TranscriptFilter.Failed;
+    private void ShowTranscriptDone() => TranscriptFilter = TranscriptFilter.Done;
 
     [RelayCommand]
     private void ShowTranscriptWaiting() => TranscriptFilter = TranscriptFilter.Unfinished;
@@ -343,9 +341,6 @@ public sealed partial class ProcessingViewModel(
 
     [RelayCommand]
     private void ShowAnalysisUnanalysed() => AnalyseFilter = AnalyseFilter.Unanalysed;
-
-    [RelayCommand]
-    private void ShowAnalysisFailed() => AnalyseFilter = AnalyseFilter.Failed;
 
     [RelayCommand]
     private void ShowAnalysisDone() => AnalyseFilter = AnalyseFilter.Done;

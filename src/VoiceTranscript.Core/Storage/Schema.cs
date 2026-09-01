@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 3;
+    public const int Version = 4;
 
     public static readonly string[] Statements =
     [
@@ -317,6 +317,23 @@ public static class Schema
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_call_tag ON call_tag(tag_folded);",
+
+        // How a tag LOOKS: its icon and colour, the way Outlook gives a category both. Separate
+        // from call_tag on purpose — a tag exists the moment somebody types it on a call, with or
+        // without a row here, and deleting a definition must never delete the taggings. Rows here
+        // are also what the "default tags" form edits: the vocabulary offered before any call has
+        // been tagged at all.
+        //
+        // User data, like call_tag: reprocessing may never touch this table.
+        """
+        CREATE TABLE IF NOT EXISTS tag_def (
+            tag_folded TEXT    PRIMARY KEY,
+            tag        TEXT    NOT NULL,
+            icon       TEXT    NOT NULL,
+            color      TEXT    NOT NULL,
+            position   INTEGER NOT NULL DEFAULT 0
+        );
+        """,
 
         // What the user knows about a person: photo, birth date, and free-form labelled facts.
         //

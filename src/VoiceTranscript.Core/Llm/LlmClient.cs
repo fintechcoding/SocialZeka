@@ -99,6 +99,9 @@ public sealed class OpenAiCompatibleClient(
         }
         catch (LlmException e) when (request.JsonSchema is not null && LooksLikeUnsupportedSchema(e.Message))
         {
+            CoreLog.Write("llm",
+                $"{kind}/{request.Model}: response_format kabul edilmedi, şemasız talimatla yeniden deneniyor");
+
             // Not every hosted model accepts a JSON schema, and OpenRouter routes to many of
             // them. Refusing to work at all would be the wrong response: the pipeline already
             // rejects unparseable output, and every quote is verified against the transcript
@@ -220,10 +223,14 @@ public sealed class OpenAiCompatibleClient(
 
                 if (WantsOtherTokenField(e.Message, other))
                 {
+                    CoreLog.Write("llm",
+                        $"{kind}/{request.Model}: {tokenField} reddedildi, {other} ile yeniden deneniyor");
                     tokenField = other;
                 }
                 else if (sendTemperature && RefusesTemperature(e.Message))
                 {
+                    CoreLog.Write("llm",
+                        $"{kind}/{request.Model}: temperature desteklenmiyor, alan atlanarak yeniden deneniyor");
                     sendTemperature = false;
                 }
                 else
@@ -317,7 +324,20 @@ public sealed class OpenAiCompatibleClient(
             if (!response.IsSuccessStatusCode)
                 throw new LlmException($"{kind} {(int)response.StatusCode} döndürdü: {Truncate(body)}");
 
-            return Parse(body);
+            var parsed = Parse(body);
+
+            // The traffic, described without being quoted: enough to see what was sent and what
+            // shape came back, none of what anybody said. When a model misbehaves on a machine
+            // far from any debugger, this line is the difference between diagnosis and guessing.
+            CoreLog.Write("llm",
+                $"{kind}/{request.Model}: istek {tokenField}={request.MaxTokens}"
+                + $" · temperature={(sendTemperature ? request.Temperature.ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture) : "yok")}"
+                + $" · şema={(request.JsonSchema is not null ? "var" : "yok")}"
+                + $" → yanıt {parsed.Content.Length} karakter"
+                + $" · bitiş={parsed.FinishReason ?? "?"}"
+                + $" · jeton={parsed.PromptTokens?.ToString() ?? "?"}+{parsed.CompletionTokens?.ToString() ?? "?"}");
+
+            return parsed;
         }
     }
 

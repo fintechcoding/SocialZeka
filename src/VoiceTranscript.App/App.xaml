@@ -40,6 +40,9 @@
             <local:BrushFromKeyConverter x:Key="BrushFromKey" />
             <local:HealthHeadlineConverter x:Key="HealthHeadline" />
             <local:PhotoConverter x:Key="Photo" />
+            <local:TagToIconConverter x:Key="TagIcon" />
+            <local:TagToBrushConverter x:Key="TagBrush" />
+            <local:SymbolFromNameConverter x:Key="SymbolFromName" />
             <local:EqualToVisibilityConverter x:Key="EqualToVisibility" />
             <local:FilterToAppearanceConverter x:Key="FilterAppearance" />
 

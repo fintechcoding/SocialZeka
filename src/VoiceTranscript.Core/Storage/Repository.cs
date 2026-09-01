@@ -1524,6 +1524,89 @@ public sealed class Repository(Database database)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(r => r.Tag)]);
     }
 
+    // ---- tag definitions: icon and colour per tag, Outlook-category style ------------------
+
+    /// <summary>Every defined tag look, in the order the user arranged them.</summary>
+    public IReadOnlyList<TagDef> TagDefs()
+    {
+        using var connection = Open();
+
+        // Tuple then map: SQLite hands position back as Int64, which Dapper will not narrow
+        // into the record's int parameter on its own.
+        return
+        [
+            .. connection
+                .Query<(string Tag, string Icon, string Color, long Position)>(
+                    "SELECT tag, icon, color, position FROM tag_def ORDER BY position, tag_folded;")
+                .Select(row => new TagDef(row.Tag, row.Icon, row.Color, (int)row.Position)),
+        ];
+    }
+
+    /// <summary>Creates or updates a tag's look. Identity is the Turkish-folded spelling.</summary>
+    public void SaveTagDef(TagDef def)
+    {
+        var trimmed = def.Tag.Trim();
+        if (trimmed.Length == 0) return;
+
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO tag_def (tag_folded, tag, icon, color, position)
+            VALUES (@folded, @tag, @icon, @color, @position)
+            ON CONFLICT(tag_folded) DO UPDATE SET
+                tag = excluded.tag, icon = excluded.icon,
+                color = excluded.color, position = excluded.position;
+            """,
+            new
+            {
+                folded = Text.TurkishText.NormalizeForSearch(trimmed),
+                tag = trimmed,
+                icon = def.Icon,
+                color = def.Color,
+                position = def.Position,
+            });
+    }
+
+    /// <summary>Removes a tag's look. Conversations carrying the tag keep it — plainly dressed.</summary>
+    public void DeleteTagDef(string tag)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            "DELETE FROM tag_def WHERE tag_folded = @folded;",
+            new { folded = Text.TurkishText.NormalizeForSearch(tag.Trim()) });
+    }
+
+    /// <summary>
+    /// The starting vocabulary, written once into an empty table.
+    ///
+    /// These are ordinary rows, not fixtures: the user renames, recolours and deletes them like
+    /// any tag they made themselves. Seeded so the first visit to "Etiketle" offers something to
+    /// click instead of an empty box — the same reason Outlook ships with six coloured categories.
+    /// </summary>
+    public void SeedDefaultTagDefs()
+    {
+        using var connection = Open();
+
+        var existing = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM tag_def;");
+        if (existing > 0) return;
+
+        var position = 0;
+        foreach (var (tag, icon, color) in new[]
+                 {
+                     ("Önemli", "Flag24", "#E81123"),
+                     ("İş", "Briefcase24", "#0078D4"),
+                     ("Kişisel", "Person24", "#8764B8"),
+                     ("Tehdit", "Warning24", "#D13438"),
+                     ("Para", "Money24", "#107C10"),
+                     ("Takip", "Star24", "#F7630C"),
+                 })
+        {
+            SaveTagDef(new TagDef(tag, icon, color, position++));
+        }
+    }
+
     /// <summary>Every tag in use with its count, most used first. Feeds suggestions and filters.</summary>
     public IReadOnlyList<(string Tag, int Count)> AllTags()
     {
@@ -1768,6 +1851,41 @@ public sealed class Repository(Database database)
                 remindOn = remindOn?.ToString("yyyy-MM-dd"),
                 now = Iso(DateTimeOffset.UtcNow),
             });
+    }
+
+    /// <summary>
+    /// Strikes API keys out of engine references recorded before they were scrubbed at source.
+    ///
+    /// Runs written by earlier versions hold the worker's echo of "url|key|model" verbatim —
+    /// a live credential in a database column that feeds a screen. Run at startup; already-clean
+    /// rows match nothing and the pass costs one query.
+    /// </summary>
+    public void ScrubSecretsFromRuns()
+    {
+        using var connection = Open();
+
+        var dirty = connection.Query<(long Id, string Engine)>(
+            "SELECT id, engine FROM processing_run WHERE engine LIKE '%|%|%';");
+
+        foreach (var run in dirty)
+        {
+            connection.Execute(
+                "UPDATE processing_run SET engine = @engine WHERE id = @id;",
+                new { id = run.Id, engine = Asr.SttEndpoint.ScrubRef(run.Engine) });
+        }
+    }
+
+    /// <summary>This conversation's card, if it has one — what the reminder dialog prefills from.</summary>
+    public BoardCard? BoardCardOf(long callId)
+    {
+        using var connection = Open();
+
+        return connection.QuerySingleOrDefault<BoardCard>(
+            """
+            SELECT call_id AS CallId, lane, position, title, remind_on AS RemindOn, created_at AS CreatedAt
+            FROM board_card WHERE call_id = @callId;
+            """,
+            new { callId });
     }
 
     /// <summary>Takes a conversation off the board. The conversation itself is untouched.</summary>

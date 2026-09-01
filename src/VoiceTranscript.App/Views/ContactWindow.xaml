@@ -92,51 +92,116 @@
                     </Grid.RowDefinitions>
 
                     <!--
-                        The filter bar, sized for the person this window exists for: months of
-                        conversations. Every control answers a question this archive actually
-                        gets asked, and they compose — "geçen ayki, 'tehdit' etiketli, uzun
-                        görüşme" is one question. The Temizle button appears the moment any
-                        filter is on: a silent filter is a list that looks like data loss.
+                        Two tiers, because there are two kinds of day. Most days are "browse,
+                        maybe a period": one row of chips that read as words. The rare day is
+                        an investigation: those controls live behind "Filtreler", each with a
+                        LABEL — a naked date box next to two naked date boxes taught nobody
+                        which was which, and the user said so.
                     -->
-                    <WrapPanel Grid.Row="0" Margin="4,0,4,10">
-                        <DatePicker x:Name="JumpDate" Width="130" VerticalAlignment="Center"
-                                    Margin="0,0,8,6"
-                                    SelectedDateChanged="JumpDate_Changed"
-                                    ToolTip="Bu tarihe en yakın görüşmeye git" />
+                    <StackPanel Grid.Row="0" Margin="4,0,4,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                        <DatePicker SelectedDate="{Binding FilterFrom}" Width="120" Margin="0,0,4,6"
-                                    VerticalAlignment="Center" ToolTip="Bu tarihten itibaren" />
-                        <TextBlock Text="–" VerticalAlignment="Center" Margin="0,0,4,6" />
-                        <DatePicker SelectedDate="{Binding FilterTo}" Width="120" Margin="0,0,8,6"
-                                    VerticalAlignment="Center" ToolTip="Bu tarihe kadar" />
+                            <!-- The period, as words. One click, no calendar. -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <ui:Button Content="Tümü" Padding="10,4" Margin="0,0,4,0"
+                                           Command="{Binding SetPresetCommand}" CommandParameter="Tümü"
+                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Tümü}" />
+                                <ui:Button Content="Bu ay" Padding="10,4" Margin="0,0,4,0"
+                                           Command="{Binding SetPresetCommand}" CommandParameter="Bu ay"
+                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Bu ay}" />
+                                <ui:Button Content="3 ay" Padding="10,4" Margin="0,0,4,0"
+                                           Command="{Binding SetPresetCommand}" CommandParameter="3 ay"
+                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=3 ay}" />
+                                <ui:Button Content="1 yıl" Padding="10,4" Margin="0,0,12,0"
+                                           Command="{Binding SetPresetCommand}" CommandParameter="1 yıl"
+                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=1 yıl}" />
+                            </StackPanel>
 
-                        <ComboBox ItemsSource="{Binding StateChoices}" SelectedItem="{Binding StateFilter}"
-                                  MinWidth="120" Margin="0,0,8,6" VerticalAlignment="Center"
-                                  ToolTip="İşleme durumu" />
+                            <TextBlock Grid.Column="1" Style="{StaticResource Caption}"
+                                       VerticalAlignment="Center" HorizontalAlignment="Left"
+                                       Text="{Binding Calls.Count, StringFormat='{}{0} görüşme'}" />
 
-                        <ComboBox ItemsSource="{Binding TagChoices}" SelectedItem="{Binding TagFilter}"
-                                  MinWidth="110" Margin="0,0,8,6" VerticalAlignment="Center"
-                                  ToolTip="Yalnızca bu etiketi taşıyan görüşmeler" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                <ComboBox ItemsSource="{Binding SortChoices}" SelectedItem="{Binding SortOrder}"
+                                          MinWidth="110" Margin="0,0,8,0" VerticalAlignment="Center"
+                                          ToolTip="Sıralama" />
 
-                        <ui:NumberBox Value="{Binding MinMinutes}" Minimum="0" Maximum="600"
-                                      Width="110" Margin="0,0,8,6" VerticalAlignment="Center"
-                                      PlaceholderText="dk ≥"
-                                      ToolTip="En az bu kadar dakika süren görüşmeler" />
+                                <ui:Button Content="Temizle" Margin="0,0,8,0" Padding="10,4"
+                                           Appearance="Secondary"
+                                           Command="{Binding ResetFiltersCommand}"
+                                           Visibility="{Binding FiltersActive, Converter={StaticResource BoolToVisibility}}" />
 
-                        <CheckBox Content="Notlu" IsChecked="{Binding OnlyNoted}" Margin="0,0,8,6"
-                                  VerticalAlignment="Center" ToolTip="Yalnızca not yazdıkların" />
+                                <!-- The door to the rare controls, wearing the count of what
+                                     is on behind it — an invisible filter is data loss. -->
+                                <ToggleButton IsChecked="{Binding FiltersOpen}" Padding="10,4"
+                                              ToolTip="Gelişmiş filtreler">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Filter24" FontSize="14" Margin="0,0,6,0"
+                                                       VerticalAlignment="Center" />
+                                        <TextBlock Text="Filtreler" VerticalAlignment="Center" />
+                                        <Border Style="{StaticResource CountPill}" Margin="6,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding ActiveFilterCount, Converter={StaticResource CountToVisibility}}">
+                                            <TextBlock Text="{Binding ActiveFilterCount}" FontSize="11" />
+                                        </Border>
+                                    </StackPanel>
+                                </ToggleButton>
+                            </StackPanel>
+                        </Grid>
 
-                        <ComboBox ItemsSource="{Binding SortChoices}" SelectedItem="{Binding SortOrder}"
-                                  MinWidth="110" Margin="0,0,8,6" VerticalAlignment="Center"
-                                  ToolTip="Sıralama" />
+                        <!-- The investigation drawer: every control labelled, nothing naked. -->
+                        <Border Margin="0,8,0,0" Padding="12,10" CornerRadius="6"
+                                Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                Visibility="{Binding FiltersOpen, Converter={StaticResource BoolToVisibility}}">
+                            <WrapPanel>
+                                <StackPanel Margin="0,0,14,6">
+                                    <TextBlock Text="Tarih aralığı" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <DatePicker SelectedDate="{Binding FilterFrom}" Width="118"
+                                                    ToolTip="Bu tarihten itibaren" />
+                                        <TextBlock Text="–" VerticalAlignment="Center" Margin="4,0" />
+                                        <DatePicker SelectedDate="{Binding FilterTo}" Width="118"
+                                                    ToolTip="Bu tarihe kadar" />
+                                    </StackPanel>
+                                </StackPanel>
 
-                        <ui:Button Content="Temizle" Margin="0,0,8,6" Padding="10,4"
-                                   Command="{Binding ResetFiltersCommand}"
-                                   Visibility="{Binding FiltersActive, Converter={StaticResource BoolToVisibility}}" />
+                                <StackPanel Margin="0,0,14,6">
+                                    <TextBlock Text="Durum" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                                    <ComboBox ItemsSource="{Binding StateChoices}" SelectedItem="{Binding StateFilter}"
+                                              MinWidth="130" />
+                                </StackPanel>
 
-                        <TextBlock Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="4,0,0,6"
-                                   Text="{Binding Calls.Count, StringFormat='{}{0} görüşme listede'}" />
-                    </WrapPanel>
+                                <StackPanel Margin="0,0,14,6">
+                                    <TextBlock Text="Etiket" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                                    <ComboBox ItemsSource="{Binding TagChoices}" SelectedItem="{Binding TagFilter}"
+                                              MinWidth="120" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,14,6">
+                                    <TextBlock Text="En az süre (dk)" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                                    <ui:NumberBox Value="{Binding MinMinutes}" Minimum="0" Maximum="600" Width="110" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,14,6">
+                                    <TextBlock Text="Not" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                                    <CheckBox Content="Yalnızca notlu" IsChecked="{Binding OnlyNoted}"
+                                              VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,0,6">
+                                    <TextBlock Text="Tarihe git" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                                    <DatePicker x:Name="JumpDate" Width="118"
+                                                SelectedDateChanged="JumpDate_Changed"
+                                                ToolTip="Bu tarihe en yakın görüşmeye kaydırır (filtrelemez)" />
+                                </StackPanel>
+                            </WrapPanel>
+                        </Border>
+                    </StackPanel>
 
                     <ListBox Grid.Row="1" x:Name="CallList"
                              Style="{StaticResource CleanList}" ItemsSource="{Binding CallsView}"
@@ -159,12 +224,14 @@
                                     <Grid.ContextMenu>
                                         <ContextMenu>
                                             <MenuItem Header="Önemlilere ekle" Click="RowToBoard_Click" />
-                                            <MenuItem Header="Hatırlat">
-                                                <MenuItem Header="Yarın" Tag="1" Click="RowRemind_Click" />
-                                                <MenuItem Header="3 gün sonra" Tag="3" Click="RowRemind_Click" />
-                                                <MenuItem Header="1 hafta sonra" Tag="7" Click="RowRemind_Click" />
-                                                <MenuItem Header="1 ay sonra" Tag="30" Click="RowRemind_Click" />
-                                            </MenuItem>
+                                            <Separator />
+                                            <!-- Two different jobs, named as such — the single
+                                                 "Yeniden işle" made the dialog re-ask a question
+                                                 the click could already answer. -->
+                                            <MenuItem Header="Yeniden yazıya çevir" Click="RowRetranscribe_Click" />
+                                            <MenuItem Header="Yeniden çözümle" Click="RowReanalyse_Click" />
+                                            <Separator />
+                                            <MenuItem Header="Hatırlat…" Click="RowRemind_Click" />
                                         </ContextMenu>
                                     </Grid.ContextMenu>
                                     <Grid.ColumnDefinitions>
@@ -200,9 +267,14 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <Border Style="{StaticResource Pill}" Margin="4,0,0,0"
-                                                                Background="{Binding Converter={StaticResource NameBrush}}">
-                                                            <TextBlock Style="{StaticResource PillText}"
-                                                                       Foreground="White" Text="{Binding}" />
+                                                                Background="{Binding Converter={StaticResource TagBrush}}">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
+                                                                               FontSize="11" Foreground="White" Margin="0,0,3,0"
+                                                                               VerticalAlignment="Center" />
+                                                                <TextBlock Style="{StaticResource PillText}"
+                                                                           Foreground="White" Text="{Binding}" VerticalAlignment="Center" />
+                                                            </StackPanel>
                                                         </Border>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>

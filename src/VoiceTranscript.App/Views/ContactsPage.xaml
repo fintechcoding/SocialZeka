@@ -203,10 +203,20 @@
                                 heading, where nothing on screen says which call it would act on.
                                 A menu names its target by being opened on it.
                             -->
-                            <ui:Button Content="{loc:T contactspage.yeniden-isle}" Margin="0,0,8,0" Click="Reprocess_Click"
-                                       ToolTip="{loc:T contactspage.bu-gorusmeyi-bastan-yaziya-dok-ve-cozumle}">
+                            <!-- Two verbs, because they are two different jobs: audio → text
+                                 costs hours and re-uploads, text → ledger costs a minute and
+                                 never touches the audio. One "Yeniden işle" hid that choice. -->
+                            <ui:Button Content="{loc:T contactspage.yeniden-yaziya-cevir}" Margin="0,0,8,0" Click="Retranscribe_Click"
+                                       ToolTip="{loc:T contactspage.sesi-bastan-yaziya-dok}">
                                 <ui:Button.Icon>
                                     <ui:SymbolIcon Symbol="ArrowSync24" />
+                                </ui:Button.Icon>
+                            </ui:Button>
+
+                            <ui:Button Content="{loc:T contactspage.yeniden-cozumle}" Margin="0,0,8,0" Click="Reanalyse_Click"
+                                       ToolTip="{loc:T contactspage.metinden-defteri-yeniden-uret}">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="Lightbulb24" />
                                 </ui:Button.Icon>
                             </ui:Button>
 
@@ -350,9 +360,17 @@
                                             </MenuItem.Icon>
                                         </MenuItem>
                                         <Separator />
-                                        <MenuItem Header="Yeniden işle" Click="Reprocess_Click">
+                                        <!-- Two different jobs, two different verbs. A single
+                                             "Yeniden işle" hid the question the dialog would
+                                             then ask anyway; the menu can answer it here. -->
+                                        <MenuItem Header="Yeniden yazıya çevir" Click="Retranscribe_Click">
                                             <MenuItem.Icon>
                                                 <ui:SymbolIcon Symbol="ArrowSync24" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="Yeniden çözümle" Click="Reanalyse_Click">
+                                            <MenuItem.Icon>
+                                                <ui:SymbolIcon Symbol="Lightbulb24" />
                                             </MenuItem.Icon>
                                         </MenuItem>
                                         <MenuItem Header="Ses dosyasının yerini aç" Click="ShowInFolder_Click">
@@ -406,9 +424,14 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <Border Style="{StaticResource Pill}" Margin="0,0,4,2"
-                                                                Background="{Binding Converter={StaticResource NameBrush}}">
-                                                            <TextBlock Style="{StaticResource PillText}"
-                                                                       Foreground="White" Text="{Binding}" />
+                                                                Background="{Binding Converter={StaticResource TagBrush}}">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
+                                                                               FontSize="11" Foreground="White" Margin="0,0,3,0"
+                                                                               VerticalAlignment="Center" />
+                                                                <TextBlock Style="{StaticResource PillText}"
+                                                                           Foreground="White" Text="{Binding}" VerticalAlignment="Center" />
+                                                            </StackPanel>
                                                         </Border>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>

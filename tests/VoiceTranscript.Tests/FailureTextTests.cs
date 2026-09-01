@@ -151,4 +151,37 @@ public class FailureTextTests
 
         Assert.Contains("İnternet", summary);
     }
+
+    /// <summary>
+    /// An HTTP error body carried whole used to be cut at its first line, producing the
+    /// memorable «OpenAi 400 döndürdü: {» — a hat with no head under it. The server's own
+    /// "message" field is the sentence that matters.
+    /// </summary>
+    [Fact]
+    public void AnHttpErrorBodyShowsItsMessageNotItsOpeningBrace()
+    {
+        var summary = FailureText.Summarise(
+            "OpenAi 400 döndürdü: {\n  \"error\": {\n    \"message\": \"Unsupported value: " +
+            "'temperature' does not support 0.2 with this model.\",\n    \"type\": " +
+            "\"invalid_request_error\",\n    \"param\": \"temperature\"\n  }\n}");
+
+        Assert.Contains("Unsupported value", summary);
+        Assert.Contains("OpenAi 400 döndürdü:", summary);
+        Assert.DoesNotContain("invalid_request_error", summary);
+        Assert.DoesNotContain("{", summary);
+    }
+
+    /// <summary>When the heading before the body is itself multi-line noise, only the message survives.</summary>
+    [Fact]
+    public void ALongAggregateHeadingIsDroppedInFavourOfTheMessage()
+    {
+        var summary = FailureText.Summarise(
+            "Yapılandırılmış servislerin hiçbiri yazıya dökemedi:\n" +
+            "OpenAI: 400 (https://api.openai.com/v1/audio/transcriptions): {\n" +
+            "  \"error\": { \"message\": \"response_format 'verbose_json' is not compatible " +
+            "with model 'gpt-4o-mini-transcribe'. Use 'json' or 'text' instead.\" } }");
+
+        Assert.Contains("verbose_json", summary);
+        Assert.DoesNotContain("{", summary);
+    }
 }

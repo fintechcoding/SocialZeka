@@ -1,0 +1,77 @@
+<ui:FluentWindow x:Class="VoiceTranscript.App.Views.RemindWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Hatırlat"
+                 Width="440" SizeToContent="Height" MinWidth="380"
+                 ResizeMode="NoResize"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica">
+
+    <!--
+        A reminder the way a person actually leaves one: a reason, and a day.
+
+        The quick menus this replaces offered four durations and nothing else, so every reminder
+        arrived on the board as a bare date — and a date with no reason is a puzzle addressed to
+        your future self. The reason typed here becomes the card's title on the first screen, so
+        the day it comes due it says WHY it came back.
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Hatırlat" ShowMinimize="False" ShowMaximize="False" />
+
+        <StackPanel Grid.Row="1" Margin="20,8,20,4">
+            <TextBlock x:Name="Subject" FontWeight="SemiBold" FontSize="{StaticResource TextBody}" />
+
+            <TextBlock Text="Hatırlatma sebebi" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
+            <ui:TextBox x:Name="Reason" PlaceholderText="Ör. Cuma günü evrak sözünü sor"
+                        TextWrapping="Wrap" AcceptsReturn="False" />
+            <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Text="Ana ekrandaki kartın başlığı olur — geldiği gün neden geldiğini söyler." />
+
+            <TextBlock Text="Ne zaman" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
+            <WrapPanel>
+                <ui:Button Content="Yarın" Tag="1" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
+                <ui:Button Content="3 gün sonra" Tag="3" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
+                <ui:Button Content="1 hafta sonra" Tag="7" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
+                <ui:Button Content="1 ay sonra" Tag="30" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
+            </WrapPanel>
+
+            <Grid Margin="0,2,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Tarih:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <DatePicker Grid.Column="1" x:Name="Day" SelectedDateChanged="Day_Changed" />
+            </Grid>
+
+            <!-- What will happen, said before it does: the confirmation is the sentence itself. -->
+            <TextBlock x:Name="Verdict" Style="{StaticResource Caption}" Margin="0,10,0,0"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="2" Margin="20,12,20,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Only offered when there is something to take away. -->
+            <ui:Button Grid.Column="0" x:Name="Clear" Content="Hatırlatmayı kaldır"
+                       Appearance="Secondary" Visibility="Collapsed"
+                       HorizontalAlignment="Left" Click="Clear_Click" />
+
+            <ui:Button Grid.Column="1" Content="Vazgeç" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <ui:Button Grid.Column="2" x:Name="Save" Content="Kaydet" Appearance="Primary"
+                       IsDefault="True" IsEnabled="False" Click="Save_Click" />
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

@@ -257,16 +257,97 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
         // A schema guarantees the shape of what was produced, not that generation finished.
         // Output cut off at the token limit is valid so far and still unparseable.
-        if (!response.CompletedNormally) return null;
+        if (!response.CompletedNormally)
+        {
+            CoreLog.Write("çözümleme",
+                $"yanıt normal bitmedi (bitiş={response.FinishReason ?? "?"}, "
+                + $"{response.Content.Length} karakter) — bölüm atlanıyor");
+            return null;
+        }
 
         try
         {
-            return JsonNode.Parse(response.Content);
+            var root = JsonNode.Parse(response.Content);
+            var coerced = CoerceToObject(root);
+
+            // What actually arrived, structurally. Key names come from the schema, not from the
+            // conversation, so they are safe for the shareable log — and they are exactly what
+            // is needed to see why an extraction produced nothing.
+            if (coerced is null || !ReferenceEquals(coerced, root))
+            {
+                CoreLog.Write("çözümleme",
+                    $"yanıt kökü {Describe(root)} — "
+                    + (coerced is null
+                        ? "içinden nesne çıkarılamadı, bölüm atlanıyor"
+                        : $"içinden nesne çıkarıldı ({Describe(coerced)})"));
+            }
+
+            return coerced;
         }
         catch (JsonException)
         {
+            var head = response.Content.TrimStart();
+            CoreLog.Write("çözümleme",
+                $"yanıt JSON değil ({response.Content.Length} karakter, "
+                + $"ilk karakter '{(head.Length > 0 ? head[0] : ' ')}') — bölüm atlanıyor");
             return null;
         }
+    }
+
+    /// <summary>One JSON node, described without quoting it: its kind, and for objects its keys.</summary>
+    private static string Describe(JsonNode? node) => node switch
+    {
+        JsonObject obj => $"nesne[{string.Join(",", obj.Select(p => Clip(p.Key)).Take(8))}]",
+        JsonArray arr => $"dizi({arr.Count} öğe)",
+        JsonValue value when value.TryGetValue<string>(out var s) => $"metin({s.Length} karakter)",
+        JsonValue => "sayı/boole",
+        null => "boş",
+        _ => node.GetType().Name,
+    };
+
+    private static string Clip(string key) => key.Length <= 24 ? key : key[..24] + "…";
+
+    /// <summary>
+    /// Digs the extraction object out of whatever valid JSON the model wrapped it in.
+    ///
+    /// A schema promises the shape only on the happy path. On the fallback path — and on
+    /// providers that half-honour response_format — models return the same data double-encoded
+    /// as a JSON string, or boxed in a one-element array. Both parse cleanly, and both used to
+    /// crash the pipeline one call later with "The node must be of type 'JsonObject'", which
+    /// told the user nothing. Unwrap what can be unwrapped; anything else becomes the ordinary
+    /// "bölüm çözümlenemedi" warning instead of an exception.
+    /// </summary>
+    internal static JsonNode? CoerceToObject(JsonNode? node)
+    {
+        for (var depth = 0; depth < 3; depth++)
+        {
+            switch (node)
+            {
+                case JsonObject:
+                    return node;
+
+                case JsonArray items:
+                    node = items.FirstOrDefault(n => n is JsonObject);
+                    break;
+
+                case JsonValue value when value.TryGetValue<string>(out var text):
+                    try
+                    {
+                        node = JsonNode.Parse(text);
+                    }
+                    catch (JsonException)
+                    {
+                        return null;
+                    }
+
+                    break;
+
+                default:
+                    return null;
+            }
+        }
+
+        return node as JsonObject;
     }
 
     private static void Absorb(

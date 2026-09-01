@@ -619,4 +619,69 @@ public sealed class AnalysisPipelineTests : IDisposable
         Assert.Contains(report.Warnings, w => w.Contains("metni yok"));
         Assert.Empty(llm.Requests);
     }
+
+    /// <summary>
+    /// gpt-5.6-sol, live, 2026-08-31: the model answered with the extraction double-encoded —
+    /// a JSON string whose content is the JSON object. It parsed cleanly, and the pipeline
+    /// then crashed one call later with "The node must be of type 'JsonObject'". The wrapper
+    /// is unwrapped rather than fatal.
+    /// </summary>
+    [Fact]
+    public async Task ADoubleEncodedExtractionIsUnwrappedAndStillLands()
+    {
+        var (call, contact) = SeedCall(CallKind.OneToOne,
+            (false, 5_000, "Evrakları cuma günü yollarım, söz."));
+
+        const string inner =
+            """
+            {"taahhutler":[{"konusan":"KARSI","alinti":"Evrakları cuma günü yollarım","yukumluluk":"evrak gönderimi","tarih_ham":"cuma günü","kosullu":false}],
+             "iddialar":[],"sorular":[],"baski_isaretleri":[]}
+            """;
+
+        var llm = new ScriptedLlm(System.Text.Json.JsonSerializer.Serialize(inner));
+
+        var report = await new AnalysisPipeline(llm, _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, report.CommitmentsFound);
+        Assert.Single(_repo.GetOpenCommitments(contact));
+    }
+
+    /// <summary>The same fault in its other costume: the object boxed in a one-element array.</summary>
+    [Fact]
+    public async Task AnArrayWrappedExtractionIsUnwrappedAndStillLands()
+    {
+        var (call, contact) = SeedCall(CallKind.OneToOne,
+            (false, 5_000, "Evrakları cuma günü yollarım, söz."));
+
+        var llm = new ScriptedLlm(
+            """
+            [{"taahhutler":[{"konusan":"KARSI","alinti":"Evrakları cuma günü yollarım","yukumluluk":"evrak gönderimi","tarih_ham":"cuma günü","kosullu":false}],
+              "iddialar":[],"sorular":[],"baski_isaretleri":[]}]
+            """);
+
+        var report = await new AnalysisPipeline(llm, _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, report.CommitmentsFound);
+        Assert.Single(_repo.GetOpenCommitments(contact));
+    }
+
+    /// <summary>
+    /// Valid JSON that holds no object at all — a bare number — becomes the ordinary
+    /// "bölüm çözümlenemedi" warning, not an exception on the user's screen.
+    /// </summary>
+    [Fact]
+    public async Task AScalarReplyIsAWarningNotACrash()
+    {
+        var (call, _) = SeedCall(CallKind.OneToOne, (false, 5_000, "Merhaba."));
+
+        var llm = new ScriptedLlm("42");
+
+        var report = await new AnalysisPipeline(llm, _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, report.CommitmentsFound);
+        Assert.Contains(report.Warnings, w => w.Contains("çözümlenemedi"));
+    }
 }

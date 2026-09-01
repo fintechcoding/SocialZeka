@@ -168,4 +168,39 @@ public class CatalogTests
     [Fact]
     public void EveryProvider_HasASummary()
         => Assert.All(LlmProviders.All, p => Assert.False(string.IsNullOrWhiteSpace(p.Summary)));
+
+    // ---- credential hygiene ------------------------------------------------------------------
+    //
+    // The worker echoes the full "url|key|model" reference back in its result, and recording
+    // that echo verbatim put a live API key into the database and onto the conversation
+    // window's provenance line — seen on a real screenshot. These pin the scrub at every layer.
+
+    [Fact]
+    public void AThreePartEngineRefLosesItsMiddlePart()
+        => Assert.Equal(
+            "https://api.openai.com/v1|whisper-1",
+            SttEndpoint.ScrubRef("https://api.openai.com/v1|sk-proj-SECRET|whisper-1"));
+
+    [Fact]
+    public void AnAlreadyCleanRefPassesThroughUnchanged()
+    {
+        Assert.Equal("https://api.openai.com/v1|whisper-1",
+            SttEndpoint.ScrubRef("https://api.openai.com/v1|whisper-1"));
+        Assert.Equal("faster-whisper", SttEndpoint.ScrubRef("faster-whisper"));
+    }
+
+    [Fact]
+    public void DisplayForNeverShowsTheKeyOfALegacyThreePartRef()
+    {
+        var shown = AsrCatalog.DisplayFor("https://api.openai.com/v1|sk-proj-SECRET|whisper-1");
+
+        Assert.DoesNotContain("SECRET", shown);
+        Assert.Equal("api.openai.com · whisper-1", shown);
+    }
+
+    [Fact]
+    public void DisplayForRendersACleanRefAsHostAndModel()
+        => Assert.Equal(
+            "api.groq.com · whisper-large-v3",
+            AsrCatalog.DisplayFor("https://api.groq.com/openai/v1|whisper-large-v3"));
 }

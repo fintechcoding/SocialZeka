@@ -152,6 +152,7 @@ public partial class App : Application
         // channel for reporting a fault is a screenshot of whatever happened to be on screen,
         // which is how a missing graphics library spent a day looking like a broken download.
         AppLog.Start(Paths.Logs, VersionString());
+        Core.CoreLog.Sink = AppLog.Write;
         HookCrashReporting();
 
         // A one-shot dump of every window the watched applications have, then exit.
@@ -239,6 +240,13 @@ public partial class App : Application
         var database = new Database(Paths.DatabaseFile);
         database.Migrate();
         Repository = new Repository(database);
+
+        // Tag looks, read once: every pill on every list draws from this cache, not from disk.
+        Services.TagPalette.Load(Repository);
+
+        // Rows written before engine references were scrubbed can hold an API key. Struck out
+        // here, once, so no screen ever prints a credential again.
+        Repository.ScrubSecretsFromRuns();
 
         // Counters that could already be wrong are corrected once, here.
         //

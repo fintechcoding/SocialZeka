@@ -309,8 +309,8 @@
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
                             <ui:Button Content="Bekleyenler" Margin="0,0,6,0" Command="{Binding ShowTranscriptWaitingCommand}"
                                        Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Unfinished}" />
-                            <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowTranscriptFailedCommand}"
-                                       Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Failed}" />
+                            <ui:Button Content="Bitenler" Margin="0,0,6,0" Command="{Binding ShowTranscriptDoneCommand}"
+                                       Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Done}" />
                             <ui:Button Content="Hepsi" Command="{Binding ShowTranscriptAllCommand}"
                                        Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=All}" />
                         </StackPanel>
@@ -365,10 +365,8 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <ui:Button Content="Çözümlenmemişler" Margin="0,0,6,0" Command="{Binding ShowAnalysisUnanalysedCommand}"
+                            <ui:Button Content="Bekleyenler" Margin="0,0,6,0" Command="{Binding ShowAnalysisUnanalysedCommand}"
                                        Appearance="{Binding AnalyseFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Unanalysed}" />
-                            <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowAnalysisFailedCommand}"
-                                       Appearance="{Binding AnalyseFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Failed}" />
                             <ui:Button Content="Bitenler" Margin="0,0,6,0" Command="{Binding ShowAnalysisDoneCommand}"
                                        Appearance="{Binding AnalyseFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Done}" />
                             <ui:Button Content="Hepsi" Command="{Binding ShowAnalysisAllCommand}"

@@ -124,7 +124,7 @@ public partial class ProcessingPage
         => Go(0, m => m.TranscriptFilter = TranscriptFilter.Unfinished);
 
     private void CounterTranscriptFailed_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        => Go(0, m => m.TranscriptFilter = TranscriptFilter.Failed);
+        => Go(0, m => m.TranscriptFilter = TranscriptFilter.Unfinished);
 
     private void CounterUnanalysed_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
         => Go(1, m => m.AnalyseFilter = AnalyseFilter.Unanalysed);

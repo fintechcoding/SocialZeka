@@ -1124,3 +1124,48 @@ Ayrıca §8.1/8.2 (saklama süresi gerçek oldu, ölü ayar silindi) ve ölü ko
 - Ertelenen ciladan kalanlar (bilinçli): yeni ekranların tam loc:T taraması (CallWindow/
   AiStatus/panel), Theme jetonları, özel-tarih seçici penceresi, kurulum-sonrası "şimdi çözümle"
   köprüsü, etiket piline tıklayınca arama, bayrak/etiket ikon ayrımı, son sınama zamanı satırı.
+
+## 14. 1 Eylül üçüncü tur — canlı testten dönen eleştiriler (v0.9.27 partisi)
+
+Hepsi kullanıcının uygulamayı gerçek çağrılarla denemesinden; tek sürümde çıkacak.
+
+- [x] **14.1 — İşlemler filtreleri ayrık kümeler** *("çözümlenmemişler basarısızlar aynı şey
+  zaten")*: Başarısızlar filtresi kaldırıldı — başarısız olan zaten bekleyendir, kırmızı
+  sebebiyle Bekleyenler içinde görünür. Her iki sekme de Bekleyenler/Bitenler/Hepsi (ayrık üçlü);
+  sayaç kartları yeni filtrelere bağlandı.
+- [x] **14.2 — Hatırlat artık Outlook tarzı modal** *(RemindWindow)*: sebep (karta başlık olur)
+  + hazır günler + tarih seçici + hüküm cümlesi + "Hatırlatmayı kaldır". Beş hızlı-menü girişi
+  (CallWindow, Genel bakış son/panel, kişi penceresi satırı) tek kapıya bağlandı; ikinci açılış
+  mevcut hatırlatmayı gösterir.
+- [x] **14.3 — Outlook tarzı etiket sistemi** *(migrasyon v4: tag_def)*: etiket = ad + simge +
+  renk. Tanım call_tag'den ayrı — tanımı silmek etiketlemeyi silmez. TagPalette önbelleği,
+  TagIcon/TagBrush dönüştürücüleri (tanımsız etikete isim-hash rengi + Tag24), beş yüzeydeki
+  piller ikonlu/renkli. TagManagerWindow: varsayılan sözlüğü düzenleme formu (6 tohum etiket:
+  Önemli/İş/Kişisel/Tehdit/Para/Takip — kullanıcı malı, silinebilir). CallWindow'da Etiketle
+  yanında kapı; öneriler artık önce tanımlı sözlükten.
+- [x] **14.4 — "Yeniden işle" öldü, iki ayrı fiil doğdu** *("texte cevir ayri bir is cozumle
+  ayri bir is")*: Kişiler sayfası araç çubuğu + satır menüsü ve kişi penceresi satır menüsü
+  artık "Yeniden yazıya çevir" ve "Yeniden çözümle" — her biri kendi amaca özel penceresini açar.
+- [x] **14.5 — Yeniden çevir listesine kapsam filtresi** *("çok olunca aşağı inip bulması
+  zor")*: liste başlığının yanında Tümü / Bu makinede / Bulut çipleri; Ayarlardaki yol satırı
+  hiçbir filtrede kaybolmaz; tek dünya varsa çipler görünmez.
+- [x] **14.6 — gpt-5.6-sol "JsonObject olmalı" çökmesi** *(gerçek log)*: model geçerli JSON'u
+  çift-kodlanmış metin ya da tek öğeli dizi olarak sarabiliyor; CoerceToObject açar, açılamazsa
+  bölüm uyarıyla atlanır — kullanıcıya exception adı gösterilmez.
+- [x] **14.7 — Hata özetinde JSON gövdesinin message'ı** *("OpenAi 400 döndürdü: {" kesiği)*:
+  gövdedeki "message" alanı çekilir, kısa başlıkla birleştirilir; süslü parantez şapkası bitti.
+- [x] **14.8 — LLM trafiği artık loglanıyor** *("hayal ederek yapıyorsun")*: CoreLog köprüsü;
+  istek (alan/temperature/şema) → yanıt (uzunluk/bitiş/jeton) tek satır; düzeltme yeniden
+  denemeleri ve şemasız geri düşüş loglanır; çözümleme yanıtının KÖK ŞEKLİ (nesne/dizi/metin +
+  anahtar adları) loglanır. İçerik asla — log paylaşılabilir kalır.
+- [x] **14.9 — KRİTİK: API anahtarı sızıntısı** *(ekran görüntüsünden: kaynak satırında
+  url|sk-...|model)*: worker'ın yansıttığı üç parçalı referans processing_run'a aynen yazılıyor
+  ve ekranda basılıyordu. Üç katman: kayıttan önce ScrubRef (url|model), DisplayFor asla orta
+  parçayı göstermez (host · model basar), başlangıçta eski satırlar tek geçişte temizlenir.
+  NOT: Ekrandaki sk-proj-... anahtarı ifşa olmuş sayılmalı — kullanıcı OpenAI panelinden
+  döndürmeli.
+- [x] **14.10 — Bulut whisper-1 kelime yapışması** *("Azbekle", "Birlikteduvuvorumama")*:
+  OpenAI verbose_json kelimeleri çıplak token (boşluksuz, parametresi yok — canlı dokümanla
+  doğrulandı); yerel faster-whisper ise baştaki boşluğu taşır. Segment metni "".join ile
+  kurulduğundan bulut cümleleri tek kelimeye yapışıyordu. cloud_engine artık her kelimeye yerel
+  motorların taşıdığı baş boşluğunu verir; worker testi eklendi.
