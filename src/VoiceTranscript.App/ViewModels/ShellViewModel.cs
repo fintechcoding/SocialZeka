@@ -322,6 +322,43 @@ public sealed partial class ShellViewModel : ObservableObject
         OnPropertyChanged(nameof(HasUnseenNotices));
     }
 
+    /// <summary>
+    /// The morning brief: one deterministic sentence at startup about what today already holds.
+    ///
+    /// No model anywhere near it — these are counts from the user's own reminders, promises and
+    /// the suggestion list, and a brief that could hallucinate would poison the one message that
+    /// greets the day. Quiet days stay quiet: nothing due means no notice at all.
+    /// </summary>
+    public void PostMorningBrief(Core.Storage.Repository repository)
+    {
+        try
+        {
+            var today = DateOnly.FromDateTime(DateTime.Now);
+
+            var reminders = repository.RemindersBetween(today, today).Count;
+            var overdueMine = repository.OverdueCommitments(today).Count(o => o.Commitment.ByMe);
+            var overdueTheirs = repository.OverdueCommitments(today).Count(o => !o.Commitment.ByMe);
+            var actions = repository.OpenActions(today).Count;
+
+            var parts = new List<string>();
+            if (reminders > 0) parts.Add($"{reminders} hatırlatıcı bugün");
+            if (overdueMine > 0) parts.Add($"SENİN {overdueMine} sözünün tarihi geçti");
+            if (overdueTheirs > 0) parts.Add($"{overdueTheirs} sözün tarihi geçti");
+            if (actions > 0) parts.Add($"{actions} açık aksiyon önerisi");
+
+            if (parts.Count == 0) return;
+
+            Post($"Günün brifi: {string.Join(" · ", parts)}.",
+                overdueMine + overdueTheirs > 0
+                    ? Services.NoticeSeverity.Warning
+                    : Services.NoticeSeverity.Info);
+        }
+        catch (Exception e)
+        {
+            Services.AppLog.Error("brif", e, "sabah brifi derlenemedi");
+        }
+    }
+
     partial void OnNoticeChanged(string? value)
     {
         // Direct assignments (start/stop failures below) still pass through here; they are

@@ -1431,3 +1431,32 @@ TAKVİM SAYFASI seçildi; "görüşme detayında sıkıntı varsa uyarı çıks�
 - [x] **22.6 Testler (5 yeni + v7; toplam 776/0):** DeceptionAnalysis (doğrulanamayan taktik
   düşer VE yükselmiş düzeyi düşürür; saklanan=zorlanan şekil; temiz konuşma temiz kalabilir;
   7. taktik kırpılır; stage=deception kullanım); migrasyon v7 (deception_note doğar).
+
+## 23. 1 Eylül — v2.1.3 canlı test turu (v2.1.4)
+
+- [x] **23.1 Dil kutusu boş (Dapper dersinin ikizi):** UiLanguages ValueTuple listesiydi;
+  WPF DisplayMemberPath yalnız ÖZELLİK okur, tuple alan adları çalışma zamanında yok —
+  satırlar ve seçim boş çiziliyordu. LanguageChoice record'una çevrildi. Sınıf taraması:
+  diğer DisplayMemberPath kombolarının hepsi gerçek record bağlıyor, tek vaka buymuş.
+- [x] **23.2 "Çözümlenmemiş" tutarsızlığı:** kart defter BOŞLUĞUNA bakıyordu — temiz çıkan
+  sıradan görüşme çözümlense de "çözümlenmemiş" diyordu (durum veritabanında zaten doğruydu).
+  Yeni IsAnalysed (durum/özet/defterden); boş-defter açıklaması yalnız ÇÖZÜMLENMİŞ ve boşken
+  görünür (ShowEmptyLedger).
+- [x] **23.3 Sekmeler düzleşti (kullanıcı: "sen karar ver, kolay olsun"):** iki katlı sekme
+  kalabalıktı → TEK üst şerit: Görüşme · Defter · Aksiyonlar · Tutarlılık · Okuma · Sor ·
+  Notlar. Çözümle kartı Defter'in başında; dikkat şeridi pencere seviyesinde kaldı.
+- [x] **23.4 Tek satır başlık + alan açma:** tarih · etiketler · düğmeler aynı hizada
+  (etiketler çoğalınca sarar); dalga şeridi 56→38 px + kenar boşlukları kısıldı; sekme
+  boşlukları sıkılaştı. "Etiketle" düğmesi kaldırıldı — listeden seçim zaten etiketliyor,
+  yazılan kelime Enter ile giriyor (ipucu güncellendi).
+- [x] **23.5 Hatırlat penceresine not alanı:** görüşmenin KENDİ notu (Notlar sekmesiyle aynı
+  kayıt) hatırlatıcı kurulurken yazılabilir; yalnız dokunulursa kaydedilir (uzun notu ezmez).
+  Hatırlatma günü geldiğinde bağlam görüşmenin üzerinde durur.
+- [x] **23.6 Bu hafta çipi:** kişi penceresi görüşme süzgecine "Bu hafta" (Pazartesi
+  başlangıçlı — takvimle aynı hafta tanımı).
+- [x] **23.7 Sabah Brifi (deterministik, LLM'siz):** açılışta tek bildirim — "Günün brifi:
+  N hatırlatıcı bugün · SENİN M sözünün tarihi geçti · K açık aksiyon önerisi"; geciken söz
+  varsa Warning; sıfırsa hiç çıkmaz; tepsi başlangıcında zil rozetinde bekler. Görüşme-öncesi
+  overlay brifingi Faz 4'te duruyor (kayıt başlarken açık konular).
+- Ertelenen: haftalarca açık kalan uygulamada brifin GÜN DÖNÜMÜNDE yeniden tetiklenmesi
+  (şimdilik yalnız açılışta) → V3 havuzu.

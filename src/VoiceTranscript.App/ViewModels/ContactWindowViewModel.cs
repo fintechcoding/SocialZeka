@@ -345,6 +345,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
     // is on. Seven bare controls in a row taught nobody anything; the user said so.
 
     public const string PresetAll = "Tümü";
+    public const string PresetWeek = "Bu hafta";
     public const string PresetMonth = "Bu ay";
     public const string PresetQuarter = "3 ay";
     public const string PresetYear = "1 yıl";
@@ -361,6 +362,8 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
         (FilterFrom, FilterTo) = value switch
         {
+            // Monday-first, like the calendar: "bu hafta" starts where the week visibly starts.
+            PresetWeek => (today.AddDays(-(((int)today.DayOfWeek + 6) % 7)), (DateTime?)null),
             PresetMonth => (new DateTime(today.Year, today.Month, 1), (DateTime?)null),
             PresetQuarter => (today.AddMonths(-3), (DateTime?)null),
             PresetYear => (today.AddYears(-1), (DateTime?)null),

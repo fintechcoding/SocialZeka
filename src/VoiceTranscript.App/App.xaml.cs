@@ -346,6 +346,10 @@ public partial class App : Application
         // choice must not be overturned by that scheduled switch.
         ApplyTheme(Settings.ThemeChoice, window);
 
+        // The day's opening line. Posted whether or not the window will be shown — a tray
+        // start parks it in the bell, which is exactly where a missed morning belongs.
+        shell.PostMorningBrief(Repository);
+
         // Reconciled on every start rather than only when the setting is changed.
         //
         // That repairs a state nobody chose: an entry left behind by an old installer, one a

@@ -49,8 +49,16 @@ public partial class RemindWindow
 
         if (!string.IsNullOrWhiteSpace(reason)) Reason.Text = reason;
 
+        // The call's own note, editable where the reminder is set: leaving a reminder and
+        // writing down why are one act, and the note travels with the conversation (Notlar
+        // sekmesi), not with the card.
+        _loadedNote = repository.GetNote(callId);
+        CallNote.Text = _loadedNote;
+
         UpdateVerdict();
     }
+
+    private readonly string _loadedNote = "";
 
     /// <summary>One click fills the date; the sentence below says what that now means.</summary>
     private void Preset_Click(object sender, RoutedEventArgs e)
@@ -88,6 +96,10 @@ public partial class RemindWindow
         // erases a label the user gave the card some other way.
         _repository.PutOnBoard(_callId, Core.Domain.BoardLane.ToLookAt, title: reason);
         _repository.RemindOn(_callId, DateOnly.FromDateTime(picked.Date));
+
+        // Written only when the user actually touched it — the Notlar tab may hold a longer
+        // note this dialog must not clobber by mere passage.
+        if (CallNote.Text != _loadedNote) _repository.SaveNote(_callId, CallNote.Text);
 
         DialogResult = true;
         Close();

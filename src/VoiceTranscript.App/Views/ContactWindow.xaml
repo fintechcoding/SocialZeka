@@ -177,6 +177,9 @@
                                 <ui:Button Content="Tümü" Padding="10,4" Margin="0,0,4,0"
                                            Command="{Binding SetPresetCommand}" CommandParameter="Tümü"
                                            Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Tümü}" />
+                                <ui:Button Content="Bu hafta" Padding="10,4" Margin="0,0,4,0"
+                                           Command="{Binding SetPresetCommand}" CommandParameter="Bu hafta"
+                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Bu hafta}" />
                                 <ui:Button Content="Bu ay" Padding="10,4" Margin="0,0,4,0"
                                            Command="{Binding SetPresetCommand}" CommandParameter="Bu ay"
                                            Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Bu ay}" />

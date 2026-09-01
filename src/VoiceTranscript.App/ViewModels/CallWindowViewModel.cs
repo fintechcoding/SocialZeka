@@ -249,6 +249,17 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     public bool HasLedger => Commitments.Count > 0 || Claims.Count > 0 || Flags.Count > 0;
     public bool HasTurns => Turns.Count > 0;
 
+    /// <summary>
+    /// Whether analysis has actually run — which is NOT the same as the ledger having rows.
+    /// The "çözümlenmemiş" card used to key on ledger emptiness, so an ordinary conversation
+    /// that analysed clean kept being described as never analysed, straight after the user
+    /// watched it analyse.
+    /// </summary>
+    [ObservableProperty] private bool _isAnalysed;
+
+    /// <summary>Analysed, and honestly empty — the state the quiet explanation belongs to.</summary>
+    public bool ShowEmptyLedger => IsAnalysed && !HasLedger;
+
     // The window-level attention strip. Fed by the verified evidence layers, plus — only when
     // the user switched it on — an elevated deception level, always labelled a model view.
     // The free reading never reaches it.
@@ -379,6 +390,9 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(HasConsistencyRun));
         RefreshAttention();
+
+        IsAnalysed = call.State == ProcessingState.Analysed || HasSummary || HasLedger;
+        OnPropertyChanged(nameof(ShowEmptyLedger));
 
         Note = _repository.GetNote(CallId);
 

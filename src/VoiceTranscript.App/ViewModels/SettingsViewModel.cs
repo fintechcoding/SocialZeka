@@ -60,8 +60,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _recordTelegram = settings.RecordTelegram;
         _recordSignal = settings.RecordSignal;
         _recordAutomatically = settings.RecordAutomatically;
-        _uiLanguage = Localisation.Available.FirstOrDefault(l => l.Code == settings.UiLanguage);
-        if (_uiLanguage.Code is null) _uiLanguage = Localisation.Available[0];
+        _uiLanguage = UiLanguages.FirstOrDefault(l => l.Code == settings.UiLanguage) ?? UiLanguages[0];
         _showRecordingBar = settings.ShowRecordingBar;
         _startWithWindows = settings.StartWithWindows;
         _useEchoCancellation = settings.UseEchoCancellation;
@@ -348,15 +347,27 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Whether Windows starts this application at logon. Reconciled by AutoStart on save.</summary>
     [ObservableProperty] private bool _startWithWindows = true;
 
-    /// <summary>Which language the interface is shown in.</summary>
-    [ObservableProperty] private (string Code, string Name) _uiLanguage = Localisation.Available[0];
+    /// <summary>
+    /// A language the ComboBox can actually display.
+    ///
+    /// A record, not a tuple, and that is the whole point: WPF's DisplayMemberPath resolves
+    /// PROPERTIES by reflection, and a ValueTuple's names exist only at compile time — bound
+    /// as tuples, the dropdown rendered every language as a blank row and the selection as an
+    /// empty box. Same trap as Dapper and DateOnly: tuples don't carry their names to runtime.
+    /// </summary>
+    public sealed record LanguageChoice(string Code, string Name);
 
-    public IReadOnlyList<(string Code, string Name)> UiLanguages { get; } = Localisation.Available;
+    /// <summary>Which language the interface is shown in.</summary>
+    [ObservableProperty] private LanguageChoice _uiLanguage =
+        new(Localisation.Available[0].Code, Localisation.Available[0].Name);
+
+    public IReadOnlyList<LanguageChoice> UiLanguages { get; } =
+        [.. Localisation.Available.Select(l => new LanguageChoice(l.Code, l.Name))];
 
     /// <summary>True once a different language has been picked, so the note about restarting shows.</summary>
     public bool LanguageChanged => UiLanguage.Code != Localisation.Language;
 
-    partial void OnUiLanguageChanged((string Code, string Name) value) =>
+    partial void OnUiLanguageChanged(LanguageChoice value) =>
         OnPropertyChanged(nameof(LanguageChanged));
 
     partial void OnRecordWhatsAppChanged(bool value) => Revalidate();

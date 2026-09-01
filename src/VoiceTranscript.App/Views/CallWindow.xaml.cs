@@ -217,10 +217,7 @@ public partial class CallWindow
 
     /// <summary>The attention strip's promise: one click lands on the evidence it counted.</summary>
     private void Attention_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        MainTabs.SelectedItem = AnalysisTab;
-        AnalysisTabs.SelectedItem = ConsistencyTab;
-    }
+        => MainTabs.SelectedItem = ConsistencyTab;
 
     /// <summary>A reminder in one step: onto the pile if needed, and dated.</summary>
     private void Remind_Click(object sender, RoutedEventArgs e)
