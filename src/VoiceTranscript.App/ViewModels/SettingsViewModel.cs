@@ -76,6 +76,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         _asrApiKey = settings.AsrApiKey ?? "";
         _asrApiBaseUrl = settings.AsrApiBaseUrl ?? "";
         _analyseAutomatically = settings.AnalyseAutomatically;
+        _consistencyAutomatically = settings.ConsistencyAutomatically;
+        _consistencyModel = settings.ConsistencyModel ?? "";
+        _consistencyUsesLedgerContext = settings.ConsistencyUsesLedgerContext;
+        _consistencyOtherPartyOnly = settings.ConsistencyOtherPartyOnly;
         _llmRemoteModel = settings.LlmRemoteModel ?? "";
         _llmBaseUrl = settings.LlmBaseUrl ?? "";
         _llmApiKey = settings.LlmApiKey ?? "";
@@ -286,6 +290,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _preferProcessLoopback;
     [ObservableProperty] private int _gpuCooldownSeconds;
     [ObservableProperty] private bool _analyseAutomatically;
+
+    // ---- consistency check: its own switch, its own model slot ----
+    [ObservableProperty] private bool _consistencyAutomatically;
+    [ObservableProperty] private string _consistencyModel = "";
+    [ObservableProperty] private bool _consistencyUsesLedgerContext = true;
+    [ObservableProperty] private bool _consistencyOtherPartyOnly;
     [ObservableProperty] private string _llmRemoteModel;
     [ObservableProperty] private string _llmBaseUrl;
     [ObservableProperty] private string _llmApiKey;
@@ -614,6 +624,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         AsrApiKey = string.IsNullOrWhiteSpace(AsrApiKey) ? null : AsrApiKey,
         AsrApiBaseUrl = string.IsNullOrWhiteSpace(AsrApiBaseUrl) ? null : AsrApiBaseUrl.Trim(),
         AnalyseAutomatically = AnalyseAutomatically,
+        ConsistencyAutomatically = ConsistencyAutomatically,
+        ConsistencyModel = ConsistencyModel.Trim(),
+        ConsistencyUsesLedgerContext = ConsistencyUsesLedgerContext,
+        ConsistencyOtherPartyOnly = ConsistencyOtherPartyOnly,
         LlmProvider = SelectedProvider.Kind,
         LlmModelId = SelectedLlmModel.Id,
         LlmRemoteModel = string.IsNullOrWhiteSpace(LlmRemoteModel) ? null : LlmRemoteModel.Trim(),

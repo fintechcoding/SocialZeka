@@ -106,6 +106,12 @@ public enum FlagKind
 
     /// <summary>Matched a curated list of known Turkish fraud scripts. A heuristic, and labelled as one.</summary>
     ScamPattern = 6,
+
+    /// <summary>Told sequences or dates that cannot all hold at once. From the consistency check.</summary>
+    TimelineMismatch = 7,
+
+    /// <summary>A statement that was specific going suddenly vague when pressed. From the consistency check.</summary>
+    VagueShift = 8,
 }
 
 /// <summary>
@@ -153,7 +159,24 @@ public sealed record Flag
     /// <summary>Dismissed flags stay dismissed, so false positives do not accumulate forever.</summary>
     public bool DismissedByUser { get; init; }
 
+    /// <summary>
+    /// Which machinery wrote this: "pipeline" (the per-call analysis) or "consistency" (the
+    /// user-triggered consistency check). Ownership, not decoration — each writer clears and
+    /// rewrites only its own rows, so a ledger rebuild cannot erase a paid consistency run
+    /// and a consistency re-run cannot erase the ledger's findings.
+    /// </summary>
+    public string Source { get; init; } = Sources.Pipeline;
+
+    /// <summary>The model's own confidence for consistency findings: dusuk/orta/yuksek. Null for pipeline flags.</summary>
+    public string? Confidence { get; init; }
+
     public DateTimeOffset CreatedAt { get; init; }
+
+    public static class Sources
+    {
+        public const string Pipeline = "pipeline";
+        public const string Consistency = "consistency";
+    }
 }
 
 /// <summary>

@@ -983,6 +983,70 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
+
+                        <!-- The consistency check: a deliberate, separately billed read of one
+                             conversation. Its switches live beside the analysis it builds on. -->
+                        <TextBlock Text="Tutarlılık çözümlemesi" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
+                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="Görüşmeyi çelişki, kaçınma ve zaman uyumsuzlukları için okur. Yalan dedektörü değildir: her bulgu birebir alıntı ve zaman damgası taşır, hükmü sen verirsin." />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Çözümleme bitince tutarlılığı da denetle" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Text="Kapalıyken görüşme penceresindeki düğmeden elle çalışır. Her koşum ücretli bir istektir." />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding ConsistencyAutomatically}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="Tutarlılık için ayrı model" FontSize="{StaticResource TextBody}" />
+                                <ui:TextBox Text="{Binding ConsistencyModel, UpdateSourceTrigger=PropertyChanged}"
+                                            PlaceholderText="boş = çözümleme modeli" Margin="0,8,0,0" />
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Text="Defter ucuz bir modelde kalırken bu okuma daha güçlü bir modele (örn. anthropic/claude-fable-5) gidebilir. Model, seçili sağlayıcı üzerinden çağrılır." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Önceki görüşmelerin defter alıntılarını bağlam olarak gönder" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Açıkken '3 Mart'ta 15 bin demişti' türü çapraz çelişkiler yakalanır. Bulut sağlayıcıda geçmiş alıntılar da makineden çıkar." />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding ConsistencyUsesLedgerContext}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Yalnızca karşı tarafı denetle" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Kapalıyken iki tarafın ifadeleri de gözlemlenir — varsayılan bu: araç kişiyi değil, konuşmayı gözlemler." />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding ConsistencyOtherPartyOnly}" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- Export -->

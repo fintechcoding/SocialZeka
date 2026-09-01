@@ -1044,11 +1044,89 @@ public sealed class Repository(Database database)
 
         // A flag the user has already dismissed stays dismissed. Reprocessing must not bring back
         // a judgement they have explicitly rejected — that is how a ledger stops being read.
+        //
+        // And only the pipeline's own flags: the consistency check's findings were paid for
+        // separately and belong to a different button — rebuilding the ledger must not erase them.
         connection.Execute(
-            "DELETE FROM flag WHERE call_id = @callId AND dismissed_by_user = 0;",
-            new { callId }, transaction);
+            "DELETE FROM flag WHERE call_id = @callId AND dismissed_by_user = 0 AND source = @source;",
+            new { callId, source = Flag.Sources.Pipeline }, transaction);
 
         transaction.Commit();
+    }
+
+    /// <summary>
+    /// Clears one conversation's consistency findings and note before a re-run — its own rows
+    /// only, dismissed ones kept, the ledger untouched. The mirror image of ClearAnalysis.
+    /// </summary>
+    public void ClearConsistency(long callId)
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        connection.Execute(
+            "DELETE FROM flag WHERE call_id = @callId AND dismissed_by_user = 0 AND source = @source;",
+            new { callId, source = Flag.Sources.Consistency }, transaction);
+
+        connection.Execute(
+            "DELETE FROM consistency_note WHERE call_id = @callId;", new { callId }, transaction);
+
+        transaction.Commit();
+    }
+
+    /// <summary>
+    /// The dismissed findings' identities for one conversation: (kind, folded quote) pairs.
+    /// What a consistency re-run checks before inserting, so a judgement the user rejected
+    /// once is never resurrected by the next run finding the same thing.
+    /// </summary>
+    public IReadOnlySet<(int Kind, string FoldedQuote)> DismissedFlagKeys(long callId)
+    {
+        using var connection = Open();
+
+        return connection
+            .Query<(long Kind, string Quote)>(
+                "SELECT kind, quote FROM flag WHERE call_id = @callId AND dismissed_by_user = 1;",
+                new { callId })
+            .Select(r => ((int)r.Kind, Text.TurkishText.NormalizeForSearch(r.Quote)))
+            .ToHashSet();
+    }
+
+    /// <summary>Flags for one conversation, oldest first — the order the evidence happened in.</summary>
+    public IReadOnlyList<Flag> FlagsOf(long callId, bool includeDismissed = false)
+    {
+        using var connection = Open();
+
+        var sql = includeDismissed
+            ? "SELECT * FROM flag WHERE call_id = @callId ORDER BY quote_start_ms, id;"
+            : "SELECT * FROM flag WHERE call_id = @callId AND dismissed_by_user = 0 ORDER BY quote_start_ms, id;";
+
+        return [.. connection.Query<FlagRow>(sql, new { callId }).Select(r => r.ToModel())];
+    }
+
+    /// <summary>Saves the consistency check's overall note for a conversation (one per call).</summary>
+    public void SaveConsistencyNote(long callId, string note, string? modelUsed)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO consistency_note (call_id, note, model_used, created_at)
+            VALUES (@callId, @note, @modelUsed, @now)
+            ON CONFLICT(call_id) DO UPDATE SET
+                note = excluded.note, model_used = excluded.model_used, created_at = excluded.created_at;
+            """,
+            new { callId, note, modelUsed, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>The stored warning note, with which model wrote it and when. Null when none.</summary>
+    public (string Note, string? ModelUsed, DateTimeOffset CreatedAt)? GetConsistencyNote(long callId)
+    {
+        using var connection = Open();
+
+        var row = connection.QuerySingleOrDefault<(string Note, string? ModelUsed, string CreatedAt)>(
+            "SELECT note, model_used, created_at FROM consistency_note WHERE call_id = @callId;",
+            new { callId });
+
+        return row == default ? null : (row.Note, row.ModelUsed, ParseIso(row.CreatedAt));
     }
 
     public long InsertCommitment(Commitment commitment)
@@ -1116,10 +1194,11 @@ public sealed class Repository(Database database)
             """
             INSERT INTO flag (call_id, contact_id, kind, summary, quote, quote_start_ms,
                               counter_quote, counter_call_id, counter_quote_start_ms,
-                              low_confidence, is_heuristic, dismissed_by_user, created_at)
+                              low_confidence, is_heuristic, dismissed_by_user,
+                              source, confidence, created_at)
             VALUES (@CallId, @ContactId, @Kind, @Summary, @Quote, @QuoteStartMs,
                     @CounterQuote, @CounterCallId, @CounterQuoteStartMs,
-                    @LowConfidence, @IsHeuristic, 0, @CreatedAt)
+                    @LowConfidence, @IsHeuristic, 0, @Source, @Confidence, @CreatedAt)
             RETURNING id;
             """,
             new
@@ -1135,6 +1214,8 @@ public sealed class Repository(Database database)
                 flag.CounterQuoteStartMs,
                 LowConfidence = flag.LowConfidence ? 1 : 0,
                 IsHeuristic = flag.IsHeuristic ? 1 : 0,
+                flag.Source,
+                flag.Confidence,
                 CreatedAt = Iso(flag.CreatedAt == default ? DateTimeOffset.UtcNow : flag.CreatedAt),
             });
     }
@@ -2782,6 +2863,8 @@ public sealed class Repository(Database database)
         public long low_confidence { get; set; }
         public long is_heuristic { get; set; }
         public long dismissed_by_user { get; set; }
+        public string source { get; set; } = Flag.Sources.Pipeline;
+        public string? confidence { get; set; }
         public string created_at { get; set; } = "";
 
         public Flag ToModel() => new()
@@ -2799,6 +2882,8 @@ public sealed class Repository(Database database)
             LowConfidence = low_confidence != 0,
             IsHeuristic = is_heuristic != 0,
             DismissedByUser = dismissed_by_user != 0,
+            Source = source,
+            Confidence = confidence,
             CreatedAt = ParseIso(created_at),
         };
     }

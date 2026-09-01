@@ -122,6 +122,17 @@ public sealed class Database(string path)
 
             foreach (var sql in step.Sql)
             {
+                // ADD COLUMN steps are made idempotent here, because SQLite offers no IF NOT
+                // EXISTS for columns and the baseline runs first: a table that did not exist at
+                // the stored version is created by the baseline in its CURRENT shape, and the
+                // step that adds its column then arrives late to a done job. Skipping is the
+                // step succeeding, not being ignored — the column is there either way.
+                if (AddColumnTarget(sql) is ({ } table, { } column)
+                    && ColumnExists(connection, table, column))
+                {
+                    continue;
+                }
+
                 using var command = connection.CreateCommand();
                 command.Transaction = transaction;
                 command.CommandText = sql;
@@ -170,6 +181,27 @@ public sealed class Database(string path)
         command.CommandText = "SELECT value FROM setting WHERE key = 'schema_version';";
 
         return int.TryParse(command.ExecuteScalar() as string, out var version) ? version : 0;
+    }
+
+    /// <summary>The (table, column) of an ALTER TABLE … ADD COLUMN statement, or null.</summary>
+    private static (string Table, string Column)? AddColumnTarget(string sql)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(
+            sql.Trim(),
+            @"^ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        return match.Success ? (match.Groups[1].Value, match.Groups[2].Value) : null;
+    }
+
+    private static bool ColumnExists(SqliteConnection connection, string table, string column)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 FROM pragma_table_info($table) WHERE name = $column;";
+        command.Parameters.AddWithValue("$table", table);
+        command.Parameters.AddWithValue("$column", column);
+
+        return command.ExecuteScalar() is not null;
     }
 
     private static bool TableExists(SqliteConnection connection, string name)

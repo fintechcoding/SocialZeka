@@ -1231,3 +1231,39 @@ Hepsi kullanıcının uygulamayı gerçek çağrılarla denemesinden; tek sürü
 - [x] **16.6 — Satır detay şeridi "grid gibi"**: her satırda aynı sırayla aynı hücreler —
   [📄 N satır] [💡 çözümlendi/çözümlenmedi] [🕐 hatırlatma tarihi, kırmızı] + etiket pilleri.
   RemindersOf toplu sorgusu (satır başına sorgu yok).
+
+## 17. Tutarlılık çözümlemesi (v0.9.30) — plan onaylı, uygulandı
+
+Kullanıcının isteği: transkript Claude'a gitsin; çelişki/kaçınma/zaman uyumsuzluğu bulsun;
+gerekçeli uyarı notu çıksın; ayarları olsun. Ürün kuralı korunarak yapıldı: YALAN DEDEKTÖRÜ
+DEĞİL — her bulgu birebir alıntı + çalınabilir zaman damgası taşır, alıntısı dökümde
+doğrulanamayan bulgu ATILIR, kanıtsız uyarı notu KODDA düşürülür, hüküm dili prompt'ta yasak.
+
+- [x] **17.1 — Çekirdek** (`ConsistencyAnalysis` + `ConsistencyPrompt`): ArchiveQuestions
+  kalıbı; 5 bulgu türü (celiski/zaman/kacamak/belirsizlesme/baski), her türde "SAYILMAZ"
+  listesi; güven dusuk/orta/yuksek (STT şüphesi "(ses net değil)" işaretiyle modele gösterilir,
+  o satırdan bulgu en fazla düşük güven); tutarlı gözlemler (denge); [B#] numaralı defter
+  bağlamı → çapraz-görüşme çelişkisi ESKİ görüşmeye kesin çapayla; parçalama YOK (bulut ~400k,
+  yerel ~24k karakter üstü dürüst ret); jeton kullanımı "consistency" aşamasıyla Durum'a düşer.
+- [x] **17.2 — Depolama (migrasyon v5)**: flag += source('pipeline'|'consistency') + confidence;
+  consistency_note tablosu (uyarı notu kalıcı, model imzalı). ClearAnalysis yalnız pipeline
+  satırlarını, ClearConsistency yalnız kendi satırlarını siler — iki koşum birbirini SİLEMEZ.
+  Kapatılan bulgu (kind+katlanmış alıntı) yeniden koşumda dirilmez. FlagKind += 
+  TimelineMismatch(7), VagueShift(8). Migrate artık ADD COLUMN adımlarını idempotent uygular
+  (taban tabloyu güncel şekliyle yaratmışsa adım atlanır — v2-dönemi DB'de v5 patlıyordu).
+- [x] **17.3 — UI**: CallWindow → Çözümleme → "Tutarlılık" bölümü: Tutarlılığı denetle butonu,
+  sarı gerekçeli uyarı notu + "Bu bir modelin gözlemidir, hüküm değildir", bulgu satırları
+  (tür ikonu, güven, tıklanınca çalan alıntı; karşı-alıntı önceki görüşmedeyse o görüşmeyi o
+  ANDA açar), yeşil "tutarlı görünen noktalar", dürüst boş durum, model+tarih imzası. Pencere
+  yeniden açılınca eski koşumun bulguları ve notu geri gelir.
+- [x] **17.4 — Ayarlar (Çözümleme sayfası, "Tutarlılık çözümlemesi" kartı)**:
+  ConsistencyAutomatically (varsayılan KAPALI — ücretli), ConsistencyModel (boş=çözümleme
+  modeli; defter ucuz modelde kalırken bu okuma Claude'a gidebilir), ConsistencyUsesLedgerContext
+  (bağlam gizlilik/maliyet anahtarı), ConsistencyOtherPartyOnly (varsayılan KAPALI — araç kişiyi
+  değil konuşmayı gözlemler; BEN'in saçma sıklıkta çelişmesi kanal karışıklığının işaretidir).
+- [x] **17.5 — Testler (9 yeni + migrasyon)**: doğrulanan bulgu source=consistency ile yazılır;
+  uydurma alıntı bulguyu ve desteksiz uyarıyı öldürür; [B#] çapası doğru CallId/StartMs; aralık
+  dışı numara yalnız çapayı düşürür; yeniden koşum çoğaltmaz + dismissed dirilmez; iki temizlik
+  birbirine dokunmaz; uzun döküm harcamadan reddedilir; kullanım kaydı; kapsam satırı prompt'ta.
+- Ertelenen (bilinçli): pipeline InsertFlag'in dismissed-dedup'suz oluşu (mevcut gizli açık,
+  ayrı tur); ayar kartının loc:T taraması; LedgerPage'de source rozeti.

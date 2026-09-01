@@ -44,6 +44,7 @@
   "contactspage.yeniden-cozumle": "Analyse again",
   "contactspage.sesi-bastan-yaziya-dok": "Transcribes the audio again from scratch. The audio is already on disk; contact, tags and notes are kept.",
   "contactspage.metinden-defteri-yeniden-uret": "Rebuilds the ledger and summary from the existing text; the audio is not touched.",
+  "settingswindow.tutarlilik-cozumlemesi": "Consistency analysis",
   "healthpage.60-dakikalik-arama-icin": "for a 60-minute call",
   "healthpage.bir-kaydedici-basariya-benzeyen-sekillerde": "A recorder fails in ways that look like success: the wrong device records silence, a graphics card is visible but unusable, a service runs out of credit, a disk fills up. Every one of those is asked here out loud.",
   "healthpage.bir-sey-ters-gittiginde-son-uc-gunun-gunlu": "When something goes wrong you can copy the last three days of log and send it. It contains no conversation text, no contact names and no API keys — only what was done when, and what failed.",

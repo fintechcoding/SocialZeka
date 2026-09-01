@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 4;
+    public const int Version = 5;
 
     public static readonly string[] Statements =
     [
@@ -256,11 +256,31 @@ public static class Schema
             low_confidence        INTEGER NOT NULL DEFAULT 0,
             is_heuristic          INTEGER NOT NULL DEFAULT 0,
             dismissed_by_user     INTEGER NOT NULL DEFAULT 0,
+
+            -- Who wrote the row: 'pipeline' or 'consistency'. Ownership — each writer clears
+            -- only its own rows, so neither re-run erases the other's findings.
+            source                TEXT    NOT NULL DEFAULT 'pipeline',
+
+            -- The model's stated confidence for consistency findings (dusuk/orta/yuksek).
+            confidence            TEXT,
+
             created_at            TEXT    NOT NULL
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_flag_contact ON flag(contact_id, dismissed_by_user);",
         "CREATE INDEX IF NOT EXISTS ix_flag_call ON flag(call_id);",
+
+        // The consistency check's overall warning note, one per conversation. Separate from
+        // flags because it is a synthesis over them, not one more piece of evidence — and it
+        // is rewritten wholesale on every re-run while dismissed flags must survive.
+        """
+        CREATE TABLE IF NOT EXISTS consistency_note (
+            call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+            note       TEXT    NOT NULL,
+            model_used TEXT,
+            created_at TEXT    NOT NULL
+        );
+        """,
 
         """
         CREATE TABLE IF NOT EXISTS call_summary (

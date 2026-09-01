@@ -75,6 +75,8 @@ public sealed record FlagView(Flag Flag)
         FlagKind.EvadedQuestion => "?",
         FlagKind.PressureTactic => "!",
         FlagKind.ScamPattern => "⚑",
+        FlagKind.TimelineMismatch => "🕐",
+        FlagKind.VagueShift => "≈",
         _ => "•",
     };
 
@@ -87,6 +89,8 @@ public sealed record FlagView(Flag Flag)
         FlagKind.EvadedQuestion => "Cevapsız soru",
         FlagKind.PressureTactic => "Baskı",
         FlagKind.ScamPattern => "Dolandırıcılık kalıbı",
+        FlagKind.TimelineMismatch => "Zaman uyumsuzluğu",
+        FlagKind.VagueShift => "Belirsizleşme",
         _ => "Not",
     };
 }

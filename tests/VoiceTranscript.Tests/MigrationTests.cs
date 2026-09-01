@@ -200,5 +200,31 @@ public sealed class MigrationTests : IDisposable
             probe.CommandText = "SELECT COUNT(*) FROM tag_def;";
             Assert.Equal(0L, probe.ExecuteScalar());
         }
+
+        // v5: flags gained an owner; every row written before the column existed came from
+        // the pipeline, and the default must say so.
+        Assert.True(ColumnExistsIn("flag", "source"));
+        Assert.True(ColumnExistsIn("flag", "confidence"));
+
+        using (var connection = new Database(_path).Open())
+        {
+            // The column's declared default is the honesty guarantee: every flag row written
+            // before v5 reads back as the pipeline's.
+            using var dflt = connection.CreateCommand();
+            dflt.CommandText = "SELECT dflt_value FROM pragma_table_info('flag') WHERE name = 'source';";
+            Assert.Equal("'pipeline'", dflt.ExecuteScalar());
+
+            using var note = connection.CreateCommand();
+            note.CommandText = "SELECT COUNT(*) FROM consistency_note;";
+            Assert.Equal(0L, note.ExecuteScalar());
+        }
+    }
+
+    private bool ColumnExistsIn(string table, string column)
+    {
+        using var connection = new Database(_path).Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = '{column}';";
+        return (long)command.ExecuteScalar()! > 0;
     }
 }

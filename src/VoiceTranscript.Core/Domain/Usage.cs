@@ -17,6 +17,15 @@ public static class ProcessingStage
     /// Told apart, a large bill can be traced to whichever of the two caused it.
     /// </summary>
     public const string Ask = "ask";
+
+    /// <summary>
+    /// Reading one conversation for contradictions, evasion and timeline gaps.
+    ///
+    /// Its own stage for the same reason Ask is: it runs because somebody pressed the button
+    /// (or opted into running it after every analysis), and a surprising bill must be traceable
+    /// to the feature that produced it.
+    /// </summary>
+    public const string Consistency = "consistency";
 }
 
 /// <summary>

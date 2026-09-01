@@ -49,5 +49,23 @@ public static class Migrations
                 );
                 """,
             ]),
+
+        // v5 — the consistency check arrives. Flags gain an owner column so the ledger rebuild
+        // and the consistency re-run can each clear only their own rows, and a confidence column
+        // so the model's stated certainty is data rather than prose smuggled into the summary.
+        // Every flag written before this version came from the pipeline, hence the default.
+        new(5, "İşaretlere kaynak ve güven sütunları; tutarlılık notu tablosu",
+            [
+                "ALTER TABLE flag ADD COLUMN source TEXT NOT NULL DEFAULT 'pipeline';",
+                "ALTER TABLE flag ADD COLUMN confidence TEXT;",
+                """
+                CREATE TABLE IF NOT EXISTS consistency_note (
+                    call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+                    note       TEXT    NOT NULL,
+                    model_used TEXT,
+                    created_at TEXT    NOT NULL
+                );
+                """,
+            ]),
     ];
 }

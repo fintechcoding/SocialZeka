@@ -247,6 +247,36 @@ public sealed record AppSettings
     // ---- analysis -----------------------------------------------------------
 
     public bool AnalyseAutomatically { get; init; } = true;
+
+    // ---- consistency check --------------------------------------------------
+    //
+    // Deliberate spend: off by default, its own model slot, and an explicit switch for whether
+    // the contact's prior ledger quotes travel to the provider as context.
+
+    /// <summary>Run the consistency check after every analysis. Off: it runs from the button.</summary>
+    public bool ConsistencyAutomatically { get; init; }
+
+    /// <summary>
+    /// Model for the consistency check, or empty to use the analysis model. Separate because
+    /// the ledger can run on a cheap local model while this — the reasoning-heavy read — goes
+    /// to a stronger hosted one.
+    /// </summary>
+    public string ConsistencyModel { get; init; } = "";
+
+    /// <summary>Send the contact's recorded claims and promises as numbered context.</summary>
+    public bool ConsistencyUsesLedgerContext { get; init; } = true;
+
+    /// <summary>
+    /// Report only the other party's inconsistencies. Default is both sides: a tool told to
+    /// find fault with one person stops being an observer, and one's own side contradicting
+    /// itself absurdly often is how a channel mix-up gets noticed.
+    /// </summary>
+    public bool ConsistencyOtherPartyOnly { get; init; }
+
+    /// <summary>The model the consistency check will actually call.</summary>
+    public string ResolvedConsistencyModel =>
+        string.IsNullOrWhiteSpace(ConsistencyModel) ? ResolvedModelName : ConsistencyModel.Trim();
+
     public LlmProviderKind LlmProvider { get; init; } = LlmProviderKind.LlamaServer;
 
     /// <summary>Which entry of the local model catalogue to use. Ignored by remote providers.</summary>

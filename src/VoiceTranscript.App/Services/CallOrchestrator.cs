@@ -1447,6 +1447,33 @@ public sealed class CallOrchestrator : IDisposable
         }
 
         _repository.SetCallState(callId, ProcessingState.Analysed);
+
+        // The consistency check, when the user opted into paying for it on every analysis.
+        // A failure here never fails the call: the ledger is already built and saved, and a
+        // secondary read that could not run is a notice, not a processing failure.
+        if (settings.ConsistencyAutomatically)
+        {
+            try
+            {
+                var consistency = await new Core.Analysis.ConsistencyAnalysis(client, _repository).RunAsync(
+                    callId,
+                    settings.ResolvedConsistencyModel,
+                    useLedgerContext: settings.ConsistencyUsesLedgerContext,
+                    otherPartyOnly: settings.ConsistencyOtherPartyOnly,
+                    sendsDataOffMachine: settings.Provider.SendsDataOffMachine,
+                    cancellationToken);
+
+                AppLog.Write("tutarlılık", consistency.Ok
+                    ? $"görüşme #{callId} · {consistency.Findings.Count} bulgu"
+                      + (consistency.RejectedCount > 0 ? $" · {consistency.RejectedCount} alıntı elendi" : "")
+                      + (consistency.Warning is not null ? " · uyarı notu yazıldı" : "")
+                    : $"görüşme #{callId} · koşulamadı: {consistency.Problem}");
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                AppLog.Error("tutarlılık", e, $"görüşme #{callId} tutarlılık denetimi başarısız");
+            }
+        }
     }
 
     private void Export(long callId, AppSettings settings)

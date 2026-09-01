@@ -416,6 +416,139 @@
                             <TextBlock Style="{StaticResource EmptyBody}"
                                        Text="Söz verilmemiş, rakam ya da tarih geçmemiş bir konuşmada bu normaldir." />
                         </StackPanel>
+
+                        <!--
+                            The consistency check. Not a lie detector, and the section says so:
+                            every row below carries a quote that was machine-verified against
+                            the transcript, plays on click, and the warning note exists only
+                            when findings survived that verification. The user judges.
+                        -->
+                        <Border Style="{StaticResource Panel}" Margin="0,10,0,0">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="Tutarlılık" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,8,0"
+                                                   Text="Çelişki, cevapsız soru ve zaman uyumsuzluklarını arar. Her bulgu birebir alıntıyla gelir; hükmü sen verirsin." />
+                                    </StackPanel>
+
+                                    <ui:Button Grid.Column="1" Content="Tutarlılığı denetle"
+                                               VerticalAlignment="Center"
+                                               Command="{Binding CheckConsistencyCommand}"
+                                               IsEnabled="{Binding IsCheckingConsistency, Converter={StaticResource InverseBool}}">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="Search24" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+
+                                <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
+                                             Visibility="{Binding IsCheckingConsistency, Converter={StaticResource BoolToVisibility}}" />
+
+                                <TextBlock Text="{Binding ConsistencyProblem}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                           Visibility="{Binding ConsistencyProblem, Converter={StaticResource NullToCollapsed}}" />
+
+                                <!-- The justified warning to the user — only ever shown standing
+                                     on verified findings, and honest about what it is. -->
+                                <Border CornerRadius="6" Padding="10,8" Margin="0,10,0,0"
+                                        Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                                        Visibility="{Binding ConsistencyWarning, Converter={StaticResource NullToCollapsed}}">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <ui:SymbolIcon Symbol="Warning24" FontSize="14" Margin="0,0,6,0"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                            <TextBlock Text="Uyarı notu" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding ConsistencyWarning}" TextWrapping="Wrap" />
+                                        <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0"
+                                                   Text="Bu bir modelin gözlemidir, hüküm değildir." />
+                                    </StackPanel>
+                                </Border>
+
+                                <TextBlock Text="{Binding ConsistencyMessage}" Style="{StaticResource Caption}"
+                                           TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Visibility="{Binding ConsistencyMessage, Converter={StaticResource NullToCollapsed}}" />
+
+                                <ItemsControl ItemsSource="{Binding ConsistencyFindings}" Margin="0,6,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderThickness="0,0,0,1" Padding="0,8"
+                                                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <ui:SymbolIcon Symbol="{Binding KindIcon}" FontSize="14"
+                                                                       Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                       Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                                        <TextBlock Text="{Binding KindLabel}" FontWeight="SemiBold"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding ConfidenceLabel}" Margin="10,0,0,0"
+                                                                   Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="· ses net değil" Margin="6,0,0,0"
+                                                                   Style="{StaticResource Caption}" VerticalAlignment="Center"
+                                                                   Visibility="{Binding AudioUnclear, Converter={StaticResource BoolToVisibility}}" />
+                                                    </StackPanel>
+
+                                                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,4,0,0" />
+
+                                                    <!-- The evidence, playable: this is the product's spine. -->
+                                                    <Border Background="Transparent" Cursor="Hand" Margin="0,4,0,0"
+                                                            DataContext="{Binding Quote}"
+                                                            MouseLeftButtonUp="Citation_Click"
+                                                            ToolTip="Bu anı dinlemek için tıkla">
+                                                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                                   Text="{Binding Text, StringFormat='&quot;{0}&quot;'}" />
+                                                    </Border>
+
+                                                    <StackPanel Visibility="{Binding HasCounter, Converter={StaticResource BoolToVisibility}}">
+                                                        <TextBlock Text="{Binding CounterHeading}" Style="{StaticResource Caption}"
+                                                                   Margin="0,4,0,0" />
+                                                        <Border Background="Transparent" Cursor="Hand"
+                                                                DataContext="{Binding CounterQuote}"
+                                                                MouseLeftButtonUp="ConsistencyCounter_Click"
+                                                                ToolTip="Karşı ifadeye git">
+                                                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                                       Text="{Binding Text, StringFormat='&quot;{0}&quot;'}" />
+                                                        </Border>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- What held together — the tool observes, it does not prosecute. -->
+                                <StackPanel Margin="0,8,0,0"
+                                            Visibility="{Binding ConsistencyObservations.Count, Converter={StaticResource CountToVisibility}}">
+                                    <TextBlock Text="Tutarlı görünen noktalar" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <ItemsControl ItemsSource="{Binding ConsistencyObservations}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                                    <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="13" Margin="0,2,6,0"
+                                                                   VerticalAlignment="Top"
+                                                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" MaxWidth="640"
+                                                               Style="{StaticResource Caption}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding ConsistencyStamp}" Style="{StaticResource Caption}"
+                                           Margin="0,8,0,0" HorizontalAlignment="Right"
+                                           Visibility="{Binding ConsistencyStamp, Converter={StaticResource NullToCollapsed}}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

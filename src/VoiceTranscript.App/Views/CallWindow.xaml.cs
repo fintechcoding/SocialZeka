@@ -277,4 +277,28 @@ public partial class CallWindow
         MainWindow.SearchTagFromAnywhere(tag);
         e.Handled = true;
     }
+
+    /// <summary>
+    /// The other end of a consistency finding. In this conversation it plays; in an earlier
+    /// one it opens that conversation at the quoted moment — the archive is the point.
+    /// </summary>
+    private void ConsistencyCounter_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: Excerpt excerpt }) return;
+        if (ViewModel is not { } model) return;
+
+        if (excerpt.CallId == model.CallId)
+        {
+            model.PlayExcerptCommand.Execute(excerpt);
+            return;
+        }
+
+        var counterpart = new CallWindowViewModel(
+            App.Repository, () => App.Settings, App.HttpClient, excerpt.CallId);
+
+        var window = new CallWindow(counterpart) { Owner = this };
+        window.Show();
+
+        counterpart.Playback.PlayFrom(excerpt.StartMs, excerpt.IsMe);
+    }
 }

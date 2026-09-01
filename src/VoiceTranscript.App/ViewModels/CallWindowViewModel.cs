@@ -318,8 +318,30 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
                 Claims.Add(c);
 
             foreach (var f in _repository.GetFlags(contactId).Where(f => f.CallId == CallId))
-                Flags.Add(f);
+                if (f.Source != Flag.Sources.Consistency)
+                    Flags.Add(f);
         }
+
+        // The consistency section's own rows — split from the ledger's flags because the two
+        // come from different runs, clear separately, and answer different clicks. Reloaded
+        // here so reopening the window brings a past run's findings and note back.
+        ConsistencyFindings.Clear();
+        foreach (var f in _repository.FlagsOf(CallId).Where(f => f.Source == Flag.Sources.Consistency))
+            ConsistencyFindings.Add(new ConsistencyRow(f, _repository));
+
+        if (_repository.GetConsistencyNote(CallId) is { } stored)
+        {
+            ConsistencyWarning = stored.Note;
+            ConsistencyStamp =
+                $"{stored.ModelUsed ?? "model"} · {stored.CreatedAt.ToLocalTime():d MMMM yyyy}";
+        }
+        else
+        {
+            ConsistencyWarning = null;
+            ConsistencyStamp = ConsistencyFindings.Count > 0 ? "önceki koşum" : null;
+        }
+
+        OnPropertyChanged(nameof(HasConsistencyRun));
 
         Note = _repository.GetNote(CallId);
 
@@ -547,6 +569,99 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         }
     }
 
+    // ---- the consistency check ---------------------------------------------
+    //
+    // A deliberate, separately billed read of this one conversation for what can be SHOWN:
+    // contradictions, evaded questions, timelines that do not add up. Not a lie detector —
+    // every finding below carries a verified quote, and everything unverifiable was dropped
+    // before it got here.
+
+    public ObservableCollection<ConsistencyRow> ConsistencyFindings { get; } = [];
+
+    /// <summary>What held together — the balancing list.</summary>
+    public ObservableCollection<string> ConsistencyObservations { get; } = [];
+
+    /// <summary>The model's justified warning to the user, or null when the evidence earned none.</summary>
+    [ObservableProperty] private string? _consistencyWarning;
+
+    /// <summary>Which model read this, and when — a finding is that model's reading, not a verdict.</summary>
+    [ObservableProperty] private string? _consistencyStamp;
+
+    [ObservableProperty] private string? _consistencyMessage;
+    [ObservableProperty] private string? _consistencyProblem;
+    [ObservableProperty] private bool _isCheckingConsistency;
+
+    public bool HasConsistencyRun => ConsistencyFindings.Count > 0 || ConsistencyStamp is not null;
+
+    [RelayCommand]
+    private async Task CheckConsistencyAsync(CancellationToken cancellationToken)
+    {
+        if (IsCheckingConsistency) return;
+
+        var settings = _settings();
+
+        if (!settings.LlmReachableInPrinciple)
+        {
+            ConsistencyProblem =
+                "Bağlı bir yapay zekâ servisi yok. Ayarlar → Çözümleme bölümünden bir sağlayıcı seç.";
+            return;
+        }
+
+        IsCheckingConsistency = true;
+        ConsistencyProblem = null;
+        ConsistencyMessage = null;
+
+        try
+        {
+            var client = LlmClientFactory.Create(
+                _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
+
+            var model = settings.ResolvedConsistencyModel;
+
+            var report = await new ConsistencyAnalysis(client, _repository).RunAsync(
+                CallId,
+                model,
+                useLedgerContext: settings.ConsistencyUsesLedgerContext,
+                otherPartyOnly: settings.ConsistencyOtherPartyOnly,
+                sendsDataOffMachine: settings.Provider.SendsDataOffMachine,
+                cancellationToken);
+
+            if (!report.Ok)
+            {
+                ConsistencyProblem = report.Problem;
+                return;
+            }
+
+            ConsistencyFindings.Clear();
+            foreach (var flag in report.Findings)
+                ConsistencyFindings.Add(new ConsistencyRow(flag, _repository));
+
+            ConsistencyObservations.Clear();
+            foreach (var observation in report.Observations) ConsistencyObservations.Add(observation);
+
+            ConsistencyWarning = report.Warning;
+            ConsistencyStamp = $"{model} · {DateTime.Now:d MMMM yyyy}";
+
+            ConsistencyMessage = report.Findings.Count == 0
+                ? report.Insufficient
+                    ? "Döküm anlamlı bir denetim için çok kısa."
+                    : "Bulgu yok — kısa ve sıradan konuşmalarda bu olağandır."
+                : report.RejectedCount > 0
+                    ? $"{report.RejectedCount} bulgu, alıntısı dökümde bulunamadığı için elendi."
+                    : null;
+
+            OnPropertyChanged(nameof(HasConsistencyRun));
+        }
+        catch (Exception e)
+        {
+            ConsistencyProblem = $"Denetim tamamlanamadı: {e.Message}";
+        }
+        finally
+        {
+            IsCheckingConsistency = false;
+        }
+    }
+
     // ---- notes --------------------------------------------------------------
 
     /// <summary>
@@ -565,4 +680,66 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     partial void OnNoteChanged(string value) => NoteSaved = false;
 
     public void Dispose() => Playback.Dispose();
+}
+
+/// <summary>
+/// One consistency finding, dressed for the screen: a Turkish kind label, the model's
+/// confidence, and both quotes as playable excerpts. The counter side may live in an EARLIER
+/// conversation — then it opens that conversation instead of playing here.
+/// </summary>
+public sealed record ConsistencyRow(Flag Flag, Repository Repository)
+{
+    public string KindLabel => Flag.Kind switch
+    {
+        FlagKind.Contradiction => "Çelişki",
+        FlagKind.TimelineMismatch => "Zaman uyumsuzluğu",
+        FlagKind.EvadedQuestion => "Cevapsız soru",
+        FlagKind.VagueShift => "Belirsizleşme",
+        FlagKind.PressureTactic => "Baskı işareti",
+        _ => "Gözlem",
+    };
+
+    public Wpf.Ui.Controls.SymbolRegular KindIcon => Flag.Kind switch
+    {
+        FlagKind.Contradiction => Wpf.Ui.Controls.SymbolRegular.ArrowsBidirectional24,
+        FlagKind.TimelineMismatch => Wpf.Ui.Controls.SymbolRegular.Clock24,
+        FlagKind.EvadedQuestion => Wpf.Ui.Controls.SymbolRegular.QuestionCircle24,
+        FlagKind.VagueShift => Wpf.Ui.Controls.SymbolRegular.WeatherFog24,
+        FlagKind.PressureTactic => Wpf.Ui.Controls.SymbolRegular.Warning24,
+        _ => Wpf.Ui.Controls.SymbolRegular.Info24,
+    };
+
+    public string Summary => Flag.Summary;
+
+    public string ConfidenceLabel => Flag.Confidence switch
+    {
+        "yuksek" => "güven: yüksek",
+        "orta" => "güven: orta",
+        _ => "güven: düşük",
+    };
+
+    /// <summary>"Ses net değil" rides along when the transcriber itself was unsure.</summary>
+    public bool AudioUnclear => Flag.LowConfidence;
+
+    /// <summary>The main quote as a playable excerpt for PlayExcerptCommand.</summary>
+    public Excerpt Quote => new(0, Flag.CallId, null, default, Flag.QuoteStartMs, IsMe: false, Flag.Quote);
+
+    public bool HasCounter => Flag.CounterQuote is not null;
+
+    /// <summary>True when the other end of the finding is in THIS conversation — playable here.</summary>
+    public bool CounterIsHere => Flag.CounterCallId == Flag.CallId && Flag.CounterQuote is not null;
+
+    /// <summary>True when it points at an earlier conversation — a click opens that one.</summary>
+    public bool CounterIsElsewhere => HasCounter && !CounterIsHere;
+
+    public Excerpt? CounterQuote => Flag is { CounterQuote: { } q, CounterQuoteStartMs: { } ms }
+        ? new Excerpt(0, Flag.CounterCallId ?? Flag.CallId, null, default, ms, IsMe: false, q)
+        : null;
+
+    public string CounterHeading => CounterIsElsewhere
+        ? Repository.GetCall(Flag.CounterCallId ?? 0)?.StartedAt.ToLocalTime()
+              .ToString("d MMMM yyyy") is { } day
+            ? $"Önceki görüşme · {day}:"
+            : "Önceki görüşme:"
+        : "Karşı ifade:";
 }
