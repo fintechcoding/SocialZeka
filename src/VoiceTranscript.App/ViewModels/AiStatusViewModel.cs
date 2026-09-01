@@ -120,7 +120,10 @@ public sealed partial class AiServiceRow(
 ///   question; this asks the second, out loud, on demand.
 /// </summary>
 public sealed partial class AiStatusViewModel(
-    Func<AppSettings> settings, HttpClient http, Repository repository) : ObservableObject
+    Func<AppSettings> settings,
+    HttpClient http,
+    Repository repository,
+    Func<bool?>? localTranscriptionUsable = null) : ObservableObject
 {
     /// <summary>Transcription, in the order it will be attempted.</summary>
     public ObservableCollection<AiServiceRow> Transcription { get; } = [];
@@ -191,7 +194,15 @@ public sealed partial class AiStatusViewModel(
         // orchestrator resolves in: local unless the mode forbids it or the hardware cannot.
         if (current.AsrMode != TranscriptionMode.CloudOnly)
         {
-            var model = current.ResolveAsrModel(localTranscriptionUsable: true);
+            // The route the orchestrator actually takes, not an assumption that it is local.
+            //
+            // This screen exists to say what leaves the machine. Hard-coding "local works" made
+            // it list the local engine as active on a machine where every call was being
+            // uploaded — the one screen whose entire job is to prevent that surprise. Unknown
+            // (before the first probe) is shown as local, which is what the orchestrator does
+            // too, so the two never disagree.
+            var model = current.ResolveAsrModel(
+                localTranscriptionUsable: localTranscriptionUsable?.Invoke() ?? true);
 
             Transcription.Add(new AiServiceRow(
                 order++,
@@ -280,7 +291,7 @@ public sealed partial class AiStatusViewModel(
                     http, current.LlmProvider, current.ResolvedBaseUrl, current.LlmApiKey);
 
                 Analysis[0].Reach = await ReachAsync(
-                    () => client.IsAvailableAsync(cancellationToken), cancellationToken);
+                    token => client.IsAvailableAsync(token), cancellationToken);
             }
 
             var probe = new SttProbe(http);
@@ -296,9 +307,9 @@ public sealed partial class AiStatusViewModel(
                 // with 401 will fail every real request, and calling that "bağlandı" would
                 // send somebody looking for the fault everywhere except at their key.
                 row.Reach = await ReachAsync(
-                    async () =>
+                    async token =>
                     {
-                        var result = await probe.TestAsync(endpoint, cancellationToken);
+                        var result = await probe.TestAsync(endpoint, token);
                         return result.Reachable && result.Authorised;
                     },
                     cancellationToken);
@@ -531,14 +542,17 @@ public sealed partial class AiStatusViewModel(
     /// against a service that simply is not there.
     /// </summary>
     private static async Task<ServiceReach> ReachAsync(
-        Func<Task<bool>> ask, CancellationToken cancellationToken)
+        Func<CancellationToken, Task<bool>> ask, CancellationToken cancellationToken)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(8));
 
         try
         {
-            return await ask() ? ServiceReach.Reachable : ServiceReach.Unreachable;
+            // The deadline is handed to the probe. It used to be created, armed and then never
+            // passed anywhere, so "Bağlantıyı sına" against a dead address waited out the shared
+            // client's ten-minute timeout with the button greyed for the duration.
+            return await ask(deadline.Token) ? ServiceReach.Reachable : ServiceReach.Unreachable;
         }
         catch (Exception)
         {

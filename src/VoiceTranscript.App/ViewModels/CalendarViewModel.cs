@@ -242,6 +242,17 @@ public sealed partial class CalendarViewModel(Repository repository) : Observabl
         Selected = null;
         var restore = picked is { } date2 ? Days.FirstOrDefault(d => d.Date == date2) : null;
 
-        if ((restore ?? Days.FirstOrDefault(d => d.IsToday)) is { } cell) SelectDay(cell);
+        if ((restore ?? Days.FirstOrDefault(d => d.IsToday)) is { } cell)
+        {
+            SelectDay(cell);
+        }
+        else
+        {
+            // No cell to land on — a month other than this one, with no prior pick in it. The
+            // agenda was left holding the previous month's day, so paging forward showed
+            // Tuesday's entries under a month that has no Tuesday selected.
+            Agenda.Clear();
+            OnPropertyChanged(nameof(SelectedDayIsEmpty));
+        }
     }
 }

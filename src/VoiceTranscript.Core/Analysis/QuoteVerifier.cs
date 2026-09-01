@@ -36,15 +36,36 @@ public static class QuoteVerifier
         var needle = Normalise(quote);
         if (needle.Length == 0) return null;
 
+        // A single short word cannot anchor anything.
+        //
+        // "Tamam", "olur", "evet" occur several times in most conversations, and a finding built
+        // on one would be pinned to whichever minute came first, with a timestamp that looked
+        // exact. A wrong timestamp is worse than none here: the whole promise of this ledger is
+        // that clicking the time proves the claim.
+        //
+        // Only single words are refused. Two words are already distinctive enough — "Kapora bir"
+        // is a real thing somebody said and there is no reason to throw it away — and the
+        // duplicate check below catches the rest by evidence rather than by length.
+        if (!needle.Contains(' ') && needle.Length < 15) return null;
+
         // Common case: the quote sits inside a single segment.
+        //
+        // Collected rather than returned on sight. A phrase that appears in two places is not
+        // evidence for either of them, and picking the earlier one silently invents a moment.
+        VerifiedQuote? single = null;
+
         foreach (var segment in segments)
         {
-            if (Normalise(segment.Text).Contains(needle, StringComparison.Ordinal))
-            {
-                return new VerifiedQuote(
-                    segment.Text.Trim(), segment.StartMs, segment.EndMs, segment.IsMe, segment.LowConfidence);
-            }
+            if (!Normalise(segment.Text).Contains(needle, StringComparison.Ordinal)) continue;
+
+            // Seen twice: unverifiable, and the caller drops the finding.
+            if (single is not null) return null;
+
+            single = new VerifiedQuote(
+                segment.Text.Trim(), segment.StartMs, segment.EndMs, segment.IsMe, segment.LowConfidence);
         }
+
+        if (single is not null) return single;
 
         // A quote may legitimately run across consecutive segments from the same speaker, since
         // segment boundaries come from the transcriber rather than from the sentence.

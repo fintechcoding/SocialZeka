@@ -147,7 +147,12 @@ public sealed class DeceptionAnalysis(ILlmClient llm, Repository repository)
 
             tactics.Add(new DeceptionLine(
                 Str(node, "taktik") ?? "diger",
-                string.Equals(Str(node, "konusan"), "BEN", StringComparison.OrdinalIgnoreCase),
+                // The stream the quote was found in, not the model's opinion of who spoke.
+                //
+                // This is the assessment that names a person as manipulative. Pinning it on the
+                // wrong party is the worst single output this application can produce, and the
+                // speaker was being taken from a free-text field the model filled in.
+                located.IsMe,
                 Str(node, "gerekce") ?? "",
                 located.Text,
                 located.StartMs));

@@ -352,7 +352,15 @@ public sealed class Repository(Database database)
     /// Listed once so that adding another derived table is a single edit rather than a bug that
     /// only appears after somebody moves a call.
     /// </summary>
-    private static readonly string[] LedgerTables = ["commitment", "claim", "flag"];
+    /// <summary>
+    /// Every table whose rows belong to a contact and must follow them.
+    ///
+    /// action_item is in this list because its contact_id is ON DELETE CASCADE: left behind by a
+    /// merge, the rows were destroyed the moment the absorbed contact was deleted. Merging two
+    /// spellings of one person therefore threw away half their outstanding actions, silently,
+    /// as part of an operation whose whole purpose is to lose nothing.
+    /// </summary>
+    private static readonly string[] LedgerTables = ["commitment", "claim", "flag", "action_item"];
 
     /// <summary>
     /// How many ledger rows a call produced.
@@ -630,9 +638,28 @@ public sealed class Repository(Database database)
         return [.. connection.Query<CallRow>(sql, new { contactId, limit }).Select(r => r.ToModel())];
     }
 
+    /// <summary>
+    /// Recordings that still need work, including ones a crash left mid-flight.
+    ///
+    /// States 2 and 4 — Transcribing and Analysing — mean "a worker is busy with this", and after
+    /// a crash or a power cut that is no longer true of anybody. Nothing requeued them, so the
+    /// recording sat there for ever while every screen showed it as work in progress: a spinner
+    /// that would never stop, on a conversation that was never going to be transcribed.
+    ///
+    /// Safe to reclaim precisely because this is only ever called at startup: the process that
+    /// might have been holding them is the one that just died.
+    /// </summary>
     public IReadOnlyList<Call> CallsAwaitingProcessing()
     {
         using var connection = Open();
+
+        connection.Execute(
+            """
+            UPDATE call
+               SET state = 1
+             WHERE state IN (2, 4);
+            """);
+
         return [.. connection.Query<CallRow>(
             "SELECT * FROM call WHERE state IN (0, 1) ORDER BY started_at ASC;")
             .Select(r => r.ToModel())];
@@ -2356,6 +2383,17 @@ public sealed class Repository(Database database)
                   AND c.is_pinned = 0
                   AND NOT EXISTS (SELECT 1 FROM board_card b WHERE b.call_id = c.id)
                   AND NOT EXISTS (SELECT 1 FROM call_note n WHERE n.call_id = c.id)
+
+                  -- Only once something durable was derived from it.
+                  --
+                  -- The comment above promises "the transcript, the ledger and the notes are the
+                  -- part worth keeping; the recording is what fills a disk" — but the sweep went
+                  -- by age alone, so a call that was never transcribed lost the audio too, and
+                  -- for that call the audio was the whole record. A failed transcription, a
+                  -- machine without Python, a stretch where the model was missing: all of those
+                  -- produce recordings with no text, and those are exactly the ones this would
+                  -- have deleted while leaving an empty row behind.
+                  AND EXISTS (SELECT 1 FROM segment s WHERE s.call_id = c.id)
                 ORDER BY c.started_at;
                 """,
                 new { cutoff })

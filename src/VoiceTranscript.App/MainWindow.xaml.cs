@@ -136,9 +136,10 @@ public partial class MainWindow
         SyncAutoRecordMenu();
 
         if (DataContext is ShellViewModel shell)
-            shell.Notice = enabled
-                ? "Otomatik kayıt açık — aramalar kendiliğinden kaydedilecek."
-                : "Otomatik kayıt kapalı. \"Kaydı başlat\" ile elle kaydedebilirsin.";
+            shell.Post(enabled
+                    ? "Otomatik kayıt açık — aramalar kendiliğinden kaydedilecek."
+                    : "Otomatik kayıt kapalı. \"Kaydı başlat\" ile elle kaydedebilirsin.",
+                Services.NoticeSeverity.Info);
     }
 
     private void SyncAutoRecordMenu()
@@ -169,40 +170,13 @@ public partial class MainWindow
     {
         if (DataContext is not ShellViewModel shell) return;
 
+        // Only the refresh. The announcement itself is made by ShellViewModel, which subscribes
+        // to the same event and posts it with the right severity — this method used to post a
+        // second copy, so every processed call produced two snackbars, and this one carried
+        // whatever colour the previous message had left behind.
         shell.RefreshAll();
-
-        var length = $"{(int)processed.Duration.TotalMinutes:00}:{processed.Duration.Seconds:00}";
-
-        if (!processed.Succeeded)
-        {
-            shell.Notice = processed.Failure is { Length: > 0 } reason
-                ? $"{processed.ContactName} · {length} görüşmesi işlenemedi: {Core.Asr.FailureText.Summarise(reason)}"
-                : $"{processed.ContactName} · {length} görüşmesi işlenemedi.";
-
-            return;
-        }
-
-        shell.Notice = processed.Summary is { Length: > 0 } summary
-            ? $"{processed.ContactName} · {length} — {FirstSentence(summary)}"
-            : $"{processed.ContactName} · {length} görüşmesi yazıya döküldü.";
     }
 
-    /// <summary>
-    /// The opening sentence of a summary, for a notice that has one line to work with.
-    ///
-    /// Cut at a sentence boundary rather than a character count, because a summary truncated
-    /// mid-clause can reverse its own meaning — "ödemeyi yapmayacağını söyledi" and
-    /// "ödemeyi yapmayacağını söyledi ama sonra vazgeçti" are different claims about a person.
-    /// </summary>
-    private static string FirstSentence(string summary, int limit = 160)
-    {
-        var text = summary.Trim().ReplaceLineEndings(" ");
-
-        var stop = text.IndexOfAny(['.', '!', '?']);
-        if (stop > 0 && stop < limit) return text[..(stop + 1)];
-
-        return text.Length <= limit ? text : text[..limit].TrimEnd() + "…";
-    }
 
     /// <summary>True while a labelling dialog is on screen, so a second one cannot stack on it.</summary>
     private bool _labelling;
@@ -385,9 +359,10 @@ public partial class MainWindow
 
                 // The count is in the message on purpose: it tells the user something, and it
                 // makes the text differ between presses so a second click is visibly acted on.
-                shell.Notice = requeued == 0
-                    ? "Tekrar denenecek bir kayıt yok."
-                    : $"{requeued} kayıt yeniden kuyruğa alındı.";
+                shell.Post(requeued == 0
+                        ? "Tekrar denenecek bir kayıt yok."
+                        : $"{requeued} kayıt yeniden kuyruğa alındı.",
+                    Services.NoticeSeverity.Info);
 
                 _ = App.Orchestrator?.ProcessBacklogAsync();
                 break;

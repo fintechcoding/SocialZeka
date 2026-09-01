@@ -57,11 +57,15 @@ public sealed class SttProbe(HttpClient http)
             if (!response.IsSuccessStatusCode)
             {
                 // Some providers do not expose a model list at all. That is not a failure of the
-                // key, so it must not be reported as one.
+                // key — but it is not proof of the key either, and it used to be reported as one.
+                // A 404 from a base address missing "/v1" came back as "bağlandı", and the first
+                // real upload then failed against an endpoint the test had just blessed.
+                //
+                // Reachable, yes. Authorised is left unclaimed: nothing here established it.
                 return new SttTestResult
                 {
                     Reachable = true,
-                    Authorised = true,
+                    Authorised = false,
                     LatencyMs = latency,
                     Message =
                         $"Sunucu ulaşılabilir. Model listesi alınamadı ({(int)response.StatusCode}); " +

@@ -134,6 +134,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         var rejected = 0;
 
         var chunks = TranscriptChunker.Split(segments, options.ChunkTokens);
+        var failedChunks = 0;
 
         for (var i = 0; i < chunks.Count; i++)
         {
@@ -149,6 +150,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
             if (extraction is null)
             {
                 warnings.Add($"{i + 1}. bölüm çözümlenemedi.");
+                failedChunks++;
                 continue;
             }
 
@@ -172,6 +174,22 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         // requeue a call silently on every startup. So the ordinary way to use the product was
         // also the way to corrupt its ledger, and the corruption compounds: the deterministic
         // checks then report contradictions between a statement and its own duplicate.
+        // Nothing parsed at all is a failed run, not an empty result.
+        //
+        // Clearing first is right when the run produced something: the replacement is better than
+        // what was there. But when every chunk failed — the model was unreachable, the endpoint
+        // returned prose, the key expired — the clear ran anyway and the ledger for that call was
+        // replaced with nothing. A conversation's promises and figures vanished because a server
+        // was down, and the screen showed an empty ledger rather than an error.
+        if (chunks.Count > 0 && failedChunks == chunks.Count)
+        {
+            warnings.Add(
+                "Hiçbir bölüm çözümlenemedi; önceki defter olduğu gibi korundu. " +
+                "Model ya da servis erişilebilir olduğunda yeniden deneyebilirsin.");
+
+            return new AnalysisReport(0, 0, rejected, [], null, warnings);
+        }
+
         repository.ClearAnalysis(callId);
 
         foreach (var commitment in commitments) repository.InsertCommitment(commitment);
@@ -369,7 +387,15 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
             {
                 CallId = callId,
                 ContactId = contactId,
-                ByMe = Str(node, "konusan") == "BEN",
+                // Read off the audio, not off the model.
+                //
+                // located.IsMe comes from which of the two recorded streams the quote was found
+                // in, and that is the one thing this product knows for certain — it is why the
+                // microphone and the speaker are captured separately at all. Taking the speaker
+                // from the model's "konusan" field threw that certainty away and replaced it with
+                // a guess, so a promise could be recorded against whichever party the model
+                // happened to name. The whole ledger rests on who said what.
+                ByMe = located.IsMe,
                 Quote = located.Text,
                 QuoteStartMs = located.StartMs,
                 Obligation = Str(node, "yukumluluk") ?? "",
@@ -391,7 +417,15 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
             {
                 CallId = callId,
                 ContactId = contactId,
-                ByMe = Str(node, "konusan") == "BEN",
+                // Read off the audio, not off the model.
+                //
+                // located.IsMe comes from which of the two recorded streams the quote was found
+                // in, and that is the one thing this product knows for certain — it is why the
+                // microphone and the speaker are captured separately at all. Taking the speaker
+                // from the model's "konusan" field threw that certainty away and replaced it with
+                // a guess, so a promise could be recorded against whichever party the model
+                // happened to name. The whole ledger rests on who said what.
+                ByMe = located.IsMe,
                 Quote = located.Text,
                 QuoteStartMs = located.StartMs,
                 Entity = Str(node, "varlik") ?? "",
@@ -447,15 +481,24 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
             if (!response.CompletedNormally) continue;
 
+            // Coerced like every other reply in this file.
+            //
+            // Models return the object double-encoded, or wrapped in an array, or fenced in a
+            // code block — which is why CoerceToObject exists. This one site parsed raw, so a
+            // reply the rest of the pipeline handles routinely threw here instead, and the
+            // exception escaped the JsonException catch and abandoned the whole adjudication
+            // pass: one awkwardly-shaped answer cost every remaining contradiction check.
             JsonNode? verdict;
             try
             {
-                verdict = JsonNode.Parse(response.Content);
+                verdict = CoerceToObject(JsonNode.Parse(response.Content));
             }
-            catch (JsonException)
+            catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException)
             {
                 continue;
             }
+
+            if (verdict is null) continue;
 
             if (Str(verdict, "sonuc") != "celiski") continue;
 

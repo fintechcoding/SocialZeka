@@ -49,7 +49,7 @@ public sealed class RetentionTests : IDisposable
         File.WriteAllBytes(mic, new byte[64]);
         File.WriteAllBytes(far, new byte[64]);
 
-        return _repo.InsertCall(new Call
+        var callId = _repo.InsertCall(new Call
         {
             App = CallApp.WhatsApp,
             StartedAt = DateTimeOffset.UtcNow.AddDays(-daysOld),
@@ -57,9 +57,59 @@ public sealed class RetentionTests : IDisposable
             MicPath = mic,
             FarPath = far,
         });
+
+        // Transcribed, because the sweep only removes audio once something durable was derived
+        // from it — for a call with no transcript the recording is the entire record.
+        _repo.ReplaceSegments(callId, [new Segment
+        {
+            CallId = callId, IsMe = false, StartMs = 0, EndMs = 2000, Text = "kayıt",
+        }]);
+
+        return callId;
+    }
+
+    /// <summary>A recording of the same age that was never transcribed.</summary>
+    private long UntranscribedRecording(int daysOld)
+    {
+        var id = Guid.NewGuid().ToString("N")[..8];
+
+        var mic = Path.Combine(_root, $"{id}-mic.wav");
+        var far = Path.Combine(_root, $"{id}-far.wav");
+
+        File.WriteAllBytes(mic, new byte[64]);
+        File.WriteAllBytes(far, new byte[64]);
+
+        return _repo.InsertCall(new Call
+        {
+            App = CallApp.WhatsApp,
+            StartedAt = DateTimeOffset.UtcNow.AddDays(-daysOld),
+            State = ProcessingState.Failed,
+            MicPath = mic,
+            FarPath = far,
+        });
     }
 
     private long Recording(int daysOld) => Recording(daysOld, out _, out _);
+
+    /// <summary>
+    /// A recording nothing was ever derived from is not swept.
+    ///
+    /// The sweep's own reasoning is that "the transcript, the ledger and the notes are the part
+    /// worth keeping; the recording is what fills a disk" — which only holds once a transcript
+    /// exists. It went by age alone, so a call that failed to transcribe lost its audio too and
+    /// left an empty row behind: the conversation erased by the tidy-up meant to preserve it.
+    /// </summary>
+    [Fact]
+    public void ARecordingWithNoTranscriptIsNeverSweptAway()
+    {
+        var untranscribed = UntranscribedRecording(90);
+        var transcribed = Recording(90);
+
+        var sweepable = _repo.AudioToSweep(30).Select(c => c.Id).ToList();
+
+        Assert.Contains(transcribed, sweepable);
+        Assert.DoesNotContain(untranscribed, sweepable);
+    }
 
     /// <summary>
     /// Zero means forever, and it is the default. Getting this wrong deletes the archive of

@@ -90,6 +90,15 @@ public sealed class CallOrchestrator : IDisposable
 
     private CallRecorder? _recorder;
     private bool? _localTranscriptionUsable;
+
+    /// <summary>
+    /// Whether local transcription is known to work here — null until the first probe.
+    ///
+    /// Exposed so the status screen shows the route calls actually take. It used to assume
+    /// local, so on a machine that uploads every call to a cloud service the screen listing
+    /// "what leaves this machine" said nothing did.
+    /// </summary>
+    public bool? LocalTranscriptionUsable => _localTranscriptionUsable;
     private long? _currentCallId;
     private DateTimeOffset _callStartedAt;
 
@@ -274,9 +283,20 @@ public sealed class CallOrchestrator : IDisposable
         var settings = _settings();
         var sample = _sessions.Sample(DateTimeOffset.Now);
 
-        if (!IsWatched(sample.App, settings)) return;
-
+        // Every sample reaches the detector, including ones from an application the user has
+        // switched off.
+        //
+        // Dropping them here starved the state machine: a call already being recorded from a
+        // watched application could miss the very samples that would end it, because in between
+        // the other messenger made a noise and the whole poll was discarded. The per-app choice
+        // belongs where a recording is started, not on the observations.
         var callEvent = _detector.Observe(sample);
+
+        if (callEvent?.Kind == CallEventKind.Started && !IsWatched(callEvent.App, settings))
+        {
+            UpdateState();
+            return;
+        }
         UpdateState();
 
         // Handing the event over is a queue write and returns immediately. Everything that can
@@ -1157,7 +1177,11 @@ public sealed class CallOrchestrator : IDisposable
         try
         {
             var hello = await _worker().ProbeAsync(cancellationToken);
-            _localTranscriptionUsable = hello.Cuda?.Available == true;
+
+            // Usable, not Available. The count comes from the driver and is 1 on any machine with
+            // a working card, including one whose cuBLAS cannot load — which is the machine that
+            // then routes every call to the local engine and fails each one after it has ended.
+            _localTranscriptionUsable = hello.Cuda?.Usable == true;
         }
         catch (Exception)
         {
@@ -1284,9 +1308,41 @@ public sealed class CallOrchestrator : IDisposable
             Core.Audio.SilenceTrimmer.Apply(mic, mic + ".trim", cuts);
             Core.Audio.SilenceTrimmer.Apply(far, far + ".trim", cuts);
 
-            // Both written whole before either original is touched.
-            File.Move(mic + ".trim", mic, overwrite: true);
-            File.Move(far + ".trim", far, overwrite: true);
+            // Both written whole before either original is touched — and then swapped as one.
+            //
+            // Two independent moves left a window where the first had succeeded and the second
+            // had not. The microphone stream was trimmed and the speaker stream was not, so the
+            // two were offset against each other by the length of every silence removed — and
+            // since the timestamps were never shifted either, every line was now attributed to
+            // the wrong moment, and the next run trimmed the microphone a second time. The
+            // originals are kept aside until both replacements are in place, and put back if
+            // either fails.
+            var micOld = mic + ".old";
+            var farOld = far + ".old";
+
+            File.Move(mic, micOld, overwrite: true);
+            File.Move(far, farOld, overwrite: true);
+
+            try
+            {
+                File.Move(mic + ".trim", mic, overwrite: true);
+                File.Move(far + ".trim", far, overwrite: true);
+            }
+            catch
+            {
+                if (!File.Exists(mic) && File.Exists(micOld)) File.Move(micOld, mic);
+                else if (File.Exists(micOld)) File.Move(micOld, mic, overwrite: true);
+
+                if (File.Exists(farOld)) File.Move(farOld, far, overwrite: true);
+
+                foreach (var leftover in new[] { mic + ".trim", far + ".trim" })
+                    if (File.Exists(leftover)) File.Delete(leftover);
+
+                throw;
+            }
+
+            File.Delete(micOld);
+            File.Delete(farOld);
 
             // The mixed copy, if one was made, is on the old clock now. Deleted rather than
             // rebuilt: it is derived, and the next export rebuilds it from the trimmed streams.
@@ -1692,7 +1748,12 @@ public sealed class CallOrchestrator : IDisposable
         }
         catch (Exception e)
         {
-            Notice?.Invoke(this, $"Obsidian dışa aktarımı başarısız: {e.Message}");
+            // The exception message is not forwarded: it names the vault file, and the vault file
+            // is named after the person. Every Notice is written to a log the user is invited to
+            // send to somebody else, under a header promising it carries no contact names.
+            Notice?.Invoke(this,
+                $"Obsidian dışa aktarımı başarısız ({e.GetType().Name}). Kasa yolunu ve yazma " +
+                "iznini kontrol et.");
         }
     }
 

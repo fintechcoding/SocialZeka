@@ -330,7 +330,12 @@ public partial class App : Application
             $"· başlık {(finished.ObservedTitle is null ? "yok" : "var")}");
 
         var health = new ViewModels.HealthViewModel(
-            Paths, Repository, Setup, Hardware, () => Settings, WorkerDirectory);
+            Paths, Repository, Setup, Hardware, () => Settings, WorkerDirectory)
+        {
+            // "Başarısızları tekrar dene" set the rows to Queued and then nothing ran them until
+            // the next launch. The recorder owns the queue, so it is handed in from here.
+            Requeue = () => Orchestrator.ProcessBacklogAsync(),
+        };
 
         var shell = new ShellViewModel(Repository, Orchestrator, () => Settings, health, Paths);
 
@@ -627,7 +632,8 @@ public partial class App : Application
 
     private static void Notify(MainWindow window, string message)
     {
-        if (window.DataContext is ViewModels.ShellViewModel shell) shell.Notice = message;
+        if (window.DataContext is ViewModels.ShellViewModel shell)
+            shell.Post(message, Services.NoticeSeverity.Info);
     }
 
     /// <summary>Asks what windows WhatsApp, Telegram and Signal currently have, then quits.</summary>

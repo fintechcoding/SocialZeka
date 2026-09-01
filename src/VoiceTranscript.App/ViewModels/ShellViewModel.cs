@@ -89,7 +89,10 @@ public sealed partial class ShellViewModel : ObservableObject
         Calendar = new CalendarViewModel(repository);
         Contacts = new ContactsViewModel(repository);
         Processing = new ProcessingViewModel(repository, settings);
-        AiStatus = new AiStatusViewModel(settings, App.HttpClient, repository);
+        // The status screen is told the route the recorder really takes, rather than assuming
+        // local transcription works on this machine.
+        AiStatus = new AiStatusViewModel(
+            settings, App.HttpClient, repository, () => orchestrator.LocalTranscriptionUsable);
 
         // The service is fetched through a function rather than captured, because it is built
         // after the window exists — the startup check runs on a delay so it cannot hold up the
@@ -456,7 +459,10 @@ public sealed partial class ShellViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            Notice = $"Kayıt başlatılamadı: {e.Message}";
+            // Posted, not assigned. A direct write leaves NoticeSeverity at whatever the last
+            // message set, so a recording failure could appear in the green of the "Tamamlandı"
+            // that preceded it — the colour saying the opposite of the words.
+            Post($"Kayıt başlatılamadı: {e.Message}", Services.NoticeSeverity.Error);
             HasProblem = true;
         }
     }
@@ -470,7 +476,7 @@ public sealed partial class ShellViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            Notice = $"Kayıt durdurulamadı: {e.Message}";
+            Post($"Kayıt durdurulamadı: {e.Message}", Services.NoticeSeverity.Error);
         }
         finally
         {

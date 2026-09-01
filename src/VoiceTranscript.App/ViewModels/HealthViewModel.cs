@@ -79,6 +79,14 @@ public sealed partial class HealthItem : ObservableObject
 /// </summary>
 public sealed partial class HealthViewModel : ObservableObject
 {
+    /// <summary>
+    /// Starts processing whatever is queued. Wired by the application, which owns the recorder.
+    ///
+    /// "Başarısızları tekrar dene" set the rows to Queued and stopped there, so the message said
+    /// the work was under way while nothing would touch it until the next launch.
+    /// </summary>
+    public Func<Task>? Requeue { get; set; }
+
     private readonly AppPaths _paths;
     private readonly Repository _repository;
     private readonly EnvironmentSetup _setup;
@@ -323,13 +331,24 @@ public sealed partial class HealthViewModel : ObservableObject
 
         try
         {
+            var settings = _settings();
+
             using var backend = new WasapiCaptureBackend(
-            _settings().UseEchoCancellation,
-            _settings().MicrophoneDeviceId,
-            _settings().OutputDeviceId);
+                settings.UseEchoCancellation,
+                settings.MicrophoneDeviceId,
+                settings.OutputDeviceId);
+
             var result = await CaptureSelfTest.RunAsync(backend, TimeSpan.FromSeconds(5));
 
-            item.Detail = result.Summary;
+            // Honest about what was just tested. Per-application capture cannot be exercised
+            // outside a real call — it needs the messenger's process to follow — so this test
+            // can only ever speak for the device path. Saying "green" without saying which path
+            // let a configuration that never records at all pass its own check.
+            item.Detail = settings.PreferProcessLoopback
+                ? result.Summary +
+                  " (Cihaz yakalama sınandı. \"Uygulama bazlı yakalama\" yalnızca gerçek bir " +
+                  "arama sırasında sınanabilir — ilk aramadan sonra günlüğe bak.)"
+                : result.Summary;
             item.State = result is { MicrophoneWorks: true, LoopbackWorks: true }
                 ? HealthState.Good
                 : HealthState.Bad;
@@ -360,6 +379,11 @@ public sealed partial class HealthViewModel : ObservableObject
             : $"{failed.Count} kayıt yeniden kuyruğa alındı.";
 
         UpdateQueue();
+
+        // The queue is also started. Setting the rows to Queued and stopping there told the user
+        // the work was under way while nothing would touch it until the next launch — the same
+        // button on the overview does start the backlog, and this one has to as well.
+        if (failed.Count > 0 && Requeue is { } requeue) _ = requeue();
         Announce();
 
         return Task.CompletedTask;

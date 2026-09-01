@@ -300,7 +300,11 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     {
         switch (entry.Kind)
         {
-            case LedgerFilter.Overdue or LedgerFilter.Promises:
+            // MyPromises belongs here too. Own promises are rows in the same commitment table
+            // with the same SourceId, but they fell through to the default branch — so
+            // dismissing one left it on screen and answered with a sentence about changed
+            // figures, which has nothing to do with what was clicked.
+            case LedgerFilter.Overdue or LedgerFilter.Promises or LedgerFilter.MyPromises:
                 repository.DismissCommitment(entry.SourceId);
                 break;
 
@@ -326,7 +330,10 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     [RelayCommand]
     private void Fulfil(LedgerEntry entry)
     {
-        if (entry.Kind is not (LedgerFilter.Overdue or LedgerFilter.Promises)) return;
+        // Same table, same identifier — and "Tutuldu olarak işaretle" on your own promises was
+        // simply dead: the guard returned before doing anything and said nothing either.
+        if (entry.Kind is not (LedgerFilter.Overdue or LedgerFilter.Promises or LedgerFilter.MyPromises))
+            return;
 
         repository.FulfilCommitment(entry.SourceId);
 

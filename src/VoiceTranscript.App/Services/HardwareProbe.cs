@@ -160,8 +160,10 @@ public sealed class HardwareProbe(AppPaths paths, EnvironmentSetup setup, string
 
             report = report with
             {
-                CudaWorks = hello.Cuda?.Available == true,
-                CudaProblem = hello.Cuda?.Available == true
+                // Usable, not Available: the driver reports a card that cuBLAS cannot use, and
+                // the report then printed "CUDA: çalışıyor" over a measurement that had failed.
+                CudaWorks = hello.Cuda?.Usable == true,
+                CudaProblem = hello.Cuda?.Usable == true
                     ? null
                     : hello.Cuda?.MissingDlls is { Count: > 0 } missing
                         ? $"Eksik kitaplık: {string.Join(", ", missing)}"
