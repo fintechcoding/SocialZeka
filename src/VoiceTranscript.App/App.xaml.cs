@@ -179,6 +179,25 @@ public partial class App : Application
         // which is why changing it asks for a restart rather than pretending to apply live.
         Localisation.Use(Settings.UiLanguage);
 
+        // The culture follows the language, and until it did the interface lied in two tongues:
+        // every label said "30 Ağustos" was coming and the OS culture printed "30 August" —
+        // Turkish sentences with English month and day names on any English-locale Windows,
+        // which is exactly the machine this was seen on. Localisation.Use only swaps the string
+        // dictionary; dates, days and numbers are formatted by the thread culture, and WPF
+        // bindings by FrameworkElement.Language, so all three are pointed at the same place.
+        var culture = new System.Globalization.CultureInfo(
+            Settings.UiLanguage == "en" ? "en-US" : "tr-TR");
+
+        System.Globalization.CultureInfo.DefaultThreadCurrentCulture = culture;
+        System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = culture;
+        Thread.CurrentThread.CurrentCulture = culture;
+        Thread.CurrentThread.CurrentUICulture = culture;
+
+        FrameworkElement.LanguageProperty.OverrideMetadata(
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(
+                System.Windows.Markup.XmlLanguage.GetLanguage(culture.IetfLanguageTag)));
+
         // The data directory is logged first, and by name.
         //
         // Everything else in the log is about a database, a recording or a setting, and all three

@@ -465,4 +465,40 @@ public class CallDetectorTests
 
         Assert.Contains(events, e => e.Kind == CallEventKind.Started);
     }
+    /// <summary>
+    /// Direction is read off the ring: a speaker ringing over a closed microphone is
+    /// somebody calling us. The Direction column existed from the first schema and
+    /// nothing ever wrote it; the signal was in this state machine all along.
+    /// </summary>
+    [Fact]
+    public void AnIncomingCallIsMarkedIncoming()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+
+        // Ringtone plays, microphone closed: the ring of an incoming call.
+        Feed(detector, clock, 3, render: true, capture: false);
+        Assert.Equal(CallState.Ringing, detector.State);
+
+        // Answered: microphone opens.
+        var events = Feed(detector, clock, 5, render: true, capture: true);
+
+        var started = Assert.Single(events, e => e.Kind == CallEventKind.Started);
+        Assert.Equal(CallDirection.Incoming, started.Direction);
+    }
+
+    [Fact]
+    public void AnOutgoingCallIsMarkedOutgoing()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+
+        // Dialling: the messenger opens the microphone as it places the call, and the
+        // ringback tone plays over it. Every event is collected — Started fires as soon as
+        // the streaks are long enough, which can be inside the first batch.
+        var all = new List<CallEvent>(Feed(detector, clock, 8, render: true, capture: true));
+
+        var started = Assert.Single(all, e => e.Kind == CallEventKind.Started);
+        Assert.Equal(CallDirection.Outgoing, started.Direction);
+    }
 }

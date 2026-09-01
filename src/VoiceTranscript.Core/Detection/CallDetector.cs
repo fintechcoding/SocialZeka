@@ -77,12 +77,19 @@ public enum CallEventKind
     Abandoned,
 }
 
+/// <param name="Direction">
+/// Who called whom, read off the ring: an incoming call rings the speaker while the microphone
+/// is still closed, an outgoing one opens the microphone the moment dialling starts. Unknown
+/// when a call is first observed already in progress — a guess would be worse than an honest
+/// blank, in a product whose one rule is not asserting what it does not know.
+/// </param>
 public sealed record CallEvent(
     CallEventKind Kind,
     DateTimeOffset At,
     CallApp App,
     string? WindowTitle,
-    TimeSpan Duration);
+    TimeSpan Duration,
+    CallDirection Direction = CallDirection.Unknown);
 
 /// <summary>
 /// Turns a stream of audio-session observations into call start and end events.
@@ -199,15 +206,23 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
         State = CallState.Ringing;
         _ringingSince = sample.At;
 
+        // The direction is decided here and only here, while the ring is fresh: a speaker
+        // ringing over a closed microphone is somebody calling US; a microphone already open
+        // while the dial tone plays is us calling THEM.
+        _ringDirection = _captureStreak > 0 ? CallDirection.Outgoing : CallDirection.Incoming;
+
         // An answered call can be observed for the first time already in progress — after a
         // restart, or if the app was only just added to the watch list.
-        return _captureStreak >= _options.SamplesToAnswer ? EnterCall(sample) : null;
+        // Observed mid-call: no ring was seen, so no honest direction exists.
+        return _captureStreak >= _options.SamplesToAnswer
+            ? EnterCall(sample.At, sample, CallDirection.Unknown)
+            : null;
     }
 
     private CallEvent? FromRinging(DetectionSample sample)
     {
         if (_renderStreak >= 1 && _captureStreak >= _options.SamplesToAnswer)
-            return EnterCall(sample);
+            return EnterCall(sample.At, sample, _ringDirection);
 
         // Declined, missed, or cancelled: it never became a conversation.
         //
@@ -285,15 +300,17 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
         return null;
     }
 
-    private CallEvent EnterCall(DetectionSample sample)
+    private CallEvent EnterCall(DateTimeOffset at, DetectionSample sample, CallDirection direction)
     {
         State = CallState.InCall;
-        _callStartedAt = sample.At;
+        _callStartedAt = at;
         _sawCallWindow = sample.CallWindowPresent;
         _callWindowGoneStreak = 0;
 
-        return new CallEvent(CallEventKind.Started, sample.At, _app, _observedTitle, TimeSpan.Zero);
+        return new CallEvent(CallEventKind.Started, at, _app, _observedTitle, TimeSpan.Zero, direction);
     }
+
+    private CallDirection _ringDirection = CallDirection.Unknown;
 
     private CallEvent EndCall(DetectionSample sample)
     {
@@ -316,6 +333,7 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
         _quietSince = null;
         _callStartedAt = null;
         _ringingSince = null;
+        _ringDirection = CallDirection.Unknown;
         _observedTitle = null;
         _titleTrust = TitleTrust.None;
         _sawCallWindow = false;

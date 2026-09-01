@@ -83,6 +83,25 @@ public partial class SettingsWindow
     }
 
     /// <summary>
+    /// Opens the window on a named section — the other half of every message that says
+    /// "Ayarlar bölümünden…". A message that names the destination and a window that always
+    /// opens at the front door were, together, a broken promise.
+    /// </summary>
+    public void ShowSection(string tag)
+    {
+        var radio = tag switch
+        {
+            "Transcription" => NavTranscription,
+            "Analysis" => NavAnalysis,
+            "Data" => NavData,
+            "Export" => NavExport,
+            _ => NavRecording,
+        };
+
+        radio.IsChecked = true;
+    }
+
+    /// <summary>
     /// Last size the user made this window, kept for the session.
     ///
     /// Settings get opened repeatedly while tuning providers, and re-dragging the window larger

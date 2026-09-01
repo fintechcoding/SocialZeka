@@ -22,15 +22,6 @@ public enum ShellPage
     Contacts,
 
     /// <summary>
-    /// Conversations set aside to come back to.
-    ///
-    /// Its own page rather than a section of the first screen, because it is the one part of this
-    /// application a person arranges themselves — everything else is produced from the audio — and
-    /// arranging needs room.
-    /// </summary>
-
-
-    /// <summary>
     /// What has been processed, what has not, and what went wrong.
     ///
     /// Its own page rather than a strip on the first screen, because the question it answers —

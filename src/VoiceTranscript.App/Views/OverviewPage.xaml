@@ -216,6 +216,15 @@
                                     <ContextMenu>
                                         <MenuItem Header="Görüşmeyi aç" Click="RecentOpen_Click" />
                                         <MenuItem Header="Önemlilere ekle" Click="RecentToBoard_Click" />
+                                        <!-- A reminder from the conversation itself, one step:
+                                             onto the pile and dated. The system existed and had
+                                             no doorway anywhere a conversation is actually seen. -->
+                                        <MenuItem Header="Hatırlat">
+                                            <MenuItem Header="Yarın" Tag="1" Click="RecentRemind_Click" />
+                                            <MenuItem Header="3 gün sonra" Tag="3" Click="RecentRemind_Click" />
+                                            <MenuItem Header="1 hafta sonra" Tag="7" Click="RecentRemind_Click" />
+                                            <MenuItem Header="1 ay sonra" Tag="30" Click="RecentRemind_Click" />
+                                        </MenuItem>
                                     </ContextMenu>
                                 </Border.ContextMenu>
                                 <Grid>
@@ -246,9 +255,33 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <Border Grid.Column="2" Style="{StaticResource Pill}" Margin="10,0">
-                                        <TextBlock Style="{StaticResource PillText}" Text="{Binding AppName}" />
-                                    </Border>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0"
+                                                VerticalAlignment="Center">
+                                        <!-- The user's labels, where they first look. A call
+                                             marked "tehdit" that only shows it three screens
+                                             deep is a label that does not work. -->
+                                        <ItemsControl ItemsSource="{Binding Tags}" VerticalAlignment="Center"
+                                                      Visibility="{Binding HasTags, Converter={StaticResource BoolToVisibility}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Style="{StaticResource Pill}" Margin="0,0,6,0"
+                                                            Background="{Binding Converter={StaticResource NameBrush}}">
+                                                        <TextBlock Style="{StaticResource PillText}"
+                                                                   Foreground="White" Text="{Binding}" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <Border Style="{StaticResource Pill}">
+                                            <TextBlock Style="{StaticResource PillText}" Text="{Binding AppName}" />
+                                        </Border>
+                                    </StackPanel>
 
                                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                                         <ui:ProgressRing IsIndeterminate="True" Width="14" Height="14"
@@ -363,7 +396,7 @@
                         Background="{DynamicResource LayerFillColorDefaultBrush}"
                         DragOver="BoardPanel_DragOver" Drop="BoardPanel_Drop"
                         DragLeave="BoardPanel_DragLeave">
-                  <Grid>
+                  <Grid x:Name="BoardInner">
 
                     <!-- Where the drag would land, drawn while it is still in the air. The card
                          visibly settles either way; the line spares the small surprise of it
@@ -486,7 +519,23 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="Bugün">
+            <TabItem>
+                <!-- The count on the tab itself: a due reminder must be visible from the other
+                     tab too, or "Bugün" is a door that never says whether anything is behind it. -->
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Bugün" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource CountPill}" Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding DataContext.HasDue,
+                                             RelativeSource={RelativeSource AncestorType=UserControl},
+                                             Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{Binding DataContext.Due.Count,
+                                              RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                 <ItemsControl ItemsSource="{Binding Due}"
@@ -508,25 +557,51 @@
 
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding Lane}" Style="{StaticResource Caption}"
+                                        <TextBlock Text="{Binding When}" Style="{StaticResource Caption}"
                                                    Margin="0,2,0,0" />
                                     </StackPanel>
 
-                                    <TextBlock Grid.Column="2" Text="{Binding When}" VerticalAlignment="Center"
-                                               Style="{StaticResource Caption}" />
+                                    <!-- The reminder's own verb. A due card with no way to say
+                                         "done" just rings forever; this clears the reminder and
+                                         leaves the card on the pile. -->
+                                    <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6,4"
+                                               VerticalAlignment="Center" ToolTip="Tamamlandı — hatırlatmayı kapat"
+                                               Click="DueDone_Click">
+                                        <ui:SymbolIcon Symbol="Checkmark24" FontSize="14" />
+                                    </ui:Button>
                                 </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
+                        <!-- Birthdays within the week — every date typed by the user on a
+                             profile; the application infers none of them. Absent entirely
+                             until one is near: a permanently empty birthday box would be the
+                             application talking to hear itself. -->
+                        <StackPanel Margin="4,12,4,0"
+                                    Visibility="{Binding HasBirthdays, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="Yaklaşan doğum günleri" Style="{StaticResource GroupHeader}" />
+                            <ItemsControl ItemsSource="{Binding Birthdays}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="2,4">
+                                            <TextBlock Text="🎂" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding}" VerticalAlignment="Center"
+                                                       FontSize="{StaticResource TextSecondary}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
                         <StackPanel Margin="8,24" HorizontalAlignment="Center"
-                                    Visibility="{Binding HasDue, Converter={StaticResource InverseBoolToVisibility}}">
+                                    Visibility="{Binding TodayIsEmpty, Converter={StaticResource BoolToVisibility}}">
                             <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="28" HorizontalAlignment="Center"
                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                             <TextBlock Style="{StaticResource Secondary}" Margin="0,8,0,0" TextWrapping="Wrap"
                                        TextAlignment="Center"
-                                       Text="Bugün için hatırlatma yok. Bir karta sağ tıklayıp 'Hatırlat' diyebilirsin." />
+                                       Text="Bugün için hatırlatma yok. Bir görüşmeye ya da karta sağ tıklayıp 'Hatırlat' diyebilirsin." />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

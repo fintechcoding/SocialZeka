@@ -38,7 +38,7 @@
             <!-- Category rail, matching the shape of Windows 11 Settings. -->
             <StackPanel Grid.Column="0" Margin="12,4,0,12">
                 <RadioButton GroupName="Cat" IsChecked="True" Style="{StaticResource NavButton}"
-                             Checked="Category_Checked" Tag="Recording">
+                             x:Name="NavRecording" Checked="Category_Checked" Tag="Recording">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Record24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
                         <TextBlock Text="{loc:T settingswindow.kayit}" VerticalAlignment="Center" />
@@ -46,7 +46,7 @@
                 </RadioButton>
 
                 <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
-                             Checked="Category_Checked" Tag="Transcription">
+                             x:Name="NavTranscription" Checked="Category_Checked" Tag="Transcription">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="DocumentText24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
                         <TextBlock Text="{loc:T settingswindow.yaziya-dokme}" VerticalAlignment="Center" />
@@ -54,7 +54,7 @@
                 </RadioButton>
 
                 <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
-                             Checked="Category_Checked" Tag="Analysis">
+                             x:Name="NavAnalysis" Checked="Category_Checked" Tag="Analysis">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Sparkle24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
                         <TextBlock Text="{loc:T settingswindow.cozumleme}" VerticalAlignment="Center" />
@@ -62,7 +62,7 @@
                 </RadioButton>
 
                 <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
-                             Checked="Category_Checked" Tag="Data">
+                             x:Name="NavData" Checked="Category_Checked" Tag="Data">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Folder24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
                         <TextBlock Text="{loc:T settingswindow.veriler}" VerticalAlignment="Center" />
@@ -70,7 +70,7 @@
                 </RadioButton>
 
                 <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
-                             Checked="Category_Checked" Tag="Export">
+                             x:Name="NavExport" Checked="Category_Checked" Tag="Export">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Save24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
                         <TextBlock Text="{loc:T settingswindow.disa-aktarma}" VerticalAlignment="Center" />

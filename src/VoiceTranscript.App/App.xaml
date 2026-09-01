@@ -41,6 +41,7 @@
             <local:HealthHeadlineConverter x:Key="HealthHeadline" />
             <local:PhotoConverter x:Key="Photo" />
             <local:EqualToVisibilityConverter x:Key="EqualToVisibility" />
+            <local:FilterToAppearanceConverter x:Key="FilterAppearance" />
 
         </ResourceDictionary>
     </Application.Resources>

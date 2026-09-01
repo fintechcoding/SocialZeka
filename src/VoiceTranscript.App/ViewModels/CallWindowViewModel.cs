@@ -26,7 +26,22 @@ public sealed partial class ChatTurn(
     /// <summary>Whisper was unsure. Marked rather than hidden — an uncertain line is still evidence.</summary>
     public bool LowConfidence { get; } = lowConfidence;
 
-    public string Time => TimeSpan.FromMilliseconds(StartMs).ToString(@"mm\:ss");
+    /// <summary>
+    /// Hour-aware on purpose: "mm\:ss" silently drops the hour, so on the long calls this
+    /// product explicitly supports, a line spoken at 1:05:00 claimed to be at 05:00 — a wrong
+    /// timestamp under a verbatim quote, which is the one lie this product must never tell.
+    /// </summary>
+    public string Time
+    {
+        get
+        {
+            var t = TimeSpan.FromMilliseconds(StartMs);
+
+            return t.TotalHours >= 1
+                ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
+                : $"{t.Minutes:00}:{t.Seconds:00}";
+        }
+    }
 
     /// <summary>Highlighted while the player is inside this turn.</summary>
     [ObservableProperty] private bool _isCurrent;
@@ -234,7 +249,13 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         Title = contact ?? "İsimsiz";
         Subtitle = $"{call.StartedAt.ToLocalTime():d MMMM yyyy, HH:mm} · "
-                   + $"{(int)call.Duration.TotalMinutes:00}:{call.Duration.Seconds:00} · {call.App}";
+                   + $"{(int)call.Duration.TotalMinutes:00}:{call.Duration.Seconds:00} · {call.App}"
+                   + (call.Direction switch
+                   {
+                       CallDirection.Incoming => " · ↓ gelen arama",
+                       CallDirection.Outgoing => " · ↑ giden arama",
+                       _ => "", // observed mid-call: an honest blank beats a guess
+                   });
 
         var segments = _repository.GetSegments(CallId);
 
@@ -255,6 +276,23 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
                 ? "Bu görüşme yazıya dökülemedi. İşlem durumu ekranından yeniden denenebilir."
                 : "Bu görüşme henüz yazıya dökülmedi."
             : null;
+
+        // The failure strip and this message are the same fact twice; when the strip is up, one
+        // voice is enough.
+        if (WorkFailure is not null) TranscriptMessage = null;
+
+        // A window opened onto a recording that is already queued or being worked on shows the
+        // live strip from the first frame — the state field knew, and the strip did not.
+        if (call.State is ProcessingState.Queued or ProcessingState.Recorded)
+        {
+            MarkQueued();
+        }
+        else if (call.State is ProcessingState.Transcribing or ProcessingState.Analysing)
+        {
+            IsWorking = true;
+            WorkStage = call.State == ProcessingState.Transcribing ? "Yazıya dökülüyor" : "Çözümleniyor";
+            WorkIsIndeterminate = true;
+        }
 
         Summary = _repository.GetSummary(CallId)?.Summary;
 
@@ -282,9 +320,33 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasSummary));
         OnPropertyChanged(nameof(HasLedger));
         OnPropertyChanged(nameof(HasTurns));
+        OnPropertyChanged(nameof(HasAnalysis));
 
-        _ = Playback.LoadAsync(call.MicPath, call.FarPath, call.Duration);
+        // The player reloads only when its audio actually changed. Load() also runs when a
+        // re-analysis finishes, and reloading then stopped whatever the user was listening to at
+        // that exact moment — playback yanked to zero by an event they did not cause. Same
+        // paths + same duration (trimming changes the second) means the sound is the same sound.
+        if (call.MicPath != _loadedMic || call.FarPath != _loadedFar
+            || call.Duration != _loadedDuration || !Playback.IsLoaded)
+        {
+            _loadedMic = call.MicPath;
+            _loadedFar = call.FarPath;
+            _loadedDuration = call.Duration;
+
+            _ = Playback.LoadAsync(call.MicPath, call.FarPath, call.Duration);
+        }
     }
+
+    private string? _loadedMic;
+    private string? _loadedFar;
+    private TimeSpan _loadedDuration;
+
+    /// <summary>
+    /// Whether any analysis has ever produced anything here — the "Çözümle" invitation shows
+    /// only when this is false. It used to key on the ledger alone, so a call whose analysis
+    /// produced a summary and no entries showed the invitation and the empty-state at once.
+    /// </summary>
+    public bool HasAnalysis => HasSummary || HasLedger;
 
     /// <summary>
     /// Says what produced this text and how sure it was.
@@ -314,7 +376,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         if (_repository.LastRun(CallId, ProcessingStage.Transcribe) is { } run)
         {
-            parts.Add(run.Engine);
+            parts.Add(Core.Asr.AsrCatalog.DisplayFor(run.Engine));
 
             if (run.SpeedFactor is { } speed) parts.Add($"gerçek zamanın {speed:0.#} katı");
         }

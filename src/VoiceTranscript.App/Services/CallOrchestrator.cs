@@ -593,6 +593,7 @@ public sealed class CallOrchestrator : IDisposable
                 App = callEvent.App,
                 StartedAt = callEvent.At,
                 State = ProcessingState.Recorded,
+                Direction = callEvent.Direction,
                 ObservedTitle = callEvent.WindowTitle,
             });
 

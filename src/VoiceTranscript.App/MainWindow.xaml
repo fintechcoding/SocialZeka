@@ -13,7 +13,7 @@
                  Title="{loc:T mainwindow.voicetranscript}"
                  Icon="pack://application:,,,/VoiceTranscript;component/icon.ico"
                  Width="1320" Height="880"
-                 MinWidth="1060" MinHeight="680"
+                 MinWidth="1200" MinHeight="680"
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica">
@@ -364,7 +364,6 @@
                     <MenuItem x:Name="AutoRecordItem" Header="{loc:T mainwindow.otomatik-kayit}" IsCheckable="True"
                               Click="ToggleAutoRecord_Click" />
 
-                    <Separator />
                     <Separator />
                     <MenuItem Header="{loc:T mainwindow.cikis}" Click="Exit_Click" />
                 </ContextMenu>

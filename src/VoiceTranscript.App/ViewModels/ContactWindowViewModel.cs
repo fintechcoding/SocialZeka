@@ -13,7 +13,13 @@ public sealed record ContactCall(
 {
     public long Id => Call.Id;
 
-    public string When => Call.StartedAt.ToLocalTime().ToString("d MMMM yyyy, HH:mm");
+    public string When => Call.StartedAt.ToLocalTime().ToString("d MMMM yyyy, HH:mm")
+        + (Call.Direction switch
+        {
+            CallDirection.Incoming => "  ↓",
+            CallDirection.Outgoing => "  ↑",
+            _ => "",
+        });
 
     /// <summary>The month heading this row sits under. Months, because a person talked with for
     /// years produces a list where day headings would outnumber the rows.</summary>
@@ -50,8 +56,21 @@ public sealed record ContactHit(SearchHit Hit)
     public bool IsMe => Hit.IsMe;
     public string Speaker => Hit.IsMe ? "Ben" : "Karşı taraf";
 
-    public string When =>
-        $"{Hit.CallStartedAt.ToLocalTime():d MMM yyyy} · {TimeSpan.FromMilliseconds(Hit.StartMs):mm\\:ss}";
+    public string When
+    {
+        get
+        {
+            // Hour-aware: "mm\:ss" drops the hour, and a match at minute 65 must not claim
+            // to be at minute 5 — the timestamp is what makes the hit playable evidence.
+            var t = TimeSpan.FromMilliseconds(Hit.StartMs);
+
+            var position = t.TotalHours >= 1
+                ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
+                : $"{t.Minutes:00}:{t.Seconds:00}";
+
+            return $"{Hit.CallStartedAt.ToLocalTime():d MMM yyyy} · {position}";
+        }
+    }
 }
 
 /// <summary>
@@ -193,7 +212,11 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         var profile = _repository.GetProfile(ContactId);
 
         PhotoPath = Services.ContactPhotoStore.PathFor(profile?.PhotoFile, _photosDirectory);
+
+        _loadingProfile = true;
         BirthDatePick = profile?.BirthDate?.ToDateTime(TimeOnly.MinValue);
+        _loadingProfile = false;
+
         BirthdayLine = BirthdayLineFor(profile?.BirthDate, DateOnly.FromDateTime(DateTime.Today));
 
         Fields.Clear();
@@ -227,35 +250,146 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         return line;
     }
 
+    // ---- the filter bar -----------------------------------------------------
+    //
+    // Built for the person this window exists for: months of conversations with one contact.
+    // Every filter answers a question that archive actually gets asked — when was it, did it
+    // get analysed, what did I label it, was it a long one, did I write anything on it — and
+    // they compose, because "geçen ayki, 'tehdit' etiketli, uzun görüşme" is one question.
+
+    [ObservableProperty] private DateTime? _filterFrom;
+    [ObservableProperty] private DateTime? _filterTo;
+    [ObservableProperty] private string _stateFilter = AllStates;
+    [ObservableProperty] private int _minMinutes;
+    [ObservableProperty] private bool _onlyNoted;
+    [ObservableProperty] private string _sortOrder = SortNewest;
+
+    public const string AllStates = "Hepsi";
+    public const string SortNewest = "Yeni → eski";
+    public const string SortOldest = "Eski → yeni";
+    public const string SortLongest = "En uzun";
+
+    public IReadOnlyList<string> StateChoices { get; } =
+        [AllStates, "Çözümlenmiş", "Çözümlenmemiş", "Başarısız"];
+
+    public IReadOnlyList<string> SortChoices { get; } = [SortNewest, SortOldest, SortLongest];
+
+    /// <summary>One line saying what the list is currently NOT showing — a silent filter is a
+    /// list that looks like data loss.</summary>
+    public bool FiltersActive =>
+        FilterFrom is not null || FilterTo is not null || StateFilter != AllStates
+        || MinMinutes > 0 || OnlyNoted || TagFilter != AllTags;
+
+    [RelayCommand]
+    private void ResetFilters()
+    {
+        _reloading = true;
+        FilterFrom = null;
+        FilterTo = null;
+        StateFilter = AllStates;
+        MinMinutes = 0;
+        OnlyNoted = false;
+        TagFilter = AllTags;
+        SortOrder = SortNewest;
+        _reloading = false;
+
+        LoadCalls();
+    }
+
+    partial void OnFilterFromChanged(DateTime? value) => LoadCalls();
+    partial void OnFilterToChanged(DateTime? value) => LoadCalls();
+    partial void OnStateFilterChanged(string value) => LoadCalls();
+    partial void OnMinMinutesChanged(int value) => LoadCalls();
+    partial void OnOnlyNotedChanged(bool value) => LoadCalls();
+    partial void OnSortOrderChanged(string value) => LoadCalls();
+    partial void OnTagFilterChanged(string value) => LoadCalls();
+
+    /// <summary>
+    /// Guards LoadCalls against its own side effects. Clearing TagChoices while the ComboBox's
+    /// SelectedItem is bound makes WPF push null into TagFilter synchronously, which re-entered
+    /// LoadCalls mid-rebuild and filtered every row out — the list emptied itself the moment it
+    /// refreshed. The guard makes the rebuild atomic from the bindings' point of view.
+    /// </summary>
+    private bool _reloading;
+
     private void LoadCalls()
+    {
+        if (_reloading) return;
+
+        _reloading = true;
+        try
+        {
+            LoadCallsCore();
+        }
+        finally
+        {
+            _reloading = false;
+        }
+
+        OnPropertyChanged(nameof(FiltersActive));
+    }
+
+    private void LoadCallsCore()
     {
         var calls = _repository.ListCalls(ContactId, limit: 200);
 
-        // One query for the notes, one for the ledger, one for the tags, then grouped here.
-        // A query per row would be two hundred round trips every time the window opens.
-        var withNotes = _repository.CallsWithNotes(calls.Select(c => c.Id));
-        var tags = _repository.TagsOf(calls.Select(c => c.Id));
+        // Batched: one query each for notes, tags and segment counts. A query per row would be
+        // two hundred round trips every time the window opens.
+        var ids = calls.Select(c => c.Id).ToList();
+        var withNotes = _repository.CallsWithNotes(ids);
+        var tags = _repository.TagsOf(ids);
+        var segmentCounts = _repository.SegmentCounts(ids);
 
-        var ledger = _repository.GetFlags(ContactId)
-            .GroupBy(f => f.CallId)
-            .ToDictionary(g => g.Key, g => g.Count());
+        // "N defter kaydı" counts everything the ledger holds for the call — commitments,
+        // claims AND flags. It used to count flags alone, so a call with three commitments and
+        // no flags wore no badge at all: a promise the row didn't keep.
+        var ledger = new Dictionary<long, int>();
+
+        void Bump(long callId) => ledger[callId] = ledger.GetValueOrDefault(callId) + 1;
+
+        foreach (var f in _repository.GetFlags(ContactId)) Bump(f.CallId);
+        foreach (var c in _repository.GetOpenCommitments(ContactId)) Bump(c.CallId);
+        foreach (var c in _repository.GetAllClaims(ContactId)) Bump(c.CallId);
+
+        var wanted = TagFilter ?? AllTags;
+
+        var filtered = calls.Where(call =>
+        {
+            if (FilterFrom is { } from && call.StartedAt.ToLocalTime().Date < from.Date) return false;
+            if (FilterTo is { } to && call.StartedAt.ToLocalTime().Date > to.Date) return false;
+
+            if (MinMinutes > 0 && call.Duration.TotalMinutes < MinMinutes) return false;
+
+            if (OnlyNoted && !withNotes.Contains(call.Id)) return false;
+
+            if (wanted != AllTags && !tags.GetValueOrDefault(call.Id, []).Contains(wanted)) return false;
+
+            return StateFilter switch
+            {
+                "Çözümlenmiş" => call.State == ProcessingState.Analysed,
+                "Çözümlenmemiş" => call.State == ProcessingState.Transcribed,
+                "Başarısız" => call.State == ProcessingState.Failed,
+                _ => true,
+            };
+        });
+
+        filtered = SortOrder switch
+        {
+            SortOldest => filtered.OrderBy(c => c.StartedAt),
+            SortLongest => filtered.OrderByDescending(c => c.Duration),
+            _ => filtered.OrderByDescending(c => c.StartedAt),
+        };
 
         Calls.Clear();
 
-        var wanted = TagFilter;
-
-        foreach (var call in calls)
+        foreach (var call in filtered)
         {
-            var callTags = tags.GetValueOrDefault(call.Id, []);
-
-            if (wanted != AllTags && !callTags.Contains(wanted)) continue;
-
             Calls.Add(new ContactCall(
                 call,
-                _repository.CountSegments(call.Id),
+                segmentCounts.GetValueOrDefault(call.Id),
                 withNotes.Contains(call.Id),
                 ledger.GetValueOrDefault(call.Id),
-                callTags));
+                tags.GetValueOrDefault(call.Id, [])));
         }
 
         // The filter list holds what this person's conversations actually carry — offering the
@@ -266,8 +400,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         TagChoices.Add(AllTags);
         foreach (var tag in choices) TagChoices.Add(tag);
 
-        // Written to the field on purpose: going through the property would re-enter LoadCalls.
-        if (!TagChoices.Contains(TagFilter))
+        if (!TagChoices.Contains(TagFilter ?? ""))
         {
 #pragma warning disable MVVMTK0034
             _tagFilter = AllTags;
@@ -277,8 +410,6 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
         OnPropertyChanged(nameof(HasCalls));
     }
-
-    partial void OnTagFilterChanged(string value) => LoadCalls();
 
     private void LoadLedger()
     {
@@ -388,10 +519,17 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
     partial void OnBirthDatePickChanged(DateTime? value)
     {
-        _repository.SetBirthDate(ContactId, value is { } day ? DateOnly.FromDateTime(day) : null);
+        // The load guard matters here: LoadProfile sets this property from the database, and
+        // without the guard every window-open wrote the value straight back — a needless write
+        // that also stamped updated_at as though the user had edited something.
+        if (!_loadingProfile)
+            _repository.SetBirthDate(ContactId, value is { } day ? DateOnly.FromDateTime(day) : null);
+
         BirthdayLine = BirthdayLineFor(
             value is { } d ? DateOnly.FromDateTime(d) : null, DateOnly.FromDateTime(DateTime.Today));
     }
+
+    private bool _loadingProfile;
 
     [RelayCommand]
     private void AddField()

@@ -291,6 +291,41 @@ public static class AsrCatalog
     /// <summary>Models that can produce a usable transcript without a CUDA device.</summary>
     public static IEnumerable<AsrModel> CpuCapable => All.Where(m => m.RunsOnCpu);
 
+    /// <summary>
+    /// The human name for whatever identifier a run recorded.
+    ///
+    /// Usage rows store what the worker reported — "cloud-openai", "large-v3", a model reference
+    /// — and for a while the screens printed those raw. A usage panel reading "cloud-openai ·
+    /// 19.2×" is the plumbing showing through the wallpaper; the user met it and said so. One
+    /// mapper, used by every screen, falling back to the raw string for anything it has never
+    /// heard of — an unknown name is still better shown than hidden.
+    /// </summary>
+    public static string DisplayFor(string? engineOrRef)
+    {
+        if (string.IsNullOrWhiteSpace(engineOrRef)) return "bilinmiyor";
+
+        var value = engineOrRef.Trim();
+
+        // Worker engine names first: they are what RecordRun mostly stored.
+        if (value.Equals("cloud-openai", StringComparison.OrdinalIgnoreCase))
+            return "OpenAI Whisper API";
+        if (value.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase))
+            return "Whisper (yerel)";
+        if (value.Equals("whisper-cpp", StringComparison.OrdinalIgnoreCase))
+            return "whisper.cpp (yerel)";
+
+        foreach (var model in All)
+        {
+            if (value.Equals(model.Id, StringComparison.OrdinalIgnoreCase)
+                || value.Equals(model.ModelRef, StringComparison.OrdinalIgnoreCase))
+            {
+                return model.DisplayName;
+            }
+        }
+
+        return value;
+    }
+
     /// <summary>Models whose weights plus runtime overhead plausibly fit the given VRAM budget.</summary>
     public static IEnumerable<AsrModel> FittingIn(double vramGb) =>
         All.Where(m => m.RunsOnCpu || m.VramGb <= vramGb);

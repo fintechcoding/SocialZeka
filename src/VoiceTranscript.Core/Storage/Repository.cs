@@ -661,10 +661,17 @@ public sealed class Repository(Database database)
         int limit = 100,
         long? contactId = null,
         bool? isMe = null,
-        DateTimeOffset? since = null)
+        DateTimeOffset? since = null,
+        string? tag = null)
     {
         var match = TurkishText.ToMatchQuery(query);
         if (match.Length == 0) return [];
+
+        // The tag filter narrows to conversations the USER labelled — the one filter here whose
+        // vocabulary is theirs rather than the transcript's.
+        var tagFolded = string.IsNullOrWhiteSpace(tag)
+            ? null
+            : TurkishText.NormalizeForSearch(tag.Trim());
 
         using var connection = Open();
 
@@ -686,6 +693,9 @@ public sealed class Repository(Database database)
               AND (@contactId IS NULL OR c.contact_id = @contactId)
               AND (@isMe      IS NULL OR s.is_me      = @isMe)
               AND (@since     IS NULL OR c.started_at >= @since)
+              AND (@tagFolded IS NULL OR EXISTS (
+                  SELECT 1 FROM call_tag t
+                  WHERE t.call_id = c.id AND t.tag_folded = @tagFolded))
             ORDER BY rank
             LIMIT @limit;
             """,
@@ -696,6 +706,7 @@ public sealed class Repository(Database database)
                 contactId,
                 isMe = isMe is null ? (int?)null : isMe.Value ? 1 : 0,
                 since = since is { } s ? Iso(s) : null,
+                tagFolded,
             })
             .Select(r => r.ToModel())];
     }
@@ -1426,6 +1437,24 @@ public sealed class Repository(Database database)
         }
 
         return [.. upcoming.OrderBy(u => u.Item4)];
+    }
+
+    /// <summary>
+    /// Segment counts for many conversations in one query — the batch the contact window's own
+    /// comment promised while its loop was quietly making one round trip per row.
+    /// </summary>
+    public IReadOnlyDictionary<long, int> SegmentCounts(IEnumerable<long> callIds)
+    {
+        var ids = callIds.Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<long, int>();
+
+        using var connection = Open();
+
+        return connection
+            .Query<(long CallId, int Count)>(
+                "SELECT call_id, COUNT(*) FROM segment WHERE call_id IN @ids GROUP BY call_id;",
+                new { ids })
+            .ToDictionary(r => r.CallId, r => r.Count);
     }
 
     // ---- tags ---------------------------------------------------------------

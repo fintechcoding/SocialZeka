@@ -99,17 +99,38 @@ public sealed record ProcessingRow(Call Call, string ContactName, int SegmentCou
     public bool IsWaiting => Call.State is ProcessingState.Recorded or ProcessingState.Queued;
 
     /// <summary>
-    /// Why it failed, in words rather than in a stack trace.
-    ///
-    /// The raw reason is kept in the database and shown as the tooltip, because the translated
-    /// version has to be short enough to fit in a list and the original is what actually says
-    /// which library is missing.
+    /// Why it failed, in words rather than in a stack trace. Only for real failures — guidance
+    /// has its own, calmer row below.
     /// </summary>
-    public string? Failure => Call.State == ProcessingState.Failed
+    public string? Failure => IsFailed && !IsGuidanceFailure
         ? Core.Asr.FailureText.Summarise(Call.FailureReason)
         : null;
 
-    public string? RawFailure => Call.FailureReason;
+    /// <summary>
+    /// A "failure" that is actually the application pointing at a setting — "yapılandırılmış
+    /// bir servis yok, Ayarlar bölümünden…". A real user read this in red under "Hatanın
+    /// tamamı" and concluded the product was broken; it gets an info look and a button to the
+    /// section it names instead.
+    /// </summary>
+    public bool IsGuidanceFailure => IsFailed && Core.Asr.FailureText.IsGuidance(Call.FailureReason);
+
+    public string? GuidanceText => IsGuidanceFailure
+        ? Core.Asr.FailureText.Summarise(Call.FailureReason)
+        : null;
+
+    /// <summary>
+    /// Status written onto a call that did NOT fail — "çözümleme yapılmadı, servis yok" on a
+    /// Transcribed row. Information, and dressed as such: it used to wear the failure red.
+    /// </summary>
+    public string? StateNote => !IsFailed && !string.IsNullOrWhiteSpace(Call.FailureReason)
+        ? Core.Asr.FailureText.Summarise(Call.FailureReason)
+        : null;
+
+    /// <summary>The expander earns its place only when there is more than the summary line.</summary>
+    public string? RawFailure =>
+        IsFailed && !IsGuidanceFailure && Core.Asr.FailureText.HasDetail(Call.FailureReason)
+            ? Call.FailureReason
+            : null;
 
     /// <summary>True when the audio is still on disk, so retrying is possible at all.</summary>
     public bool HasAudio => !string.IsNullOrWhiteSpace(Call.MicPath) || !string.IsNullOrWhiteSpace(Call.FarPath);
@@ -165,9 +186,13 @@ public sealed partial class ProcessingViewModel(
     [ObservableProperty] private TranscriptFilter _transcriptFilter = TranscriptFilter.Unfinished;
     [ObservableProperty] private AnalyseFilter _analyseFilter = AnalyseFilter.Unanalysed;
 
+    // The four counters, aligned with the two tabs. They used to be transcription-flavoured
+    // regardless of what was on screen: "başarısız" summed both kinds of failure and said which
+    // tab to look in about neither, and "metni yok" counted recordings that were merely waiting
+    // their turn. A counter that cannot tell you where to click is a decoration.
     [ObservableProperty] private int _waitingCount;
-    [ObservableProperty] private int _failedCount;
-    [ObservableProperty] private int _withoutTranscriptCount;
+    [ObservableProperty] private int _transcriptFailedCount;
+    [ObservableProperty] private int _unanalysedCount;
     [ObservableProperty] private int _readyCount;
 
     [ObservableProperty] private string? _notice;
@@ -268,8 +293,9 @@ public sealed partial class ProcessingViewModel(
             .ToList();
 
         WaitingCount = rows.Count(r => r.IsWaiting || r.IsWorking);
-        FailedCount = rows.Count(r => r.IsFailed);
-        WithoutTranscriptCount = rows.Count(r => !r.HasTranscript && r.Call.State != ProcessingState.Skipped);
+        TranscriptFailedCount = rows.Count(r => r.TranscriptFailed);
+        UnanalysedCount = rows.Count(r =>
+            r.HasTranscript && (r.Call.State == ProcessingState.Transcribed || r.AnalysisFailed));
         ReadyCount = rows.Count(r => r.Call.State == ProcessingState.Analysed);
 
         // Two tabs, two questions. A call with no text is transcription's business even when its

@@ -132,7 +132,32 @@ public partial class ContactWindow
 
     private void RemoveField_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is Core.Domain.ContactField field)
-            ViewModel?.RemoveField(field);
+        if ((sender as FrameworkElement)?.DataContext is not Core.Domain.ContactField field) return;
+
+        // One click used to be a permanent DELETE. A fact the user typed deserves at least the
+        // one-sentence pause every other destructive action in this product gets.
+        var answer = MessageBox.Show(
+            $"\"{field.Label}: {field.Value}\" silinsin mi?",
+            "Bilgiyi sil", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+        if (answer == MessageBoxResult.Yes) ViewModel?.RemoveField(field);
+    }
+
+    /// <summary>Onto the important pile, from this person's own history.</summary>
+    private void RowToBoard_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ContactCall row) return;
+
+        App.Repository.PutOnBoard(row.Id, Core.Domain.BoardLane.ToLookAt);
+    }
+
+    /// <summary>A reminder in one step: onto the pile if needed, and dated.</summary>
+    private void RowRemind_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ContactCall row) return;
+        if ((sender as FrameworkElement)?.Tag is not string tag || !int.TryParse(tag, out var days)) return;
+
+        App.Repository.PutOnBoard(row.Id, Core.Domain.BoardLane.ToLookAt);
+        App.Repository.RemindOn(row.Id, DateOnly.FromDateTime(DateTime.Today).AddDays(days));
     }
 }

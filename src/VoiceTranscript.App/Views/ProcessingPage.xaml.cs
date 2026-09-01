@@ -89,6 +89,49 @@ public partial class ProcessingPage
     private void StopCurrent_Click(object sender, RoutedEventArgs e)
         => App.Orchestrator?.StopCurrent();
 
+    /// <summary>Re-analyses one row straight from its text — the analysis tab's whole point.</summary>
+    private void ReanalyseRow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: ProcessingRow row }) return;
+
+        ViewModel?.Requeue([row], new ReprocessRequest([], null, null, AnalyseOnly: true));
+    }
+
+    /// <summary>The button inside a guidance note: straight to the section the note names.</summary>
+    private void RowOpenSettings_Click(object sender, RoutedEventArgs e)
+    {
+        // Guidance on these rows is about services — transcription or analysis. Analysis is the
+        // overwhelmingly common case ("çalışan bir yapay zekâ servisi yok"), and landing one
+        // section over is still a hundred times better than landing at the front door.
+        var section = (sender as FrameworkElement)?.DataContext is ProcessingRow { HasTranscript: true }
+            ? "Analysis"
+            : "Transcription";
+
+        (Window.GetWindow(this) as MainWindow)?.OpenSettings(section);
+    }
+
+    // ---- the counters as doors ----------------------------------------------
+
+    private void Go(int tab, Action<ProcessingViewModel> filter)
+    {
+        if (ViewModel is not { } model) return;
+
+        Tabs.SelectedIndex = tab;
+        filter(model);
+    }
+
+    private void CounterWaiting_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        => Go(0, m => m.TranscriptFilter = TranscriptFilter.Unfinished);
+
+    private void CounterTranscriptFailed_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        => Go(0, m => m.TranscriptFilter = TranscriptFilter.Failed);
+
+    private void CounterUnanalysed_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        => Go(1, m => m.AnalyseFilter = AnalyseFilter.Unanalysed);
+
+    private void CounterReady_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        => Go(1, m => m.AnalyseFilter = AnalyseFilter.Done);
+
     private void DismissNotice_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is { } model) model.Notice = null;

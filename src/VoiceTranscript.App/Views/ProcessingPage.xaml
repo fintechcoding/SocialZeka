@@ -9,8 +9,13 @@
              d:DataContext="{d:DesignInstance vm:ProcessingViewModel}">
 
     <UserControl.Resources>
-        <!-- One row, either tab. The faults differ; the anatomy of a row does not. -->
-        <DataTemplate x:Key="ProcessingRowTemplate">
+        <!--
+            One row body, two thin wrappers. The anatomy of a row is the same in either tab;
+            what differs is the verb on its button — and the verb matters: "Yeniden işle" on the
+            analysis tab used to reopen the full dialog and demand audio, locking out the one
+            route (re-analysing from text) that tab exists for.
+        -->
+        <DataTemplate x:Key="ProcessingRowBody">
                             <Grid Margin="0,4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -58,6 +63,38 @@
                                                Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                                Style="{StaticResource Caption}" />
 
+                                    <!-- Guidance dressed as guidance. "Yapılandırılmış servis
+                                         yok, Ayarlar bölümünden…" is the application giving
+                                         directions; in red it read as a crash, and the door it
+                                         named had no handle. Now the sentence carries its own
+                                         button to the section it means. -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0"
+                                                Visibility="{Binding GuidanceText, Converter={StaticResource NullToCollapsed}}">
+                                        <ui:SymbolIcon Symbol="Info24" FontSize="13" Margin="0,0,6,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                        <TextBlock Text="{Binding GuidanceText}" TextWrapping="Wrap"
+                                                   VerticalAlignment="Center" MaxWidth="520"
+                                                   Style="{StaticResource Caption}" />
+                                        <ui:Button Content="Ayarları aç" Appearance="Transparent" Padding="8,2"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center"
+                                                   Click="RowOpenSettings_Click" />
+                                    </StackPanel>
+
+                                    <!-- Information on a row that did NOT fail — "çözümleme
+                                         yapılmadı" on a transcribed call. It used to wear the
+                                         failure red inside the error expander. -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0"
+                                                Visibility="{Binding StateNote, Converter={StaticResource NullToCollapsed}}">
+                                        <ui:SymbolIcon Symbol="Info24" FontSize="13" Margin="0,0,6,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <TextBlock Text="{Binding StateNote}" TextWrapping="Wrap"
+                                                   VerticalAlignment="Center" MaxWidth="620"
+                                                   Style="{StaticResource Caption}"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+
                                     <!--
                                         The whole reason, on demand.
 
@@ -99,11 +136,45 @@
                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                 </StackPanel>
 
-                                <ui:Button Grid.Column="2" Content="Yeniden işle" VerticalAlignment="Center"
-                                           Appearance="Transparent"
-                                           IsEnabled="{Binding HasAudio}"
-                                           Click="Reprocess_Click" Tag="{Binding}" />
                             </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="TranscriptRowTemplate">
+            <Grid Margin="0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ContentPresenter Grid.Column="0" Content="{Binding}"
+                                  ContentTemplate="{StaticResource ProcessingRowBody}" />
+
+                <ui:Button Grid.Column="1" Content="Yeniden çevir" VerticalAlignment="Center"
+                           Appearance="Transparent"
+                           IsEnabled="{Binding HasAudio}"
+                           ToolTip="Sesi seçeceğin bir motorla yeniden yazıya döker."
+                           Click="Reprocess_Click" Tag="{Binding}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="AnalysisRowTemplate">
+            <Grid Margin="0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ContentPresenter Grid.Column="0" Content="{Binding}"
+                                  ContentTemplate="{StaticResource ProcessingRowBody}" />
+
+                <!-- Text is what analysis needs, so text is what unlocks the button — a call
+                     whose audio was swept can still rebuild its ledger. -->
+                <ui:Button Grid.Column="1" Content="Yeniden çözümle" VerticalAlignment="Center"
+                           Appearance="Transparent"
+                           IsEnabled="{Binding HasTranscript}"
+                           ToolTip="Defteri mevcut metinden yeniden üretir; ses yeniden işlenmez."
+                           Click="ReanalyseRow_Click" Tag="{Binding}" />
+            </Grid>
         </DataTemplate>
     </UserControl.Resources>
 
@@ -132,29 +203,40 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,8,0">
+            <!-- Each counter is a door, not a decoration: clicking one lands on the tab and
+                 filter that show exactly the rows it counted. The labels follow the tabs too —
+                 "başarısız" used to sum two different failures and point at neither. -->
+            <Border Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,8,0"
+                    Cursor="Hand" MouseLeftButtonUp="CounterWaiting_Click"
+                    ToolTip="Yazıya dökme sekmesinde bekleyenleri gösterir">
                 <StackPanel>
                     <TextBlock Text="{Binding WaitingCount}" FontSize="26" FontWeight="SemiBold" />
                     <TextBlock Text="sırada / işleniyor" Style="{StaticResource Caption}" />
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="8,0">
+            <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="8,0"
+                    Cursor="Hand" MouseLeftButtonUp="CounterTranscriptFailed_Click"
+                    ToolTip="Yazıya dökme sekmesinde başarısızları gösterir">
                 <StackPanel>
-                    <TextBlock Text="{Binding FailedCount}" FontSize="26" FontWeight="SemiBold"
+                    <TextBlock Text="{Binding TranscriptFailedCount}" FontSize="26" FontWeight="SemiBold"
                                Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
-                    <TextBlock Text="başarısız" Style="{StaticResource Caption}" />
+                    <TextBlock Text="yazıya dökülemedi" Style="{StaticResource Caption}" />
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="2" Style="{StaticResource Panel}" Margin="8,0">
+            <Border Grid.Column="2" Style="{StaticResource Panel}" Margin="8,0"
+                    Cursor="Hand" MouseLeftButtonUp="CounterUnanalysed_Click"
+                    ToolTip="Çözümleme sekmesinde bekleyenleri gösterir">
                 <StackPanel>
-                    <TextBlock Text="{Binding WithoutTranscriptCount}" FontSize="26" FontWeight="SemiBold" />
-                    <TextBlock Text="metni yok" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{Binding UnanalysedCount}" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock Text="çözümlenmedi" Style="{StaticResource Caption}" />
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="3" Style="{StaticResource Panel}" Margin="8,0,0,0">
+            <Border Grid.Column="3" Style="{StaticResource Panel}" Margin="8,0,0,0"
+                    Cursor="Hand" MouseLeftButtonUp="CounterReady_Click"
+                    ToolTip="Çözümleme sekmesinde bitenleri gösterir">
                 <StackPanel>
                     <TextBlock Text="{Binding ReadyCount}" FontSize="26" FontWeight="SemiBold" />
                     <TextBlock Text="hazır" Style="{StaticResource Caption}" />
@@ -208,7 +290,7 @@
             between calls whose transcription failed, wearing the same red, offering the same
             buttons — different faults, different fixes, indistinguishable rows.
         -->
-        <TabControl Grid.Row="2" Grid.RowSpan="2" Style="{StaticResource SegmentedTabs}"
+        <TabControl x:Name="Tabs" Grid.Row="2" Grid.RowSpan="2" Style="{StaticResource SegmentedTabs}"
                     Padding="0,10,0,0">
 
             <TabItem Header="Yazıya dökme">
@@ -225,9 +307,12 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <ui:Button Content="Bekleyenler" Margin="0,0,6,0" Command="{Binding ShowTranscriptWaitingCommand}" />
-                            <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowTranscriptFailedCommand}" />
-                            <ui:Button Content="Hepsi" Command="{Binding ShowTranscriptAllCommand}" />
+                            <ui:Button Content="Bekleyenler" Margin="0,0,6,0" Command="{Binding ShowTranscriptWaitingCommand}"
+                                       Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Unfinished}" />
+                            <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowTranscriptFailedCommand}"
+                                       Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Failed}" />
+                            <ui:Button Content="Hepsi" Command="{Binding ShowTranscriptAllCommand}"
+                                       Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=All}" />
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -250,7 +335,7 @@
                     <Border Grid.Row="1" Style="{StaticResource Panel}">
                         <Grid>
                             <ListBox Style="{StaticResource CleanList}" ItemsSource="{Binding TranscriptRows}"
-                                     ItemTemplate="{StaticResource ProcessingRowTemplate}"
+                                     ItemTemplate="{StaticResource TranscriptRowTemplate}"
                                      Visibility="{Binding IsTranscriptEmpty, Converter={StaticResource InverseBoolToVisibility}}"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
 
@@ -280,10 +365,14 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <ui:Button Content="Çözümlenmemişler" Margin="0,0,6,0" Command="{Binding ShowAnalysisUnanalysedCommand}" />
-                            <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowAnalysisFailedCommand}" />
-                            <ui:Button Content="Bitenler" Margin="0,0,6,0" Command="{Binding ShowAnalysisDoneCommand}" />
-                            <ui:Button Content="Hepsi" Command="{Binding ShowAnalysisAllCommand}" />
+                            <ui:Button Content="Çözümlenmemişler" Margin="0,0,6,0" Command="{Binding ShowAnalysisUnanalysedCommand}"
+                                       Appearance="{Binding AnalyseFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Unanalysed}" />
+                            <ui:Button Content="Başarısızlar" Margin="0,0,6,0" Command="{Binding ShowAnalysisFailedCommand}"
+                                       Appearance="{Binding AnalyseFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Failed}" />
+                            <ui:Button Content="Bitenler" Margin="0,0,6,0" Command="{Binding ShowAnalysisDoneCommand}"
+                                       Appearance="{Binding AnalyseFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Done}" />
+                            <ui:Button Content="Hepsi" Command="{Binding ShowAnalysisAllCommand}"
+                                       Appearance="{Binding AnalyseFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=All}" />
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -308,7 +397,7 @@
                     <Border Grid.Row="1" Style="{StaticResource Panel}">
                         <Grid>
                             <ListBox Style="{StaticResource CleanList}" ItemsSource="{Binding AnalysisRows}"
-                                     ItemTemplate="{StaticResource ProcessingRowTemplate}"
+                                     ItemTemplate="{StaticResource AnalysisRowTemplate}"
                                      Visibility="{Binding IsAnalysisEmpty, Converter={StaticResource InverseBoolToVisibility}}"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
 

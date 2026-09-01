@@ -260,10 +260,20 @@ public partial class MainWindow
 
     private void OnSettingsRequested(object? sender, EventArgs e) => OpenSettings();
 
-    private void OpenSettings()
+    /// <summary>
+    /// Opens the settings, optionally straight at one section.
+    ///
+    /// Public and sectioned because "the analysis service is not answering" is discovered on
+    /// other screens, and a message that names the fix must be able to take you to it: a status
+    /// row or a failure note passes "Analysis" here instead of dropping the user at "Kayıt" to
+    /// go find the right page themselves.
+    /// </summary>
+    public void OpenSettings(string? section = null)
     {
         var viewModel = new SettingsViewModel(App.Settings, App.Paths, App.HttpClient);
         var dialog = new SettingsWindow(viewModel) { Owner = this };
+
+        if (section is not null) dialog.ShowSection(section);
 
         if (dialog.ShowDialog() != true) return;
 
@@ -284,6 +294,11 @@ public partial class MainWindow
 
         // The tray tick and the settings page are two views of one switch and have to agree.
         SyncAutoRecordMenu();
+
+        // Every page that shows configuration re-reads it. Without this the Yapay zekâ screen
+        // kept describing the provider that was just replaced — "bağladım ama ekran hâlâ eskiyi
+        // söylüyor" is the moment somebody stops believing the status screen entirely.
+        (DataContext as ShellViewModel)?.RefreshAll();
     }
 
     /// <summary>

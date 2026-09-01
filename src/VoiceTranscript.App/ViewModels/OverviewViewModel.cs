@@ -58,8 +58,14 @@ public sealed record AttentionItem(
     public bool HasAction => ActionLabel is not null;
 }
 
-public sealed record RecentCall(Call Call, string ContactName)
+public sealed record RecentCall(
+    Call Call, string ContactName, IReadOnlyList<string>? TagList = null)
 {
+    /// <summary>The user's labels, on the first list they look at — where "tehdit" must show.</summary>
+    public IReadOnlyList<string> Tags => TagList ?? [];
+
+    public bool HasTags => Tags.Count > 0;
+
     public string When => Call.StartedAt.ToLocalTime().ToString("d MMMM, HH:mm");
 
     /// <summary>Which application this came through, for the badge on the row.</summary>
@@ -198,6 +204,9 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
     public ObservableCollection<string> Birthdays { get; } = [];
 
     public bool HasBirthdays => Birthdays.Count > 0;
+
+    /// <summary>The Bugün tab with nothing to say — the only state that shows its empty text.</summary>
+    public bool TodayIsEmpty => !HasDue && !HasBirthdays;
     [ObservableProperty] private bool _hasAnyData;
 
     public sealed record OverdueItem(Commitment Commitment, string ContactName)
@@ -255,20 +264,19 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
 
         LoadBoard();
 
-        // Most serious first, which the code said it was doing and was not: the items were added
-        // in the order they happened to be computed, so a blocking fault could sit below a
-        // suggestion. AttentionKind is declared in severity order, so ordering by it is enough.
-        var ordered = Attention.OrderBy(i => i.Kind).ToList();
-
-        Attention.Clear();
-        foreach (var item in ordered) Attention.Add(item);
         HasAnyData = calls > 0;
 
         Recent.Clear();
-        foreach (var call in repository.ListCalls(limit: 12))
+
+        var recent = repository.ListCalls(limit: 12);
+        var recentTags = repository.TagsOf(recent.Select(c => c.Id));
+
+        foreach (var call in recent)
         {
             var name = call.ContactId is { } id ? repository.GetContact(id)?.Name : null;
-            Recent.Add(new RecentCall(call, name ?? "İsimsiz"));
+
+            Recent.Add(new RecentCall(
+                call, name ?? "İsimsiz", recentTags.GetValueOrDefault(call.Id, [])));
         }
 
         Overdue.Clear();
@@ -343,6 +351,24 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
                 "Ayarlar",
                 AttentionAction.OpenSettings));
         }
+
+        // Reminders the user set for today: theirs, so safe to interrupt with — the same rule
+        // as overdue promises, which already earned a place here.
+        if (Due.Count > 0)
+        {
+            Attention.Add(new AttentionItem(
+                AttentionKind.Action,
+                Due.Count == 1 ? "1 hatırlatmanın günü geldi" : $"{Due.Count} hatırlatmanın günü geldi",
+                string.Join(" · ", Due.Take(2).Select(d => d.Title))));
+        }
+
+        // Most serious first, applied where the list is BUILT. The sort used to live in
+        // Refresh(), running on the stale pre-rebuild content — the code announced the fix and
+        // then rebuilt the list in computation order, red faults below amber suggestions.
+        // AttentionKind is declared in severity order, so ordering by it is enough.
+        var ordered = Attention.OrderBy(i => i.Kind).ToList();
+        Attention.Clear();
+        foreach (var item in ordered) Attention.Add(item);
     }
 
     /// <summary>
@@ -402,7 +428,6 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
                 string.IsNullOrWhiteSpace(card.Title)
                     ? $"{name ?? "İsimsiz"} · {call.StartedAt.ToLocalTime():d MMM}"
                     : card.Title!,
-                BoardLane.NameOf(card.Lane),
                 card.RemindOn!.Value));
         }
 
@@ -419,6 +444,7 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
         OnPropertyChanged(nameof(HasBoard));
         OnPropertyChanged(nameof(HasDue));
         OnPropertyChanged(nameof(HasBirthdays));
+        OnPropertyChanged(nameof(TodayIsEmpty));
     }
 
     // ---- the panel's verbs --------------------------------------------------
@@ -502,7 +528,7 @@ public sealed record PanelCard(
 }
 
 /// <summary>One reminder that has come due, as the first screen lists it.</summary>
-public sealed record DueCard(long CallId, string Title, string Lane, DateOnly Day)
+public sealed record DueCard(long CallId, string Title, DateOnly Day)
 {
     public string When => Day == DateOnly.FromDateTime(DateTime.Now)
         ? "bugün"

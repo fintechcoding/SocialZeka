@@ -133,6 +133,34 @@ public static class FailureText
         return raw.Contains('\n') || raw.Length > MaxLength;
     }
 
+    /// <summary>
+    /// Whether this "failure" is really the application giving directions.
+    ///
+    /// Some of what lands in the failure column was written by this application, for a person,
+    /// pointing at a setting — "yapılandırılmış bir servis yok, Ayarlar bölümünden…". Painting
+    /// that red inside a "Hatanın tamamı" expander taught a real user that the product was
+    /// broken, when the message was the product being helpful. Guidance gets an info look and a
+    /// button to the settings it names; red stays for things that actually broke.
+    /// </summary>
+    public static bool IsGuidance(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+
+        foreach (var marker in new[]
+        {
+            "yapılandırılmış bir servis yok",
+            "Ayarlar bölümünden",
+            "Ayarlardan bir sağlayıcı",
+            "çalışan bir yapay zekâ servisi",
+            "Kullanıcı durdurdu",
+        })
+        {
+            if (raw.Contains(marker, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        return false;
+    }
+
     private static string Trim(string value)
     {
         value = value.Trim();

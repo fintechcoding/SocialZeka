@@ -1110,3 +1110,6 @@ Ayrıca §8.1/8.2 (saklama süresi gerçek oldu, ölü ayar silindi) ve ölü ko
 - [x] **13.12 — OpenAI yeni modelleri temperature'ı reddediyor** *(gerçek logdan: "does not
   support 0.2... Only the default (1)"; gpt-5.6-sol çözümlemesini bloke etti)*. max_tokens'la
   aynı sınıf: 400 'unsupported_value/temperature' gelirse alan düşürülüp bir kez yeniden denenir.
+- [ ] **13.13** Kişi penceresi Görüşmeler filtresi "kurumsal" olmalı: tarih aralığı + hazır
+  dönemler (bu hafta/ay/3 ay/yıl), durum (çözümlenmiş/çözümlenmemiş/başarısız), etiket, asgari
+  süre, notlu/defterli anahtarları, sıralama (yeni/eski/uzun) — tek filtre çubuğu + Temizle.

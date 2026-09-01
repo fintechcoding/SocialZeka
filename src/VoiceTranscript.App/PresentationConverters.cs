@@ -420,3 +420,18 @@ public sealed class EqualToVisibilityConverter : IMultiValueConverter
     public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// Primary when the bound filter equals the parameter — how a row of filter buttons shows which
+/// one is on. Seven identical grey buttons answered "hangisi seçili?" with silence.
+/// </summary>
+public sealed class FilterToAppearanceConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => string.Equals(value?.ToString(), parameter as string, StringComparison.Ordinal)
+            ? Wpf.Ui.Controls.ControlAppearance.Primary
+            : Wpf.Ui.Controls.ControlAppearance.Secondary;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

@@ -122,19 +122,22 @@ public partial class OverviewPage
         FrameworkElement? anchor;
         double y;
 
+        // Measured against the element the line actually lives in. Against the outer Border it
+        // was off by that Border's padding — a guide line drawn five pixels wrong is worse than
+        // none, because it teaches the eye to distrust the guide.
         if (index < model.Board.Count)
         {
             anchor = FindCard(model.Board[index]);
             if (anchor is null) return;
 
-            y = anchor.TranslatePoint(new Point(0, 0), BoardPanel).Y - 2;
+            y = anchor.TranslatePoint(new Point(0, 0), BoardInner).Y - 2;
         }
         else
         {
             anchor = FindCard(model.Board[^1]);
             if (anchor is null) return;
 
-            y = anchor.TranslatePoint(new Point(0, anchor.ActualHeight), BoardPanel).Y + 1;
+            y = anchor.TranslatePoint(new Point(0, anchor.ActualHeight), BoardInner).Y + 1;
         }
 
         DropLine.Margin = new Thickness(6, Math.Max(0, y), 6, 0);
@@ -149,16 +152,27 @@ public partial class OverviewPage
         if (!e.Data.GetDataPresent(DragFormat)) return;
         if (e.Data.GetData(DragFormat) is not long callId) return;
 
-        var known = model.Board.Any(c => c.CallId == callId);
+        // The index is read BEFORE the pile changes: AddToBoard rebuilds the collection, and an
+        // index measured against the old visuals applied to the new list appended every fresh
+        // drop to the end regardless of where the hand let go.
+        var index = DropIndex(e);
 
-        if (!known)
+        var from = model.Board.ToList().FindIndex(c => c.CallId == callId);
+
+        if (from < 0)
         {
             model.AddToBoard(callId);
         }
+        else if (from < index)
+        {
+            // Dragging downward: the card is still IN the list the index was measured against,
+            // so its own removal shifts everything after it up by one. Without this, every
+            // downward drop landed one slot below the line the panel had just drawn — the exact
+            // surprise the line exists to prevent.
+            index--;
+        }
 
-        // Where in the pile it landed: before the card whose upper half the pointer is over,
-        // after the one whose lower half, and at the end when it fell on empty panel.
-        model.MoveCardTo(callId, DropIndex(e));
+        model.MoveCardTo(callId, index);
 
         e.Handled = true;
     }
@@ -258,5 +272,27 @@ public partial class OverviewPage
     {
         if ((sender as FrameworkElement)?.DataContext is RecentCall row)
             ViewModel?.AddToBoard(row.Call.Id);
+    }
+
+    /// <summary>The due reminder's own verb: cleared, card stays on the pile.</summary>
+    private void DueDone_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is DueCard due)
+            ViewModel?.RemindCard(due.CallId, 0);
+    }
+
+    /// <summary>
+    /// A reminder straight from the conversation list — the entry the feature was missing.
+    /// One step: onto the pile if it was not there, and dated.
+    /// </summary>
+    private void RecentRemind_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RecentCall row) return;
+        if ((sender as FrameworkElement)?.Tag is not string tag || !int.TryParse(tag, out var days)) return;
+        if (ViewModel is not { } model) return;
+
+        if (model.Board.All(c => c.CallId != row.Call.Id)) model.AddToBoard(row.Call.Id);
+
+        model.RemindCard(row.Call.Id, days);
     }
 }
