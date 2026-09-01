@@ -429,12 +429,48 @@
                             card rests on a verified, playable quote — an unanchored suggestion
                             was dropped before it got here.
                         -->
-                        <Border Style="{StaticResource Panel}" Margin="0,0,0,10"
-                                Visibility="{Binding HasActions, Converter={StaticResource BoolToVisibility}}">
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,10">
                             <StackPanel>
-                                <TextBlock Text="Önerilen aksiyonlar" FontWeight="SemiBold" />
-                                <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,6"
-                                           Text="Öneridir — sen onaylamadan hiçbir yere yazılmaz." />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="Önerilen aksiyonlar" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,8,0"
+                                                   Text="Öneridir — sen onaylamadan hiçbir yere yazılmaz." />
+                                    </StackPanel>
+
+                                    <!-- Manual trigger, because the automatic run only covers
+                                         conversations analysed after the feature existed — the
+                                         archive's older calls need a way in too. -->
+                                    <ui:Button Grid.Column="1" VerticalAlignment="Center"
+                                               Command="{Binding ExtractActionsCommand}"
+                                               IsEnabled="{Binding IsExtractingActions, Converter={StaticResource InverseBool}}">
+                                        <ui:Button.Style>
+                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                <Setter Property="Content" Value="Aksiyonları çıkar" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasActions}" Value="True">
+                                                        <Setter Property="Content" Value="Yeniden çıkar" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ui:Button.Style>
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="TaskListLtr24" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+
+                                <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
+                                             Visibility="{Binding IsExtractingActions, Converter={StaticResource BoolToVisibility}}" />
+
+                                <TextBlock Text="{Binding ActionsMessage}" Style="{StaticResource Caption}"
+                                           TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Visibility="{Binding ActionsMessage, Converter={StaticResource NullToCollapsed}}" />
 
                                 <ItemsControl ItemsSource="{Binding Actions}">
                                     <ItemsControl.ItemTemplate>

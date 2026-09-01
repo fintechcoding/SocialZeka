@@ -1371,3 +1371,21 @@ Kullanıcı ekran görüntüsü: "You cannot unwatch a window that is not yet lo
   Güvenli çıkanlar: LabelCallWindow/UpdateWindow/SetupWindow (zaten korumalı),
   RemindWindow/PaletteWindow (yalnız görünür pencereden erişilebilir), Ctrl+K pencere-içi
   KeyBinding (global kısayol yok).
+
+## 21. 1 Eylül — v2.1.1 canlı testinden: ayar düzeni + eski görüşmelere aksiyon (v2.1.2)
+
+Kullanıcı: "tema nerde göremedim" (Veriler'in içindeydi — yanlış raf); "menuleri yeniden
+organize et doğru kategorilerde değil"; "genel windows uygulamaları mantığında"; "tutarlılık
+analiz diye ayrı bir alan"; "eski görüşmelerde de bu analizi yapabilse iyi olur".
+
+- [x] **21.1 Ayarlar yeniden düzeni (Windows 11 Ayarlar mantığı):** yeni İLK kategori
+  "Genel" (arayüz dili + Görünüm/Tema + Windows açılışında başlat — üçü de eski yerlerinden
+  taşındı); yeni kategori "Tutarlılık" (4 tutarlılık kartı Çözümleme'nin dibinden kendi
+  sayfasına); Kayıt yalnız kayıt işleri, Veriler yalnız depolama kaldı. ShowSection yeni
+  etiketleri tanıyor (bilinmeyen → Genel). Yeni loc anahtarları iki dilde birden
+  (settingswindow.genel/genel-aciklama/tutarlilik/tutarlilik-aciklama) — eşlik testi geçti.
+- [x] **21.2 Eski görüşmelere aksiyon çıkarımı:** "Önerilen aksiyonlar" paneli artık her
+  görüşmede görünür (HasActions kapısı kalktı) ve başlığında "Aksiyonları çıkar / Yeniden
+  çıkar" düğmesi var (okuma panelinin kalıbı: ilerleme çubuğu + sonuç/eleme mesajı).
+  Otomatik çıkarım yalnız yeni çözümlemelerde koşuyordu; arşivdeki eski görüşmeler için
+  elle yol yoktu.

@@ -68,9 +68,11 @@ public partial class SettingsWindow
 
         var tag = (sender as RadioButton)?.Tag as string;
 
+        PageGeneral.Visibility = Visible(tag == "General");
         PageRecording.Visibility = Visible(tag == "Recording");
         PageTranscription.Visibility = Visible(tag == "Transcription");
         PageAnalysis.Visibility = Visible(tag == "Analysis");
+        PageConsistency.Visibility = Visible(tag == "Consistency");
         PageData.Visibility = Visible(tag == "Data");
         PageExport.Visibility = Visible(tag == "Export");
 
@@ -91,11 +93,13 @@ public partial class SettingsWindow
     {
         var radio = tag switch
         {
+            "Recording" => NavRecording,
             "Transcription" => NavTranscription,
             "Analysis" => NavAnalysis,
+            "Consistency" => NavConsistency,
             "Data" => NavData,
             "Export" => NavExport,
-            _ => NavRecording,
+            _ => NavGeneral,
         };
 
         radio.IsChecked = true;

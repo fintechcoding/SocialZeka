@@ -38,6 +38,14 @@
             <!-- Category rail, matching the shape of Windows 11 Settings. -->
             <StackPanel Grid.Column="0" Margin="12,4,0,12">
                 <RadioButton GroupName="Cat" IsChecked="True" Style="{StaticResource NavButton}"
+                             x:Name="NavGeneral" Checked="Category_Checked" Tag="General">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Settings24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T settingswindow.genel}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
                              x:Name="NavRecording" Checked="Category_Checked" Tag="Recording">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Record24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
@@ -62,6 +70,14 @@
                 </RadioButton>
 
                 <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
+                             x:Name="NavConsistency" Checked="Category_Checked" Tag="Consistency">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Scales24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T settingswindow.tutarlilik}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
                              x:Name="NavData" Checked="Category_Checked" Tag="Data">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Folder24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
@@ -82,10 +98,12 @@
                 <Grid MaxWidth="760" HorizontalAlignment="Left">
 
                     <!-- Recording -->
-                    <StackPanel x:Name="PageRecording">
-                        <TextBlock Text="{loc:T settingswindow.kayit}" Style="{StaticResource PageTitle}" />
+                    <!-- General: the interface itself — language, theme, startup. What Windows
+                         applications put first, because it is what everybody recognises. -->
+                    <StackPanel x:Name="PageGeneral">
+                        <TextBlock Text="{loc:T settingswindow.genel}" Style="{StaticResource PageTitle}" />
                         <TextBlock Style="{StaticResource PageSubtitle}"
-                                   Text="{loc:T settingswindow.gorusme-basladiginda-hangi-uygulamalarin-k}" />
+                                   Text="{loc:T settingswindow.genel-aciklama}" />
 
                         <TextBlock Text="{loc:T settingswindow.arayuz-dili}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
 
@@ -120,6 +138,67 @@
                                           DisplayMemberPath="Name" />
                             </Grid>
                         </Border>
+
+                        <TextBlock Text="Görünüm" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="DarkTheme24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Tema" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Sistemi izle, Windows'un açık/koyu ayarıyla birlikte değişir. Seçim kaydedince uygulanır." />
+                                </StackPanel>
+                                <ComboBox Grid.Column="2" MinWidth="150" VerticalAlignment="Center"
+                                          SelectedValue="{Binding ThemeChoice}" SelectedValuePath="Tag">
+                                    <ComboBoxItem Content="Sistemi izle" Tag="system" />
+                                    <ComboBoxItem Content="Açık" Tag="light" />
+                                    <ComboBoxItem Content="Koyu" Tag="dark" />
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="Başlangıç" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+
+                        <!--
+                            A call recorder that has to be remembered and launched before every
+                            conversation records nothing — the calls worth having a record of are
+                            the ones nobody saw coming. Here rather than only in the installer,
+                            so a deliberate "no" cannot be overturned by an update rerunning the
+                            installer with its defaults.
+                        -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Power24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.windows-acilisinda-baslat}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.windows-acilisinda-baslat-aciklama}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding StartWithWindows}" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel x:Name="PageRecording" Visibility="Collapsed">
+                        <TextBlock Text="{loc:T settingswindow.kayit}" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="{loc:T settingswindow.gorusme-basladiginda-hangi-uygulamalarin-k}" />
 
                         <TextBlock Text="{loc:T settingswindow.ne-zaman-kaydedilsin}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
 
@@ -160,37 +239,6 @@
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                                                  IsChecked="{Binding ShowRecordingBar}" />
-                            </Grid>
-                        </Border>
-
-                        <!--
-                            On by default, and worth defending as one: a call recorder that has to
-                            be remembered and launched before every conversation records nothing,
-                            because the calls worth having a record of are the ones nobody saw
-                            coming.
-
-                            Here rather than only in the installer. As an install-time checkbox it
-                            could not be changed afterwards, and a silent update reruns the
-                            installer with its default selection — so a deliberate "no" could be
-                            overturned by an update approved for unrelated reasons.
-                        -->
-                        <Border Style="{StaticResource SettingCard}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0" Symbol="Power24" FontSize="18" Margin="0,0,14,0"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{loc:T settingswindow.windows-acilisinda-baslat}" FontSize="{StaticResource TextBody}" />
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="{loc:T settingswindow.windows-acilisinda-baslat-aciklama}" />
-                                </StackPanel>
-                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
-                                                 IsChecked="{Binding StartWithWindows}" />
                             </Grid>
                         </Border>
 
@@ -453,21 +501,6 @@
                         <TextBlock Text="{loc:T settingswindow.veriler}" Style="{StaticResource PageTitle}" />
                         <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,16" TextWrapping="Wrap"
                                    Text="{loc:T settingswindow.veriler-aciklama}" />
-
-                        <TextBlock Text="Görünüm" Style="{StaticResource GroupHeader}" Margin="0,0,0,4" />
-                        <Border Style="{StaticResource SettingCard}">
-                            <StackPanel>
-                                <TextBlock Text="Tema" FontSize="{StaticResource TextBody}" />
-                                <ComboBox SelectedValue="{Binding ThemeChoice}" SelectedValuePath="Tag"
-                                          Margin="0,8,0,0" HorizontalAlignment="Left" MinWidth="200">
-                                    <ComboBoxItem Content="Sistemi izle" Tag="system" />
-                                    <ComboBoxItem Content="Açık" Tag="light" />
-                                    <ComboBoxItem Content="Koyu" Tag="dark" />
-                                </ComboBox>
-                                <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                           Text="Sistemi izle, Windows'un açık/koyu ayarıyla birlikte değişir. Seçim kaydedince uygulanır; sistem-izleme değişikliği tam olarak yeniden başlatınca oturur." />
-                            </StackPanel>
-                        </Border>
 
                         <Border Style="{StaticResource SettingCard}">
                             <Grid>
@@ -999,11 +1032,48 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- The consistency check: a deliberate, separately billed read of one
-                             conversation. Its switches live beside the analysis it builds on. -->
-                        <TextBlock Text="Tutarlılık çözümlemesi" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
-                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,8"
-                                   Text="Görüşmeyi çelişki, kaçınma ve zaman uyumsuzlukları için okur. Yalan dedektörü değildir: her bulgu birebir alıntı ve zaman damgası taşır, hükmü sen verirsin." />
+                        <TextBlock Text="Aksiyonlar ve okuma" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Görüşmeden aksiyon önerileri çıkar" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Çözümlemeyle birlikte, atman gereken adımları önerir. Yalnız öneridir — sen onaylamadan hiçbir yere yazılmaz." />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding ExtractActions}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Modelin okuması paneli" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Görüşme penceresinde, istek üzerine üretilen serbest yorum bölümü. Öznel bir okumadır ve öyle etiketlenir; kapatınca bölüm hiç görünmez." />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding CommentaryEnabled}" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- The consistency check: a deliberate, separately billed read of one
+                         conversation. Its own category at the user's request — the switches
+                         were getting lost at the bottom of the analysis page. -->
+                    <StackPanel x:Name="PageConsistency" Visibility="Collapsed">
+                        <TextBlock Text="{loc:T settingswindow.tutarlilik}" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="{loc:T settingswindow.tutarlilik-aciklama}" />
 
                         <Border Style="{StaticResource SettingCard}">
                             <Grid>
@@ -1060,40 +1130,6 @@
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                                  IsChecked="{Binding ConsistencyOtherPartyOnly}" />
-                            </Grid>
-                        </Border>
-
-                        <TextBlock Text="Aksiyonlar ve okuma" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
-
-                        <Border Style="{StaticResource SettingCard}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="Görüşmeden aksiyon önerileri çıkar" FontSize="{StaticResource TextBody}" />
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="Çözümlemeyle birlikte, atman gereken adımları önerir. Yalnız öneridir — sen onaylamadan hiçbir yere yazılmaz." />
-                                </StackPanel>
-                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                                 IsChecked="{Binding ExtractActions}" />
-                            </Grid>
-                        </Border>
-
-                        <Border Style="{StaticResource SettingCard}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="Modelin okuması paneli" FontSize="{StaticResource TextBody}" />
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="Görüşme penceresinde, istek üzerine üretilen serbest yorum bölümü. Öznel bir okumadır ve öyle etiketlenir; kapatınca bölüm hiç görünmez." />
-                                </StackPanel>
-                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                                 IsChecked="{Binding CommentaryEnabled}" />
                             </Grid>
                         </Border>
                     </StackPanel>
