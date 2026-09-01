@@ -912,3 +912,8 @@ unutma, yarım dosya bırakmama, sıkıştırma birikimi sorgusu) + 57 Python.
 Bu makinede doğrulanamayan: gerçek bir saatlik kaydın kodlama süresi (Concentus saf C#; tahmin
 hedef makinede akış başına 1-2 dakika, en düşük öncelikte) ve oynatıcının `.ogg` görüşmede ilk
 tıklama gecikmesi.
+
+**Hedef makine için derleme (beta2).** `publish.ps1 -Version 2.1.6-beta2 -RequireInstaller`,
+`main @ 76f1966`. `dist/VoiceTranscript-Setup-2.1.6-beta2-win-x64.exe`, SHA-256 `5ae230a272d575365880c535c15e997809cb8d1e200dd7dc8bcf223a399002a2`.
+İlk açılışta eski WAV'lar arka planda sıkıştırılmaya başlar; günlükte "sıkıştırma birikimi" satırı
+ve görüşme başına "sıkıştırıldı: … MB → … MB" görülür.
