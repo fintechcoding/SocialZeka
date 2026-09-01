@@ -443,6 +443,27 @@
                                        ToolTip="{loc:T healthpage.gunluk-dosyalarini-siler-bir-hatayi-yenide}" />
                         </StackPanel>
                     </Grid>
+
+                    <!-- Which signal moved the detector and how far each transcription got.
+                         Once shown as toasts; they belong in the file, and behind a switch,
+                         because they are also what makes a log long. -->
+                    <Border Style="{StaticResource Hairline}" Margin="0,14,0,12" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="{loc:T healthpage.ayrintili-gunluk}" FontSize="{StaticResource TextBody}" />
+                            <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                       Text="{loc:T healthpage.hangi-sinyalin-aramayi-baslattigini-ve-cev}" />
+                        </StackPanel>
+
+                        <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0"
+                                         IsChecked="{Binding VerboseLog, Mode=TwoWay}" />
+                    </Grid>
                 </StackPanel>
             </Border>
         </StackPanel>

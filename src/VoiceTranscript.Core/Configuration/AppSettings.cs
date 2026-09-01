@@ -123,6 +123,18 @@ public sealed record AppSettings
     public bool ShowRecordingBar { get; init; } = true;
 
     /// <summary>
+    /// Whether the log records diagnostic detail: which signal moved the call detector, and how
+    /// far each transcription got before it finished or died.
+    ///
+    /// Those lines were once raised as notices, so "Tespit: Idle (hoparlör=False…)" popped up
+    /// over the desktop — a sentence written for whoever reads the log, shown to the person
+    /// using the application. They belong in the file, and they are exactly the lines that turn
+    /// "it did not work" into a diagnosis. A switch because they are also what makes a log long,
+    /// and somebody who is not chasing a problem should be able to say so.
+    /// </summary>
+    public bool VerboseLog { get; init; } = true;
+
+    /// <summary>
     /// Whether Windows starts this application at logon.
     ///
     /// On by default, because a call recorder that has to be remembered and launched before every

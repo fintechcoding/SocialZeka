@@ -62,6 +62,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _recordAutomatically = settings.RecordAutomatically;
         _uiLanguage = UiLanguages.FirstOrDefault(l => l.Code == settings.UiLanguage) ?? UiLanguages[0];
         _showRecordingBar = settings.ShowRecordingBar;
+        _verboseLog = settings.VerboseLog;
         _startWithWindows = settings.StartWithWindows;
         _useEchoCancellation = settings.UseEchoCancellation;
         _microphoneDeviceId = settings.MicrophoneDeviceId;
@@ -174,6 +175,34 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// Replaced wholesale rather than mutated, so the bindings in the table re-evaluate.
     /// </summary>
     [ObservableProperty] private IReadOnlyCollection<string> _downloadedModelRefs = [];
+
+    /// <summary>
+    /// Where the chosen model will run, named: the card, or the processor.
+    ///
+    /// "CUDA hazır (1 cihaz)" was true and useless — it named neither the card nor whether the
+    /// library it needs could be loaded, which is the difference between a green light and a
+    /// transcription that dies after the call has ended. Filled by the window after it probes
+    /// the worker; null until then.
+    /// </summary>
+    [ObservableProperty] private string? _deviceSummary;
+
+    /// <summary>Whether the chosen model's weights are already on this machine.</summary>
+    public bool SelectedModelDownloaded => DownloadedModelRefs.Contains(SelectedAsrModel.ModelRef);
+
+    /// <summary>One line saying whether choosing this model means waiting for a download.</summary>
+    public string SelectedModelReadiness => DownloadedModelRefs.Count == 0
+        ? Localisation.T("settingswindow.denetleniyor")
+        : SelectedModelDownloaded
+            ? Localisation.T("settingswindow.dosyalari-hazir-ilk-gorusme-beklemez")
+            : string.Format(Localisation.T("settingswindow.henuz-indirilmedi-gb-ilk-gorusmede-inecek"), SelectedAsrModel.DownloadGb);
+
+    partial void OnDownloadedModelRefsChanged(IReadOnlyCollection<string> value) => AnnounceSelection();
+
+    private void AnnounceSelection()
+    {
+        OnPropertyChanged(nameof(SelectedModelDownloaded));
+        OnPropertyChanged(nameof(SelectedModelReadiness));
+    }
 
     public ObservableCollection<AsrModel> AsrModels { get; }
     public ObservableCollection<AsrModel> CloudAsrModels { get; }
@@ -328,7 +357,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(CanBrowseModels));
         Revalidate();
     }
-    partial void OnSelectedAsrModelChanged(AsrModel value) => Revalidate();
+    partial void OnSelectedAsrModelChanged(AsrModel value)
+    {
+        AnnounceSelection();
+        Revalidate();
+    }
     partial void OnExportToObsidianChanged(bool value) => Revalidate();
     partial void OnObsidianVaultPathChanged(string value) => Revalidate();
     partial void OnExportToNotionChanged(bool value) => Revalidate();
@@ -343,6 +376,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Whether a strip appears at the top of the screen while recording.</summary>
     [ObservableProperty] private bool _showRecordingBar = true;
+
+    /// <summary>Owned by the health page; carried here so saving other settings keeps it.</summary>
+    [ObservableProperty] private bool _verboseLog = true;
 
     /// <summary>Whether Windows starts this application at logon. Reconciled by AutoStart on save.</summary>
     [ObservableProperty] private bool _startWithWindows = true;
@@ -629,6 +665,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         RecordSignal = RecordSignal,
         RecordAutomatically = RecordAutomatically,
         ShowRecordingBar = ShowRecordingBar,
+        VerboseLog = VerboseLog,
         StartWithWindows = StartWithWindows,
         UiLanguage = UiLanguage.Code,
         UseEchoCancellation = UseEchoCancellation,

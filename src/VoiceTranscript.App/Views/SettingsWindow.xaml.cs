@@ -270,6 +270,8 @@ public partial class SettingsWindow
                 ? (hello.Cuda.SelectedName is { } card ? $"Ekran kartında çalışacak: {card}" : "Ekran kartında çalışacak")
                 : "CUDA yok, işlemcide çalışacak";
 
+            _viewModel.DeviceSummary = device;
+
             Report(present
                 ? $"{model.DisplayName} indirilmiş. {device}."
                 : $"{model.DisplayName} henüz indirilmemiş ({model.DownloadGb} GB). {device}.");

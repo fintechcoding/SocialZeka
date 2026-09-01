@@ -1,5 +1,6 @@
 using System.Windows;
 using VoiceTranscript.App.ViewModels;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.Views;
 
@@ -14,9 +15,38 @@ public partial class HealthPage
         // in a click handler.
         DataContextChanged += (_, e) =>
         {
-            if (e.OldValue is HealthViewModel previous) previous.DataActionRequested -= OnDataAction;
-            if (e.NewValue is HealthViewModel next) next.DataActionRequested += OnDataAction;
+            if (e.OldValue is HealthViewModel previous)
+            {
+                previous.DataActionRequested -= OnDataAction;
+                previous.SettingsChangeRequested -= OnVerboseLogChanged;
+            }
+
+            if (e.NewValue is HealthViewModel next)
+            {
+                next.DataActionRequested += OnDataAction;
+                next.SettingsChangeRequested += OnVerboseLogChanged;
+            }
         };
+    }
+
+    /// <summary>
+    /// Persists the detailed-log switch straight away.
+    ///
+    /// This screen has no Save button, and the next thing somebody does after turning it on is
+    /// reproduce the fault they are chasing — a setting that waited for confirmation would be off
+    /// for precisely the run that mattered.
+    /// </summary>
+    private void OnVerboseLogChanged(object? sender, bool verbose)
+    {
+        App.Settings = App.Settings with { VerboseLog = verbose };
+        App.Settings.Save(App.Paths.SettingsFile);
+
+        Services.AppLog.Write("app", $"ayrıntılı günlük {(verbose ? "açıldı" : "kapatıldı")}");
+
+        if (DataContext is HealthViewModel model)
+            model.DataMessage = Localisation.T(verbose
+                ? "healthpage.ayrintili-gunluk-acik"
+                : "healthpage.ayrintili-gunluk-kapali");
     }
 
     private async void OnDataAction(object? sender, HealthViewModel.DataRequest request)

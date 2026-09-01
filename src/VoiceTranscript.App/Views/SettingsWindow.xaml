@@ -776,7 +776,59 @@
 
                         <!-- Local model -->
                         <TextBlock Text="{loc:T settingswindow.yerel-model}" Style="{StaticResource GroupHeader}" />
-                        <TextBlock Style="{StaticResource Secondary}" Margin="0,0,0,10"
+
+                        <!--
+                            The table alone answered none of the three questions somebody has on
+                            this screen: which model is in use, whether its files are here, and
+                            where it will run. The selected row was a thin line in a scrolling
+                            grid, and the sentence underneath referred to whichever model had
+                            been selected when the window last probed — so it regularly described
+                            a different model from the highlighted one.
+                        -->
+                        <Border Style="{StaticResource SettingCard}"
+                                BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
+                                BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Checkmark24" FontSize="20"
+                                               Margin="0,2,16,0" VerticalAlignment="Top"
+                                               Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Style="{StaticResource Caption}"
+                                               Text="{loc:T settingswindow.su-an-kullanilan}" />
+
+                                    <TextBlock Text="{Binding SelectedAsrModel.DisplayName}"
+                                               FontWeight="SemiBold" Margin="0,2,0,0"
+                                               FontSize="{StaticResource TextSubtitle}" />
+
+                                    <TextBlock Style="{StaticResource Secondary}" Margin="0,6,0,0"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SelectedModelReadiness}" />
+
+                                    <TextBlock Style="{StaticResource Secondary}" Margin="0,4,0,0"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding DeviceSummary, Converter={StaticResource NullToCollapsed}}"
+                                               Text="{Binding DeviceSummary}" />
+
+                                    <TextBlock Style="{StaticResource Secondary}" Margin="0,6,0,0"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SelectedAsrModel.Summary}" />
+
+                                    <TextBlock Text="{Binding SelectedAsrModel.Warning}"
+                                               Style="{StaticResource Secondary}"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                               Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Visibility="{Binding SelectedAsrModel.Warning, Converter={StaticResource NullToCollapsed}}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Style="{StaticResource Secondary}" Margin="0,6,0,10"
                                    Text="{loc:T settingswindow.asagidaki-hata-oranlari-turkce-icin-gercek}" />
 
                         <Border Style="{StaticResource SettingCard}" Padding="0">

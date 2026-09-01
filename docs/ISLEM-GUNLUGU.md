@@ -851,3 +851,23 @@ ucunun Dispose'u.
 
 Hâlâ bu makinede doğrulanamayan: çökme sonrası gerçek bir kaydın kurtarılması (ses donanımı yok);
 kod yolu sentetik WAV ile test edildi.
+
+### Aynı gün, ikinci tur — eski dalda kalan iki istek
+
+GitHub'a geçerken eski yerel dal (`yedek/oturum-30agustos`) kenara alınmıştı; iki istek orada
+kalmış, yeni ağaca hiç gelmemişti. İkisi de kullanıcının açık isteğiydi.
+
+**Ayrıntılı günlük.** "Tespit: Idle (hoparlör=False…)" satırı bir zamanlar bildirim olarak çıkıyor,
+kullanıcı "bu bilgi bari admin panelden açılıp kapatılabilir olsun" demişti. Artık `VerboseLog`
+ayarı: dedektörün her geçişi (hangi sinyal — pencere başlığı asla) ve her çevirinin hangi aşamaya
+kadar geldiği yalnızca dosyaya yazılır. Durum sayfasındaki anahtar anında kaydeder (bu sayfada
+Kaydet yok; anahtarı açanın sonraki işi sorunu tekrarlamaktır). Ayarlar penceresi anahtarı taşır,
+başka bir ayarı kaydetmek onu sıfırlamaz.
+
+**"Şu an kullanılan" kartı.** "Burada hâlâ neyin aktif olduğu belli değil" — tablo tek başına üç
+soruyu da cevaplamıyordu: hangi model seçili, dosyaları burada mı, nerede çalışacak. Kart model
+adını, indirilmiş olup olmadığını (ilk görüşme bekler mi), hangi kartta ya da işlemcide
+çalışacağını (`Usable`'a göre, kart adıyla), özeti ve uyarıyı gösterir; seçim değişince anında
+güncellenir.
+
+**788 test, 0 hata** + 57 Python. Görsel doğrulama hedef makinede.

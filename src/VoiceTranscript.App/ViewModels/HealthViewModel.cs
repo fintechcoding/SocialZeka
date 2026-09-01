@@ -413,6 +413,28 @@ public sealed partial class HealthViewModel : ObservableObject
     [ObservableProperty] private bool _isArchiving;
 
     /// <summary>Raised when an action needs a file or folder chosen by the user.</summary>
+    /// <summary>
+    /// Whether the log records diagnostic detail.
+    ///
+    /// Saved the moment it is toggled rather than on a Save button, because this screen has no
+    /// Save button and because the next thing somebody does after turning it on is reproduce the
+    /// problem — a setting that needed confirming would be off for exactly the run that mattered.
+    /// </summary>
+    public bool VerboseLog
+    {
+        get => _settings().VerboseLog;
+        set
+        {
+            if (value == _settings().VerboseLog) return;
+
+            SettingsChangeRequested?.Invoke(this, value);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Raised so the window can persist the change; the view model does not own the file.</summary>
+    public event EventHandler<bool>? SettingsChangeRequested;
+
     public event EventHandler<DataRequest>? DataActionRequested;
 
     /// <summary>What the page should ask the user to pick.</summary>

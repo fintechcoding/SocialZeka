@@ -278,6 +278,9 @@ public sealed class CallOrchestrator : IDisposable
         }
     }
 
+    /// <summary>The last detector state written to the log, so each transition is written once.</summary>
+    private CallState _lastLoggedState = CallState.Idle;
+
     private void Tick()
     {
         var settings = _settings();
@@ -290,6 +293,26 @@ public sealed class CallOrchestrator : IDisposable
         // watched application could miss the very samples that would end it, because in between
         // the other messenger made a noise and the whole poll was discarded. The per-app choice
         // belongs where a recording is started, not on the observations.
+        // Which signal moved the state, written to the log and nowhere else.
+        //
+        // This went through Notice at first, which was wrong twice over: Notice raises a toast,
+        // so a diagnostic line meant for a file was popping up over the user's desktop saying
+        // "Tespit: Idle (hoparlör=False…)" — a sentence written for whoever reads the log, not
+        // for the person using the application. Notices are for things somebody must act on.
+        //
+        // Never the window title: the log is meant to be shareable and the title is a contact's
+        // name. The flags are enough to tell a real call from a false start, which is the only
+        // question this line exists to answer.
+        if (settings.VerboseLog && _detector.State != _lastLoggedState)
+        {
+            _lastLoggedState = _detector.State;
+
+            AppLog.Write("tespit",
+                $"{_detector.State} (hoparlör={sample.Rendering}, mikrofon={sample.Capturing}, " +
+                $"uygulama={sample.AppWindowPresent}, arama penceresi={sample.CallWindowPresent}, " +
+                $"isim={(sample.WindowTitle is null ? "yok" : "var")})");
+        }
+
         var callEvent = _detector.Observe(sample);
 
         if (callEvent?.Kind == CallEventKind.Started && !IsWatched(callEvent.App, settings))
@@ -1263,7 +1286,14 @@ public sealed class CallOrchestrator : IDisposable
                     MicPath = call.MicPath,
                     FarPath = call.FarPath,
                     CacheDir = _paths.Models,
-                }, progress: new Progress<Core.Asr.WorkerProgress>(p => Report(call.Id, StageName(p.Stage), p.Percent / 100.0)), cancellationToken);
+                }, progress: new Progress<Core.Asr.WorkerProgress>(p =>
+                {
+                    Report(call.Id, StageName(p.Stage), p.Percent / 100.0);
+
+                    // How far it got before it died is the line a failed transcription is
+                    // diagnosed from; the stage name is the worker's own, never a path.
+                    if (settings.VerboseLog) AppLog.Write("çeviri", $"  {p.Stage} %{p.Percent:0}");
+                }), cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -1438,7 +1468,14 @@ public sealed class CallOrchestrator : IDisposable
                     MicPath = call.MicPath,
                     FarPath = call.FarPath,
                     CacheDir = _paths.Models,
-                }, progress: new Progress<Core.Asr.WorkerProgress>(p => Report(call.Id, StageName(p.Stage), p.Percent / 100.0)), cancellationToken);
+                }, progress: new Progress<Core.Asr.WorkerProgress>(p =>
+                {
+                    Report(call.Id, StageName(p.Stage), p.Percent / 100.0);
+
+                    // How far it got before it died is the line a failed transcription is
+                    // diagnosed from; the stage name is the worker's own, never a path.
+                    if (settings.VerboseLog) AppLog.Write("çeviri", $"  {p.Stage} %{p.Percent:0}");
+                }), cancellationToken);
         }
         catch (Exception e) when (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
