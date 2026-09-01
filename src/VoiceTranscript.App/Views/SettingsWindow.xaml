@@ -1132,6 +1132,24 @@
                                                  IsChecked="{Binding ConsistencyOtherPartyOnly}" />
                             </Grid>
                         </Border>
+
+                        <TextBlock Text="Yalan ve manipülasyon" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Yalan ve manipülasyon değerlendirmesi" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Açıkken model, denetimle birlikte açık görüşünü söyler: şüphe düzeyi (yok/düşük/orta/yüksek) ve taktik taktik gerekçe. Bu bir modelin görüşüdür — metinden çıkarımdır, gerçeğin hakemi değildir; alıntısı dökümde bulunamayan iddia yine elenir. Ek ücretli bir istektir." />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding DeceptionEnabled}" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- Export -->

@@ -102,5 +102,20 @@ public static class Migrations
                 );
                 """,
             ]),
+
+        // v7 — the opt-in deception/manipulation assessment. The user asked for the model's
+        // explicit opinion as a switchable feature; the table mirrors reading_note because the
+        // rules are the same: enforced shape in, dead end after.
+        new(7, "Yalan/manipülasyon değerlendirmesi tablosu",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS deception_note (
+                    call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+                    json       TEXT    NOT NULL,
+                    model_used TEXT,
+                    created_at TEXT    NOT NULL
+                );
+                """,
+            ]),
     ];
 }

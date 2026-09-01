@@ -32,6 +32,9 @@ public static class ProcessingStage
 
     /// <summary>The model's free reading of one conversation — run only when asked.</summary>
     public const string Reading = "reading";
+
+    /// <summary>The opt-in deception/manipulation assessment — the user chose to hear an opinion.</summary>
+    public const string Deception = "deception";
 }
 
 /// <summary>

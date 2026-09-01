@@ -249,7 +249,8 @@ public partial class ContactsPage
         App.Repository.SetCallState(row.Call.Id, Core.Domain.ProcessingState.Queued);
 
         App.Orchestrator.EnqueueWith(
-            row.Call.Id, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel);
+            row.Call.Id, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel,
+            choice.LlmRouteKind, choice.LlmRouteUrl);
 
         model.PlaybackMessage = choice.AnalyseOnly
             ? "Görüşme yeniden çözümlenmek üzere sıraya alındı."

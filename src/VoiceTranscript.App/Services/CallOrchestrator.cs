@@ -469,20 +469,31 @@ public sealed class CallOrchestrator : IDisposable
     /// <summary>The analysis model chosen for one recording, overriding the setting.</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<long, string> _llmOverride = new();
 
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        long, (LlmProviderKind Kind, string BaseUrl)> _llmRouteOverride = new();
+
     /// <summary>
     /// Queues a recording to be redone.
     /// </summary>
     /// <param name="asrModelId">An engine from the ASR catalogue, or null to follow the setting.</param>
     /// <param name="analyseOnly">Keep the existing transcript and only run the analysis again.</param>
     /// <param name="llmModel">An analysis model, or null to follow the setting.</param>
+    /// <param name="llmRouteKind">A provider to use instead of the configured one, this run only —
+    /// the picker offers the local server beside a cloud configuration.</param>
+    /// <param name="llmRouteUrl">That provider's endpoint.</param>
     public void EnqueueWith(
-        long callId, string? asrModelId = null, bool analyseOnly = false, string? llmModel = null)
+        long callId, string? asrModelId = null, bool analyseOnly = false, string? llmModel = null,
+        LlmProviderKind? llmRouteKind = null, string? llmRouteUrl = null)
     {
         if (string.IsNullOrWhiteSpace(asrModelId)) _engineOverride.TryRemove(callId, out _);
         else _engineOverride[callId] = asrModelId;
 
         if (string.IsNullOrWhiteSpace(llmModel)) _llmOverride.TryRemove(callId, out _);
         else _llmOverride[callId] = llmModel;
+
+        if (llmRouteKind is { } routeKind && !string.IsNullOrWhiteSpace(llmRouteUrl))
+            _llmRouteOverride[callId] = (routeKind, llmRouteUrl);
+        else _llmRouteOverride.TryRemove(callId, out _);
 
         if (analyseOnly) _analyseOnly[callId] = 1;
         else _analyseOnly.TryRemove(callId, out _);
@@ -1374,8 +1385,17 @@ public sealed class CallOrchestrator : IDisposable
     {
         _repository.SetCallState(callId, ProcessingState.Analysing);
 
+        // A route chosen in the picker wins over the configured provider, and like the model
+        // override it is consumed as it is read — one deliberate detour, never a standing change.
+        var route = _llmRouteOverride.TryRemove(callId, out var chosenRoute)
+            ? chosenRoute
+            : (Kind: settings.LlmProvider, BaseUrl: settings.ResolvedBaseUrl);
+
+        var routeProvider = LlmProviders.Get(route.Kind);
+
         var client = LlmClientFactory.Create(
-            _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
+            _http, route.Kind, route.BaseUrl,
+            route.Kind == settings.LlmProvider ? settings.LlmApiKey : null);
 
         // Every fact needed to reconstruct a failed run from the log alone: which recording, how
         // much text, which provider at which address, which model. "Çözümleme çalışmıyor" with an
@@ -1383,7 +1403,7 @@ public sealed class CallOrchestrator : IDisposable
         // report carry its own answer.
         AppLog.Write("çözümleme",
             $"başlıyor: görüşme #{callId} · {_repository.CountSegments(callId)} satır · "
-            + $"{settings.Provider.DisplayName} @ {settings.ResolvedBaseUrl} · model {settings.ResolvedModelName}");
+            + $"{routeProvider.DisplayName} @ {route.BaseUrl} · model {settings.ResolvedModelName}");
 
         // The pipeline records its own successful run, tokens and all. A failure has to be
         // recorded from out here, because the pipeline throws rather than returning — and without
@@ -1406,8 +1426,9 @@ public sealed class CallOrchestrator : IDisposable
                     Model = _llmOverride.TryRemove(callId, out var chosenLlm)
                         ? chosenLlm
                         : settings.ResolvedModelName,
-                    // Only a local backend holds the GPU this machine needs back for Whisper.
-                    UnloadWhenDone = !settings.Provider.SendsDataOffMachine,
+                    // Only a local backend holds the GPU this machine needs back for Whisper —
+                    // judged by the route actually used, not the configured one.
+                    UnloadWhenDone = !routeProvider.SendsDataOffMachine,
                 },
                 progress: new Progress<string>(stage => Report(callId, stage)),
                 cancellationToken);
@@ -1492,6 +1513,26 @@ public sealed class CallOrchestrator : IDisposable
             catch (Exception e) when (e is not OperationCanceledException)
             {
                 AppLog.Error("tutarlılık", e, $"görüşme #{callId} tutarlılık denetimi başarısız");
+            }
+        }
+
+        // The opt-in assessment rides with the check it belongs beside. A failure here is its
+        // own failure — the ledger and the consistency findings above are already saved.
+        if (settings.DeceptionEnabled)
+        {
+            try
+            {
+                var deception = await new Core.Analysis.DeceptionAnalysis(client, _repository).RunAsync(
+                    callId, settings.ResolvedConsistencyModel, cancellationToken);
+
+                AppLog.Write("değerlendirme", deception.Ok
+                    ? $"görüşme #{callId} · düzey {deception.Level} · {deception.Tactics.Count} taktik"
+                      + (deception.RejectedCount > 0 ? $" · {deception.RejectedCount} alıntı elendi" : "")
+                    : $"görüşme #{callId} · koşulamadı: {deception.Problem}");
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                AppLog.Error("değerlendirme", e, $"görüşme #{callId} değerlendirme başarısız");
             }
         }
     }

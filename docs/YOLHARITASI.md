@@ -11,15 +11,20 @@ iki taraflı söz takibi (SEN/O), aksiyon önerileri (onaylı kartlar), modelin 
 öznel panel), etiket sistemi (ikon+renk), kişi profilleri + Akış şeridi, çalışma alanı +
 hatırlatma takvimi, arama (FTS5 + etiket sorgusu), Sor (alıntılı cevap), komut paleti (Ctrl+K)
 + klavye katmanı, bildirim merkezi (zil+geçmiş), tema seçimi (sistem/açık/koyu), kullanım/jeton
-dökümü, güncelleme (SHA doğrulamalı), sessizlik kırpması, saklama süpürmesi. 758 test, 0 hata.
+dökümü, güncelleme (SHA doğrulamalı), sessizlik kırpması, saklama süpürmesi; v2.1.3 ile:
+Takvim sayfası (Outlook tarzı ay görünümü + ajanda), Çözümleme'de kategori alt-sekmeleri,
+pencere üstü dikkat şeridi, opt-in yalan/manipülasyon değerlendirmesi (şema v7), çözümlemede
+yerel/bulut rota seçimi, ayarlarda Genel+Tutarlılık kategorileri. 776 test, 0 hata.
 
 ---
 
 ## V2 PROGRAMI — AKTİF (onay 2026-09-01; faz başına tek sürüm; bu repoda)
 
 **Tema:** V1 kaydetti/yazdı/defter tuttu; V2 kanıtı KULLANILIR yapar. Demir kural her fazda:
-skor yok, hüküm yok, kullanıcı alanına otomatik yazma yok, her iddia çalınabilir alıntı;
-doğrulanamayan alıntı düşer.
+kullanıcı alanına otomatik yazma yok, her iddia çalınabilir alıntı; doğrulanamayan alıntı düşer.
+*(Kural evrimi, 1 Eylül kullanıcı kararı: "hüküm yasağı" mutlak olmaktan çıktı — açık
+yalan/manipülasyon değerlendirmesi opt-in ayardır (varsayılan kapalı), sözel düzeyle ve model
+görüşü paketiyle gelir; sayısal skor hâlâ yok, alıntı-doğrulama yasası hâlâ mutlak.)*
 
 ### Faz 1 — İki taraflı defter → v2.0.0 ✅ BİTTİ (1 Eylül)
 Söz ayrımı her yüzeyde: Defter'de "Verdiğim sözler" çipi + SEN rozeti + geciken kendi söz

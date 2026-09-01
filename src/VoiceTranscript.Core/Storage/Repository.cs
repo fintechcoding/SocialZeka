@@ -1254,6 +1254,41 @@ public sealed class Repository(Database database)
         connection.Execute("DELETE FROM reading_note WHERE call_id = @callId;", new { callId });
     }
 
+    // ---- the opt-in deception assessment -------------------------------------
+    //
+    // Same contract as the reading: one row per call, enforced shape in, dead end after.
+
+    public void SaveDeception(long callId, string json, string? modelUsed)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO deception_note (call_id, json, model_used, created_at)
+            VALUES (@callId, @json, @modelUsed, @now)
+            ON CONFLICT(call_id) DO UPDATE SET
+                json = excluded.json, model_used = excluded.model_used, created_at = excluded.created_at;
+            """,
+            new { callId, json, modelUsed, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    public (string Json, string? ModelUsed, DateTimeOffset CreatedAt)? GetDeception(long callId)
+    {
+        using var connection = Open();
+
+        var row = connection.QuerySingleOrDefault<(string Json, string? ModelUsed, string CreatedAt)>(
+            "SELECT json, model_used, created_at FROM deception_note WHERE call_id = @callId;",
+            new { callId });
+
+        return row == default ? null : (row.Json, row.ModelUsed, ParseIso(row.CreatedAt));
+    }
+
+    public void DeleteDeception(long callId)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM deception_note WHERE call_id = @callId;", new { callId });
+    }
+
     /// <summary>Saves the consistency check's overall note for a conversation (one per call).</summary>
     public void SaveConsistencyNote(long callId, string note, string? modelUsed)
     {
@@ -1768,6 +1803,73 @@ public sealed class Repository(Database database)
                     r.CallId,
                     string.IsNullOrWhiteSpace(r.Name) ? "İsimsiz görüşme" : r.Name,
                     r.Obligation,
+                    DateOnly.Parse(r.Day))),
+        ];
+    }
+
+    /// <summary>
+    /// The OTHER side's promise deadlines inside a date window — <see cref="OwnCommitmentsBetween"/>
+    /// mirrored to by_me = 0, filters identical. The month view shows both sides because "when is
+    /// Uliana's evrak due" is the same glance as "when is mine".
+    /// </summary>
+    public IReadOnlyList<(long CallId, string ContactName, string Obligation, DateOnly Day)> TheirCommitmentsBetween(
+        DateOnly from, DateOnly to)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection
+                .Query<(long CallId, string? Name, string Obligation, string Day)>(
+                    """
+                    SELECT cm.call_id, ct.name, cm.obligation, cm.deadline_date
+                    FROM commitment cm
+                    LEFT JOIN contact ct ON ct.id = cm.contact_id
+                    WHERE cm.by_me = 0
+                      AND cm.status = 0
+                      AND cm.dismissed_by_user = 0
+                      AND cm.is_conditional = 0
+                      AND cm.deadline_date IS NOT NULL
+                      AND cm.deadline_date >= @from AND cm.deadline_date <= @to
+                    ORDER BY cm.deadline_date;
+                    """,
+                    new { from = from.ToString("yyyy-MM-dd"), to = to.ToString("yyyy-MM-dd") })
+                .Select(r => (
+                    r.CallId,
+                    string.IsNullOrWhiteSpace(r.Name) ? "İsimsiz görüşme" : r.Name,
+                    r.Obligation,
+                    DateOnly.Parse(r.Day))),
+        ];
+    }
+
+    /// <summary>
+    /// Open action suggestions whose deadline falls inside the window — the calendar's weakest
+    /// marker. Machine proposals, not user decisions, so the month view may only display them;
+    /// their verbs (done, hide, route) stay on the surfaces that already have them.
+    /// </summary>
+    public IReadOnlyList<(long CallId, string ContactName, string Action, DateOnly Day)> ActionsDueBetween(
+        DateOnly from, DateOnly to)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection
+                .Query<(long CallId, string? Name, string Action, string Day)>(
+                    """
+                    SELECT a.call_id, ct.name, a.action, a.deadline_date
+                    FROM action_item a
+                    LEFT JOIN contact ct ON ct.id = a.contact_id
+                    WHERE a.status = 0
+                      AND a.deadline_date IS NOT NULL
+                      AND a.deadline_date >= @from AND a.deadline_date <= @to
+                    ORDER BY a.deadline_date;
+                    """,
+                    new { from = from.ToString("yyyy-MM-dd"), to = to.ToString("yyyy-MM-dd") })
+                .Select(r => (
+                    r.CallId,
+                    string.IsNullOrWhiteSpace(r.Name) ? "İsimsiz görüşme" : r.Name,
+                    r.Action,
                     DateOnly.Parse(r.Day))),
         ];
     }

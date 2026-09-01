@@ -163,7 +163,8 @@ public partial class CallWindow
         var choice = dialog.Choice;
 
         App.Repository.SetCallState(model.CallId, VoiceTranscript.Core.Domain.ProcessingState.Queued);
-        App.Orchestrator.EnqueueWith(model.CallId, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel);
+        App.Orchestrator.EnqueueWith(model.CallId, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel,
+            choice.LlmRouteKind, choice.LlmRouteUrl);
 
         // No dialog. The strip at the bottom of the window carries it from here: progress while
         // it runs, and the tabs refill themselves when it finishes. The dialog this replaces told
@@ -193,7 +194,8 @@ public partial class CallWindow
         var choice = dialog.Choice;
 
         App.Repository.SetCallState(model.CallId, VoiceTranscript.Core.Domain.ProcessingState.Queued);
-        App.Orchestrator.EnqueueWith(model.CallId, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel);
+        App.Orchestrator.EnqueueWith(model.CallId, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel,
+            choice.LlmRouteKind, choice.LlmRouteUrl);
 
         model.MarkQueued();
     }
@@ -211,6 +213,13 @@ public partial class CallWindow
         if (ViewModel is not { } model) return;
 
         App.Repository.PutOnBoard(model.CallId, Core.Domain.BoardLane.ToLookAt);
+    }
+
+    /// <summary>The attention strip's promise: one click lands on the evidence it counted.</summary>
+    private void Attention_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        MainTabs.SelectedItem = AnalysisTab;
+        AnalysisTabs.SelectedItem = ConsistencyTab;
     }
 
     /// <summary>A reminder in one step: onto the pile if needed, and dated.</summary>
@@ -355,5 +364,15 @@ public partial class CallWindow
 
         model.PlayExcerptCommand.Execute(
             new Excerpt(0, model.CallId, null, default, at, line.IsMe, line.Quote ?? ""));
+    }
+
+    /// <summary>An asserted tactic plays its own evidence — that is what earns it the row.</summary>
+    private void DeceptionQuote_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not Core.Analysis.DeceptionLine line) return;
+        if (ViewModel is not { } model) return;
+
+        model.PlayExcerptCommand.Execute(
+            new Excerpt(0, model.CallId, null, default, line.StartMs, line.IsMe, line.Quote));
     }
 }

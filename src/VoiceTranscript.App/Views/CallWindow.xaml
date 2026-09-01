@@ -159,9 +159,34 @@
                     </ui:Button>
                 </StackPanel>
             </WrapPanel>
+
+            <!-- The attention strip: visible on every tab, fed ONLY by the verified evidence
+                 layers (pipeline flags and consistency findings — never the subjective
+                 reading). It counts and points; it does not judge. -->
+            <Border Margin="0,10,0,0" Padding="12,8" CornerRadius="6" Cursor="Hand"
+                    Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                    Visibility="{Binding HasAttention, Converter={StaticResource BoolToVisibility}}"
+                    MouseLeftButtonUp="Attention_Click"
+                    ToolTip="Tıkla — Tutarlılık sekmesine gider.">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Warning24" FontSize="16" Margin="0,0,10,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Dikkat çeken noktalar var" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding AttentionLine}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Grid>
+            </Border>
         </StackPanel>
 
-        <TabControl Grid.Row="2" Margin="20,14,20,0" Padding="0,14,0,0"
+        <TabControl x:Name="MainTabs" Grid.Row="2" Margin="20,14,20,0" Padding="0,14,0,0"
                     Style="{StaticResource SegmentedTabs}">
 
             <!-- ================= the conversation ================= -->
@@ -327,9 +352,18 @@
             </TabItem>
 
             <!-- ================= what was extracted ================= -->
-            <TabItem Header="Çözümleme">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
-                    <StackPanel>
+            <TabItem x:Name="AnalysisTab" Header="Çözümleme">
+                <!-- Split into category tabs at the user's request: one scroll held the ledger,
+                     actions, consistency and the reading, and the bottom half was invisible.
+                     The subjective reading keeps its own tab so it can never sit mid-scroll
+                     between two pieces of evidence. -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,4,10,0">
 
                         <!--
                             An action rather than an empty page.
@@ -363,6 +397,13 @@
                                 </ui:Button>
                             </Grid>
                         </Border>
+                    </StackPanel>
+
+                    <TabControl x:Name="AnalysisTabs" Grid.Row="1" Margin="0,2,0,0" Padding="0,10,0,0"
+                                Style="{StaticResource SegmentedTabs}">
+                        <TabItem Header="Defter">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
+                                <StackPanel>
 
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,10"
                                 Visibility="{Binding HasSummary, Converter={StaticResource BoolToVisibility}}">
@@ -422,6 +463,38 @@
                                 </ItemsControl>
                             </StackPanel>
                         </Border>
+
+                        <Border Style="{StaticResource Panel}"
+                                Visibility="{Binding Flags.Count, Converter={StaticResource CountToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="İşaretler" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <ItemsControl ItemsSource="{Binding Flags}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,4">
+                                                <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Style="{StaticResource EmptyState}"
+                                    Visibility="{Binding HasLedger, Converter={StaticResource InverseBoolToVisibility}}">
+                            <TextBlock Style="{StaticResource EmptyTitle}" Text="Bu görüşmeden çıkarılmış bir kayıt yok." />
+                            <TextBlock Style="{StaticResource EmptyBody}"
+                                       Text="Söz verilmemiş, rakam ya da tarih geçmemiş bir konuşmada bu normaldir." />
+                        </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="Aksiyonlar">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
+                                <StackPanel>
 
                         <!--
                             The user's proposed next moves. Suggestions, and the panel says so:
@@ -535,31 +608,13 @@
                                            Visibility="{Binding ActionsMessage, Converter={StaticResource NullToCollapsed}}" />
                             </StackPanel>
                         </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
 
-                        <Border Style="{StaticResource Panel}"
-                                Visibility="{Binding Flags.Count, Converter={StaticResource CountToVisibility}}">
-                            <StackPanel>
-                                <TextBlock Text="İşaretler" FontWeight="SemiBold" Margin="0,0,0,6" />
-                                <ItemsControl ItemsSource="{Binding Flags}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Margin="0,4">
-                                                <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
-                                                <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
-                                                           TextWrapping="Wrap" Margin="0,2,0,0" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
-
-                        <StackPanel Style="{StaticResource EmptyState}"
-                                    Visibility="{Binding HasLedger, Converter={StaticResource InverseBoolToVisibility}}">
-                            <TextBlock Style="{StaticResource EmptyTitle}" Text="Bu görüşmeden çıkarılmış bir kayıt yok." />
-                            <TextBlock Style="{StaticResource EmptyBody}"
-                                       Text="Söz verilmemiş, rakam ya da tarih geçmemiş bir konuşmada bu normaldir." />
-                        </StackPanel>
+                        <TabItem x:Name="ConsistencyTab" Header="Tutarlılık">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
+                                <StackPanel>
 
                         <!--
                             The consistency check. Not a lie detector, and the section says so:
@@ -567,7 +622,7 @@
                             the transcript, plays on click, and the warning note exists only
                             when findings survived that verification. The user judges.
                         -->
-                        <Border Style="{StaticResource Panel}" Margin="0,10,0,0">
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,10">
                             <StackPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -713,14 +768,105 @@
                         </Border>
 
                         <!--
-                            The model's free reading — the one deliberately subjective surface,
-                            at the user's explicit request. Separated, signed and hatted so it
-                            can never be mistaken for the evidence beside it; and a dead end in
-                            the data model, so it never leaks anywhere else.
+                            The opt-in assessment. The user asked for a plain opinion as a
+                            switch, and got one — packaged as an opinion: hatted, signed, its
+                            level qualitative, and every asserted tactic playable because its
+                            quote verified. Off means not just empty but absent.
                         -->
                         <Border Style="{StaticResource Panel}" Margin="0,10,0,0"
                                 Background="{DynamicResource SubtleFillColorSecondaryBrush}"
-                                Visibility="{Binding CommentaryEnabled, Converter={StaticResource BoolToVisibility}}">
+                                Visibility="{Binding DeceptionEnabled, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="Yalan ve manipülasyon değerlendirmesi" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Caption}" FontStyle="Italic" Margin="0,2,8,0"
+                                                   Text="Modelin görüşüdür — metinden çıkarım, gerçeğin hakemi değil. Hükmü sen ver." />
+                                    </StackPanel>
+
+                                    <ui:Button Grid.Column="1" VerticalAlignment="Center"
+                                               Command="{Binding RunDeceptionCommand}"
+                                               IsEnabled="{Binding IsDeceptionRunning, Converter={StaticResource InverseBool}}">
+                                        <ui:Button.Style>
+                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                <Setter Property="Content" Value="Değerlendir" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasDeception}" Value="True">
+                                                        <Setter Property="Content" Value="Yeniden değerlendir" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ui:Button.Style>
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="ShieldError24" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+
+                                <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
+                                             Visibility="{Binding IsDeceptionRunning, Converter={StaticResource BoolToVisibility}}" />
+
+                                <TextBlock Text="{Binding DeceptionProblem}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                           Visibility="{Binding DeceptionProblem, Converter={StaticResource NullToCollapsed}}" />
+
+                                <StackPanel Visibility="{Binding HasDeception, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="{Binding DeceptionLevelLine}" FontWeight="SemiBold" Margin="0,10,0,0" />
+
+                                    <TextBlock Text="{Binding Deception.Assessment}" TextWrapping="Wrap" Margin="0,6,0,0" />
+
+                                    <ItemsControl ItemsSource="{Binding Deception.Tactics}" Margin="0,6,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderThickness="0,0,0,1" Padding="0,8"
+                                                        BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding TacticLabel}" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding SpeakerLabel}" Style="{StaticResource Caption}"
+                                                                       Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Reason}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                                        <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
+                                                                   TextWrapping="Wrap" Margin="0,2,0,0" Cursor="Hand"
+                                                                   TextDecorations="Underline"
+                                                                   MouseLeftButtonUp="DeceptionQuote_Click"
+                                                                   ToolTip="Tıkla — bu anı çalar." />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="{Binding DeceptionStamp}" Style="{StaticResource Caption}"
+                                               Margin="0,8,0,0" HorizontalAlignment="Right"
+                                               Visibility="{Binding DeceptionStamp, Converter={StaticResource NullToCollapsed}}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!--
+                            The model's free reading — the one deliberately subjective surface,
+                            at the user's explicit request. Its own tab, still signed and hatted,
+                            so it can never be mistaken for the evidence in the tabs beside it;
+                            and a dead end in the data model, so it never leaks anywhere else.
+                            The whole tab disappears when the setting is off.
+                        -->
+                        <TabItem Header="Okuma"
+                                 Visibility="{Binding CommentaryEnabled, Converter={StaticResource BoolToVisibility}}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
+                                <StackPanel>
+
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,10"
+                                Background="{DynamicResource SubtleFillColorSecondaryBrush}">
                             <StackPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -851,8 +997,11 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
-                    </StackPanel>
-                </ScrollViewer>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
             </TabItem>
 
             <!-- ================= questions about this call ================= -->

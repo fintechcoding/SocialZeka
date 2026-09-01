@@ -46,6 +46,7 @@ public class WindowSmokeTests
                 Build("Ana pencere", () => new App.MainWindow(), failures);
                 Build("Genel bakış", () => new OverviewPage(), failures);
                 Build("Defter", () => new LedgerPage(), failures);
+                Build("Takvim", () => new CalendarPage(), failures);
                 Build("Kişiler", () => new ContactsPage(), failures);
                 Build("Arama", () => new SearchPage(), failures);
                 Build("Sor", () => new AskPage(), failures);

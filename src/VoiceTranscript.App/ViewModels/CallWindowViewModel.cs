@@ -249,6 +249,36 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     public bool HasLedger => Commitments.Count > 0 || Claims.Count > 0 || Flags.Count > 0;
     public bool HasTurns => Turns.Count > 0;
 
+    // The window-level attention strip. Fed by the verified evidence layers, plus — only when
+    // the user switched it on — an elevated deception level, always labelled a model view.
+    // The free reading never reaches it.
+    public bool HasAttention => Flags.Count > 0 || ConsistencyFindings.Count > 0
+        || (DeceptionEnabled && Deception is { IsElevated: true });
+
+    public string AttentionLine
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (Flags.Count > 0) parts.Add($"{Flags.Count} işaret");
+            if (ConsistencyFindings.Count > 0) parts.Add($"{ConsistencyFindings.Count} denetim bulgusu");
+
+            if (DeceptionEnabled && Deception is { IsElevated: true } elevated)
+                parts.Add($"model görüşü: şüphe düzeyi {(elevated.Level == "yuksek" ? "yüksek" : "orta")}");
+
+            var head = string.Join(" · ", parts);
+            return string.IsNullOrWhiteSpace(ConsistencyWarning)
+                ? $"{head} — her biri gerekçesiyle Tutarlılık sekmesinde; hükmü sen ver."
+                : $"{head} — {ConsistencyWarning}";
+        }
+    }
+
+    private void RefreshAttention()
+    {
+        OnPropertyChanged(nameof(HasAttention));
+        OnPropertyChanged(nameof(AttentionLine));
+    }
+
     private void Load()
     {
         var call = _repository.GetCall(CallId);
@@ -326,6 +356,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         LoadActions();
         LoadReading();
+        LoadDeception();
 
         // The consistency section's own rows — split from the ledger's flags because the two
         // come from different runs, clear separately, and answer different clicks. Reloaded
@@ -347,6 +378,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(HasConsistencyRun));
+        RefreshAttention();
 
         Note = _repository.GetNote(CallId);
 
@@ -705,6 +737,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
                     : null;
 
             OnPropertyChanged(nameof(HasConsistencyRun));
+            RefreshAttention();
         }
         catch (Exception e)
         {
@@ -867,6 +900,95 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         finally
         {
             IsReadingRunning = false;
+        }
+    }
+
+    // ---- the opt-in deception assessment ------------------------------------
+    //
+    // The user's informed choice: an explicit opinion, delivered as an opinion. Its rows
+    // feed the attention strip only at elevated levels, and always labelled as a view.
+
+    [ObservableProperty] private DeceptionReport? _deception;
+    [ObservableProperty] private string? _deceptionStamp;
+    [ObservableProperty] private string? _deceptionProblem;
+    [ObservableProperty] private bool _isDeceptionRunning;
+
+    public bool HasDeception => Deception is { Ok: true };
+
+    public bool DeceptionEnabled => _settings().DeceptionEnabled;
+
+    public string DeceptionLevelLine => Deception?.Level switch
+    {
+        "yok" => "Şüphe düzeyi: belirti yok",
+        "dusuk" => "Şüphe düzeyi: düşük",
+        "orta" => "Şüphe düzeyi: orta",
+        "yuksek" => "Şüphe düzeyi: yüksek",
+        _ => "",
+    };
+
+    private void LoadDeception()
+    {
+        if (_repository.GetDeception(CallId) is { } stored
+            && DeceptionAnalysis.FromStored(stored.Json) is { } report)
+        {
+            Deception = report;
+            DeceptionStamp = $"{stored.ModelUsed ?? "model"} · {stored.CreatedAt.ToLocalTime():d MMMM yyyy}";
+        }
+        else
+        {
+            Deception = null;
+            DeceptionStamp = null;
+        }
+
+        OnPropertyChanged(nameof(HasDeception));
+        OnPropertyChanged(nameof(DeceptionLevelLine));
+        OnPropertyChanged(nameof(DeceptionEnabled));
+    }
+
+    [RelayCommand]
+    private async Task RunDeceptionAsync(CancellationToken cancellationToken)
+    {
+        if (IsDeceptionRunning) return;
+
+        var settings = _settings();
+
+        if (!settings.LlmReachableInPrinciple)
+        {
+            DeceptionProblem = "Bağlı bir yapay zekâ servisi yok. Ayarlar → Çözümleme bölümünden bir sağlayıcı seç.";
+            return;
+        }
+
+        IsDeceptionRunning = true;
+        DeceptionProblem = null;
+
+        try
+        {
+            var client = LlmClientFactory.Create(
+                _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
+
+            var model = settings.ResolvedConsistencyModel;
+            var report = await new DeceptionAnalysis(client, _repository).RunAsync(
+                CallId, model, cancellationToken);
+
+            if (!report.Ok)
+            {
+                DeceptionProblem = report.Problem;
+                return;
+            }
+
+            Deception = report;
+            DeceptionStamp = $"{model} · {DateTime.Now:d MMMM yyyy}";
+            OnPropertyChanged(nameof(HasDeception));
+            OnPropertyChanged(nameof(DeceptionLevelLine));
+            RefreshAttention();
+        }
+        catch (Exception e)
+        {
+            DeceptionProblem = $"Değerlendirme tamamlanamadı: {e.Message}";
+        }
+        finally
+        {
+            IsDeceptionRunning = false;
         }
     }
 

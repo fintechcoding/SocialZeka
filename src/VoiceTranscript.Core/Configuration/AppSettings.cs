@@ -286,6 +286,16 @@ public sealed record AppSettings
     /// <summary>Show the model's free reading panel. The one deliberately subjective surface.</summary>
     public bool CommentaryEnabled { get; init; } = true;
 
+    /// <summary>
+    /// Run the explicit deception/manipulation assessment alongside the consistency check.
+    ///
+    /// Off by default and opt-in on purpose: this is the one place the model states suspicion
+    /// plainly (a qualitative level, tactic by tactic, each anchored to a verified quote). The
+    /// user asked for it as a switch, knowing what it is — the packaging keeps saying "model
+    /// opinion", because a transcript reader genuinely cannot know, only argue.
+    /// </summary>
+    public bool DeceptionEnabled { get; init; }
+
     public LlmProviderKind LlmProvider { get; init; } = LlmProviderKind.LlamaServer;
 
     /// <summary>Which entry of the local model catalogue to use. Ignored by remote providers.</summary>

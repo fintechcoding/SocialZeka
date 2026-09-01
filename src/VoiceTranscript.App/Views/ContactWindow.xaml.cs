@@ -177,7 +177,8 @@ public partial class ContactWindow
         var choice = dialog.Choice;
 
         App.Repository.SetCallState(row.Id, Core.Domain.ProcessingState.Queued);
-        App.Orchestrator.EnqueueWith(row.Id, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel);
+        App.Orchestrator.EnqueueWith(row.Id, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel,
+            choice.LlmRouteKind, choice.LlmRouteUrl);
     }
 
     /// <summary>A reminder in one step: onto the pile if needed, and dated.</summary>

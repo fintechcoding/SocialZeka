@@ -82,6 +82,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _consistencyOtherPartyOnly = settings.ConsistencyOtherPartyOnly;
         _extractActions = settings.ExtractActions;
         _themeChoice = settings.ThemeChoice ?? "system";
+        _deceptionEnabled = settings.DeceptionEnabled;
         _commentaryEnabled = settings.CommentaryEnabled;
         _llmRemoteModel = settings.LlmRemoteModel ?? "";
         _llmBaseUrl = settings.LlmBaseUrl ?? "";
@@ -301,6 +302,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _consistencyOtherPartyOnly;
     [ObservableProperty] private bool _extractActions = true;
     [ObservableProperty] private string _themeChoice = "system";
+    [ObservableProperty] private bool _deceptionEnabled;
     [ObservableProperty] private bool _commentaryEnabled = true;
     [ObservableProperty] private string _llmRemoteModel;
     [ObservableProperty] private string _llmBaseUrl;
@@ -636,6 +638,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ConsistencyOtherPartyOnly = ConsistencyOtherPartyOnly,
         ExtractActions = ExtractActions,
         ThemeChoice = ThemeChoice,
+        DeceptionEnabled = DeceptionEnabled,
         CommentaryEnabled = CommentaryEnabled,
         LlmProvider = SelectedProvider.Kind,
         LlmModelId = SelectedLlmModel.Id,

@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 6;
+    public const int Version = 7;
 
     public static readonly string[] Statements =
     [
@@ -317,6 +317,19 @@ public static class Schema
         // subjective reading lives next to the transcript it read, and nowhere else.
         """
         CREATE TABLE IF NOT EXISTS reading_note (
+            call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+            json       TEXT    NOT NULL,
+            model_used TEXT,
+            created_at TEXT    NOT NULL
+        );
+        """,
+
+        // The opt-in deception/manipulation assessment. Same dead-end rules as the reading:
+        // stored as the enforced shape, joined by nothing, fed to no other prompt. It exists
+        // because the user explicitly asked to hear the model's opinion — and it is stored as
+        // an opinion, never as evidence.
+        """
+        CREATE TABLE IF NOT EXISTS deception_note (
             call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
             json       TEXT    NOT NULL,
             model_used TEXT,

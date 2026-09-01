@@ -19,6 +19,9 @@ public enum ShellPage
     /// </summary>
     Ledger,
 
+    /// <summary>The month view: reminders, both sides' promise deadlines, birthdays.</summary>
+    Calendar,
+
     Contacts,
 
     /// <summary>
@@ -83,6 +86,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         Overview = new OverviewViewModel(repository, settings, paths);
         Ledger = new LedgerViewModel(repository);
+        Calendar = new CalendarViewModel(repository);
         Contacts = new ContactsViewModel(repository);
         Processing = new ProcessingViewModel(repository, settings);
         AiStatus = new AiStatusViewModel(settings, App.HttpClient, repository);
@@ -168,6 +172,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public OverviewViewModel Overview { get; }
     public LedgerViewModel Ledger { get; }
+    public CalendarViewModel Calendar { get; }
     public ContactsViewModel Contacts { get; }
     public ProcessingViewModel Processing { get; }
     public AiStatusViewModel AiStatus { get; }
@@ -345,6 +350,9 @@ public sealed partial class ShellViewModel : ObservableObject
         // Same reason as Search: somebody labelled five minutes ago has to be selectable now.
         if (Page == ShellPage.Ask) Ask.LoadContacts();
 
+        // Re-read on arrival: a reminder set moments ago must already be on the month.
+        if (Page == ShellPage.Calendar) Calendar.Refresh();
+
         // Checked on arrival rather than on a timer: the answers involve reading the disk and
         // starting a Python process, which is not something to do every minute in the background
         // of a machine that is also on a call.
@@ -356,6 +364,7 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         Overview.Refresh();
         Ledger.Refresh();
+        Calendar.Refresh();
         Contacts.Refresh();
         Processing.Refresh();
         AiStatus.Refresh();

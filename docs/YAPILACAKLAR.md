@@ -1389,3 +1389,45 @@ analiz diye ayrı bir alan"; "eski görüşmelerde de bu analizi yapabilse iyi o
   çıkar" düğmesi var (okuma panelinin kalıbı: ilerleme çubuğu + sonuç/eleme mesajı).
   Otomatik çıkarım yalnız yeni çözümlemelerde koşuyordu; arşivdeki eski görüşmeler için
   elle yol yoktu.
+
+## 22. 1 Eylül — v2.1.2 canlı test turu (v2.1.3)
+
+Akan istekler: Çözümleme'ye kategori sekmeleri; takvim "çok basit, geliştir" → soruyla TAM
+TAKVİM SAYFASI seçildi; "görüşme detayında sıkıntı varsa uyarı çıksın"; **kural sorgusu:**
+"skor hüküm neden yasak, kim koydu? ayarlanabilir olsun — yalan manipülasyon tespiti aç/kapat";
+"yerel bulut ayrımı böyle bir ui'de olsun" (çözümle seçicisi).
+
+- [x] **22.1 Çözümleme alt-sekmeleri:** Görüşme penceresinde Çözümleme artık DÖRT iç sekme:
+  Defter (özet+sözler+işaretler) / Aksiyonlar / Tutarlılık / Okuma. "Çözümle" durum kartı
+  sekmelerin üstünde sabit; Okuma sekmesi ayar kapalıyken tamamen yok; öznel içerik kanıtın
+  arasında kaydırılamaz artık — kendi sekmesinde.
+- [x] **22.2 Takvim sayfası (ajan teslimi):** sol menüde yeni "Takvim" — Outlook tarzı ay
+  ızgarası (Pzt-ilk, bugün vurgulu, hücrede 3 satır + "+N daha"), sağda güne tıkla→ajanda
+  paneli (satır→görüşme/kişi), ‹ › + Bugün; kaynaklar: hatırlatıcı (kırmızı) / kendi söz
+  (mavi 🤝) / karşı söz / doğum günü / aksiyon vadesi (içi boş gri — öneri görsel olarak
+  zayıf). Ctrl+7, palete "Takvim", 2 yeni el-ayrıştırmalı sorgu (TheirCommitmentsBetween,
+  ActionsDueBetween), 5 test.
+- [x] **22.3 Dikkat şeridi:** pencere başlığının altında, her sekmede görünür sarı şerit —
+  "N işaret · M denetim bulgusu — [gerekçeli uyarı notu]"; tıkla → Tutarlılık sekmesi.
+  Kaynak yalnız doğrulanmış kanıt katmanları + (açıksa) yükselmiş şüphe düzeyi "model
+  görüşü" etiketiyle. Okuma şeride asla karışmaz.
+- [x] **22.4 Yalan/manipülasyon değerlendirmesi (KURAL EVRİMİ — kullanıcı kararı):**
+  "Hüküm yasağı"nı ilk tasarımda ben koymuştum (gerekçe: model sesi duymaz, STT hatası
+  masumu damgalar, sayısal skor sahte otorite); kullanıcı sorgulayıp AYARLANABİLİR istedi.
+  Uygulanan: Ayarlar > Tutarlılık > "Yalan ve manipülasyon değerlendirmesi" (varsayılan
+  KAPALI, açması tek tık). Açıkken denetimle birlikte ayrı istek (stage=deception, tutarlılık
+  modeli): şüphe düzeyi yok/düşük/orta/yüksek (SAYISAL SKOR YOK — sözel düzey daha dürüst) +
+  serbest değerlendirme paragrafı + taktik listesi (baskı/suçluluk/kaçamak/geriye yazım/
+  aşırı iltifat/yapay aciliyet/tehdit iması/çelişki örtme; BEN de incelenir — simetri).
+  DEĞİŞMEYEN YASA: alıntısı dökümde doğrulanamayan taktik kodda ELENİR ve sıfır taktik
+  kalan "yüksek" düzey "düşük"e indirilir (kanıtsız görüş şişirilemez). Paket: ayrı zeminli
+  panel Tutarlılık sekmesinde, "Modelin görüşüdür" şapkası, model+tarih imzası,
+  deception_note tablosu (şema v7) ölü uç — başka prompt'a/tabloya sızmaz.
+- [x] **22.5 Çözümlemede yerel/bulut rotası:** "Yeniden çözümle" seçicisi artık yerel
+  OpenAI-uyumlu sunucuları (llama-server, LM Studio) 2 sn yoklar; CEVAP VERENLER listeye
+  "Bu makinede" grubuyla girer → Tümü/Bu makinede/Bulut süzgeci kendiliğinden belirir
+  (ölü rota asla sunulmaz). Seçim tek koşumluk sağlayıcı geçersiz kılması taşır
+  (EnqueueWith llmRouteKind/Url; UnloadWhenDone gerçek rotaya bakar; log gerçek rotayı yazar).
+- [x] **22.6 Testler (5 yeni + v7; toplam 776/0):** DeceptionAnalysis (doğrulanamayan taktik
+  düşer VE yükselmiş düzeyi düşürür; saklanan=zorlanan şekil; temiz konuşma temiz kalabilir;
+  7. taktik kırpılır; stage=deception kullanım); migrasyon v7 (deception_note doğar).

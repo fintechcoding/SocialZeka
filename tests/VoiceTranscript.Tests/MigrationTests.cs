@@ -231,6 +231,14 @@ public sealed class MigrationTests : IDisposable
             reading.CommandText = "SELECT COUNT(*) FROM reading_note;";
             Assert.Equal(0L, reading.ExecuteScalar());
         }
+
+        // v7: the opt-in deception assessment's store.
+        using (var connection = new Database(_path).Open())
+        {
+            using var deception = connection.CreateCommand();
+            deception.CommandText = "SELECT COUNT(*) FROM deception_note;";
+            Assert.Equal(0L, deception.ExecuteScalar());
+        }
     }
 
     private bool ColumnExistsIn(string table, string column)

@@ -19,7 +19,7 @@
                  WindowBackdropType="Mica">
 
     <ui:FluentWindow.InputBindings>
-        <!-- The keyboard layer: pages on Ctrl+1..6, palette on Ctrl+K, search on Ctrl+F,
+        <!-- The keyboard layer: pages on Ctrl+1..7, palette on Ctrl+K, search on Ctrl+F,
              refresh on F5 — the quiet definition of corporate software. -->
         <KeyBinding Modifiers="Control" Key="K" Command="{Binding OpenPaletteCommand}" />
         <KeyBinding Modifiers="Control" Key="D1" Command="{Binding NavigateCommand}" CommandParameter="Overview" />
@@ -28,6 +28,7 @@
         <KeyBinding Modifiers="Control" Key="D4" Command="{Binding NavigateCommand}" CommandParameter="Search" />
         <KeyBinding Modifiers="Control" Key="D5" Command="{Binding NavigateCommand}" CommandParameter="Ask" />
         <KeyBinding Modifiers="Control" Key="D6" Command="{Binding NavigateCommand}" CommandParameter="Health" />
+        <KeyBinding Modifiers="Control" Key="D7" Command="{Binding NavigateCommand}" CommandParameter="Calendar" />
         <KeyBinding Modifiers="Control" Key="F" Command="{Binding NavigateCommand}" CommandParameter="Search" />
         <KeyBinding Key="F5" Command="{Binding RefreshAllCommand}" />
         <KeyBinding Modifiers="Control" Key="OemQuestion" Command="{Binding ShowShortcutsCommand}" />
@@ -218,6 +219,15 @@
                     </RadioButton>
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Calendar}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="Calendar">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="CalendarLtr24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T mainwindow.takvim}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
                                  IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Contacts}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Contacts">
                         <Grid>
@@ -381,6 +391,15 @@
                         </MultiBinding>
                     </views:LedgerPage.Visibility>
                 </views:LedgerPage>
+
+                <views:CalendarPage Style="{StaticResource PageHost}" DataContext="{Binding Calendar}">
+                    <views:CalendarPage.Visibility>
+                        <MultiBinding Converter="{StaticResource PageVisibility}">
+                            <Binding Path="DataContext.Page" RelativeSource="{RelativeSource AncestorType=Window}" />
+                            <Binding Source="Calendar" />
+                        </MultiBinding>
+                    </views:CalendarPage.Visibility>
+                </views:CalendarPage>
 
                 <views:ContactsPage Style="{StaticResource PageHost}" DataContext="{Binding Contacts}">
                     <views:ContactsPage.Visibility>

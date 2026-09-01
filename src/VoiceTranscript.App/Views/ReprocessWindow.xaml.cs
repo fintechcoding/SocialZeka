@@ -12,7 +12,8 @@ namespace VoiceTranscript.App.Views;
 /// <param name="Group">Which heading it sits under: where the audio would go.</param>
 public sealed record ReprocessMethod(
     string? Id, string Name, string Detail, string Icon, bool SendsDataOffMachine, string Speed,
-    string Group = ReprocessMethod.OnThisMachine, bool SendsAudio = true)
+    string Group = ReprocessMethod.OnThisMachine, bool SendsAudio = true,
+    Core.Llm.LlmProviderKind? RouteKind = null, string? RouteUrl = null)
 {
     /// <summary>The row that follows the settings, whatever those currently say.</summary>
     public const string FromSettings = "Ayarlarda seçili";
@@ -42,7 +43,12 @@ public enum ReprocessKind
 /// <param name="AsrModelId">Transcription engine, or null for the configured one.</param>
 /// <param name="LlmModel">Analysis model, or null for the configured one.</param>
 /// <param name="AnalyseOnly">Keep the existing transcript and rebuild only the ledger.</param>
-public sealed record ReprocessChoice(string? AsrModelId, string? LlmModel, bool AnalyseOnly);
+/// <param name="LlmRouteKind">A provider to use INSTEAD of the configured one, for this run —
+/// how a cloud-configured archive analyses one conversation on the local server.</param>
+/// <param name="LlmRouteUrl">The overriding provider's endpoint.</param>
+public sealed record ReprocessChoice(
+    string? AsrModelId, string? LlmModel, bool AnalyseOnly,
+    Core.Llm.LlmProviderKind? LlmRouteKind = null, string? LlmRouteUrl = null);
 
 /// <summary>
 /// Asks how a recording should be redone, and with what.
@@ -96,6 +102,7 @@ public partial class ReprocessWindow
 
             ShowAnalysisModels();
             _ = ProbeAnalysisServiceAsync();
+            _ = OfferLocalRoutesAsync();
 
             Hint.Text = "Modeli seç; defter ve özet metinden yeniden üretilir.";
         }
@@ -187,7 +194,64 @@ public partial class ReprocessWindow
             }
         }
 
+        _analysisMethods = methods;
         Bind(methods);
+    }
+
+    private List<ReprocessMethod>? _analysisMethods;
+
+    /// <summary>
+    /// Asks the local OpenAI-compatible servers whether anybody is home, and lists the ones
+    /// that answer — which is what makes "yerel / bulut" a real choice on this dialog rather
+    /// than a filter over a single world. Only servers that actually respond are offered:
+    /// a dead route on a list of ways to spend money is a trap, not an option.
+    ///
+    /// Ollama is deliberately absent — it addresses models by tag, and this dialog cannot know
+    /// which tags are pulled; llama-server and LM Studio serve whatever is loaded.
+    /// </summary>
+    private async Task OfferLocalRoutesAsync()
+    {
+        if (_analysisMethods is null) return;
+
+        List<ReprocessMethod> found = [];
+
+        foreach (var kind in new[] { Core.Llm.LlmProviderKind.LlamaServer, Core.Llm.LlmProviderKind.LmStudio })
+        {
+            if (kind == _settings.LlmProvider) continue; // already the settings row
+
+            var candidate = Core.Llm.LlmProviders.Get(kind);
+
+            try
+            {
+                var client = Core.Llm.LlmClientFactory.Create(
+                    App.HttpClient, kind, candidate.DefaultBaseUrl, apiKey: null);
+
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                if (!await client.IsAvailableAsync(deadline.Token)) continue;
+            }
+            catch (Exception)
+            {
+                continue; // not running — the ordinary case, not a fault
+            }
+
+            found.Add(new ReprocessMethod(
+                null, candidate.DisplayName,
+                "Bu makinede · sunucuda yüklü olan model çalışır; metin makineden çıkmaz.",
+                "Desktop24", SendsDataOffMachine: false, "",
+                ReprocessMethod.OnThisMachine, SendsAudio: false,
+                RouteKind: kind, RouteUrl: candidate.DefaultBaseUrl));
+        }
+
+        if (found.Count == 0 || _analysisMethods is null) return;
+
+        // Machine rows right after the settings row, cloud recommendations after — the same
+        // "the route that keeps data here comes first" order the transcription list uses.
+        var merged = new List<ReprocessMethod> { _analysisMethods[0] };
+        merged.AddRange(found);
+        merged.AddRange(_analysisMethods.Skip(1));
+
+        _analysisMethods = merged;
+        Dispatcher.Invoke(() => Bind(merged));
     }
 
     /// <summary>
@@ -334,7 +398,7 @@ public partial class ReprocessWindow
         if (Methods.SelectedItem is not ReprocessMethod method) return;
 
         Choice = _kind == ReprocessKind.Analyse
-            ? new ReprocessChoice(null, method.Id, AnalyseOnly: true)
+            ? new ReprocessChoice(null, method.Id, AnalyseOnly: true, method.RouteKind, method.RouteUrl)
             : new ReprocessChoice(method.Id, null, AnalyseOnly: false);
 
         DialogResult = true;
