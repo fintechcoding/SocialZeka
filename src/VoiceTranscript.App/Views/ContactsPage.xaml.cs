@@ -370,4 +370,13 @@ public partial class ContactsPage
         model.PlaybackMessage = result.Message;
         Services.AppLog.Write("kesit", result.Ok ? "ses kesiti yazıldı" : $"kesit alınamadı: {result.Message}");
     }
+
+    /// <summary>A tag pill is a question: "which other conversations did I mark with this?"</summary>
+    private void TagPill_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not string tag) return;
+
+        MainWindow.SearchTagFromAnywhere(tag);
+        e.Handled = true;
+    }
 }

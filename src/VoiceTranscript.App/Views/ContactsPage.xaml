@@ -424,7 +424,9 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <Border Style="{StaticResource Pill}" Margin="0,0,4,2"
-                                                                Background="{Binding Converter={StaticResource TagBrush}}">
+                                                                Background="{Binding Converter={StaticResource TagBrush}}"
+                                                                Cursor="Hand" MouseLeftButtonUp="TagPill_Click"
+                                                                ToolTip="Bu etiketi taşıyan görüşmeleri ara">
                                                             <StackPanel Orientation="Horizontal">
                                                                 <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
                                                                                FontSize="11" Foreground="White" Margin="0,0,3,0"
@@ -444,71 +446,44 @@
 
                             <Grid Grid.Column="1">
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <!-- Summary -->
-                                <Border Grid.Row="0" Style="{StaticResource Panel}"
-                                        Visibility="{Binding Summary, Converter={StaticResource NullToCollapsed}}">
-                                    <StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                            <ui:SymbolIcon Symbol="DocumentText24" FontSize="16" Margin="0,0,8,0"
-                                                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                                            <TextBlock Text="{loc:T contactspage.ozet}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding Summary}" Style="{StaticResource Secondary}" />
-                                    </StackPanel>
-                                </Border>
-
                                 <!--
-                                    Who did the talking.
-
-                                    Free from the recording design, and impossible to produce
-                                    honestly from a single mixed stream. Stated as a measurement,
-                                    never as a verdict about the other person.
+                                    The conversation first, at full height; the machine's summary
+                                    behind a tab. Stacked above the transcript the summary cost
+                                    the one thing this pane is for — reading what was actually
+                                    said — and the user put it plainly: "özet burda tab olsun,
+                                    konuşmayı daraltıyor". The player stays outside the tabs:
+                                    evidence is never behind a click.
                                 -->
-                                <Border Grid.Row="1" Style="{StaticResource Panel}"
-                                        Visibility="{Binding HasTalkStats, Converter={StaticResource BoolToVisibility}}">
-                                    <StackPanel>
-                                        <TextBlock Text="{loc:T contactspage.konusma-payi}" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                <TabControl Grid.Row="0" Style="{StaticResource SegmentedTabs}"
+                                            Padding="0,10,0,0">
+                                    <TabItem Header="{loc:T contactspage.konusma}">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="*" />
+                                            </Grid.RowDefinitions>
 
-                                        <Grid Height="8" Margin="0,0,0,8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=me}" />
-                                                <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=them}" />
-                                            </Grid.ColumnDefinitions>
-                                            <Border Grid.Column="0" Background="{StaticResource MeBrush}"
-                                                    CornerRadius="4,0,0,4" />
-                                            <Border Grid.Column="1" Background="{StaticResource ThemBrush}"
-                                                    CornerRadius="0,4,4,0" />
-                                        </Grid>
+                                            <TextBlock Grid.Row="0" Text="{Binding TranscriptMessage}"
+                                                       Style="{StaticResource Secondary}" Margin="0,0,0,8"
+                                                       Visibility="{Binding TranscriptMessage, Converter={StaticResource NullToCollapsed}}" />
 
-                                        <TextBlock Text="{Binding TalkSummary}" Style="{StaticResource Caption}" />
-                                        <TextBlock Text="{Binding InterruptionSummary}" Style="{StaticResource Caption}"
-                                                   Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Border>
+                                            <!--
+                                                The transcript.
 
-                                <TextBlock Grid.Row="2" Text="{Binding TranscriptMessage}"
-                                           Style="{StaticResource Secondary}" Margin="0,8,0,8"
-                                           Visibility="{Binding TranscriptMessage, Converter={StaticResource NullToCollapsed}}" />
-
-                                <!--
-                                    The transcript.
-
-                                    Speaker colour on the leading edge, the name beside it, and a
-                                    clickable timestamp. Colour is never the only signal: the name
-                                    is always written, so the transcript survives being printed or
-                                    read by somebody who cannot tell the two colours apart.
-                                -->
-                                <ListBox Grid.Row="3" Style="{StaticResource CleanList}"
-                                         ItemsSource="{Binding Transcript}"
-                                         Visibility="{Binding HasTranscript, Converter={StaticResource BoolToVisibility}}">
+                                                Speaker colour on the leading edge, the name beside
+                                                it, and a clickable timestamp. Colour is never the
+                                                only signal: the name is always written, so the
+                                                transcript survives being printed or read by
+                                                somebody who cannot tell the two colours apart.
+                                            -->
+                                            <ListBox Grid.Row="1" Style="{StaticResource CleanList}"
+                                                     ItemsSource="{Binding Transcript}"
+                                                     Visibility="{Binding HasTranscript, Converter={StaticResource BoolToVisibility}}">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <Grid>
@@ -571,7 +546,75 @@
                                             </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
-                                </ListBox>
+                                            </ListBox>
+                                        </Grid>
+                                    </TabItem>
+
+                                    <TabItem Header="{loc:T contactspage.ozet}">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <StackPanel>
+                                                <Border Style="{StaticResource Panel}"
+                                                        Visibility="{Binding Summary, Converter={StaticResource NullToCollapsed}}">
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                            <ui:SymbolIcon Symbol="DocumentText24" FontSize="16" Margin="0,0,8,0"
+                                                                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                                            <TextBlock Text="{loc:T contactspage.ozet}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Summary}" Style="{StaticResource Secondary}" TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <!--
+                                                    Who did the talking.
+
+                                                    Free from the recording design, and impossible
+                                                    to produce honestly from a single mixed stream.
+                                                    Stated as a measurement, never as a verdict
+                                                    about the other person.
+                                                -->
+                                                <Border Style="{StaticResource Panel}" Margin="0,10,0,0"
+                                                        Visibility="{Binding HasTalkStats, Converter={StaticResource BoolToVisibility}}">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{loc:T contactspage.konusma-payi}" FontWeight="SemiBold" Margin="0,0,0,8" />
+
+                                                        <Grid Height="8" Margin="0,0,0,8">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=me}" />
+                                                                <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=them}" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0" Background="{StaticResource MeBrush}"
+                                                                    CornerRadius="4,0,0,4" />
+                                                            <Border Grid.Column="1" Background="{StaticResource ThemBrush}"
+                                                                    CornerRadius="0,4,4,0" />
+                                                        </Grid>
+
+                                                        <!-- One flowing line, wrapping only when it must:
+                                                             two stacked captions spent a row on what a
+                                                             separator dot says. -->
+                                                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap">
+                                                            <Run Text="{Binding TalkSummary, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding InterruptionSummary, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <TextBlock Text="Bu görüşme için özet yok — çözümleme çalışınca burada belirir."
+                                                           Margin="0,4,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Secondary}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Summary}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </TabItem>
+                                </TabControl>
 
                                 <!--
                                     The player.
@@ -580,11 +623,14 @@
                                     below. No recorder that captures a call as one mixed stream
                                     can draw this, because it does not know whose sound is whose
                                     at any moment. Here it is two files, so the shape is a fact.
+
+                                    Outside the tabs, always in reach: evidence is never behind a
+                                    click.
                                 -->
-                                <Border Grid.Row="4" Style="{StaticResource Panel}" Margin="0,10,0,0"
+                                <Border Grid.Row="1" Style="{StaticResource Panel}" Margin="0,10,0,0"
                                         Visibility="{Binding Playback.IsLoaded, Converter={StaticResource BoolToVisibility}}">
                                     <StackPanel>
-                                        <Grid x:Name="WaveformHost" Height="76" Margin="0,0,0,8"
+                                        <Grid x:Name="WaveformHost" Height="40" Margin="0,0,0,8"
                                               Background="Transparent"
                                               controls:Scrubbable.Player="{Binding Playback}"
                                               Cursor="Hand"
@@ -688,7 +734,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <TextBlock Grid.Row="5" Text="{Binding PlaybackMessage}"
+                                <TextBlock Grid.Row="2" Text="{Binding PlaybackMessage}"
                                            Style="{StaticResource Caption}" Margin="0,8,0,0"
                                            Visibility="{Binding PlaybackMessage, Converter={StaticResource NullToCollapsed}}" />
                             </Grid>

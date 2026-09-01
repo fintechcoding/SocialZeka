@@ -15,6 +15,7 @@ public partial class SettingsWindow
     public SettingsWindow(SettingsViewModel viewModel)
     {
         InitializeComponent();
+        Services.EscapeCloses.Attach(this);
         _viewModel = viewModel;
         DataContext = viewModel;
 

@@ -126,6 +126,57 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
 
     [ObservableProperty] private string _tagChoice = "Hepsi";
 
+    /// <summary>One tag as a clickable chip: the word, how often it was used, whether it is on.</summary>
+    public sealed record TagChip(string Tag, int Count, bool IsActive)
+    {
+        public string Label => Count > 0 ? $"{Tag} ({Count})" : Tag;
+    }
+
+    /// <summary>
+    /// The archive's whole tag vocabulary as chips — defined looks first, then anything else in
+    /// use. A dropdown hid this list behind a click; a query surface should show its own axes.
+    /// </summary>
+    public ObservableCollection<TagChip> TagChips { get; } = [];
+
+    /// <summary>Chip click: picks the tag, or turns it off when it was already on.</summary>
+    [RelayCommand]
+    private void SetTag(string tag)
+        => TagChoice = TagChoice == tag ? "Hepsi" : tag;
+
+    partial void OnTagChoiceChanged(string value)
+    {
+        RebuildChips();
+        Search();
+    }
+
+    private void RebuildChips()
+    {
+        // Keyed by the folded spelling: "Önemli" defined in the manager and "önemli" typed on a
+        // call are one tag, and must not become two chips with split counts.
+        var counts = repository.AllTags()
+            .ToDictionary(
+                t => Core.Text.TurkishText.NormalizeForSearch(t.Tag),
+                t => (t.Tag, t.Count),
+                StringComparer.Ordinal);
+
+        var activeFolded = Core.Text.TurkishText.NormalizeForSearch(TagChoice);
+
+        // Defined vocabulary first, in the user's order; then tags in use with no definition.
+        List<TagChip> chips = [];
+        foreach (var def in Services.TagPalette.All)
+        {
+            var folded = Core.Text.TurkishText.NormalizeForSearch(def.Tag);
+            counts.Remove(folded, out var used);
+            chips.Add(new TagChip(def.Tag, used.Count, folded == activeFolded));
+        }
+
+        foreach (var (folded, used) in counts.OrderByDescending(c => c.Value.Count))
+            chips.Add(new TagChip(used.Tag, used.Count, folded == activeFolded));
+
+        TagChips.Clear();
+        foreach (var chip in chips) TagChips.Add(chip);
+    }
+
     /// <summary>
     /// How far back to look.
     ///
@@ -172,7 +223,11 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
         TagChoices.Clear();
         TagChoices.Add("Hepsi");
         foreach (var (tag, _) in repository.AllTags()) TagChoices.Add(tag);
+        foreach (var def in Services.TagPalette.All)
+            if (!TagChoices.Contains(def.Tag)) TagChoices.Add(def.Tag);
         TagChoice = TagChoices.Contains(keptTag) ? keptTag : "Hepsi";
+
+        RebuildChips();
     }
 
     public sealed record SearchGroup(string ContactName, long? ContactId, IReadOnlyList<SearchResult> Results)
@@ -188,6 +243,14 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
 
         if (string.IsNullOrWhiteSpace(Query))
         {
+            // No words, but a tag: the tag IS the query. Every conversation wearing it, newest
+            // first — which is what "etikete göre sorgulama" means when nothing was typed.
+            if (TagChoice != "Hepsi")
+            {
+                BrowseTag();
+                return;
+            }
+
             HasSearched = false;
             ResultCount = 0;
             return;
@@ -229,6 +292,37 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
                 group.Key.ContactName ?? "İsimsiz görüşme",
                 group.Key.ContactId,
                 [.. group.OrderByDescending(h => h.CallStartedAt).Select(h => new SearchResult(h, Query))]));
+        }
+    }
+
+    /// <summary>The tag as a query: every conversation carrying it, grouped by person.</summary>
+    private void BrowseTag()
+    {
+        HasSearched = true;
+
+        var calls = repository.TaggedCalls(
+            TagChoice, contactId: ContactFilter, since: Period.Since());
+
+        ResultCount = calls.Count;
+
+        if (calls.Count == 0)
+        {
+            Message = $"\"{TagChoice}\" etiketli görüşme yok.";
+            return;
+        }
+
+        Message = $"\"{TagChoice}\" etiketli {calls.Count} görüşme. "
+                + "Bir sonuca çift tıklayınca görüşme açılır; sözcük yazarsan bu etiketin "
+                + "içinde arar.";
+
+        foreach (var group in calls
+                     .GroupBy(h => (h.ContactId, h.ContactName))
+                     .OrderByDescending(g => g.Max(h => h.CallStartedAt)))
+        {
+            Groups.Add(new SearchGroup(
+                group.Key.ContactName ?? "İsimsiz görüşme",
+                group.Key.ContactId,
+                [.. group.Select(h => new SearchResult(h))]));
         }
     }
 

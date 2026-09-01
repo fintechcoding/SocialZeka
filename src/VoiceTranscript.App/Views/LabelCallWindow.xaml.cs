@@ -43,6 +43,7 @@ public partial class LabelCallWindow
         bool hasSilentStream)
     {
         InitializeComponent();
+        Services.EscapeCloses.Attach(this);
 
         _repository = repository;
         _callId = callId;

@@ -208,4 +208,29 @@ public sealed class TagTests : IDisposable
 
         Assert.Equal(["Benim"], _repo.TagDefs().Select(d => d.Tag));
     }
+
+    /// <summary>
+    /// The tag as a query: no words typed, every conversation wearing the label comes back,
+    /// spelling variants included, newest first.
+    /// </summary>
+    [Fact]
+    public void ATagListsItsCallsAcrossSpellingsNewestFirst()
+    {
+        var older = Call();
+        var newer = _repo.InsertCall(new Call
+        {
+            App = CallApp.Telegram,
+            StartedAt = DateTimeOffset.UtcNow.AddHours(1),
+            State = ProcessingState.Analysed,
+        });
+
+        _repo.Tag(older, "önemli");
+        _repo.Tag(newer, "ÖNEMLİ");
+        _repo.Tag(Call(), "başka");
+
+        var hits = _repo.TaggedCalls("Önemli");
+
+        Assert.Equal([newer, older], hits.Select(h => h.CallId));
+        Assert.All(hits, h => Assert.Equal(0, h.StartMs));
+    }
 }

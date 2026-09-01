@@ -3,8 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  Title="Hatırlat"
-                 Width="440" SizeToContent="Height" MinWidth="380"
-                 ResizeMode="NoResize"
+                 Width="460" Height="500" MinWidth="400" MinHeight="460"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica">

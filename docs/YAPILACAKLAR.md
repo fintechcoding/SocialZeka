@@ -1169,3 +1169,40 @@ Hepsi kullanıcının uygulamayı gerçek çağrılarla denemesinden; tek sürü
   doğrulandı); yerel faster-whisper ise baştaki boşluğu taşır. Segment metni "".join ile
   kurulduğundan bulut cümleleri tek kelimeye yapışıyordu. cloud_engine artık her kelimeye yerel
   motorların taşıdığı baş boşluğunu verir; worker testi eklendi.
+
+## 15. 1 Eylül dördüncü tur — v0.9.27 canlı testinden (v0.9.28 partisi)
+
+- [x] **15.1 — KRİTİK: Hatırlat butonu "hiçbir şey olmadı"**: RemindWindow'un kart ön-doldurma
+  sorgusu BoardCard'ı doğrudan Dapper'la maddeleştiriyordu; projede DateOnly/DateTimeOffset için
+  TypeHandler bilerek yok (board sorguları elle parse eder). Kartı OLAN çağrıda ctor fırlatıyor,
+  global yakalayıcı yutuyordu — smoke test boş tabloda yeşildi. Düzeltme: ham sütun + elle parse;
+  smoke test artık hatırlatmalı kartı olan çağrıyla kuruyor. AYRICA: yutulan UI hataları artık
+  kullanıcıya tek cümlelik uyarı gösteriyor (aynı hata tekrarında susar) — "hiçbir şey olmadı"
+  sınıfı bir daha sessiz kalamaz.
+- [x] **15.2 — Etiket açılır listesi Outlook kategori listesi gibi** *("sıradan combobox
+  değil")*: önerilerdeki her etiket kendi ikon+rengiyle mini-pill; listeden tıklanan etiket
+  ANINDA eklenir (DropDownClosed — ok tuşuyla gezinirken eklemez); yazarak ekleme aynen.
+- [x] **15.3 — Esc her pencereyi kapatır**: IsCancel'li diyaloglar zaten kapanıyordu; CallWindow,
+  ContactWindow, LabelCallWindow, SettingsWindow, SetupWindow'a EscapeCloses eklendi (bubbling
+  KeyDown — açık dropdown/takvim önce kendi Esc'ini tüketir; MainWindow bilerek hariç).
+- [x] **15.4 — Etikete göre arama/sorgulama**: Ara sayfasında etiket çip şeridi (ikon+renk+adet;
+  tanımlı sözlük önce; ikinci tıklama kaldırır); sözcük yazılmadan çip seçilirse ETİKET SORGUDUR
+  — o etiketli tüm görüşmeler kişiye gruplu listelenir (TaggedCalls; özet satırı metin olarak);
+  sözcük + etiket birlikte = etiket içinde arama (zaten vardı). Uygulamanın HER yerindeki etiket
+  pilleri tıklanır: tıklayınca Ara sayfası o etiketle açılır (MainWindow.OpenSearchForTag).
+- [x] **15.5 — Kişiler detayında Özet sekmeye alındı** *("özet burda tab olsun konuşmayı
+  daraltıyor")*: Konuşma | Özet sekmeleri; döküm tam yükseklik; Özet sekmesinde özet + konuşma
+  payı (+"özet yok" hâli); oynatıcı sekmelerin DIŞINDA — kanıt tıklamanın arkasına konmaz.
+- [x] **15.6 — Oynatıcı yüksekliği yarıya** (76→40px) ve konuşma payı istatistiği tek akan satır.
+- [x] **15.7 — Araştırma: OpenAI konuşmacı ayrımı** (canlı doküman): whisper-1 diarization
+  YAPMAZ; gpt-4o-transcribe-diarize VAR ama word-timestamp ve verbose_json YOK → ürün omurgası
+  (çalınabilir alıntı) onunla kurulamaz. İki-akış tasarımı doğru; değişmiyor. Mix tek dosya =
+  konuşmacısız düz metin.
+- [x] **15.8 — Araştırma: CPU'da Türkçe için en iyi Whisper** (canlı ölçümler): large-v3-turbo
+  int8 — Türkçe'de large-v3'e fark 4 bağımsız test setinde ≤0.6 WER, CPU'da ~3x hızlı (hızlı
+  i5'te ~gerçek zamanlı); en yüksek doğruluk şartsa large-v3 int8 (RTF ~3-4). medium -3-5 WER,
+  small kullanılmaz, distil-* İngilizce-only.
+- [x] **15.9 — Sor/NotebookLM sorusu**: Sor zaten NotebookLM deseni — bağlı LLM + FTS'den 40
+  satır bağlam + alıntı-zaman damgalı cevap. NotebookLM'in tüketici API'si YOK (yalnız kurumsal
+  önizleme) — bağlanacak bir şey yok ve gerek de yok; kullanıcının tek ihtiyacı Ayarlar →
+  Çözümleme'de çalışan bir servis.

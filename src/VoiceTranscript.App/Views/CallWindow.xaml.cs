@@ -18,6 +18,7 @@ public partial class CallWindow
     public CallWindow(CallWindowViewModel model)
     {
         InitializeComponent();
+        Services.EscapeCloses.Attach(this);
 
         DataContext = model;
 
@@ -221,6 +222,23 @@ public partial class CallWindow
         RemindWindow.Open(this, App.Repository, model.CallId, model.Title);
     }
 
+    /// <summary>
+    /// A suggestion picked from the open dropdown tags the call immediately — the styled pill
+    /// in the list is the choice, not a draft of one. Watched on DropDownClosed rather than
+    /// SelectionChanged: arrow-keying through the open list changes the selection on every
+    /// press, and tagging while browsing would be a menu that fires on hover.
+    /// </summary>
+    private void TagBox_DropDownClosed(object sender, EventArgs e)
+    {
+        if (ViewModel is not { } model) return;
+        if (TagBox.SelectedItem is not string picked || string.IsNullOrWhiteSpace(picked)) return;
+
+        model.NewTag = picked;
+        if (model.AddTagCommand.CanExecute(null)) model.AddTagCommand.Execute(null);
+
+        TagBox.SelectedIndex = -1;
+    }
+
     /// <summary>Opens the tag wardrobe; on save the palette reloads, so pills repaint themselves.</summary>
     private void ManageTags_Click(object sender, RoutedEventArgs e)
     {
@@ -248,6 +266,15 @@ public partial class CallWindow
 
         if (model.AskCommand.CanExecute(null)) model.AskCommand.Execute(null);
 
+        e.Handled = true;
+    }
+
+    /// <summary>A tag pill is a question: "which other conversations did I mark with this?"</summary>
+    private void TagPill_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not string tag) return;
+
+        MainWindow.SearchTagFromAnywhere(tag);
         e.Handled = true;
     }
 }

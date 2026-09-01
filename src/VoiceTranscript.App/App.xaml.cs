@@ -50,10 +50,26 @@ public partial class App : Application
     /// </summary>
     private void HookCrashReporting()
     {
+        var lastShown = "";
+
         DispatcherUnhandledException += (_, args) =>
         {
             AppLog.Error("çökme", args.Exception, "Arayüzde yakalanmamış hata");
             args.Handled = true;
+
+            // Swallowing alone taught a real lesson: a dialog whose constructor threw looked
+            // like a button that does nothing, and the user reported exactly that — "hiçbir şey
+            // olmadı". The error is still logged in full; this one sentence is so the person
+            // knows something failed and where to send us. Repeats of the same fault stay quiet.
+            var line = args.Exception.Message;
+            if (line == lastShown) return;
+            lastShown = line;
+
+            System.Windows.MessageBox.Show(
+                $"Bir hata oluştu ve günlüğe yazıldı.\n\n{line}\n\n"
+                + "Sorun sürerse günlük dosyasını iletebilirsin (Ayarlar → veri klasörü → logs).",
+                "VoiceTranscript", System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
         };
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>

@@ -26,6 +26,7 @@ public partial class ContactWindow
     public ContactWindow(ContactWindowViewModel model)
     {
         InitializeComponent();
+        Services.EscapeCloses.Attach(this);
 
         DataContext = model;
 
@@ -186,5 +187,14 @@ public partial class ContactWindow
         if ((sender as FrameworkElement)?.DataContext is not ContactCall row) return;
 
         RemindWindow.Open(this, App.Repository, row.Id, $"{ViewModel?.Name} · {row.When}");
+    }
+
+    /// <summary>A tag pill is a question: "which other conversations did I mark with this?"</summary>
+    private void TagPill_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not string tag) return;
+
+        MainWindow.SearchTagFromAnywhere(tag);
+        e.Handled = true;
     }
 }

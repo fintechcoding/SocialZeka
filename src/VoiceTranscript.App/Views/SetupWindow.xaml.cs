@@ -10,6 +10,7 @@ public partial class SetupWindow
     public SetupWindow(SetupViewModel viewModel)
     {
         InitializeComponent();
+        Services.EscapeCloses.Attach(this);
         _viewModel = viewModel;
         DataContext = viewModel;
 

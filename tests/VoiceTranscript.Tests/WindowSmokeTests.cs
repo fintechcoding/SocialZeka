@@ -133,9 +133,23 @@ public class WindowSmokeTests
                 Build("Yeniden işle", () => new ReprocessWindow(
                     repository, settings, "Serdal", count: 1), failures);
 
-                // Reads the call's existing card on construction, so the prefill query runs too.
+                // Reads the call's existing card on construction, so the prefill query runs too —
+                // against a call that genuinely HAS a card with a reminder. Built once against an
+                // empty table, this passed while the shipped dialog threw in its constructor on
+                // any call the user had put on the board: the materialisation of the dates only
+                // happens when a row comes back.
+                var reminded = repository.InsertCall(new VoiceTranscript.Core.Domain.Call
+                {
+                    App = VoiceTranscript.Core.Domain.CallApp.WhatsApp,
+                    StartedAt = DateTimeOffset.Now,
+                    State = VoiceTranscript.Core.Domain.ProcessingState.Analysed,
+                });
+                repository.PutOnBoard(
+                    reminded, VoiceTranscript.Core.Domain.BoardLane.ToLookAt, title: "Evrak sözü");
+                repository.RemindOn(reminded, DateOnly.FromDateTime(DateTime.Today.AddDays(3)));
+
                 Build("Hatırlat", () => new RemindWindow(
-                    repository, callId: 1, subject: "Serdal · 12 Mart"), failures);
+                    repository, callId: reminded, subject: "Serdal · 12 Mart"), failures);
 
                 // Loads the definitions and renders every offered icon name through the
                 // converter, so an invalid SymbolRegular in the choices would fail here.

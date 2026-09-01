@@ -268,6 +268,30 @@ public partial class MainWindow
     /// row or a failure note passes "Analysis" here instead of dropping the user at "Kayıt" to
     /// go find the right page themselves.
     /// </summary>
+    /// <summary>
+    /// Jumps to the search page with one tag as the whole query.
+    ///
+    /// This is what clicking a tag pill anywhere in the application does: the pill is a word
+    /// the user attached to conversations, so clicking it asks the obvious question — "which
+    /// other conversations did I mark with this?" — and the answer lives on the search screen.
+    /// </summary>
+    public void OpenSearchForTag(string tag)
+    {
+        if (DataContext is not ShellViewModel shell) return;
+
+        shell.NavigateCommand.Execute("Search");
+
+        shell.Search.LoadContacts();
+        shell.Search.Query = "";
+        shell.Search.TagChoice = tag;
+
+        Activate();
+    }
+
+    /// <summary>The pill click, wherever the pill lives — windows route here too.</summary>
+    public static void SearchTagFromAnywhere(string tag)
+        => (System.Windows.Application.Current.MainWindow as MainWindow)?.OpenSearchForTag(tag);
+
     public void OpenSettings(string? section = null)
     {
         var viewModel = new SettingsViewModel(App.Settings, App.Paths, App.HttpClient);

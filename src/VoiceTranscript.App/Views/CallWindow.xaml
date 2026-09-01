@@ -74,7 +74,9 @@
                                  tag here. Both come from the user's own definitions, with a
                                  hashed colour for a word never defined. -->
                             <Border Style="{StaticResource Pill}" Margin="0,0,6,4"
-                                    Background="{Binding Converter={StaticResource TagBrush}}">
+                                    Background="{Binding Converter={StaticResource TagBrush}}"
+                                                                Cursor="Hand" MouseLeftButtonUp="TagPill_Click"
+                                                                ToolTip="Bu etiketi taşıyan görüşmeleri ara">
                                 <StackPanel Orientation="Horizontal">
                                     <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
                                                    FontSize="12" Foreground="White" Margin="0,0,4,0"
@@ -99,10 +101,31 @@
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
                     <Grid>
+                        <!-- The dropdown is the Outlook category list: every suggestion wears
+                             its own icon and colour, and clicking one tags the call there and
+                             then — the styled pill IS the choice, not a preview of it. Typing
+                             a brand-new word still works, committed with Enter or Etiketle. -->
                         <ComboBox x:Name="TagBox" IsEditable="True" MinWidth="150" VerticalAlignment="Center"
                                   ItemsSource="{Binding TagSuggestions}"
                                   Text="{Binding NewTag, UpdateSourceTrigger=PropertyChanged}"
-                                  ToolTip="Etiket ekle — örn. önemli, tehdit edildik" />
+                                  DropDownClosed="TagBox_DropDownClosed"
+                                  ToolTip="Etiket ekle — örn. önemli, tehdit edildik">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Pill}" Margin="0,2"
+                                            HorizontalAlignment="Left"
+                                            Background="{Binding Converter={StaticResource TagBrush}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
+                                                           FontSize="12" Foreground="White" Margin="0,0,4,0"
+                                                           VerticalAlignment="Center" />
+                                            <TextBlock Style="{StaticResource PillText}" Foreground="White"
+                                                       Text="{Binding}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
 
                         <!-- The box looked like an empty mystery; the hint gives it a name.
                              HitTestVisible=False so it never steals a click from the box. -->

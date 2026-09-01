@@ -1607,6 +1607,47 @@ public sealed class Repository(Database database)
         }
     }
 
+    /// <summary>
+    /// Every conversation carrying a tag, newest first — the tag as a query of its own.
+    ///
+    /// Shaped as search hits so the search screen can browse a tag with no words typed: the
+    /// "text" of each row is the call's one-line summary when one exists, or its size when not.
+    /// SegmentId 0 and StartMs 0 mean "the conversation, from the top" to everything downstream.
+    /// </summary>
+    public IReadOnlyList<SearchHit> TaggedCalls(
+        string tag, long? contactId = null, DateTimeOffset? since = null, int limit = 200)
+    {
+        var folded = Text.TurkishText.NormalizeForSearch(tag.Trim());
+        if (folded.Length == 0) return [];
+
+        using var connection = Open();
+
+        return [.. connection.Query<SearchHitRow>(
+            """
+            SELECT c.id           AS CallId,
+                   0              AS SegmentId,
+                   c.contact_id   AS ContactId,
+                   ct.name        AS ContactName,
+                   c.started_at   AS CallStartedAt,
+                   0              AS IsMe,
+                   0              AS StartMs,
+                   COALESCE(
+                       (SELECT s.summary FROM call_summary s WHERE s.call_id = c.id),
+                       (SELECT COUNT(*) || ' satır konuşma' FROM segment sg WHERE sg.call_id = c.id))
+                                  AS Text
+            FROM call_tag t
+            JOIN call c          ON c.id = t.call_id
+            LEFT JOIN contact ct ON ct.id = c.contact_id
+            WHERE t.tag_folded = @folded
+              AND (@contactId IS NULL OR c.contact_id = @contactId)
+              AND (@since     IS NULL OR c.started_at >= @since)
+            ORDER BY c.started_at DESC
+            LIMIT @limit;
+            """,
+            new { folded, contactId, since = since?.UtcDateTime.ToString("o"), limit })
+            .Select(r => r.ToModel())];
+    }
+
     /// <summary>Every tag in use with its count, most used first. Feeds suggestions and filters.</summary>
     public IReadOnlyList<(string Tag, int Count)> AllTags()
     {
@@ -1875,17 +1916,38 @@ public sealed class Repository(Database database)
         }
     }
 
-    /// <summary>This conversation's card, if it has one — what the reminder dialog prefills from.</summary>
+    /// <summary>
+    /// This conversation's card, if it has one — what the reminder dialog prefills from.
+    ///
+    /// Read as raw columns and parsed by hand, like every board query: no type handler is
+    /// registered for DateOnly or DateTimeOffset, so materialising BoardCard directly works
+    /// only until the first call that actually HAS a card — at which point it throws, in a
+    /// dialog constructor, on the user's machine. That exact sequence shipped once.
+    /// </summary>
     public BoardCard? BoardCardOf(long callId)
     {
         using var connection = Open();
 
-        return connection.QuerySingleOrDefault<BoardCard>(
-            """
-            SELECT call_id AS CallId, lane, position, title, remind_on AS RemindOn, created_at AS CreatedAt
-            FROM board_card WHERE call_id = @callId;
-            """,
-            new { callId });
+        var row = connection
+            .Query<(long CallId, string Lane, long Position, string? Title, string? RemindOn, string CreatedAt)>(
+                """
+                SELECT call_id, lane, position, title, remind_on, created_at
+                FROM board_card WHERE call_id = @callId;
+                """,
+                new { callId })
+            .FirstOrDefault();
+
+        return row == default
+            ? null
+            : new BoardCard
+            {
+                CallId = row.CallId,
+                Lane = row.Lane,
+                Position = (int)row.Position,
+                Title = row.Title,
+                RemindOn = row.RemindOn is null ? null : DateOnly.Parse(row.RemindOn),
+                CreatedAt = DateTimeOffset.Parse(row.CreatedAt),
+            };
     }
 
     /// <summary>Takes a conversation off the board. The conversation itself is untouched.</summary>
