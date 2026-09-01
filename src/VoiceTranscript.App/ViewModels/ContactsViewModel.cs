@@ -603,8 +603,42 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Plays the moment a ledger entry rests on, from the call it actually came from.
+    ///
+    /// The Defter tab lists findings from every conversation with this person, so the entry being
+    /// clicked usually belongs to a different call from the one open on the Görüşmeler tab. This
+    /// played whichever call happened to be selected, at the entry's offset — so the audio
+    /// offered as proof of a claim was a different conversation, on a different date, and it
+    /// played convincingly.
+    ///
+    /// That is the one failure this product cannot have. Every claim it makes is supposed to be
+    /// checkable by listening; audio from the wrong conversation makes checking worse than
+    /// useless, because it looks like confirmation.
+    /// </summary>
     [RelayCommand]
-    private void PlayFlag(FlagView flag) => PlayFrom(flag.Flag.QuoteStartMs);
+    private void PlayFlag(FlagView flag)
+    {
+        if (SelectedCall?.Call.Id == flag.Flag.CallId)
+        {
+            PlayFrom(flag.Flag.QuoteStartMs);
+            return;
+        }
+
+        var target = _allCalls.FirstOrDefault(c => c.Call.Id == flag.Flag.CallId);
+
+        if (target is null)
+        {
+            PlaybackMessage = "Bu kaydın ait olduğu görüşme bulunamadı — silinmiş olabilir.";
+            return;
+        }
+
+        // Switching the call reloads the waveform off the dispatcher, so the seek waits for it.
+        if (!Calls.Contains(target)) ClearCallFilters();
+
+        SelectedCall = target;
+        SeekTo(flag.Flag.QuoteStartMs);
+    }
 
     [RelayCommand]
     private void StopPlayback() => Playback.Stop();

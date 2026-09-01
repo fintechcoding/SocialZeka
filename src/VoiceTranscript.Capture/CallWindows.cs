@@ -44,7 +44,20 @@ public sealed record WindowSighting(
     string ClassName,
     int Width,
     int Height,
-    bool IsForeground);
+    bool IsForeground,
+
+    /// <summary>
+    /// The window's own identity.
+    ///
+    /// Carried because a title on its own cannot tell a new window from a renamed one, and the
+    /// difference decides whether a name is trusted enough to file a call under. Telegram retitles
+    /// its main window every time the user clicks a different chat, which by title alone is
+    /// indistinguishable from a call panel opening — so an idle click on a conversation was being
+    /// read as "a call started with this person".
+    ///
+    /// A diagnostic value only: it is never displayed and never stored.
+    /// </summary>
+    nint Handle = 0);
 
 /// <summary>
 /// What one poll of the desktop found.
@@ -254,7 +267,8 @@ public static class CallWindows
                 ClassOf(handle),
                 width,
                 height,
-                handle == foreground));
+                handle == foreground,
+                handle));
 
             return true;
         }, nint.Zero);
@@ -314,12 +328,24 @@ public static class CallWindows
         // comparing consecutive polls.
         if (previous is not null)
         {
+            // Compared by window, not by title.
+            //
+            // By title alone, a chat switch in Telegram's main window looks exactly like a call
+            // panel appearing: one moment the set of titles contains "Ahmet", the next it
+            // contains "Berk". That earned Likely — the confidence reserved for a call panel and
+            // the only level trusted enough to file a call under — so clicking through
+            // conversations while idle produced a stream of confident, wrong names.
+            //
+            // A window that was not there a second ago is a different claim entirely, and the
+            // handle is what distinguishes it.
             var before = previous
-                .Where(p => p.Title is not null)
-                .Select(p => p.Title!)
-                .ToHashSet(StringComparer.Ordinal);
+                .Where(p => p.Handle != 0)
+                .Select(p => p.Handle)
+                .ToHashSet();
 
-            var appeared = candidates.Where(c => !before.Contains(c.Title!)).ToList();
+            var appeared = candidates
+                .Where(c => c.Handle != 0 && !before.Contains(c.Handle))
+                .ToList();
 
             // Exactly one new name. This is the case the feature exists for, and it is worth
             // trusting: it is what happens on every ordinary call.

@@ -498,6 +498,30 @@ public sealed record AppSettings
         if (ExportToObsidian && !string.IsNullOrWhiteSpace(ObsidianVaultPath) && !Directory.Exists(ObsidianVaultPath))
             Problem(Export, "Seçilen Obsidian vault klasörü bulunamadı.");
 
+        // The vault gets the same check the recordings folder gets.
+        //
+        // The recordings folder is refused outright when it sits inside OneDrive or Dropbox,
+        // because every conversation would be uploaded. The vault had no such check while the
+        // screen beside it promised "Tamamen yereldir, hiçbir veri dışarı çıkmaz" — and an
+        // Obsidian vault in OneDrive is the ordinary way people use Obsidian, so the promise was
+        // most likely to be false exactly where somebody had followed the instructions.
+        //
+        // What goes there is worse than the audio in one respect: it is the transcript, already
+        // in text, already named by person, and indexed by whoever holds the account.
+        if (ExportToObsidian && !string.IsNullOrWhiteSpace(ObsidianVaultPath))
+        {
+            var vaultCloud = AppPaths.DetectCloudSync(ObsidianVaultPath);
+
+            if (vaultCloud.Count > 0)
+            {
+                Problem(Export,
+                    $"Obsidian vault klasörü {string.Join(" ve ", vaultCloud)} içinde. " +
+                    "Görüşme metinleri buluta yüklenir — bu ekranın \"hiçbir veri dışarı " +
+                    "çıkmaz\" sözü o klasör için geçerli olmaz. Başka bir konum seçin ya da " +
+                    "Obsidian dışa aktarımını kapatın.");
+            }
+        }
+
         if (Provider.RequiresApiKey && string.IsNullOrWhiteSpace(LlmApiKey))
             Problem(Analysis, $"{Provider.DisplayName} bir API anahtarı gerektiriyor.");
 

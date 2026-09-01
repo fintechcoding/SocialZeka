@@ -314,7 +314,10 @@ public partial class App : Application
             Diagnostic = line => AppLog.Write("worker", line),
         });
 
-        Orchestrator = new CallOrchestrator(Paths, Repository, () => Settings, Worker, Http);
+        // The worker is passed as a lookup, not a value. The wizard replaces it once the
+        // environment it needs has been built, and a captured reference would leave the recorder
+        // talking to the host that existed before any of that.
+        Orchestrator = new CallOrchestrator(Paths, Repository, () => Settings, () => Worker, Http);
 
         // Everything the recorder says out loud is also written down. These are the messages
         // that explain a call that did not get recorded, and they are exactly the ones that

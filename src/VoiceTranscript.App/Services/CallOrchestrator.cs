@@ -72,7 +72,16 @@ public sealed class CallOrchestrator : IDisposable
     private readonly AppPaths _paths;
     private readonly Repository _repository;
     private readonly Func<AppSettings> _settings;
-    private readonly PythonWorkerHost _worker;
+    /// <summary>
+    /// The Python worker, asked for each time rather than captured once.
+    ///
+    /// The wizard rebuilds it: after Python and the packages are installed, the application
+    /// points a new host at the environment that now exists. Captured by value at startup, the
+    /// orchestrator went on holding the host built before any of that — pointed at a Python that
+    /// was not there — so on a fresh machine the setup could complete perfectly and every call
+    /// would still fail to transcribe until the application was restarted.
+    /// </summary>
+    private readonly Func<PythonWorkerHost> _worker;
     private readonly HttpClient _http;
 
     private readonly AudioSessionWatcher _sessions = new();
@@ -110,7 +119,7 @@ public sealed class CallOrchestrator : IDisposable
         AppPaths paths,
         Repository repository,
         Func<AppSettings> settings,
-        PythonWorkerHost worker,
+        Func<PythonWorkerHost> worker,
         HttpClient http,
         Func<AppSettings, IAudioCaptureBackend>? captureBackend = null)
     {
@@ -560,6 +569,28 @@ public sealed class CallOrchestrator : IDisposable
                         break;
                     }
 
+                    // A recording already running keeps running.
+                    //
+                    // Ended and Abandoned were guarded and this was not, which left the worst of
+                    // the three open: the recorder was replaced mid-recording without being
+                    // stopped. The old one kept its devices and kept writing to files nothing
+                    // pointed at any more, its row stayed at Recorded with no paths — so it was
+                    // re-queued on every launch and rejected by the worker for ever — and up to
+                    // thirty seconds of audio was lost with the header the checkpoint timer had
+                    // last written.
+                    //
+                    // The likeliest way in is the case the manual button exists for: somebody
+                    // presses "Kaydı başlat" because detection has not latched yet, and a second
+                    // later it latches.
+                    if (_recorder is not null)
+                    {
+                        Notice?.Invoke(this, IsManualRecording
+                            ? "Elle kayıt sürüyor; algılanan görüşme ayrıca kaydedilmedi."
+                            : "Zaten bir kayıt sürüyor; yeni görüşme ayrıca kaydedilmedi.");
+
+                        break;
+                    }
+
                     await BeginRecordingAsync(callEvent, settings);
                     break;
 
@@ -666,7 +697,17 @@ public sealed class CallOrchestrator : IDisposable
             _recorder = new CallRecorder(backend);
             _recorder.Interrupted += (_, reason) => Notice?.Invoke(this, reason);
             _recorder.LevelChanged += (_, levels) => LevelChanged?.Invoke(this, levels);
-            await _recorder.StartAsync(directory, $"call-{_currentCallId}");
+
+            // Per-application capture needs to be told which application.
+            //
+            // ProcessLoopbackCaptureBackend throws when it is not, and it was not: every call
+            // failed to record with "Kayıt başlatılamadı" for anybody who turned on "Uygulama
+            // bazlı yakalama". The setting looked like a preference and was a switch that broke
+            // recording outright.
+            await _recorder.StartAsync(
+                directory,
+                $"call-{_currentCallId}",
+                backend.IsProcessIsolated ? TargetProcessFor(callEvent.App) : null);
         }
         catch (Exception e)
         {
@@ -683,6 +724,35 @@ public sealed class CallOrchestrator : IDisposable
             // the window claiming to be recording. Refresh it now rather than a second later.
             UpdateState();
         }
+    }
+
+    /// <summary>
+    /// The process whose audio per-application capture should follow.
+    ///
+    /// The root process of the application on the call, so the loopback client covers its whole
+    /// tree — WhatsApp runs its surface in WebView2 children and Telegram spawns helpers, and
+    /// following only the child that happened to be found would capture the wrong half or
+    /// nothing at all.
+    ///
+    /// Null when the application cannot be found, which the caller turns into device capture:
+    /// recording the whole device picks up the same conversation with anything else that is
+    /// playing, and that is a far smaller price than not recording it.
+    /// </summary>
+    private int? TargetProcessFor(CallApp app)
+    {
+        if (app == CallApp.Unknown) return null;
+
+        try
+        {
+            foreach (var (pid, owner) in _sessions.Targets.Resolve(DateTimeOffset.Now))
+                if (owner == app) return pid;
+        }
+        catch (Exception)
+        {
+            // Process enumeration can fail transiently. Device capture is the answer either way.
+        }
+
+        return null;
     }
 
     private IAudioCaptureBackend CreateBackend(AppSettings settings)
@@ -1086,7 +1156,7 @@ public sealed class CallOrchestrator : IDisposable
 
         try
         {
-            var hello = await _worker.ProbeAsync(cancellationToken);
+            var hello = await _worker().ProbeAsync(cancellationToken);
             _localTranscriptionUsable = hello.Cuda?.Available == true;
         }
         catch (Exception)
@@ -1150,7 +1220,7 @@ public sealed class CallOrchestrator : IDisposable
 
             try
             {
-                return await _worker.TranscribeAsync(new TranscriptionRequest
+                return await _worker().TranscribeAsync(new TranscriptionRequest
                 {
                     Id = $"call-{call.Id}",
                     Engine = EngineNameFor(model),
@@ -1293,7 +1363,7 @@ public sealed class CallOrchestrator : IDisposable
         {
             result = model.SendsAudioOffMachine
                 ? await TranscribeInCloudAsync(call, model, settings, cancellationToken)
-                : await _worker.TranscribeAsync(new TranscriptionRequest
+                : await _worker().TranscribeAsync(new TranscriptionRequest
                 {
                     Id = $"call-{call.Id}",
                     Engine = EngineNameFor(model),
@@ -1338,6 +1408,25 @@ public sealed class CallOrchestrator : IDisposable
             startedAt,
             clock.Elapsed,
             call.Duration);
+
+        // A result with no lines in it is not a transcript, and must not be written over one.
+        //
+        // Both routes can return this as an ordinary success: the worker merges two possibly
+        // empty streams and emits a result, and a cloud endpoint answering 200 with a body in a
+        // shape this code does not recognise yields an empty list. ReplaceSegments deletes every
+        // existing row before inserting, so an empty result deleted the only text record of the
+        // conversation, dropped it from the search index, and left the ledger quoting lines that
+        // no longer existed anywhere — after which the call was marked Transcribed and announced
+        // as a success.
+        if (result.Segments.Count == 0)
+        {
+            var existing = _repository.GetSegments(call.Id).Count;
+
+            throw new InvalidOperationException(existing > 0
+                ? "Yazıya dökme boş sonuç döndürdü. Var olan döküm korundu — modeli ya da " +
+                  "servisi değiştirip yeniden deneyebilirsin."
+                : "Yazıya dökme boş sonuç döndürdü: konuşma bulunamadı. Ses kaydı duruyor.");
+        }
 
         _repository.ReplaceSegments(call.Id, result.Segments.Select(s => new CoreSegment
         {

@@ -167,6 +167,25 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
         // the call panel appeared a second later carrying the actual name. Confidence makes the
         // later, better answer win; equal confidence still keeps the earlier one, because during a
         // call a title change means participants changed, not that the first was wrong.
+        var quiet = !sample.Rendering && !sample.Capturing;
+
+        // A title seen while nothing is happening is not about a call.
+        //
+        // This accumulated on every sample, including the hours the application sits idle, and
+        // was only cleared when a call ended. So the messenger's main window title — whichever
+        // conversation happened to be on screen at breakfast — was already stored by the time a
+        // call started, and since a later title of equal trust deliberately cannot displace an
+        // earlier one, the real call panel could never correct it. The call was then offered, or
+        // silently filed, under a person who had nothing to do with it.
+        //
+        // Cleared while idle and quiet, so what survives was seen while the application was
+        // actually making sound.
+        if (State == CallState.Idle && quiet)
+        {
+            _observedTitle = null;
+            _titleTrust = TitleTrust.None;
+        }
+
         if (!string.IsNullOrWhiteSpace(sample.WindowTitle)
             && (string.IsNullOrEmpty(_observedTitle) || sample.TitleTrust > _titleTrust))
         {
@@ -174,7 +193,6 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
             _titleTrust = sample.TitleTrust;
         }
 
-        var quiet = !sample.Rendering && !sample.Capturing;
         if (quiet) _quietSince ??= sample.At;
         else _quietSince = null;
 

@@ -135,7 +135,7 @@ public class CallPersistenceTests : IDisposable
             _paths,
             _repository,
             () => settings,
-            worker,
+            () => worker,
             http,
             _ => source = new FileAudioSource(mic, far));
 
@@ -196,7 +196,7 @@ public class CallPersistenceTests : IDisposable
             _paths,
             _repository,
             () => settings,
-            worker,
+            () => worker,
             http,
             _ => source = new FileAudioSource(mic, far));
 

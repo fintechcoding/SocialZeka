@@ -55,6 +55,15 @@ public sealed class AudioSessionWatcher : IDisposable
     public AudioSessionWatcher(TargetProcesses? targets = null) => _targets = targets ?? new TargetProcesses();
 
     /// <summary>
+    /// The watched applications' processes, shared rather than re-enumerated.
+    ///
+    /// Exposed so the recorder can ask which process to follow for per-application capture. A
+    /// second TargetProcesses would walk every process tree on its own five-second cadence for
+    /// an answer this one already has.
+    /// </summary>
+    public TargetProcesses Targets => _targets;
+
+    /// <summary>
     /// Takes one observation of every watched application.
     ///
     /// The window arguments are left null in production so the windows are looked at here. They

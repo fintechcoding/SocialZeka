@@ -1113,7 +1113,22 @@ public sealed class Repository(Database database)
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
 
-        connection.Execute("DELETE FROM commitment WHERE call_id = @callId;", new { callId }, transaction);
+        // A promise the user has already ruled on keeps their ruling.
+        //
+        // The same protection as the flags below, and it was missing here — so reprocessing a
+        // call deleted every commitment including the ones marked kept and the ones dismissed.
+        // Those are the only rows in this table a person wrote: everything else the analysis
+        // produces is replaced on every run and nothing is lost, but a judgement thrown away is
+        // work the user has to do again, and doing it again is how a ledger stops being trusted.
+        //
+        // status 0 is the untouched default; anything else is somebody's decision.
+        connection.Execute(
+            """
+            DELETE FROM commitment
+             WHERE call_id = @callId AND status = 0 AND dismissed_by_user = 0;
+            """,
+            new { callId }, transaction);
+
         connection.Execute("DELETE FROM claim WHERE call_id = @callId;", new { callId }, transaction);
 
         // A flag the user has already dismissed stays dismissed. Reprocessing must not bring back

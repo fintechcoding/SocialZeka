@@ -24,9 +24,18 @@ namespace VoiceTranscript.Tests;
 /// </summary>
 public class CallWindowsTests
 {
+    /// <summary>
+    /// One window, with an identity of its own.
+    ///
+    /// The handle defaults to one derived from the title, which models the ordinary case: each
+    /// window in these scenarios is a different window. A test that needs the other case — the
+    /// SAME window being retitled, which is what Telegram does on every chat switch — passes the
+    /// same handle for both polls and gets the behaviour that distinction exists for.
+    /// </summary>
     private static WindowSighting Window(
-        string? title, CallApp app = CallApp.Telegram, bool foreground = false)
-        => new(title, app, "Qt5152QWindowIcon", 900, 600, foreground);
+        string? title, CallApp app = CallApp.Telegram, bool foreground = false, nint handle = 0)
+        => new(title, app, "Qt5152QWindowIcon", 900, 600, foreground,
+               handle != 0 ? handle : (title ?? "").GetHashCode());
 
     // ---- telling the application apart from a person ------------------------
 
@@ -111,6 +120,43 @@ public class CallWindowsTests
     /// whose title is not the application's own name". Appearance is the difference, and it is
     /// only visible by comparing consecutive polls.
     /// </summary>
+    /// <summary>
+    /// Clicking a different chat is not a call starting.
+    ///
+    /// Telegram retitles its ONE main window every time the user clicks another conversation. By
+    /// title alone that is indistinguishable from a call panel opening: a name that was not in
+    /// the previous poll is in this one. It earned TitleConfidence.Likely — the level reserved
+    /// for a call panel, and the only one trusted enough to file a call under — so browsing chats
+    /// while nothing was happening produced a stream of confident, wrong names.
+    ///
+    /// The window's own identity is what separates the two, which is why the sighting carries it.
+    /// </summary>
+    [Fact]
+    public void RenamingOneWindowIsNotAWindowAppearing()
+    {
+        const nint mainWindow = 4242;
+
+        WindowSighting[] before = [Window("Uliana", handle: mainWindow)];
+        WindowSighting[] now = [Window("Serdal", handle: mainWindow, foreground: true)];
+
+        var observation = CallWindows.Choose(now, CallApp.Telegram, before);
+
+        Assert.NotEqual(TitleConfidence.Likely, observation.Confidence);
+    }
+
+    /// <summary>A genuinely new window still earns the confidence it should.</summary>
+    [Fact]
+    public void ASecondWindowAppearingAlongsideTheFirstIsTheCall()
+    {
+        WindowSighting[] before = [Window("Uliana", handle: 1)];
+        WindowSighting[] now = [Window("Uliana", handle: 1), Window("Serdal", handle: 2, foreground: true)];
+
+        var observation = CallWindows.Choose(now, CallApp.Telegram, before);
+
+        Assert.Equal("Serdal", observation.Title);
+        Assert.Equal(TitleConfidence.Likely, observation.Confidence);
+    }
+
     [Fact]
     public void AWindowThatJustAppearedIsTheCall()
     {
