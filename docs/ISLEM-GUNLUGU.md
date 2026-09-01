@@ -871,3 +871,9 @@ adını, indirilmiş olup olmadığını (ilk görüşme bekler mi), hangi kartt
 güncellenir.
 
 **788 test, 0 hata** + 57 Python. Görsel doğrulama hedef makinede.
+
+**Hedef makine için derleme.** `publish.ps1 -Version 2.1.6-beta1 -RequireInstaller` — kendi
+kendine yeten Release yayını + Inno Setup paketi, `main @ 8a950ae` üzerinden.
+`dist/VoiceTranscript-Setup-2.1.6-beta1-win-x64.exe` (66 MB),
+SHA-256 `fbbd4cb6be858fd58c81ed30ae802e52e4e9cdead297b5908c18c758dc33ff51`. Sürüm etiketi
+atılmadı; gerçek 2.1.6, hedef makinede iki yeni ekran ve kurtarma yolu görüldükten sonra.
