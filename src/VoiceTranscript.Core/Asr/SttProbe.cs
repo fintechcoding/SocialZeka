@@ -284,9 +284,35 @@ public sealed class SttProbe(HttpClient http)
     private async Task<HttpResponseMessage> GetAsync(SttEndpoint endpoint, string path, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{endpoint.ResolvedBaseUrl}/{path}");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", endpoint.ApiKey);
+        Authorise(request, endpoint);
 
         return await http.SendAsync(request, ct);
+    }
+
+    /// <summary>
+    /// Attaches the key the way this provider expects it.
+    ///
+    /// The balance probes already knew that ElevenLabs reads <c>xi-api-key</c> and Deepgram a
+    /// <c>Token</c> scheme, but the connection test sent <c>Bearer</c> to everyone — so a valid
+    /// ElevenLabs or Deepgram key was reported as "anahtar reddedildi" the moment the user
+    /// pressed Sına, and the endpoint they had just paid for looked broken.
+    /// </summary>
+    private static void Authorise(HttpRequestMessage request, SttEndpoint endpoint)
+    {
+        switch (endpoint.Kind)
+        {
+            case "elevenlabs":
+                request.Headers.Add("xi-api-key", endpoint.ApiKey);
+                break;
+
+            case "deepgram":
+                request.Headers.Authorization = new AuthenticationHeaderValue("Token", endpoint.ApiKey);
+                break;
+
+            default:
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", endpoint.ApiKey);
+                break;
+        }
     }
 
     /// <summary>

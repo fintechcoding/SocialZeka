@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.App.Services;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -187,6 +188,13 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
     /// <summary>How many calls the filters are hiding, for a line that says so.</summary>
     public int HiddenCallCount => Math.Max(0, _allCalls.Count - Calls.Count);
 
+    /// <summary>
+    /// The line itself. Formatted here rather than with a StringFormat in the view, because the
+    /// word order is the translation's to decide: "{0} görüşme gizli" and "{0} calls hidden"
+    /// happen to agree, the next language may not.
+    /// </summary>
+    public string HiddenCallText => string.Format(Localisation.T("contactspage.n-gorusme-gizli"), HiddenCallCount);
+
     public bool IsFilteringCalls =>
         !string.IsNullOrWhiteSpace(CallFilter) || CallPeriod != SearchPeriod.Anytime;
 
@@ -236,6 +244,7 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(HiddenCallCount));
+        OnPropertyChanged(nameof(HiddenCallText));
         OnPropertyChanged(nameof(IsFilteringCalls));
         OnPropertyChanged(nameof(HasVisibleCalls));
 

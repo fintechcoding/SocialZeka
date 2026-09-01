@@ -44,6 +44,34 @@ public sealed class RepositoryTests : IDisposable
     [Fact]
     public void Fts5IsCompiledIntoTheSqliteBuild() => Assert.True(Database.Fts5Available());
 
+    /// <summary>
+    /// A row inserted when recording started and never completed is the trace a crash leaves.
+    /// It is the only kind of row the startup reclaim may touch: anything with audio attached
+    /// was finished properly, and anything past Queued is somebody else's business.
+    /// </summary>
+    [Fact]
+    public void OnlyWaitingCallsWithNoAudioAreStranded()
+    {
+        var stranded = _repo.InsertCall(new Call
+        {
+            App = CallApp.WhatsApp, StartedAt = DateTimeOffset.UtcNow, State = ProcessingState.Recorded,
+        });
+
+        var finished = _repo.InsertCall(new Call
+        {
+            App = CallApp.WhatsApp, StartedAt = DateTimeOffset.UtcNow, State = ProcessingState.Queued,
+        });
+        _repo.CompleteCall(finished, "mic.wav", "far.wav", TimeSpan.FromMinutes(1), DateTimeOffset.UtcNow);
+
+        var transcribed = NewCall();
+
+        var ids = _repo.CallsWithoutAudio().Select(c => c.Id).ToList();
+
+        Assert.Equal(new[] { stranded }, ids);
+        Assert.DoesNotContain(finished, ids);
+        Assert.DoesNotContain(transcribed, ids);
+    }
+
     [Fact]
     public void SchemaAppliesAndIsIdempotent()
     {

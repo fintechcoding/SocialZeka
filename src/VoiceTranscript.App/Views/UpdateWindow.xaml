@@ -1,8 +1,9 @@
 <ui:FluentWindow x:Class="VoiceTranscript.App.Views.UpdateWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="Yeni sürüm"
+                 Title="{loc:T updatewindow.yeni-surum}"
                  Width="520" SizeToContent="Height"
                  WindowStartupLocation="CenterScreen"
                  ResizeMode="NoResize"
@@ -10,7 +11,7 @@
                  WindowBackdropType="Mica">
 
     <StackPanel Margin="0,0,0,16">
-        <ui:TitleBar Title="Yeni sürüm" />
+        <ui:TitleBar Title="{loc:T updatewindow.yeni-surum}" />
 
         <StackPanel Margin="20,8,20,0">
             <TextBlock x:Name="HeadlineText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -20,7 +21,7 @@
 
             <!-- What changed, straight from the release. Nobody should agree to replace a
                  program without being told what is in it. -->
-            <TextBlock Text="Değişenler" Margin="0,16,0,6" FontWeight="SemiBold" />
+            <TextBlock Text="{loc:T updatewindow.degisenler}" Margin="0,16,0,6" FontWeight="SemiBold" />
 
             <Border BorderThickness="1" CornerRadius="4"
                     BorderBrush="{DynamicResource ControlElevationBorderBrush}"
@@ -48,9 +49,9 @@
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-                <ui:Button x:Name="SkipButton" Content="Bu sürümü atla" Margin="0,0,8,0" Click="Skip_Click" />
-                <ui:Button x:Name="LaterButton" Content="Sonra" Margin="0,0,8,0" Click="Later_Click" IsCancel="True" />
-                <ui:Button x:Name="UpdateButton" Content="Şimdi güncelle" Appearance="Primary" Click="Update_Click" />
+                <ui:Button x:Name="SkipButton" Content="{loc:T updatewindow.bu-surumu-atla}" Margin="0,0,8,0" Click="Skip_Click" />
+                <ui:Button x:Name="LaterButton" Content="{loc:T updatewindow.sonra}" Margin="0,0,8,0" Click="Later_Click" IsCancel="True" />
+                <ui:Button x:Name="UpdateButton" Content="{loc:T updatewindow.simdi-guncelle}" Appearance="Primary" Click="Update_Click" />
             </StackPanel>
         </StackPanel>
     </StackPanel>

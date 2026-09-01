@@ -1,8 +1,9 @@
 <ui:FluentWindow x:Class="VoiceTranscript.App.Views.RemindWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="Hatırlat"
+                 Title="{loc:T remindwindow.hatirlat}"
                  Width="460" Height="640" MinWidth="400" MinHeight="560"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
@@ -23,30 +24,30 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="Hatırlat" ShowMinimize="False" ShowMaximize="False" />
+        <ui:TitleBar Grid.Row="0" Title="{loc:T remindwindow.hatirlat}" ShowMinimize="False" ShowMaximize="False" />
 
         <StackPanel Grid.Row="1" Margin="20,8,20,4">
             <TextBlock x:Name="Subject" FontWeight="SemiBold" FontSize="{StaticResource TextBody}" />
 
-            <TextBlock Text="Hatırlatma sebebi" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
-            <ui:TextBox x:Name="Reason" PlaceholderText="Ör. Cuma günü evrak sözünü sor"
+            <TextBlock Text="{loc:T remindwindow.hatirlatma-sebebi}" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
+            <ui:TextBox x:Name="Reason" PlaceholderText="{loc:T remindwindow.or-cuma-gunu-evrak-sozunu-sor}"
                         TextWrapping="Wrap" AcceptsReturn="False" />
             <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
-                       Text="Ana ekrandaki kartın başlığı olur — geldiği gün neden geldiğini söyler." />
+                       Text="{loc:T remindwindow.ana-ekrandaki-kartin-basligi-olur-geldigi}" />
 
-            <TextBlock Text="Not" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
-            <ui:TextBox x:Name="CallNote" PlaceholderText="Bu görüşmeyle ilgili aklında kalsın istediklerin…"
+            <TextBlock Text="{loc:T remindwindow.not}" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
+            <ui:TextBox x:Name="CallNote" PlaceholderText="{loc:T remindwindow.bu-gorusmeyle-ilgili-aklinda-kalsin-istedi}"
                         TextWrapping="Wrap" AcceptsReturn="True" MinHeight="64" MaxHeight="120"
                         VerticalScrollBarVisibility="Auto" />
             <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
-                       Text="Görüşmenin notudur — Notlar sekmesinde de görünür; hatırlatma günü geldiğinde bağlam burada olur." />
+                       Text="{loc:T remindwindow.gorusmenin-notudur-notlar-sekmesinde-de-go}" />
 
-            <TextBlock Text="Ne zaman" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
+            <TextBlock Text="{loc:T remindwindow.ne-zaman}" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
             <WrapPanel>
-                <ui:Button Content="Yarın" Tag="1" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
-                <ui:Button Content="3 gün sonra" Tag="3" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
-                <ui:Button Content="1 hafta sonra" Tag="7" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
-                <ui:Button Content="1 ay sonra" Tag="30" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
+                <ui:Button Content="{loc:T remindwindow.yarin}" Tag="1" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
+                <ui:Button Content="{loc:T remindwindow.3-gun-sonra}" Tag="3" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
+                <ui:Button Content="{loc:T remindwindow.1-hafta-sonra}" Tag="7" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
+                <ui:Button Content="{loc:T remindwindow.1-ay-sonra}" Tag="30" Padding="10,4" Margin="0,0,6,6" Click="Preset_Click" />
             </WrapPanel>
 
             <Grid Margin="0,2,0,0">
@@ -54,7 +55,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Tarih:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="0" Text="{loc:T remindwindow.tarih}" VerticalAlignment="Center" Margin="0,0,8,0" />
                 <DatePicker Grid.Column="1" x:Name="Day" SelectedDateChanged="Day_Changed" />
             </Grid>
 
@@ -71,12 +72,12 @@
             </Grid.ColumnDefinitions>
 
             <!-- Only offered when there is something to take away. -->
-            <ui:Button Grid.Column="0" x:Name="Clear" Content="Hatırlatmayı kaldır"
+            <ui:Button Grid.Column="0" x:Name="Clear" Content="{loc:T remindwindow.hatirlatmayi-kaldir}"
                        Appearance="Secondary" Visibility="Collapsed"
                        HorizontalAlignment="Left" Click="Clear_Click" />
 
-            <ui:Button Grid.Column="1" Content="Vazgeç" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
-            <ui:Button Grid.Column="2" x:Name="Save" Content="Kaydet" Appearance="Primary"
+            <ui:Button Grid.Column="1" Content="{loc:T remindwindow.vazgec}" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <ui:Button Grid.Column="2" x:Name="Save" Content="{loc:T remindwindow.kaydet}" Appearance="Primary"
                        IsDefault="True" IsEnabled="False" Click="Save_Click" />
         </Grid>
     </Grid>

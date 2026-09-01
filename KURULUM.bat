@@ -1,8 +1,8 @@
-@echo off
+﻿@echo off
 REM Double-clickable wrapper for the setup script.
 REM
 REM PowerShell deliberately refuses to run a script from the current directory by bare name, so
-REM "powershell kurulum.ps1" fails with "not recognized" - a confusing error for a file that is
+REM "powershell setup.ps1" fails with "not recognized" - a confusing error for a file that is
 REM sitting right there. Passing it with -File names it explicitly, and -ExecutionPolicy Bypass
 REM lifts the unsigned-script block for this one invocation only.
 REM
@@ -16,7 +16,7 @@ echo.
 echo   VoiceTranscript kurulumu baslatiliyor...
 echo.
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kurulum.ps1" %*
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" %*
 set RESULT=%ERRORLEVEL%
 
 echo.

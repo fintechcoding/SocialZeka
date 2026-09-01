@@ -622,8 +622,12 @@ public partial class App : Application
             IsProcessing = Orchestrator?.State == Services.OrchestratorState.Processing,
             QueueDepth = Repository?.CallsAwaitingProcessing().Count ?? 0,
             DataDirectoryOverridden = Paths.Root != new AppPaths().Root,
-            InstalledNormally = AppContext.BaseDirectory.StartsWith(
-                Path.Combine(installedUnder, "Programs"), StringComparison.OrdinalIgnoreCase),
+            // Judged by the installer's own footprint, not by a guessed path. The installer
+            // lets the user choose the directory, and a copy correctly installed anywhere but
+            // %LOCALAPPDATA%\Programs was refused every update for ever. Inno Setup writes its
+            // uninstaller beside the executable in every install it performs; a build that was
+            // merely unzipped has none.
+            InstalledNormally = File.Exists(Path.Combine(AppContext.BaseDirectory, "unins000.exe")),
             FreeDiskBytes = free,
             InstallerBytes = installerBytes,
             RestorePending = false,

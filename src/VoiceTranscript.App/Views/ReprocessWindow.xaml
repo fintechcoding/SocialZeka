@@ -1,8 +1,9 @@
 <ui:FluentWindow x:Class="VoiceTranscript.App.Views.ReprocessWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="Yeniden işle"
+                 Title="{loc:T reprocesswindow.yeniden-isle}"
                  Width="620" Height="560" MinWidth="520" MinHeight="440"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
@@ -16,7 +17,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" x:Name="Bar" Title="Yeniden işle" />
+        <ui:TitleBar Grid.Row="0" x:Name="Bar" Title="{loc:T reprocesswindow.yeniden-isle}" />
 
         <StackPanel Grid.Row="1" Margin="20,8,20,12">
             <TextBlock x:Name="Subject" FontWeight="SemiBold" FontSize="{StaticResource TextBody}" />
@@ -27,7 +28,7 @@
                 it — "Yeniden çevir" opens engines, "Çözümle" opens models, and neither asks.
             -->
             <TextBlock x:Name="Reassurance" Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
-                       Text="Ses diskte duruyor; yalnızca bu aşama baştan üretilir. Kişi, etiket ve notların korunur." />
+                       Text="{loc:T reprocesswindow.ses-diskte-duruyor-yalnizca-bu-asama-basta}" />
 
             <!-- Whether the service this list depends on is actually answering, and — where the
                  provider exposes it — how much credit is left. Asked when the dialog opens,
@@ -54,11 +55,11 @@
                      filter, so the default is never out of sight. -->
                 <StackPanel x:Name="ScopeBar" Grid.Column="1" Orientation="Horizontal"
                             Visibility="Collapsed">
-                    <ui:Button x:Name="ScopeAllButton" Content="Tümü" Padding="10,4" Margin="0,0,6,0"
+                    <ui:Button x:Name="ScopeAllButton" Content="{loc:T reprocesswindow.tumu}" Padding="10,4" Margin="0,0,6,0"
                                Appearance="Primary" Tag="All" Click="Scope_Click" />
-                    <ui:Button x:Name="ScopeLocalButton" Content="Bu makinede" Padding="10,4" Margin="0,0,6,0"
+                    <ui:Button x:Name="ScopeLocalButton" Content="{loc:T reprocesswindow.bu-makinede}" Padding="10,4" Margin="0,0,6,0"
                                Appearance="Secondary" Tag="Local" Click="Scope_Click" />
-                    <ui:Button x:Name="ScopeCloudButton" Content="Bulut" Padding="10,4"
+                    <ui:Button x:Name="ScopeCloudButton" Content="{loc:T reprocesswindow.bulut}" Padding="10,4"
                                Appearance="Secondary" Tag="Cloud" Click="Scope_Click" />
                 </StackPanel>
             </Grid>
@@ -137,8 +138,8 @@
                        Style="{StaticResource Caption}" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <ui:Button Content="Vazgeç" Margin="0,0,8,0" Click="Cancel_Click" IsCancel="True" />
-                <ui:Button x:Name="StartButton" Content="Yeniden işle" Appearance="Primary" Click="Start_Click" IsDefault="True" />
+                <ui:Button Content="{loc:T reprocesswindow.vazgec}" Margin="0,0,8,0" Click="Cancel_Click" IsCancel="True" />
+                <ui:Button x:Name="StartButton" Content="{loc:T reprocesswindow.yeniden-isle}" Appearance="Primary" Click="Start_Click" IsDefault="True" />
             </StackPanel>
         </Grid>
     </Grid>

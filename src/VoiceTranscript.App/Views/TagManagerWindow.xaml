@@ -1,8 +1,9 @@
 <ui:FluentWindow x:Class="VoiceTranscript.App.Views.TagManagerWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="Etiketler"
+                 Title="{loc:T tagmanagerwindow.etiketler}"
                  Width="560" Height="600" MinWidth="480" MinHeight="420"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
@@ -22,11 +23,11 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="Etiketler" ShowMinimize="False" ShowMaximize="False" />
+        <ui:TitleBar Grid.Row="0" Title="{loc:T tagmanagerwindow.etiketler}" ShowMinimize="False" ShowMaximize="False" />
 
         <TextBlock Grid.Row="1" Margin="20,8,20,10" TextWrapping="Wrap"
                    Style="{StaticResource Caption}"
-                   Text="Bu liste etiketlerin görünüşüdür: adı, simgesi, rengi. Bir tanımı silmek görüşmelerdeki etiketi silmez — yalnızca kıyafetini alır." />
+                   Text="{loc:T tagmanagerwindow.bu-liste-etiketlerin-gorunusudur-adi-simge}" />
 
         <Border Grid.Row="2" Margin="20,0,20,0" CornerRadius="6" BorderThickness="1"
                 BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
@@ -52,12 +53,12 @@
                                 </Border>
 
                                 <ui:TextBox Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                            PlaceholderText="Etiket adı" Margin="0,0,8,0"
+                                            PlaceholderText="{loc:T tagmanagerwindow.etiket-adi}" Margin="0,0,8,0"
                                             VerticalAlignment="Center" />
 
                                 <ComboBox Grid.Column="2" Width="86" Margin="0,0,8,0" VerticalAlignment="Center"
                                           ItemsSource="{Binding Icons}" SelectedItem="{Binding Icon}"
-                                          ToolTip="Simge">
+                                          ToolTip="{loc:T tagmanagerwindow.simge}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
                                             <ui:SymbolIcon Symbol="{Binding Converter={StaticResource SymbolFromName}}"
@@ -68,7 +69,7 @@
 
                                 <ComboBox Grid.Column="3" Width="120" Margin="0,0,8,0" VerticalAlignment="Center"
                                           ItemsSource="{Binding Colors}" SelectedItem="{Binding ColorChoice}"
-                                          ToolTip="Renk">
+                                          ToolTip="{loc:T tagmanagerwindow.renk}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal">
@@ -81,7 +82,7 @@
                                 </ComboBox>
 
                                 <ui:Button Grid.Column="4" Appearance="Transparent" Padding="6,4"
-                                           Click="RemoveRow_Click" ToolTip="Tanımı sil">
+                                           Click="RemoveRow_Click" ToolTip="{loc:T tagmanagerwindow.tanimi-sil}">
                                     <ui:Button.Icon>
                                         <ui:SymbolIcon Symbol="Delete24" />
                                     </ui:Button.Icon>
@@ -100,15 +101,15 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <ui:Button Grid.Column="0" Content="Yeni etiket" HorizontalAlignment="Left"
+            <ui:Button Grid.Column="0" Content="{loc:T tagmanagerwindow.yeni-etiket}" HorizontalAlignment="Left"
                        Click="AddRow_Click">
                 <ui:Button.Icon>
                     <ui:SymbolIcon Symbol="Add24" />
                 </ui:Button.Icon>
             </ui:Button>
 
-            <ui:Button Grid.Column="1" Content="Vazgeç" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
-            <ui:Button Grid.Column="2" Content="Kaydet" Appearance="Primary" IsDefault="True"
+            <ui:Button Grid.Column="1" Content="{loc:T tagmanagerwindow.vazgec}" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <ui:Button Grid.Column="2" Content="{loc:T tagmanagerwindow.kaydet}" Appearance="Primary" IsDefault="True"
                        Click="Save_Click" />
         </Grid>
     </Grid>

@@ -175,8 +175,6 @@ public sealed partial class AskViewModel : ObservableObject
             // failed would hide the very thing that was asked for.
             foreach (var citation in result.Citations)
                 Citations.Add(new CitationView(citation));
-
-            OnPropertyChanged(nameof(HasCitations));
         }
         catch (OperationCanceledException)
         {
@@ -188,6 +186,9 @@ public sealed partial class AskViewModel : ObservableObject
         }
         finally
         {
+            // Raised on every exit, so the citations panel always agrees with the list —
+            // whether the question was answered, withheld, cancelled or failed.
+            OnPropertyChanged(nameof(HasCitations));
             IsThinking = false;
         }
     }

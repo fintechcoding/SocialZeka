@@ -1,8 +1,9 @@
 <ui:FluentWindow x:Class="VoiceTranscript.App.Views.RenameContactWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="Kişiyi yeniden adlandır"
+                 Title="{loc:T renamecontactwindow.kisiyi-yeniden-adlandir}"
                  Width="420" SizeToContent="Height"
                  WindowStartupLocation="CenterOwner"
                  ResizeMode="NoResize"
@@ -10,10 +11,10 @@
                  WindowBackdropType="Mica">
 
     <StackPanel Margin="0,0,0,16">
-        <ui:TitleBar Title="Kişiyi yeniden adlandır" />
+        <ui:TitleBar Title="{loc:T renamecontactwindow.kisiyi-yeniden-adlandir}" />
 
         <StackPanel Margin="20,8,20,0">
-            <TextBlock Text="Yeni ad" Margin="0,0,0,6" FontWeight="SemiBold" />
+            <TextBlock Text="{loc:T renamecontactwindow.yeni-ad}" Margin="0,0,0,6" FontWeight="SemiBold" />
 
             <ui:TextBox x:Name="NameBox" KeyDown="NameBox_KeyDown" />
 
@@ -22,11 +23,11 @@
                  a second person and splits the history between them. -->
             <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Style="{StaticResource Caption}"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                       Text="Görüşmeler, sözler ve defter kayıtları olduğu gibi kalır; yalnızca ad değişir." />
+                       Text="{loc:T renamecontactwindow.gorusmeler-sozler-ve-defter-kayitlari-oldu}" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-                <ui:Button Content="Vazgeç" Margin="0,0,8,0" Click="Cancel_Click" IsCancel="True" />
-                <ui:Button Content="Kaydet" Appearance="Primary" Click="Save_Click" IsDefault="True" />
+                <ui:Button Content="{loc:T renamecontactwindow.vazgec}" Margin="0,0,8,0" Click="Cancel_Click" IsCancel="True" />
+                <ui:Button Content="{loc:T renamecontactwindow.kaydet}" Appearance="Primary" Click="Save_Click" IsDefault="True" />
             </StackPanel>
         </StackPanel>
     </StackPanel>

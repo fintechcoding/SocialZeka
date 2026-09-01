@@ -649,6 +649,18 @@ public sealed class Repository(Database database)
     /// Safe to reclaim precisely because this is only ever called at startup: the process that
     /// might have been holding them is the one that just died.
     /// </summary>
+    /// <summary>
+    /// Calls that were being recorded when the process died: still marked as fresh recordings,
+    /// with no audio attached, because the paths are only written when a recording ends properly.
+    /// </summary>
+    public IReadOnlyList<Call> CallsWithoutAudio()
+    {
+        using var connection = Open();
+        return [.. connection.Query<CallRow>(
+            "SELECT * FROM call WHERE state IN (0, 1) AND mic_path IS NULL AND far_path IS NULL ORDER BY started_at ASC;")
+            .Select(r => r.ToModel())];
+    }
+
     public IReadOnlyList<Call> CallsAwaitingProcessing()
     {
         using var connection = Open();
@@ -2416,31 +2428,51 @@ public sealed class Repository(Database database)
         if (call is null) return 0;
 
         var removed = 0;
+        var micGone = string.IsNullOrWhiteSpace(call.MicPath);
+        var farGone = string.IsNullOrWhiteSpace(call.FarPath);
 
-        foreach (var path in new[] { call.MicPath, call.FarPath })
+        // Each stream is tracked on its own. A failure on the second file used to return with
+        // the first already deleted and its path still on the row — so the row pointed at a
+        // file that no longer existed, which is the one state a player cannot explain.
+        foreach (var (path, isMic) in new[] { (call.MicPath, true), (call.FarPath, false) })
         {
             if (string.IsNullOrWhiteSpace(path)) continue;
 
             try
             {
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                    removed++;
-                }
+                if (File.Exists(path)) File.Delete(path);
+                removed++;
+                if (isMic) micGone = true; else farGone = true;
             }
             catch (Exception)
             {
-                // A file held open by a player stays. The row is only cleared for files that
-                // actually went, so the next sweep tries again rather than losing track of it.
-                return removed;
+                // Held open by a player. Left for the next sweep; only what went is cleared.
             }
+        }
+
+        // The mixed copy is derived from the two streams and is a playable recording of the
+        // whole conversation. Forgetting the audio while leaving it behind forgot nothing.
+        var anchor = call.MicPath ?? call.FarPath;
+        if (anchor is not null)
+        {
+            var mixed = Audio.ConversationMix.PathFor(anchor);
+
+            try { if (File.Exists(mixed)) File.Delete(mixed); }
+            catch (Exception) { }
+
+            Audio.ConversationMix.DiscardPartials(mixed);
         }
 
         using var connection = Open();
 
         connection.Execute(
-            "UPDATE call SET mic_path = NULL, far_path = NULL WHERE id = @callId;", new { callId });
+            """
+            UPDATE call
+               SET mic_path = CASE WHEN @micGone THEN NULL ELSE mic_path END,
+                   far_path = CASE WHEN @farGone THEN NULL ELSE far_path END
+             WHERE id = @callId;
+            """,
+            new { callId, micGone, farGone });
 
         return removed;
     }

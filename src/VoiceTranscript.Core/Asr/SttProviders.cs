@@ -153,18 +153,6 @@ public static class SttProviderCatalog
         },
         new()
         {
-            Kind = "openrouter",
-            DisplayName = "OpenRouter",
-            BaseUrl = "https://openrouter.ai/api/v1",
-            DefaultModel = "openai/whisper-1",
-            Summary =
-                "Tek anahtarla birçok sağlayıcıya erişim. Kalan krediyi API'den bildirir. " +
-                "Ses desteği sunucudan sunucuya değiştiği için modeli sınayarak doğrula.",
-            Balance = BalanceProbe.OpenRouterKey,
-            SignupUrl = "https://openrouter.ai/keys",
-        },
-        new()
-        {
             Kind = "custom",
             DisplayName = "Özel adres",
             BaseUrl = "",

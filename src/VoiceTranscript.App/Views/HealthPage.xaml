@@ -20,7 +20,7 @@
     -->
     <TabControl Margin="24,10,24,16" Padding="0,14,0,0" Style="{StaticResource SegmentedTabs}">
 
-        <TabItem Header="Sistem">
+        <TabItem Header="{loc:T healthpage.sistem}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,8,24">
         <StackPanel MaxWidth="860" HorizontalAlignment="Left">
 
@@ -154,7 +154,7 @@
             column holding four unrelated jobs — diagnosis, updating, backup and logs — and the one
             you wanted was always somewhere below the fold.
         -->
-        <TabItem Header="Güncelleme">
+        <TabItem Header="{loc:T healthpage.guncelleme}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,8,24">
                 <StackPanel MaxWidth="860" HorizontalAlignment="Left">
             <!--
@@ -185,7 +185,7 @@
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock FontSize="{StaticResource TextBody}">
-                                <Run Text="Sürüm" /><Run Text=" " /><Run
+                                <Run Text="{loc:T healthpage.surum}" /><Run Text=" " /><Run
                                     Text="{Binding CurrentVersion, Mode=OneWay}" FontWeight="SemiBold" />
                             </TextBlock>
                             <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
@@ -197,14 +197,14 @@
                                              VerticalAlignment="Center"
                                              Visibility="{Binding IsChecking, Converter={StaticResource BoolToVisibility}}" />
 
-                            <ui:Button Content="Güncellemeleri denetle" MinWidth="164"
+                            <ui:Button Content="{loc:T healthpage.guncellemeleri-denetle}" MinWidth="164"
                                        Command="{Binding CheckCommand}"
                                        IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}" />
 
                             <!-- Only appears once there is something to install. A permanently
                                  present "install" button over an application that is already
                                  current is a button that teaches people to ignore it. -->
-                            <ui:Button Content="İndir ve kur" Appearance="Primary" Margin="6,0,0,0"
+                            <ui:Button Content="{loc:T healthpage.indir-ve-kur}" Appearance="Primary" Margin="6,0,0,0"
                                        Command="{Binding InstallCommand}"
                                        Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibility}}" />
                         </StackPanel>
@@ -232,18 +232,18 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="Açılışta kendiliğinden denetle" FontSize="{StaticResource TextSecondary}" />
+                            <TextBlock Text="{loc:T healthpage.acilista-kendiliginden-denetle}" FontSize="{StaticResource TextSecondary}" />
                             <!-- Said plainly because it is the whole distinction the owner asked
                                  for: it looks, it never installs on its own. -->
                             <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                       Text="Yalnızca bakar. Hiçbir sürüm sen onaylamadan kurulmaz." />
+                                       Text="{loc:T healthpage.yalnizca-bakar-hicbir-surum-sen-onaylamada}" />
                         </StackPanel>
 
                         <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                          IsChecked="{Binding CheckAutomatically, Mode=TwoWay}" />
                     </Grid>
 
-                    <ui:Button Content="Sürümler sayfasını aç" Appearance="Transparent" Margin="26,8,0,0"
+                    <ui:Button Content="{loc:T healthpage.surumler-sayfasini-ac}" Appearance="Transparent" Margin="26,8,0,0"
                                HorizontalAlignment="Left" Command="{Binding OpenReleasesCommand}">
                         <ui:Button.Icon>
                             <ui:SymbolIcon Symbol="Open24" />
@@ -262,7 +262,7 @@
             and they are the things somebody reaches for on the day they stop trusting the
             application: get my conversations out, take a copy, put one back, send the log.
         -->
-        <TabItem Header="Veriler">
+        <TabItem Header="{loc:T healthpage.veriler}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,8,24">
                 <StackPanel MaxWidth="860" HorizontalAlignment="Left">
 
@@ -439,8 +439,8 @@
                             <!-- Clearing before reproducing a fault is how you get a log that is
                                  about one thing. Three days of unrelated history makes the
                                  interesting part hard to find, for the sender and the reader. -->
-                            <ui:Button Content="Temizle" MinWidth="96" Click="ClearLog_Click"
-                                       ToolTip="Günlük dosyalarını siler. Bir hatayı yeniden denemeden önce temizlemek, gönderilecek günlüğü tek konuya indirir." />
+                            <ui:Button Content="{loc:T healthpage.temizle}" MinWidth="96" Click="ClearLog_Click"
+                                       ToolTip="{loc:T healthpage.gunluk-dosyalarini-siler-bir-hatayi-yenide}" />
                         </StackPanel>
                     </Grid>
                 </StackPanel>
@@ -463,12 +463,12 @@
             right now rather than about a preference: Settings can say what is configured, and only
             this can say whether it answered.
         -->
-        <TabItem Header="Yapay zekâ">
+        <TabItem Header="{loc:T healthpage.yapay-zeka}">
             <views:AiStatusPage
                 DataContext="{Binding DataContext.AiStatus, RelativeSource={RelativeSource AncestorType=Window}}" />
         </TabItem>
 
-        <TabItem Header="İşlemler">
+        <TabItem Header="{loc:T healthpage.islemler}">
             <views:ProcessingPage
                 DataContext="{Binding DataContext.Processing, RelativeSource={RelativeSource AncestorType=Window}}" />
         </TabItem>

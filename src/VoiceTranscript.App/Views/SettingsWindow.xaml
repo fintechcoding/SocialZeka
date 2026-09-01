@@ -139,7 +139,7 @@
                             </Grid>
                         </Border>
 
-                        <TextBlock Text="Görünüm" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+                        <TextBlock Text="{loc:T settingswindow.gorunum}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
 
                         <Border Style="{StaticResource SettingCard}">
                             <Grid>
@@ -152,20 +152,20 @@
                                                VerticalAlignment="Center"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Tema" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Text="{loc:T settingswindow.tema}" FontSize="{StaticResource TextBody}" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="Sistemi izle, Windows'un açık/koyu ayarıyla birlikte değişir. Seçim kaydedince uygulanır." />
+                                               Text="{loc:T settingswindow.sistemi-izle-windows-un-acik-koyu-ayariyla}" />
                                 </StackPanel>
                                 <ComboBox Grid.Column="2" MinWidth="150" VerticalAlignment="Center"
                                           SelectedValue="{Binding ThemeChoice}" SelectedValuePath="Tag">
-                                    <ComboBoxItem Content="Sistemi izle" Tag="system" />
-                                    <ComboBoxItem Content="Açık" Tag="light" />
-                                    <ComboBoxItem Content="Koyu" Tag="dark" />
+                                    <ComboBoxItem Content="{loc:T settingswindow.sistemi-izle}" Tag="system" />
+                                    <ComboBoxItem Content="{loc:T settingswindow.acik}" Tag="light" />
+                                    <ComboBoxItem Content="{loc:T settingswindow.koyu}" Tag="dark" />
                                 </ComboBox>
                             </Grid>
                         </Border>
 
-                        <TextBlock Text="Başlangıç" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+                        <TextBlock Text="{loc:T settingswindow.baslangic}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
 
                         <!--
                             A call recorder that has to be remembered and launched before every
@@ -990,7 +990,7 @@
                                     <ui:Button Grid.Column="1" Margin="8,0,0,0" MinWidth="130"
                                                Content="{loc:T settingswindow.modellere-gozat}" Click="BrowseModels_Click"
                                                Visibility="{Binding CanBrowseModels, Converter={StaticResource BoolToVisibility}}"
-                                               ToolTip="Sağlayıcıdaki modelleri listeler; arayarak seçebilirsin.">
+                                               ToolTip="{loc:T settingswindow.saglayicidaki-modelleri-listeler-arayarak}">
                                         <ui:Button.Icon>
                                             <ui:SymbolIcon Symbol="Search24" />
                                         </ui:Button.Icon>
@@ -1032,7 +1032,7 @@
                             </Border>
                         </StackPanel>
 
-                        <TextBlock Text="Aksiyonlar ve okuma" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
+                        <TextBlock Text="{loc:T settingswindow.aksiyonlar-ve-okuma}" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
 
                         <Border Style="{StaticResource SettingCard}">
                             <Grid>
@@ -1041,9 +1041,9 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="Görüşmeden aksiyon önerileri çıkar" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Text="{loc:T settingswindow.gorusmeden-aksiyon-onerileri-cikar}" FontSize="{StaticResource TextBody}" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="Çözümlemeyle birlikte, atman gereken adımları önerir. Yalnız öneridir — sen onaylamadan hiçbir yere yazılmaz." />
+                                               Text="{loc:T settingswindow.cozumlemeyle-birlikte-atman-gereken-adimla}" />
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                                  IsChecked="{Binding ExtractActions}" />
@@ -1057,9 +1057,9 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="Modelin okuması paneli" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Text="{loc:T settingswindow.modelin-okumasi-paneli}" FontSize="{StaticResource TextBody}" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="Görüşme penceresinde, istek üzerine üretilen serbest yorum bölümü. Öznel bir okumadır ve öyle etiketlenir; kapatınca bölüm hiç görünmez." />
+                                               Text="{loc:T settingswindow.gorusme-penceresinde-istek-uzerine-uretile}" />
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                                  IsChecked="{Binding CommentaryEnabled}" />
@@ -1082,9 +1082,9 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="Çözümleme bitince tutarlılığı da denetle" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Text="{loc:T settingswindow.cozumleme-bitince-tutarliligi-da-denetle}" FontSize="{StaticResource TextBody}" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
-                                               Text="Kapalıyken görüşme penceresindeki düğmeden elle çalışır. Her koşum ücretli bir istektir." />
+                                               Text="{loc:T settingswindow.kapaliyken-gorusme-penceresindeki-dugmeden}" />
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                                  IsChecked="{Binding ConsistencyAutomatically}" />
@@ -1093,11 +1093,11 @@
 
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
-                                <TextBlock Text="Tutarlılık için ayrı model" FontSize="{StaticResource TextBody}" />
+                                <TextBlock Text="{loc:T settingswindow.tutarlilik-icin-ayri-model}" FontSize="{StaticResource TextBody}" />
                                 <ui:TextBox Text="{Binding ConsistencyModel, UpdateSourceTrigger=PropertyChanged}"
-                                            PlaceholderText="boş = çözümleme modeli" Margin="0,8,0,0" />
+                                            PlaceholderText="{loc:T settingswindow.bos-cozumleme-modeli}" Margin="0,8,0,0" />
                                 <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                           Text="Defter ucuz bir modelde kalırken bu okuma daha güçlü bir modele (örn. anthropic/claude-fable-5) gidebilir. Model, seçili sağlayıcı üzerinden çağrılır." />
+                                           Text="{loc:T settingswindow.defter-ucuz-bir-modelde-kalirken-bu-okuma}" />
                             </StackPanel>
                         </Border>
 
@@ -1108,9 +1108,9 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="Önceki görüşmelerin defter alıntılarını bağlam olarak gönder" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Text="{loc:T settingswindow.onceki-gorusmelerin-defter-alintilarini-ba}" FontSize="{StaticResource TextBody}" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="Açıkken '3 Mart'ta 15 bin demişti' türü çapraz çelişkiler yakalanır. Bulut sağlayıcıda geçmiş alıntılar da makineden çıkar." />
+                                               Text="{loc:T settingswindow.acikken-3-mart-ta-15-bin-demisti-turu-capr}" />
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                                  IsChecked="{Binding ConsistencyUsesLedgerContext}" />
@@ -1124,16 +1124,16 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="Yalnızca karşı tarafı denetle" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Text="{loc:T settingswindow.yalnizca-karsi-tarafi-denetle}" FontSize="{StaticResource TextBody}" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="Kapalıyken iki tarafın ifadeleri de gözlemlenir — varsayılan bu: araç kişiyi değil, konuşmayı gözlemler." />
+                                               Text="{loc:T settingswindow.kapaliyken-iki-tarafin-ifadeleri-de-gozlem}" />
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                                  IsChecked="{Binding ConsistencyOtherPartyOnly}" />
                             </Grid>
                         </Border>
 
-                        <TextBlock Text="Yalan ve manipülasyon" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
+                        <TextBlock Text="{loc:T settingswindow.yalan-ve-manipulasyon}" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
 
                         <Border Style="{StaticResource SettingCard}">
                             <Grid>
@@ -1142,9 +1142,9 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="Yalan ve manipülasyon değerlendirmesi" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Text="{loc:T settingswindow.yalan-ve-manipulasyon-degerlendirmesi}" FontSize="{StaticResource TextBody}" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="Açıkken model, denetimle birlikte açık görüşünü söyler: şüphe düzeyi (yok/düşük/orta/yüksek) ve taktik taktik gerekçe. Bu bir modelin görüşüdür — metinden çıkarımdır, gerçeğin hakemi değildir; alıntısı dökümde bulunamayan iddia yine elenir. Ek ücretli bir istektir." />
+                                               Text="{loc:T settingswindow.acikken-model-denetimle-birlikte-acik-goru}" />
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                                  IsChecked="{Binding DeceptionEnabled}" />

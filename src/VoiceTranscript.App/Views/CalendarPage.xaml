@@ -1,6 +1,7 @@
 <UserControl x:Class="VoiceTranscript.App.Views.CalendarPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -29,7 +30,7 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Text="Takvim" Style="{StaticResource PageTitle}" />
+            <TextBlock Grid.Row="0" Text="{loc:T calendarpage.takvim}" Style="{StaticResource PageTitle}" />
 
             <!-- Month navigation. The title doubles as the way home, like the mini calendar. -->
             <Grid Grid.Row="1" Margin="0,4,0,10">
@@ -42,7 +43,7 @@
                 </Grid.ColumnDefinitions>
 
                 <ui:Button Grid.Column="0" Appearance="Transparent" Padding="8,4"
-                           Command="{Binding PrevMonthCommand}" ToolTip="Önceki ay">
+                           Command="{Binding PrevMonthCommand}" ToolTip="{loc:T calendarpage.onceki-ay}">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="ChevronLeft24" />
                     </ui:Button.Icon>
@@ -53,24 +54,24 @@
                            TextAlignment="Center" VerticalAlignment="Center" Margin="8,0" />
 
                 <ui:Button Grid.Column="2" Appearance="Transparent" Padding="8,4"
-                           Command="{Binding NextMonthCommand}" ToolTip="Sonraki ay">
+                           Command="{Binding NextMonthCommand}" ToolTip="{loc:T calendarpage.sonraki-ay}">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="ChevronRight24" />
                     </ui:Button.Icon>
                 </ui:Button>
 
-                <ui:Button Grid.Column="4" Content="Bugün" Command="{Binding TodayCommand}"
-                           ToolTip="Bu aya dön ve bugünü seç" />
+                <ui:Button Grid.Column="4" Content="{loc:T calendarpage.bugun}" Command="{Binding TodayCommand}"
+                           ToolTip="{loc:T calendarpage.bu-aya-don-ve-bugunu-sec}" />
             </Grid>
 
             <UniformGrid Grid.Row="2" Columns="7" Margin="0,0,0,4">
-                <TextBlock Text="Pzt" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                <TextBlock Text="Sal" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                <TextBlock Text="Çar" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                <TextBlock Text="Per" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                <TextBlock Text="Cum" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                <TextBlock Text="Cmt" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                <TextBlock Text="Paz" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                <TextBlock Text="{loc:T calendarpage.pzt}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                <TextBlock Text="{loc:T calendarpage.sal}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                <TextBlock Text="{loc:T calendarpage.car}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                <TextBlock Text="{loc:T calendarpage.per}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                <TextBlock Text="{loc:T calendarpage.cum}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                <TextBlock Text="{loc:T calendarpage.cmt}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                <TextBlock Text="{loc:T calendarpage.paz}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
             </UniformGrid>
 
             <ItemsControl Grid.Row="3" ItemsSource="{Binding Days}">
@@ -182,11 +183,11 @@
 
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <TextBlock Text="Ayrıntı için bir güne tıkla." Style="{StaticResource Caption}"
+                        <TextBlock Text="{loc:T calendarpage.ayrinti-icin-bir-gune-tikla}" Style="{StaticResource Caption}"
                                    Margin="2,0"
                                    Visibility="{Binding HasSelection, Converter={StaticResource InverseBoolToVisibility}}" />
 
-                        <TextBlock Text="Bu günde bir şey yok." Style="{StaticResource Caption}"
+                        <TextBlock Text="{loc:T calendarpage.bu-gunde-bir-sey-yok}" Style="{StaticResource Caption}"
                                    Margin="2,0"
                                    Visibility="{Binding SelectedDayIsEmpty, Converter={StaticResource BoolToVisibility}}" />
 

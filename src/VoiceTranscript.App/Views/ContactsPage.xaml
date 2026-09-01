@@ -66,18 +66,18 @@
                 -->
                 <ListBox.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="Yeniden adlandır" InputGestureText="F2" Click="RenameContact_Click">
+                        <MenuItem Header="{loc:T contactspage.yeniden-adlandir}" InputGestureText="F2" Click="RenameContact_Click">
                             <MenuItem.Icon>
                                 <ui:SymbolIcon Symbol="Rename24" />
                             </MenuItem.Icon>
                         </MenuItem>
-                        <MenuItem Header="Başka kişiyle birleştir…" Click="MergeContact_Click">
+                        <MenuItem Header="{loc:T contactspage.baska-kisiyle-birlestir}" Click="MergeContact_Click">
                             <MenuItem.Icon>
                                 <ui:SymbolIcon Symbol="PeopleSwap24" />
                             </MenuItem.Icon>
                         </MenuItem>
                         <Separator />
-                        <MenuItem Header="Kişiyi sil…" Click="DeleteContact_Click">
+                        <MenuItem Header="{loc:T contactspage.kisiyi-sil}" Click="DeleteContact_Click">
                             <MenuItem.Icon>
                                 <ui:SymbolIcon Symbol="Delete24" />
                             </MenuItem.Icon>
@@ -308,7 +308,7 @@
 
                                         <TextBlock Grid.Column="0" VerticalAlignment="Center"
                                                    Style="{StaticResource Caption}"
-                                                   Text="{Binding HiddenCallCount, StringFormat={}{0} görüşme gizli}" />
+                                                   Text="{Binding HiddenCallText}" />
 
                                         <ui:Button Grid.Column="1" Content="{loc:T contactspage.suzgeci-kaldir}"
                                                    Appearance="Transparent" Padding="6,2"
@@ -338,7 +338,7 @@
                                 -->
                                 <ListBox.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="Görüşmeyi aç" Click="OpenCall_Click" FontWeight="SemiBold">
+                                        <MenuItem Header="{loc:T contactspage.gorusmeyi-ac}" Click="OpenCall_Click" FontWeight="SemiBold">
                                             <MenuItem.Icon>
                                                 <ui:SymbolIcon Symbol="Open24" />
                                             </MenuItem.Icon>
@@ -347,14 +347,14 @@
 
                                         <!-- Onto the first screen's important pile — the one part
                                              of this archive a person arranges themselves. -->
-                                        <MenuItem Header="Önemlilere ekle" Click="AddToBoard_Click">
+                                        <MenuItem Header="{loc:T contactspage.onemlilere-ekle}" Click="AddToBoard_Click">
                                             <MenuItem.Icon>
                                                 <ui:SymbolIcon Symbol="Board24" />
                                             </MenuItem.Icon>
                                         </MenuItem>
 
                                         <Separator />
-                                        <MenuItem Header="Başka kişiye taşı…" Click="MoveCall_Click">
+                                        <MenuItem Header="{loc:T contactspage.baska-kisiye-tasi}" Click="MoveCall_Click">
                                             <MenuItem.Icon>
                                                 <ui:SymbolIcon Symbol="PersonSwap24" />
                                             </MenuItem.Icon>
@@ -363,17 +363,17 @@
                                         <!-- Two different jobs, two different verbs. A single
                                              "Yeniden işle" hid the question the dialog would
                                              then ask anyway; the menu can answer it here. -->
-                                        <MenuItem Header="Yeniden yazıya çevir" Click="Retranscribe_Click">
+                                        <MenuItem Header="{loc:T contactspage.yeniden-yaziya-cevir}" Click="Retranscribe_Click">
                                             <MenuItem.Icon>
                                                 <ui:SymbolIcon Symbol="ArrowSync24" />
                                             </MenuItem.Icon>
                                         </MenuItem>
-                                        <MenuItem Header="Yeniden çözümle" Click="Reanalyse_Click">
+                                        <MenuItem Header="{loc:T contactspage.yeniden-cozumle}" Click="Reanalyse_Click">
                                             <MenuItem.Icon>
                                                 <ui:SymbolIcon Symbol="Lightbulb24" />
                                             </MenuItem.Icon>
                                         </MenuItem>
-                                        <MenuItem Header="Ses dosyasının yerini aç" Click="ShowInFolder_Click">
+                                        <MenuItem Header="{loc:T contactspage.ses-dosyasinin-yerini-ac}" Click="ShowInFolder_Click">
                                             <MenuItem.Icon>
                                                 <ui:SymbolIcon Symbol="FolderOpen24" />
                                             </MenuItem.Icon>
@@ -426,7 +426,7 @@
                                                         <Border Style="{StaticResource Pill}" Margin="0,0,4,2"
                                                                 Background="{Binding Converter={StaticResource TagBrush}}"
                                                                 Cursor="Hand" MouseLeftButtonUp="TagPill_Click"
-                                                                ToolTip="Bu etiketi taşıyan görüşmeleri ara">
+                                                                ToolTip="{loc:T contactspage.bu-etiketi-tasiyan-gorusmeleri-ara}">
                                                             <StackPanel Orientation="Horizontal">
                                                                 <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
                                                                                FontSize="11" Foreground="White" Margin="0,0,3,0"
@@ -594,7 +594,7 @@
                                                      transcript now, by request; this tab keeps
                                                      only what has no other home. -->
 
-                                                <TextBlock Text="Bu görüşme için özet yok — çözümleme çalışınca burada belirir."
+                                                <TextBlock Text="{loc:T contactspage.bu-gorusme-icin-ozet-yok-cozumleme-calisin}"
                                                            Margin="0,4,0,0">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource Secondary}">
@@ -614,14 +614,14 @@
                                     <!-- The selected call's open suggestions — same rows as the
                                          call window, revised in when the action layer arrived.
                                          Yaptım/Gizle work here; routing keeps its dialogs there. -->
-                                    <TabItem Header="Aksiyonlar">
+                                    <TabItem Header="{loc:T contactspage.aksiyonlar}">
                                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                                             <StackPanel>
                                                 <Border Style="{StaticResource Panel}"
                                                         Visibility="{Binding HasCallActions, Converter={StaticResource BoolToVisibility}}">
                                                     <StackPanel>
                                                         <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,6"
-                                                                   Text="Öneridir — sen onaylamadan hiçbir yere yazılmaz." />
+                                                                   Text="{loc:T contactspage.oneridir-sen-onaylamadan-hicbir-yere-yazil}" />
 
                                                         <ItemsControl ItemsSource="{Binding CallActions}">
                                                             <ItemsControl.ItemTemplate>
@@ -650,11 +650,11 @@
                                                                             </StackPanel>
 
                                                                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
-                                                                                <ui:Button Content="Yaptım" Padding="8,3" Margin="0,0,4,0"
+                                                                                <ui:Button Content="{loc:T contactspage.yaptim}" Padding="8,3" Margin="0,0,4,0"
                                                                                            Click="CallActionDone_Click" />
-                                                                                <ui:Button Content="Gizle" Padding="8,3" Appearance="Transparent"
+                                                                                <ui:Button Content="{loc:T contactspage.gizle}" Padding="8,3" Appearance="Transparent"
                                                                                            Click="CallActionHide_Click"
-                                                                                           ToolTip="Bir daha önerilmez." />
+                                                                                           ToolTip="{loc:T contactspage.bir-daha-onerilmez}" />
                                                                             </StackPanel>
                                                                         </Grid>
                                                                     </Border>
@@ -664,7 +664,7 @@
                                                     </StackPanel>
                                                 </Border>
 
-                                                <TextBlock Text="Bu görüşme için açık öneri yok — çözümleme sonrası burada belirir; kurmak ve yönlendirmek için görüşmeyi aç."
+                                                <TextBlock Text="{loc:T contactspage.bu-gorusme-icin-acik-oneri-yok-cozumleme-s}"
                                                            Margin="0,4,0,0">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource Secondary}">
@@ -873,7 +873,7 @@
                                                             </TextBlock>
 
                                                             <Button Style="{StaticResource GhostButton}" Margin="8,0,0,0"
-                                                                    ToolTip="Bu kaydı defterden kaldır"
+                                                                    ToolTip="{loc:T contactspage.bu-kaydi-defterden-kaldir}"
                                                                     Command="{Binding DataContext.DismissFlagCommand,
                                                                               RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                     CommandParameter="{Binding}">

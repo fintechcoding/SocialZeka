@@ -1,6 +1,7 @@
 <UserControl x:Class="VoiceTranscript.App.Views.AiStatusPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -18,7 +19,7 @@
         -->
         <DataTemplate x:Key="ServiceRow" DataType="{x:Type vm:AiServiceRow}">
             <!-- The row is a door: "yanıt vermiyor" and the place to fix it are one click apart. -->
-            <Border Background="Transparent" Cursor="Hand" ToolTip="Ayarlarını aç"
+            <Border Background="Transparent" Cursor="Hand" ToolTip="{loc:T aistatuspage.ayarlarini-ac}"
                     MouseLeftButtonUp="ServiceRow_Click">
             <Grid Margin="0,6">
                 <Grid.ColumnDefinitions>
@@ -44,7 +45,7 @@
                                 VerticalAlignment="Center"
                                 Background="{DynamicResource AccentFillColorDefaultBrush}"
                                 Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="etkin" FontSize="{StaticResource TextCaption}"
+                            <TextBlock Text="{loc:T aistatuspage.etkin}" FontSize="{StaticResource TextCaption}"
                                        Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
                         </Border>
 
@@ -82,10 +83,10 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="Hangi yapay zekâ çalışıyor" FontWeight="SemiBold"
+                    <TextBlock Text="{loc:T aistatuspage.hangi-yapay-zeka-calisiyor}" FontWeight="SemiBold"
                                FontSize="{StaticResource TextSubtitle}" />
                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
-                               Text="Sıra, gerçekten denenecek sıradır. Üstteki yanıt vermezse bir alttakine geçilir." />
+                               Text="{loc:T aistatuspage.sira-gercekten-denenecek-siradir-ustteki-y}" />
                 </StackPanel>
 
                 <!-- On demand, never on a timer. These are calls against services somebody is
@@ -94,15 +95,15 @@
                 <!-- Beside the test, because the two are one gesture: test, see it fail, fix it.
                      Sending somebody to hunt for Settings in between is where people give up. -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
-                <ui:Button Content="Ayarla" Margin="0,0,8,0"
+                <ui:Button Content="{loc:T aistatuspage.ayarla}" Margin="0,0,8,0"
                            Command="{Binding OpenSettingsCommand}"
-                           ToolTip="Bu servislerin ayarlarını açar.">
+                           ToolTip="{loc:T aistatuspage.bu-servislerin-ayarlarini-acar}">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="Settings24" />
                     </ui:Button.Icon>
                 </ui:Button>
 
-                <ui:Button Content="Bağlantıları sına"
+                <ui:Button Content="{loc:T aistatuspage.baglantilari-sina}"
                            Command="{Binding CheckCommand}"
                            IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}">
                     <ui:Button.Icon>
@@ -117,7 +118,7 @@
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                         <ui:SymbolIcon Symbol="TextBulletListSquare24" FontSize="16" Margin="0,0,8,0"
                                        Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                        <TextBlock Text="Yazıya dökme" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T aistatuspage.yaziya-dokme}" FontWeight="SemiBold" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <ItemsControl ItemsSource="{Binding Transcription}"
@@ -130,7 +131,7 @@
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                         <ui:SymbolIcon Symbol="Lightbulb24" FontSize="16" Margin="0,0,8,0"
                                        Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                        <TextBlock Text="Çözümleme" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T aistatuspage.cozumleme}" FontWeight="SemiBold" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <!-- Switched off is a choice, not a fault, and it must not read as one. -->
@@ -138,7 +139,7 @@
                             Background="{DynamicResource SubtleFillColorSecondaryBrush}"
                             Visibility="{Binding AnalysisDisabled, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock TextWrapping="Wrap" Style="{StaticResource Caption}"
-                                   Text="Otomatik çözümleme kapalı. Görüşmeler yazıya dökülüyor ama özet ve defter çıkarılmıyor. Ayarlar → Çözümleme bölümünden açılır." />
+                                   Text="{loc:T aistatuspage.otomatik-cozumleme-kapali-gorusmeler-yaziy}" />
                     </Border>
 
                     <ItemsControl ItemsSource="{Binding Analysis}"
@@ -146,7 +147,7 @@
 
                     <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Style="{StaticResource Caption}"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                               Text="Çözümleme yapılmazsa görüşme yine yazıya dökülür ve metin saklanır; sonradan bir servis bağlandığında yalnızca çözümleme tekrarlanır, ses yeniden işlenmez." />
+                               Text="{loc:T aistatuspage.cozumleme-yapilmazsa-gorusme-yine-yaziya-d}" />
                 </StackPanel>
             </Border>
 
@@ -164,7 +165,7 @@
                 Token counts are the other. A hosted model spends real money silently, and the
                 first notice used to be the monthly bill.
             -->
-            <TextBlock Text="Kullanım" Style="{StaticResource GroupHeader}" Margin="0,20,0,0" />
+            <TextBlock Text="{loc:T aistatuspage.kullanim}" Style="{StaticResource GroupHeader}" Margin="0,20,0,0" />
 
             <Border Style="{StaticResource Panel}">
                 <StackPanel>
@@ -181,11 +182,11 @@
                              here are "what has this week been like", "is it keeping up this
                              month", and "what has all of it cost". -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <ui:Button Content="7 gün" Margin="0,0,6,0" Command="{Binding ShowWeekCommand}"
+                            <ui:Button Content="{loc:T aistatuspage.7-gun}" Margin="0,0,6,0" Command="{Binding ShowWeekCommand}"
                                        Appearance="{Binding WindowDays, Converter={StaticResource FilterAppearance}, ConverterParameter=7}" />
-                            <ui:Button Content="30 gün" Margin="0,0,6,0" Command="{Binding ShowMonthCommand}"
+                            <ui:Button Content="{loc:T aistatuspage.30-gun}" Margin="0,0,6,0" Command="{Binding ShowMonthCommand}"
                                        Appearance="{Binding WindowDays, Converter={StaticResource FilterAppearance}, ConverterParameter=30}" />
-                            <ui:Button Content="Tümü" Command="{Binding ShowEverythingCommand}"
+                            <ui:Button Content="{loc:T aistatuspage.tumu}" Command="{Binding ShowEverythingCommand}"
                                        Appearance="{Binding WindowDays, Converter={StaticResource FilterAppearance}, ConverterParameter=0}" />
                         </StackPanel>
                     </Grid>
@@ -203,7 +204,7 @@
                             Background="{DynamicResource SubtleFillColorSecondaryBrush}"
                             Visibility="{Binding HasChart, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
-                            <TextBlock Text="Günlük işlenen ses" Style="{StaticResource Caption}"
+                            <TextBlock Text="{loc:T aistatuspage.gunluk-islenen-ses}" Style="{StaticResource Caption}"
                                        Margin="0,0,0,8" />
 
                             <ItemsControl ItemsSource="{Binding Days}" Height="96">
@@ -235,13 +236,13 @@
 
                                 <TextBlock Grid.Column="1" Style="{StaticResource Caption}"
                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                           Text="bugün" />
+                                           Text="{loc:T aistatuspage.bugun}" />
                             </Grid>
                         </StackPanel>
                     </Border>
 
                     <StackPanel Visibility="{Binding HasUsage, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="Yazıya dökme" Style="{StaticResource Caption}"
+                        <TextBlock Text="{loc:T aistatuspage.yaziya-dokme}" Style="{StaticResource Caption}"
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                         <TextBlock Text="{Binding TranscribeLine}" TextWrapping="Wrap" Margin="0,2,0,0" />
 
@@ -279,7 +280,7 @@
                                         <TextBlock Grid.Column="1" Margin="12,0,0,0"
                                                    Style="{StaticResource Caption}"
                                                    FontFamily="Consolas, Cascadia Mono, Segoe UI">
-                                            <Run Text="{Binding Runs, Mode=OneWay}" /><Run Text=" görüşme · " /><Run
+                                            <Run Text="{Binding Runs, Mode=OneWay}" /><Run Text="{loc:T aistatuspage.gorusme}" /><Run
                                                 Text="{Binding SpeedFactor, Mode=OneWay, StringFormat='{}{0:0.0}×'}" />
                                         </TextBlock>
                                     </Grid>
@@ -289,7 +290,7 @@
 
                         <Separator Margin="0,12" />
 
-                        <TextBlock Text="Çözümleme" Style="{StaticResource Caption}"
+                        <TextBlock Text="{loc:T aistatuspage.cozumleme}" Style="{StaticResource Caption}"
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                         <TextBlock Text="{Binding AnalyseLine}" TextWrapping="Wrap" Margin="0,2,0,0" />
 
@@ -313,17 +314,17 @@
                                         <TextBlock Grid.Column="1" Style="{StaticResource Caption}" Margin="12,0,0,0"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                    Visibility="{Binding HasTokens, Converter={StaticResource BoolToVisibility}}">
-                                            <Run Text="{Binding Runs, Mode=OneWay}" /><Run Text=" görüşme · " /><Run
+                                            <Run Text="{Binding Runs, Mode=OneWay}" /><Run Text="{loc:T aistatuspage.gorusme}" /><Run
                                                 Text="{Binding PromptTokens, Mode=OneWay, StringFormat='{}{0:N0}'}" /><Run
-                                                Text=" giriş + " /><Run
+                                                Text="{loc:T aistatuspage.giris}" /><Run
                                                 Text="{Binding CompletionTokens, Mode=OneWay, StringFormat='{}{0:N0}'}" /><Run
-                                                Text=" çıkış jeton" />
+                                                Text="{loc:T aistatuspage.cikis-jeton}" />
                                         </TextBlock>
 
                                         <TextBlock Grid.Column="1" Style="{StaticResource Caption}" Margin="12,0,0,0"
                                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                    Visibility="{Binding HasTokens, Converter={StaticResource InverseBoolToVisibility}}">
-                                            <Run Text="{Binding Runs, Mode=OneWay}" /><Run Text=" görüşme · jeton bildirilmedi" />
+                                            <Run Text="{Binding Runs, Mode=OneWay}" /><Run Text="{loc:T aistatuspage.gorusme-jeton-bildirilmedi}" />
                                         </TextBlock>
                                     </Grid>
                                 </DataTemplate>
@@ -345,7 +346,7 @@
 
                     <TextBlock TextWrapping="Wrap" Style="{StaticResource Caption}"
                                Visibility="{Binding HasUsage, Converter={StaticResource InverseBoolToVisibility}}"
-                               Text="Henüz ölçülecek bir iş yapılmadı. İlk görüşme işlendiğinde burada hız, süre ve jeton sayıları görünür." />
+                               Text="{loc:T aistatuspage.henuz-olculecek-bir-is-yapilmadi-ilk-gorus}" />
                 </StackPanel>
             </Border>
         </StackPanel>

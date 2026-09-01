@@ -1,4 +1,4 @@
-VoiceTranscript — Kurulum
+﻿VoiceTranscript — Kurulum
 =========================
 
 Bu klasör kendi kendine yeter. .NET kurmana gerek yok. Sadece Python gerekiyor,
@@ -17,7 +17,7 @@ ADIM 2 — Kurulum betiği
 Bu klasörde PowerShell aç (boş yere Shift+sağ tık > "PowerShell penceresini
 burada aç"):
 
-    powershell -ExecutionPolicy Bypass -File kurulum.ps1
+    powershell -ExecutionPolicy Bypass -File setup.ps1
 
 Sonunda "CUDA ready: 1 device(s)" yazmalı. Yazmıyorsa aşağıdaki "Sorun çıkarsa"
 bölümüne bak — ya da yazıya dökmeyi buluta yönlendir, o zaman ekran kartına hiç

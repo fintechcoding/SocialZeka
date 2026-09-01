@@ -66,7 +66,7 @@
                 <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
                              Command="{Binding SetFilterCommand}" CommandParameter="MyPromises">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Verdiğim sözler" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ledgerpage.verdigim-sozler}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
                                 Visibility="{Binding MyPromiseCount, Converter={StaticResource PositiveToVisibility}}">
                             <TextBlock Style="{StaticResource PillText}" Text="{Binding MyPromiseCount}" />
@@ -137,7 +137,7 @@
                                         <Border CornerRadius="4" Padding="6,1" Margin="8,0,0,0"
                                                 Background="{StaticResource MeBrush}" VerticalAlignment="Center"
                                                 Visibility="{Binding ByMe, Converter={StaticResource BoolToVisibility}}">
-                                            <TextBlock Text="SEN" FontSize="10" FontWeight="SemiBold"
+                                            <TextBlock Text="{loc:T ledgerpage.sen}" FontSize="10" FontWeight="SemiBold"
                                                        Foreground="White" />
                                         </Border>
 

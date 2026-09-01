@@ -264,8 +264,10 @@ public partial class SettingsWindow
             _viewModel.DownloadedModelRefs = hello.DownloadedModels;
 
             var present = hello.DownloadedModels.Contains(model.ModelRef);
-            var device = hello.Cuda?.Available == true
-                ? $"CUDA hazır ({hello.Cuda.DeviceCount} cihaz)"
+            // Usable, not Available — this line was the exact green claim CudaReport.Usable
+            // was added to prevent, still printed from the driver's device count.
+            var device = hello.Cuda?.Usable == true
+                ? (hello.Cuda.SelectedName is { } card ? $"Ekran kartında çalışacak: {card}" : "Ekran kartında çalışacak")
                 : "CUDA yok, işlemcide çalışacak";
 
             Report(present

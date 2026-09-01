@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Input;
 using VoiceTranscript.App.Services;
 using VoiceTranscript.App.ViewModels;
@@ -103,7 +105,20 @@ public partial class PaletteWindow
         }
     }
 
-    private void Results_Click(object sender, MouseButtonEventArgs e) => RunSelected();
+    /// <summary>
+    /// A click runs the highlighted command only when it landed on a row.
+    ///
+    /// The list's empty space below the last result also raised this, so clicking to dismiss a
+    /// tooltip or to focus the window executed whatever happened to be highlighted — the wrong
+    /// command, at the moment the user was least expecting any command to run.
+    /// </summary>
+    private void Results_Click(object sender, MouseButtonEventArgs e)
+    {
+        var hit = e.OriginalSource as DependencyObject;
+        while (hit is not null && hit is not ListBoxItem) hit = VisualTreeHelper.GetParent(hit);
+
+        if (hit is ListBoxItem) RunSelected();
+    }
 
     private void RunSelected()
     {

@@ -818,3 +818,36 @@ kabuk başlıklarının kişi sanılmaması, ayar anahtarı) ve kaynak testi olm
 yazıldı.
 
 **592 test, 0 hata** (16 yeni).
+
+## 2026-09-02 — Denetimin minörleri, çökme sonrası kayıt kurtarma, görünümlerin kalan çevirisi
+
+Üçüncü denetimin durdurucuları ve majörleri bir önceki turda kapanmıştı; bu tur kalan minörler ve
+onların peşinden çıkan iki gerçek boşluk.
+
+**Kayıt kurtarma.** Görüşme satırı kayıt başlarken açılır, ses yolunu kayıt düzgün bittiğinde
+öğrenir. Uygulama çökerse, elektrik giderse ya da Görev Yöneticisi'nden öldürülürse iki WAV ay
+klasöründe sağlam durur, satır ise bir sonraki açılışta "ses yok" diye Failed'a düşerdi — arşiv
+kaybolmamış bir kaydı kayıp ilan ediyordu. Artık açılışta `ReclaimStrandedRecordings` ses bağlanmamış
+bekleyen satırlar için kaydedicinin verdiği adla (`call-{id}-mic/far.wav`) dosyaları arar; başlığı
+sıfırda kalmış WAV'ın gerçek uzunluğunu dosya boyundan geri yazar (`WavRepair`), satırı Queued'a alır.
+
+**Karışım çakışması.** `ConversationMix` geçici dosyayı sabit `.partial` adıyla yazıyordu; aynı
+görüşme için oynatma ve dışa aktarma üst üste gelince ikincisi birincinin yarım dosyasını kesiyor,
+son biten yırtık dosyayı yerine taşıyordu. Ad koşuma özel; unutma bütün yarımları süpürüyor.
+
+**Sınama başlığı.** `SttProbe.TestAsync` herkese Bearer gönderiyordu. Bakiye sorguları ElevenLabs'in
+`xi-api-key`, Deepgram'ın `Token` beklediğini biliyordu, sınama bilmiyordu; geçerli anahtar
+"reddedildi" görünüyordu.
+
+**Çeviri.** Görünümlerde 382 Türkçe metin hâlâ XAML içinde duruyordu (275 anahtar vardı, 630 oldu).
+İngilizce arayüz yarı Türkçeydi. Gizli görüşme sayısı satırı da artık çeviriden biçimleniyor.
+
+Küçükler: bayat durdurma isteği, yeniden açılan pencerede saklanmayan gözlemlerin söylenmesi,
+`HasCitations`, kullanılmayan tema kalınlıkları, KURULUM.bat betik adı, `ForgetAudio` akış
+takibi, ayarlar CUDA satırı, `InstalledNormally`, çift OpenRouter, palet tıklaması, kaydedici arka
+ucunun Dispose'u.
+
+**788 test, 0 hata** (5 yeni: WAV onarımı ×4, sahipsiz satır sorgusu ×1) + 57 Python.
+
+Hâlâ bu makinede doğrulanamayan: çökme sonrası gerçek bir kaydın kurtarılması (ses donanımı yok);
+kod yolu sentetik WAV ile test edildi.

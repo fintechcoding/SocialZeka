@@ -313,5 +313,17 @@ public sealed class CallRecorder : IDisposable
 
         _checkpoint?.Dispose();
         _backend.PacketReady -= OnPacket;
+
+        // The backend is this recorder's to release. Detaching the handler and stopping there
+        // left the WASAPI clients and the device enumerator alive after a start that failed
+        // partway — the next attempt then opened the microphone a second time on top of them.
+        try
+        {
+            _backend.Dispose();
+        }
+        catch (Exception)
+        {
+            // Nothing to recover from a backend that will not close; the process is leaving it.
+        }
     }
 }

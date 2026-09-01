@@ -54,9 +54,9 @@
                     a page showing part of a conversation to whoever walks past. Emptying the box
                     should empty the screen, and until now it could not.
                 -->
-                <ui:Button Content="Temizle" Margin="8,0,0,0" MinWidth="90"
+                <ui:Button Content="{loc:T searchpage.temizle}" Margin="8,0,0,0" MinWidth="90"
                            Command="{Binding ClearCommand}"
-                           ToolTip="Aramayı ve sonuçları temizler."
+                           ToolTip="{loc:T searchpage.aramayi-ve-sonuclari-temizler}"
                            Visibility="{Binding HasSearched, Converter={StaticResource BoolToVisibility}}" />
 
                 <ui:Button Content="{loc:T searchpage.ara}" Appearance="Primary" MinWidth="96"
@@ -116,7 +116,7 @@
                             CommandParameter="{Binding Tag}"
                             Cursor="Hand" Margin="0,0,6,6" Padding="0"
                             Background="Transparent" BorderThickness="0"
-                            ToolTip="Bu etiketi taşıyan görüşmeleri listeler; ikinci tıklama kaldırır">
+                            ToolTip="{loc:T searchpage.bu-etiketi-tasiyan-gorusmeleri-listeler-ik}">
                         <Border Style="{StaticResource Pill}"
                                 Background="{Binding Tag, Converter={StaticResource TagBrush}}">
                             <StackPanel Orientation="Horizontal">

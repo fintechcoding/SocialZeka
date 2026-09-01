@@ -1,8 +1,9 @@
 <ui:FluentWindow x:Class="VoiceTranscript.App.Views.PaletteWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="Komutlar"
+                 Title="{loc:T palettewindow.komutlar}"
                  Width="560" Height="380"
                  WindowStartupLocation="Manual"
                  WindowStyle="None" ResizeMode="NoResize"
@@ -23,7 +24,7 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <ui:TextBox Grid.Row="0" x:Name="QueryBox" PlaceholderText="Komut ya da kişi ara…"
+            <ui:TextBox Grid.Row="0" x:Name="QueryBox" PlaceholderText="{loc:T palettewindow.komut-ya-da-kisi-ara}"
                         FontSize="{StaticResource TextBody}" TextChanged="Query_TextChanged"
                         PreviewKeyDown="Query_KeyDown">
                 <ui:TextBox.Icon>

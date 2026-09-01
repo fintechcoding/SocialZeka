@@ -109,7 +109,11 @@ public static class ConversationMix
             if (far is not null && mic is not null && !SameShape(mic.Format, far.Format)) return false;
             if (format.BitsPerSample != 16) return false;
 
-            var temporary = outputPath + ".partial";
+            // Named per build, not per output. Two builds of the same conversation can overlap —
+            // playback asks for the mix while an export of the same call is producing it — and
+            // with one shared ".partial" name the second File.Create truncated the file the first
+            // was still writing, and whichever finished last renamed a torn file into place.
+            var temporary = $"{outputPath}.{Guid.NewGuid():N}.partial";
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
 
             var frames = Math.Max(mic?.Frames ?? 0, far?.Frames ?? 0);
@@ -152,7 +156,26 @@ public static class ConversationMix
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
+            DiscardPartials(outputPath);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Removes every unfinished build of this mix, whatever run left it behind.
+    ///
+    /// Also what forgetting a recording calls, so the temporaries never outlive the audio they
+    /// were derived from.
+    /// </summary>
+    public static void DiscardPartials(string outputPath)
+    {
+        var directory = Path.GetDirectoryName(outputPath);
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;
+
+        foreach (var partial in Directory.EnumerateFiles(directory, Path.GetFileName(outputPath) + ".*partial"))
+        {
+            try { File.Delete(partial); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
     }
 

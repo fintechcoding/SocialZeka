@@ -211,15 +211,15 @@
                                     MouseLeftButtonUp="RecentCall_Click"
                                     PreviewMouseLeftButtonDown="Drag_Prime"
                                     PreviewMouseMove="RecentCall_DragMove"
-                                    ToolTip="Görüşmeyi aç · yukarıdaki panele sürüklenebilir">
+                                    ToolTip="{loc:T overviewpage.gorusmeyi-ac-yukaridaki-panele-suruklenebi}">
                                 <Border.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="Görüşmeyi aç" Click="RecentOpen_Click" />
-                                        <MenuItem Header="Önemlilere ekle" Click="RecentToBoard_Click" />
+                                        <MenuItem Header="{loc:T overviewpage.gorusmeyi-ac}" Click="RecentOpen_Click" />
+                                        <MenuItem Header="{loc:T overviewpage.onemlilere-ekle}" Click="RecentToBoard_Click" />
                                         <!-- One doorway for reminders everywhere: the dialog
                                              asks for the reason as well as the day, so the card
                                              that comes back says why it came back. -->
-                                        <MenuItem Header="Hatırlat…" Click="RecentRemind_Click" />
+                                        <MenuItem Header="{loc:T overviewpage.hatirlat}" Click="RecentRemind_Click" />
                                     </ContextMenu>
                                 </Border.ContextMenu>
                                 <Grid>
@@ -267,7 +267,7 @@
                                                     <Border Style="{StaticResource Pill}" Margin="0,0,6,0"
                                                             Background="{Binding Converter={StaticResource TagBrush}}"
                                                                 Cursor="Hand" MouseLeftButtonUp="TagPill_Click"
-                                                                ToolTip="Bu etiketi taşıyan görüşmeleri ara">
+                                                                ToolTip="{loc:T overviewpage.bu-etiketi-tasiyan-gorusmeleri-ara}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
                                                                            FontSize="11" Foreground="White" Margin="0,0,3,0"
@@ -385,7 +385,7 @@
         </Grid.RowDefinitions>
 
         <TabControl Grid.Row="0" Style="{StaticResource SegmentedTabs}" Padding="0,10,0,0">
-            <TabItem Header="Önemli">
+            <TabItem Header="{loc:T overviewpage.onemli}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                 <!--
@@ -421,20 +421,20 @@
                                             MouseLeftButtonUp="PanelCard_Click"
                                             PreviewMouseLeftButtonDown="Drag_Prime"
                                             PreviewMouseMove="PanelCard_DragMove"
-                                            ToolTip="Görüşmeyi aç · sürükleyerek sırala">
+                                            ToolTip="{loc:T overviewpage.gorusmeyi-ac-surukleyerek-sirala}">
                                         <Border.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Görüşmeyi aç" Click="PanelOpen_Click" />
+                                                <MenuItem Header="{loc:T overviewpage.gorusmeyi-ac}" Click="PanelOpen_Click" />
                                                 <Separator />
-                                                <MenuItem Header="Yukarı taşı" Click="PanelUp_Click" />
-                                                <MenuItem Header="Aşağı taşı" Click="PanelDown_Click" />
+                                                <MenuItem Header="{loc:T overviewpage.yukari-tasi}" Click="PanelUp_Click" />
+                                                <MenuItem Header="{loc:T overviewpage.asagi-tasi}" Click="PanelDown_Click" />
                                                 <Separator />
                                                 <!-- The dialog carries reason, date and removal
                                                      in one place — a reminder is set, changed
                                                      and cancelled through the same door. -->
-                                                <MenuItem Header="Hatırlat…" Click="PanelRemind_Click" />
+                                                <MenuItem Header="{loc:T overviewpage.hatirlat}" Click="PanelRemind_Click" />
                                                 <Separator />
-                                                <MenuItem Header="Panelden kaldır" Click="PanelRemove_Click" />
+                                                <MenuItem Header="{loc:T overviewpage.panelden-kaldir}" Click="PanelRemove_Click" />
                                             </ContextMenu>
                                         </Border.ContextMenu>
                                         <Grid>
@@ -485,7 +485,7 @@
                                                                 <Border Style="{StaticResource Pill}" Margin="4,0,0,0"
                                                                         Background="{Binding Converter={StaticResource TagBrush}}"
                                                                 Cursor="Hand" MouseLeftButtonUp="TagPill_Click"
-                                                                ToolTip="Bu etiketi taşıyan görüşmeleri ara">
+                                                                ToolTip="{loc:T overviewpage.bu-etiketi-tasiyan-gorusmeleri-ara}">
                                                                     <StackPanel Orientation="Horizontal">
                                                                         <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
                                                                                        FontSize="11" Foreground="White" Margin="0,0,3,0"
@@ -508,7 +508,7 @@
                                                        FontFamily="Consolas, Cascadia Mono, Segoe UI" />
 
                                             <ui:Button Grid.Column="3" Appearance="Transparent" Margin="8,0,0,0"
-                                                       Padding="6,4" ToolTip="Panelden kaldır"
+                                                       Padding="6,4" ToolTip="{loc:T overviewpage.panelden-kaldir}"
                                                        Click="PanelRemove_Click">
                                                 <ui:SymbolIcon Symbol="Dismiss24" FontSize="12" />
                                             </ui:Button>
@@ -519,7 +519,7 @@
                         </ItemsControl>
 
                         <TextBlock Margin="12,10" Style="{StaticResource Secondary}" TextWrapping="Wrap"
-                                   Text="Buraya sürükle: aşağıdaki görüşmelerden takip etmek istediklerini bırak ya da sağ tıklayıp 'Önemlilere ekle' de."
+                                   Text="{loc:T overviewpage.buraya-surukle-asagidaki-gorusmelerden-tak}"
                                    Visibility="{Binding HasBoard, Converter={StaticResource InverseBoolToVisibility}}" />
                     </StackPanel>
                   </Grid>
@@ -533,7 +533,7 @@
                      tab too, or "Bugün" is a door that never says whether anything is behind it. -->
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Bugün" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T overviewpage.bugun}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource CountPill}" Margin="6,0,0,0"
                                 VerticalAlignment="Center"
                                 Visibility="{Binding DataContext.HasDue,
@@ -552,7 +552,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Style="{StaticResource HoverCard}" Cursor="Hand"
-                                    MouseLeftButtonUp="DueCard_Click" ToolTip="Görüşmeyi aç">
+                                    MouseLeftButtonUp="DueCard_Click" ToolTip="{loc:T overviewpage.gorusmeyi-ac}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -574,7 +574,7 @@
                                          "done" just rings forever; this clears the reminder and
                                          leaves the card on the pile. -->
                                     <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6,4"
-                                               VerticalAlignment="Center" ToolTip="Tamamlandı — hatırlatmayı kapat"
+                                               VerticalAlignment="Center" ToolTip="{loc:T overviewpage.tamamlandi-hatirlatmayi-kapat}"
                                                Click="DueDone_Click">
                                         <ui:SymbolIcon Symbol="Checkmark24" FontSize="14" />
                                     </ui:Button>
@@ -590,7 +590,7 @@
                              application talking to hear itself. -->
                         <StackPanel Margin="4,12,4,0"
                                     Visibility="{Binding HasBirthdays, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="Yaklaşan doğum günleri" Style="{StaticResource GroupHeader}" />
+                            <TextBlock Text="{loc:T overviewpage.yaklasan-dogum-gunleri}" Style="{StaticResource GroupHeader}" />
                             <ItemsControl ItemsSource="{Binding Birthdays}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -609,16 +609,16 @@
                              last few days' undated ones; capped at five. -->
                         <StackPanel Margin="0,12,0,0"
                                     Visibility="{Binding HasDayActions, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="Önerilen aksiyonlar" Style="{StaticResource GroupHeader}" />
+                            <TextBlock Text="{loc:T overviewpage.onerilen-aksiyonlar}" Style="{StaticResource GroupHeader}" />
                             <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,4"
-                                       Text="Görüşmelerden çıkarılan önerilerdir; onaylamadan hiçbir yere yazılmaz." />
+                                       Text="{loc:T overviewpage.gorusmelerden-cikarilan-onerilerdir-onayla}" />
 
                             <ItemsControl ItemsSource="{Binding DayActions}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Style="{StaticResource SettingCard}" Padding="12,8" Margin="0,0,0,6"
                                                 Cursor="Hand" MouseLeftButtonUp="DayAction_Click"
-                                                ToolTip="İlgili görüşmeyi açar">
+                                                ToolTip="{loc:T overviewpage.ilgili-gorusmeyi-acar}">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -634,9 +634,9 @@
                                                                Visibility="{Binding DueText, Converter={StaticResource NullToCollapsed}}" />
                                                 </StackPanel>
 
-                                                <ui:Button Grid.Column="1" Content="Yaptım" Appearance="Transparent"
+                                                <ui:Button Grid.Column="1" Content="{loc:T overviewpage.yaptim}" Appearance="Transparent"
                                                            Padding="8,2" Margin="4,0,0,0" Click="DayActionDone_Click" />
-                                                <ui:Button Grid.Column="2" Content="Gizle" Appearance="Transparent"
+                                                <ui:Button Grid.Column="2" Content="{loc:T overviewpage.gizle}" Appearance="Transparent"
                                                            Padding="8,2" Click="DayActionHide_Click" />
                                             </Grid>
                                         </Border>
@@ -651,7 +651,7 @@
                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                             <TextBlock Style="{StaticResource Secondary}" Margin="0,8,0,0" TextWrapping="Wrap"
                                        TextAlignment="Center"
-                                       Text="Bugün için hatırlatma yok. Bir görüşmeye ya da karta sağ tıklayıp 'Hatırlat' diyebilirsin." />
+                                       Text="{loc:T overviewpage.bugun-icin-hatirlatma-yok-bir-gorusmeye-ya}" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
@@ -676,7 +676,7 @@
                     </Grid.ColumnDefinitions>
 
                     <ui:Button Grid.Column="0" Appearance="Transparent" Padding="6,2"
-                               Command="{Binding CalendarPrevCommand}" ToolTip="Önceki ay">
+                               Command="{Binding CalendarPrevCommand}" ToolTip="{loc:T overviewpage.onceki-ay}">
                         <ui:Button.Icon>
                             <ui:SymbolIcon Symbol="ChevronLeft24" />
                         </ui:Button.Icon>
@@ -685,14 +685,14 @@
                     <!-- The month name is also the way home: clicking it returns to today. -->
                     <TextBlock Grid.Column="1" Text="{Binding CalendarTitle}" FontWeight="SemiBold"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Cursor="Hand" ToolTip="Bugüne dön">
+                               Cursor="Hand" ToolTip="{loc:T overviewpage.bugune-don}">
                         <TextBlock.InputBindings>
                             <MouseBinding MouseAction="LeftClick" Command="{Binding CalendarTodayCommand}" />
                         </TextBlock.InputBindings>
                     </TextBlock>
 
                     <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6,2"
-                               Command="{Binding CalendarNextCommand}" ToolTip="Sonraki ay">
+                               Command="{Binding CalendarNextCommand}" ToolTip="{loc:T overviewpage.sonraki-ay}">
                         <ui:Button.Icon>
                             <ui:SymbolIcon Symbol="ChevronRight24" />
                         </ui:Button.Icon>
@@ -700,13 +700,13 @@
                 </Grid>
 
                 <UniformGrid Columns="7" Margin="0,6,0,2">
-                    <TextBlock Text="Pzt" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                    <TextBlock Text="Sal" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                    <TextBlock Text="Çar" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                    <TextBlock Text="Per" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                    <TextBlock Text="Cum" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                    <TextBlock Text="Cmt" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
-                    <TextBlock Text="Paz" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="{loc:T overviewpage.pzt}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="{loc:T overviewpage.sal}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="{loc:T overviewpage.car}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="{loc:T overviewpage.per}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="{loc:T overviewpage.cum}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="{loc:T overviewpage.cmt}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="{loc:T overviewpage.paz}" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
                 </UniformGrid>
 
                 <ItemsControl ItemsSource="{Binding CalendarDays}">
@@ -784,7 +784,7 @@
                             <DataTemplate>
                                 <Border Background="Transparent" CornerRadius="4" Padding="6,4"
                                         Cursor="Hand" MouseLeftButtonUp="CalendarReminder_Click"
-                                        ToolTip="Bağlı görüşmeyi açar">
+                                        ToolTip="{loc:T overviewpage.bagli-gorusmeyi-acar}">
                                     <StackPanel Orientation="Horizontal">
                                         <ui:SymbolIcon Symbol="Clock24" FontSize="13" Margin="0,0,6,0"
                                                        VerticalAlignment="Center"
@@ -805,7 +805,7 @@
                             <DataTemplate>
                                 <Border Background="Transparent" CornerRadius="4" Padding="6,4"
                                         Cursor="Hand" MouseLeftButtonUp="CalendarPromise_Click"
-                                        ToolTip="Sözün verildiği görüşmeyi açar">
+                                        ToolTip="{loc:T overviewpage.sozun-verildigi-gorusmeyi-acar}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="🤝" Margin="0,0,6,0" VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding Line}" TextWrapping="Wrap"

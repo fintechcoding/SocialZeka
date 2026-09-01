@@ -1110,6 +1110,15 @@ public sealed class CallOrchestrator : IDisposable
         }
         finally
         {
+            // Whatever way the job ended, a stop request for it is spent.
+            //
+            // It was only consumed on the cancellation path. A job that finished normally in the
+            // race between StopCurrent and the cancel landing — or that failed, or timed out —
+            // left its entry behind, and the next shutdown of that same call id then read as
+            // "the user stopped this": parked as Skipped, never resumed, for a recording nobody
+            // had asked to stop.
+            _stopRequested.TryRemove(callId, out _);
+
             _gpu.Release();
             State = OrchestratorState.Idle;
             StateChanged?.Invoke(this, State);
@@ -1799,6 +1808,8 @@ public sealed class CallOrchestrator : IDisposable
     /// </summary>
     public Task ProcessBacklogAsync(CancellationToken cancellationToken = default)
     {
+        ReclaimStrandedRecordings();
+
         foreach (var call in _repository.CallsAwaitingProcessing())
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1806,6 +1817,52 @@ public sealed class CallOrchestrator : IDisposable
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Reattaches recordings that a crash left on disk with nobody pointing at them.
+    ///
+    /// A row is inserted when recording starts and learns where its audio is only when the
+    /// recording ends properly. Dispose covers a normal quit; a crash, a power cut or a kill from
+    /// Task Manager covers nothing, and the next start found a waiting call with no audio, could
+    /// not process it, and marked it Failed — while the two WAV files sat intact in the month's
+    /// folder under the name the recorder gave them. The recording was on disk and the archive
+    /// said it was lost.
+    ///
+    /// The files are where the recorder put them, named after the call, so they can be found
+    /// without guessing. Their headers say they are empty, because the length is patched in on
+    /// close; WavRepair reads the real length back. Only a row with nothing attached is touched.
+    /// </summary>
+    private void ReclaimStrandedRecordings()
+    {
+        foreach (var call in _repository.CallsWithoutAudio())
+        {
+            var directory = _paths.RecordingDirectoryFor(call.StartedAt);
+            var mic = Path.Combine(directory, $"call-{call.Id}-mic.wav");
+            var far = Path.Combine(directory, $"call-{call.Id}-far.wav");
+
+            var micLength = File.Exists(mic) ? WavRepair.Finalise(mic) : null;
+            var farLength = File.Exists(far) ? WavRepair.Finalise(far) : null;
+
+            if (micLength is null && farLength is null) continue;
+
+            var duration = micLength > farLength ? micLength.Value : farLength ?? micLength!.Value;
+
+            _repository.CompleteCall(
+                call.Id,
+                micLength is null ? null : mic,
+                farLength is null ? null : far,
+                duration,
+                call.StartedAt + duration,
+                "kurtarıldı: kayıt bitmeden kapanmış");
+
+            _repository.SetCallState(call.Id, ProcessingState.Queued);
+
+            AppLog.Write("kayıt",
+                $"görüşme #{call.Id} kurtarıldı: {duration.TotalSeconds:0} sn · "
+                + (micLength is null ? "mikrofon yok" : "mikrofon var") + " · "
+                + (farLength is null ? "karşı taraf yok" : "karşı taraf var"));
+        }
     }
 
     public void Dispose()

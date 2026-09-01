@@ -1,6 +1,7 @@
 <UserControl x:Class="VoiceTranscript.App.Views.ProcessingPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -76,7 +77,7 @@
                                         <TextBlock Text="{Binding GuidanceText}" TextWrapping="Wrap"
                                                    VerticalAlignment="Center" MaxWidth="520"
                                                    Style="{StaticResource Caption}" />
-                                        <ui:Button Content="Ayarları aç" Appearance="Transparent" Padding="8,2"
+                                        <ui:Button Content="{loc:T processingpage.ayarlari-ac}" Appearance="Transparent" Padding="8,2"
                                                    Margin="8,0,0,0" VerticalAlignment="Center"
                                                    Click="RowOpenSettings_Click" />
                                     </StackPanel>
@@ -108,7 +109,7 @@
                                     <Expander Margin="0,4,0,0" Padding="0"
                                               Visibility="{Binding RawFailure, Converter={StaticResource NullToCollapsed}}">
                                         <Expander.Header>
-                                            <TextBlock Text="Hatanın tamamı" Style="{StaticResource Caption}" />
+                                            <TextBlock Text="{loc:T processingpage.hatanin-tamami}" Style="{StaticResource Caption}" />
                                         </Expander.Header>
 
                                         <Border Style="{StaticResource QuoteBlock}" Margin="0,6,0,0">
@@ -121,7 +122,7 @@
                                                          FontFamily="Consolas, Cascadia Mono, Segoe UI"
                                                          FontSize="{StaticResource TextCaption}" />
 
-                                                <ui:Button Content="Kopyala" Appearance="Transparent"
+                                                <ui:Button Content="{loc:T processingpage.kopyala}" Appearance="Transparent"
                                                            HorizontalAlignment="Left" Margin="0,6,0,0"
                                                            Click="CopyFailure_Click" Tag="{Binding}" />
                                             </StackPanel>
@@ -149,10 +150,10 @@
                 <ContentPresenter Grid.Column="0" Content="{Binding}"
                                   ContentTemplate="{StaticResource ProcessingRowBody}" />
 
-                <ui:Button Grid.Column="1" Content="Yeniden çevir" VerticalAlignment="Center"
+                <ui:Button Grid.Column="1" Content="{loc:T processingpage.yeniden-cevir}" VerticalAlignment="Center"
                            Appearance="Transparent"
                            IsEnabled="{Binding HasAudio}"
-                           ToolTip="Sesi seçeceğin bir motorla yeniden yazıya döker."
+                           ToolTip="{loc:T processingpage.sesi-sececegin-bir-motorla-yeniden-yaziya}"
                            Click="Reprocess_Click" Tag="{Binding}" />
             </Grid>
         </DataTemplate>
@@ -169,10 +170,10 @@
 
                 <!-- Text is what analysis needs, so text is what unlocks the button — a call
                      whose audio was swept can still rebuild its ledger. -->
-                <ui:Button Grid.Column="1" Content="Yeniden çözümle" VerticalAlignment="Center"
+                <ui:Button Grid.Column="1" Content="{loc:T processingpage.yeniden-cozumle}" VerticalAlignment="Center"
                            Appearance="Transparent"
                            IsEnabled="{Binding HasTranscript}"
-                           ToolTip="Defteri mevcut metinden yeniden üretir; ses yeniden işlenmez."
+                           ToolTip="{loc:T processingpage.defteri-mevcut-metinden-yeniden-uretir-ses}"
                            Click="ReanalyseRow_Click" Tag="{Binding}" />
             </Grid>
         </DataTemplate>
@@ -208,38 +209,38 @@
                  "başarısız" used to sum two different failures and point at neither. -->
             <Border Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,8,0"
                     Cursor="Hand" MouseLeftButtonUp="CounterWaiting_Click"
-                    ToolTip="Yazıya dökme sekmesinde bekleyenleri gösterir">
+                    ToolTip="{loc:T processingpage.yaziya-dokme-sekmesinde-bekleyenleri-goste}">
                 <StackPanel>
                     <TextBlock Text="{Binding WaitingCount}" FontSize="26" FontWeight="SemiBold" />
-                    <TextBlock Text="sırada / işleniyor" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{loc:T processingpage.sirada-isleniyor}" Style="{StaticResource Caption}" />
                 </StackPanel>
             </Border>
 
             <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="8,0"
                     Cursor="Hand" MouseLeftButtonUp="CounterTranscriptFailed_Click"
-                    ToolTip="Yazıya dökme sekmesinde başarısızları gösterir">
+                    ToolTip="{loc:T processingpage.yaziya-dokme-sekmesinde-basarisizlari-gost}">
                 <StackPanel>
                     <TextBlock Text="{Binding TranscriptFailedCount}" FontSize="26" FontWeight="SemiBold"
                                Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
-                    <TextBlock Text="yazıya dökülemedi" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{loc:T processingpage.yaziya-dokulemedi}" Style="{StaticResource Caption}" />
                 </StackPanel>
             </Border>
 
             <Border Grid.Column="2" Style="{StaticResource Panel}" Margin="8,0"
                     Cursor="Hand" MouseLeftButtonUp="CounterUnanalysed_Click"
-                    ToolTip="Çözümleme sekmesinde bekleyenleri gösterir">
+                    ToolTip="{loc:T processingpage.cozumleme-sekmesinde-bekleyenleri-gosterir}">
                 <StackPanel>
                     <TextBlock Text="{Binding UnanalysedCount}" FontSize="26" FontWeight="SemiBold" />
-                    <TextBlock Text="çözümlenmedi" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{loc:T processingpage.cozumlenmedi}" Style="{StaticResource Caption}" />
                 </StackPanel>
             </Border>
 
             <Border Grid.Column="3" Style="{StaticResource Panel}" Margin="8,0,0,0"
                     Cursor="Hand" MouseLeftButtonUp="CounterReady_Click"
-                    ToolTip="Çözümleme sekmesinde bitenleri gösterir">
+                    ToolTip="{loc:T processingpage.cozumleme-sekmesinde-bitenleri-gosterir}">
                 <StackPanel>
                     <TextBlock Text="{Binding ReadyCount}" FontSize="26" FontWeight="SemiBold" />
-                    <TextBlock Text="hazır" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{loc:T processingpage.hazir}" Style="{StaticResource Caption}" />
                 </StackPanel>
             </Border>
         </Grid>
@@ -269,8 +270,8 @@
 
                     <!-- Ends this one job; the queue behind it is untouched. The recording is
                          parked, not lost — "Yeniden işle" stays one click away. -->
-                    <ui:Button Grid.Column="1" Content="Durdur" Appearance="Secondary" Padding="10,4"
-                               Click="StopCurrent_Click" ToolTip="Bu kaydın işlenmesini durdur" />
+                    <ui:Button Grid.Column="1" Content="{loc:T processingpage.durdur}" Appearance="Secondary" Padding="10,4"
+                               Click="StopCurrent_Click" ToolTip="{loc:T processingpage.bu-kaydin-islenmesini-durdur}" />
                 </Grid>
 
                 <!-- Determinate when the worker gives a fraction, and a moving bar when it does
@@ -293,7 +294,7 @@
         <TabControl x:Name="Tabs" Grid.Row="2" Grid.RowSpan="2" Style="{StaticResource SegmentedTabs}"
                     Padding="0,10,0,0">
 
-            <TabItem Header="Yazıya dökme">
+            <TabItem Header="{loc:T processingpage.yaziya-dokme}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -307,24 +308,24 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <ui:Button Content="Bekleyenler" Margin="0,0,6,0" Command="{Binding ShowTranscriptWaitingCommand}"
+                            <ui:Button Content="{loc:T processingpage.bekleyenler}" Margin="0,0,6,0" Command="{Binding ShowTranscriptWaitingCommand}"
                                        Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Unfinished}" />
-                            <ui:Button Content="Bitenler" Margin="0,0,6,0" Command="{Binding ShowTranscriptDoneCommand}"
+                            <ui:Button Content="{loc:T processingpage.bitenler}" Margin="0,0,6,0" Command="{Binding ShowTranscriptDoneCommand}"
                                        Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Done}" />
-                            <ui:Button Content="Hepsi" Command="{Binding ShowTranscriptAllCommand}"
+                            <ui:Button Content="{loc:T processingpage.hepsi}" Command="{Binding ShowTranscriptAllCommand}"
                                        Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=All}" />
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <ui:Button Content="Yenile" Margin="0,0,6,0" Command="{Binding RefreshCommand}">
+                            <ui:Button Content="{loc:T processingpage.yenile}" Margin="0,0,6,0" Command="{Binding RefreshCommand}">
                                 <ui:Button.Icon>
                                     <ui:SymbolIcon Symbol="ArrowClockwise24" />
                                 </ui:Button.Icon>
                             </ui:Button>
 
-                            <ui:Button Content="Listedekileri yeniden yazıya dök" Appearance="Primary"
+                            <ui:Button Content="{loc:T processingpage.listedekileri-yeniden-yaziya-dok}" Appearance="Primary"
                                        Click="RetranscribeAll_Click"
-                                       ToolTip="Bu sekmede görünen bütün görüşmeleri yeniden kuyruğa alır.">
+                                       ToolTip="{loc:T processingpage.bu-sekmede-gorunen-butun-gorusmeleri-yenid}">
                                 <ui:Button.Icon>
                                     <ui:SymbolIcon Symbol="ArrowSync24" />
                                 </ui:Button.Icon>
@@ -351,7 +352,7 @@
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Çözümleme">
+            <TabItem Header="{loc:T processingpage.cozumleme}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -365,16 +366,16 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <ui:Button Content="Bekleyenler" Margin="0,0,6,0" Command="{Binding ShowAnalysisUnanalysedCommand}"
+                            <ui:Button Content="{loc:T processingpage.bekleyenler}" Margin="0,0,6,0" Command="{Binding ShowAnalysisUnanalysedCommand}"
                                        Appearance="{Binding AnalyseFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Unanalysed}" />
-                            <ui:Button Content="Bitenler" Margin="0,0,6,0" Command="{Binding ShowAnalysisDoneCommand}"
+                            <ui:Button Content="{loc:T processingpage.bitenler}" Margin="0,0,6,0" Command="{Binding ShowAnalysisDoneCommand}"
                                        Appearance="{Binding AnalyseFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Done}" />
-                            <ui:Button Content="Hepsi" Command="{Binding ShowAnalysisAllCommand}"
+                            <ui:Button Content="{loc:T processingpage.hepsi}" Command="{Binding ShowAnalysisAllCommand}"
                                        Appearance="{Binding AnalyseFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=All}" />
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <ui:Button Content="Yenile" Margin="0,0,6,0" Command="{Binding RefreshCommand}">
+                            <ui:Button Content="{loc:T processingpage.yenile}" Margin="0,0,6,0" Command="{Binding RefreshCommand}">
                                 <ui:Button.Icon>
                                     <ui:SymbolIcon Symbol="ArrowClockwise24" />
                                 </ui:Button.Icon>
@@ -382,9 +383,9 @@
 
                             <!-- Works from the text: fast, cheap, and possible even when the
                                  audio has since been swept. -->
-                            <ui:Button Content="Listedekileri yeniden çözümle" Appearance="Primary"
+                            <ui:Button Content="{loc:T processingpage.listedekileri-yeniden-cozumle}" Appearance="Primary"
                                        Click="ReanalyseAll_Click"
-                                       ToolTip="Bu sekmede görünen görüşmelerin defterini metinden yeniden üretir. Ses yeniden işlenmez.">
+                                       ToolTip="{loc:T processingpage.bu-sekmede-gorunen-gorusmelerin-defterini}">
                                 <ui:Button.Icon>
                                     <ui:SymbolIcon Symbol="Sparkle24" />
                                 </ui:Button.Icon>

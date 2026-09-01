@@ -1,6 +1,7 @@
 <ui:FluentWindow x:Class="VoiceTranscript.App.Views.CallWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
                  xmlns:controls="clr-namespace:VoiceTranscript.App.Controls"
@@ -8,7 +9,7 @@
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  mc:Ignorable="d"
                  d:DataContext="{d:DesignInstance vm:CallWindowViewModel}"
-                 Title="Görüşme"
+                 Title="{loc:T callwindow.gorusme}"
                  Width="880" Height="720" MinWidth="640" MinHeight="480"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
@@ -41,15 +42,15 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
                     <!-- One doorway for reminders: the dialog asks for the reason as well as
                          the day, so the card that comes back says why it came back. -->
-                    <ui:Button Content="Hatırlat" Padding="10,4" Margin="0,0,6,0" Click="Remind_Click"
-                               ToolTip="Sebep ve tarihle bir hatırlatma kurar; günü gelince ana ekranda belirir.">
+                    <ui:Button Content="{loc:T callwindow.hatirlat}" Padding="10,4" Margin="0,0,6,0" Click="Remind_Click"
+                               ToolTip="{loc:T callwindow.sebep-ve-tarihle-bir-hatirlatma-kurar-gunu}">
                         <ui:Button.Icon>
                             <ui:SymbolIcon Symbol="Clock24" />
                         </ui:Button.Icon>
                     </ui:Button>
 
-                    <ui:Button Content="Önemlilere ekle" Padding="10,4" Click="ToBoard_Click"
-                               ToolTip="Ana ekrandaki önemli görüşmeler paneline koyar.">
+                    <ui:Button Content="{loc:T callwindow.onemlilere-ekle}" Padding="10,4" Click="ToBoard_Click"
+                               ToolTip="{loc:T callwindow.ana-ekrandaki-onemli-gorusmeler-paneline-k}">
                         <ui:Button.Icon>
                             <ui:SymbolIcon Symbol="Board24" />
                         </ui:Button.Icon>
@@ -76,7 +77,7 @@
                             <Border Style="{StaticResource Pill}" Margin="0,0,6,4"
                                     Background="{Binding Converter={StaticResource TagBrush}}"
                                                                 Cursor="Hand" MouseLeftButtonUp="TagPill_Click"
-                                                                ToolTip="Bu etiketi taşıyan görüşmeleri ara">
+                                                                ToolTip="{loc:T callwindow.bu-etiketi-tasiyan-gorusmeleri-ara}">
                                 <StackPanel Orientation="Horizontal">
                                     <ui:SymbolIcon Symbol="{Binding Converter={StaticResource TagIcon}}"
                                                    FontSize="12" Foreground="White" Margin="0,0,4,0"
@@ -87,7 +88,7 @@
                                     <TextBlock Text="✕" FontSize="10" Foreground="White"
                                                Padding="7,3" Margin="2,-3,-6,-3"
                                                VerticalAlignment="Center" Cursor="Hand"
-                                               ToolTip="Etiketi kaldır"
+                                               ToolTip="{loc:T callwindow.etiketi-kaldir}"
                                                MouseLeftButtonUp="RemoveTag_Click" />
                                 </StackPanel>
                             </Border>
@@ -109,7 +110,7 @@
                                   ItemsSource="{Binding TagSuggestions}"
                                   Text="{Binding NewTag, UpdateSourceTrigger=PropertyChanged}"
                                   DropDownClosed="TagBox_DropDownClosed"
-                                  ToolTip="Listeden seç ya da yaz ve Enter'a bas — örn. önemli, tehdit edildik">
+                                  ToolTip="{loc:T callwindow.listeden-sec-ya-da-yaz-ve-enter-a-bas-orn}">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
                                     <Border Style="{StaticResource Pill}" Margin="0,2"
@@ -129,7 +130,7 @@
 
                         <!-- The box looked like an empty mystery; the hint gives it a name.
                              HitTestVisible=False so it never steals a click from the box. -->
-                        <TextBlock Text="etiket ekle…" Margin="10,0,0,0" VerticalAlignment="Center"
+                        <TextBlock Text="{loc:T callwindow.etiket-ekle}" Margin="10,0,0,0" VerticalAlignment="Center"
                                    IsHitTestVisible="False"
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}">
                             <TextBlock.Style>
@@ -153,7 +154,7 @@
                          default vocabulary is edited. Beside the box because the moment you
                          wish a tag looked different is the moment you are using one. -->
                     <ui:Button Margin="4,0,0,0" Padding="8,4" Appearance="Transparent"
-                               Click="ManageTags_Click" ToolTip="Etiketleri düzenle — ad, simge, renk">
+                               Click="ManageTags_Click" ToolTip="{loc:T callwindow.etiketleri-duzenle-ad-simge-renk}">
                         <ui:Button.Icon>
                             <ui:SymbolIcon Symbol="Settings24" />
                         </ui:Button.Icon>
@@ -169,7 +170,7 @@
                     Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
                     Visibility="{Binding HasAttention, Converter={StaticResource BoolToVisibility}}"
                     MouseLeftButtonUp="Attention_Click"
-                    ToolTip="Tıkla — Tutarlılık sekmesine gider.">
+                    ToolTip="{loc:T callwindow.tikla-tutarlilik-sekmesine-gider}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -180,7 +181,7 @@
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource SystemFillColorCautionBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="Dikkat çeken noktalar var" FontWeight="SemiBold" />
+                        <TextBlock Text="{loc:T callwindow.dikkat-ceken-noktalar-var}" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding AttentionLine}" Style="{StaticResource Caption}"
                                    TextWrapping="Wrap" Margin="0,2,0,0" />
                     </StackPanel>
@@ -192,7 +193,7 @@
                     Style="{StaticResource SegmentedTabs}">
 
             <!-- ================= the conversation ================= -->
-            <TabItem Header="Görüşme">
+            <TabItem Header="{loc:T callwindow.gorusme}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -258,9 +259,9 @@
                             <TextBlock Grid.Column="1" Text="{Binding QualityLine}" TextWrapping="Wrap"
                                        VerticalAlignment="Center" Style="{StaticResource Caption}" />
 
-                            <ui:Button Grid.Column="2" Content="Yeniden çevir" Appearance="Transparent"
+                            <ui:Button Grid.Column="2" Content="{loc:T callwindow.yeniden-cevir}" Appearance="Transparent"
                                        Margin="10,0,0,0" Click="Retranscribe_Click"
-                                       ToolTip="Bu görüşmeyi başka bir motorla baştan yazıya döker." />
+                                       ToolTip="{loc:T callwindow.bu-gorusmeyi-baska-bir-motorla-bastan-yazi}" />
                         </Grid>
                     </Border>
 
@@ -283,7 +284,7 @@
                                         <Border MaxWidth="520" Padding="12,9" CornerRadius="8"
                                                 Cursor="Hand"
                                                 MouseLeftButtonUp="Turn_Click"
-                                                ToolTip="Bu andan itibaren dinle. Sağ tıkla: kesit çıkar."
+                                                ToolTip="{loc:T callwindow.bu-andan-itibaren-dinle-sag-tikla-kesit-ci}"
                                                 HorizontalAlignment="{Binding IsMe, Converter={StaticResource SpeakerAlignment}}"
                                                 Background="{Binding IsMe, Converter={StaticResource SpeakerBackground}}">
 
@@ -301,24 +302,24 @@
                                             -->
                                             <Border.ContextMenu>
                                                 <ContextMenu>
-                                                    <MenuItem Header="Ses kesiti çıkar">
-                                                        <MenuItem Header="Yalnızca bu satır" Tag="0"
+                                                    <MenuItem Header="{loc:T callwindow.ses-kesiti-cikar}">
+                                                        <MenuItem Header="{loc:T callwindow.yalnizca-bu-satir}" Tag="0"
                                                                   Click="ExportExchange_Click" />
-                                                        <MenuItem Header="Bu satır ve cevabı" Tag="1"
+                                                        <MenuItem Header="{loc:T callwindow.bu-satir-ve-cevabi}" Tag="1"
                                                                   Click="ExportExchange_Click" />
-                                                        <MenuItem Header="Bu satır ve sonraki 3" Tag="3"
+                                                        <MenuItem Header="{loc:T callwindow.bu-satir-ve-sonraki-3}" Tag="3"
                                                                   Click="ExportExchange_Click" />
-                                                        <MenuItem Header="Bu satır ve sonraki 5" Tag="5"
+                                                        <MenuItem Header="{loc:T callwindow.bu-satir-ve-sonraki-5}" Tag="5"
                                                                   Click="ExportExchange_Click" />
-                                                        <MenuItem Header="Bu satır ve sonraki 10" Tag="10"
+                                                        <MenuItem Header="{loc:T callwindow.bu-satir-ve-sonraki-10}" Tag="10"
                                                                   Click="ExportExchange_Click" />
                                                     </MenuItem>
 
                                                     <Separator />
 
-                                                    <MenuItem Header="Bu andan itibaren dinle"
+                                                    <MenuItem Header="{loc:T callwindow.bu-andan-itibaren-dinle}"
                                                               Click="PlayFromHere_Click" />
-                                                    <MenuItem Header="Metni kopyala"
+                                                    <MenuItem Header="{loc:T callwindow.metni-kopyala}"
                                                               Click="CopyTurn_Click" />
                                                 </ContextMenu>
                                             </Border.ContextMenu>
@@ -335,7 +336,7 @@
                                                     <!-- Marked rather than hidden: an uncertain line
                                                          is still evidence, and pretending otherwise
                                                          would quietly drop part of the conversation. -->
-                                                    <TextBlock Text="· belirsiz" Margin="6,0,0,0"
+                                                    <TextBlock Text="{loc:T callwindow.belirsiz}" Margin="6,0,0,0"
                                                                FontSize="{StaticResource TextCaption}"
                                                                Foreground="{DynamicResource SystemFillColorCautionBrush}"
                                                                Visibility="{Binding LowConfidence, Converter={StaticResource BoolToVisibility}}" />
@@ -381,7 +382,7 @@
                  stacked tab rows read as clutter. Every analysis surface now sits on the top
                  strip by its own name — and the subjective reading still cannot appear
                  mid-scroll between two pieces of evidence, because nothing scrolls past it. -->
-            <TabItem Header="Defter">
+            <TabItem Header="{loc:T callwindow.defter}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                     <StackPanel>
 
@@ -402,12 +403,12 @@
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="Bu görüşme çözümlenmemiş" FontWeight="SemiBold" />
+                                    <TextBlock Text="{loc:T callwindow.bu-gorusme-cozumlenmemis}" FontWeight="SemiBold" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,3,0,0" TextWrapping="Wrap"
-                                               Text="Metin hazır. Çözümleme sözleri, değişen rakamları ve işaretleri çıkarır — ses yeniden işlenmez, yalnızca metin okunur." />
+                                               Text="{loc:T callwindow.metin-hazir-cozumleme-sozleri-degisen-raka}" />
                                 </StackPanel>
 
-                                <ui:Button Grid.Column="1" Content="Çözümle" Appearance="Primary"
+                                <ui:Button Grid.Column="1" Content="{loc:T callwindow.cozumle}" Appearance="Primary"
                                            Margin="14,0,0,0" VerticalAlignment="Center"
                                            Click="Analyse_Click"
                                            IsEnabled="{Binding HasTurns}">
@@ -421,7 +422,7 @@
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,10"
                                 Visibility="{Binding HasSummary, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>
-                                <TextBlock Text="Özet" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <TextBlock Text="{loc:T callwindow.ozet}" FontWeight="SemiBold" Margin="0,0,0,6" />
                                 <TextBlock Text="{Binding Summary}" TextWrapping="Wrap"
                                            Style="{StaticResource Secondary}" />
                             </StackPanel>
@@ -430,7 +431,7 @@
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,10"
                                 Visibility="{Binding Commitments.Count, Converter={StaticResource CountToVisibility}}">
                             <StackPanel>
-                                <TextBlock Text="Sözler" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <TextBlock Text="{loc:T callwindow.sozler}" FontWeight="SemiBold" Margin="0,0,0,6" />
                                 <ItemsControl ItemsSource="{Binding Commitments}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -480,7 +481,7 @@
                         <Border Style="{StaticResource Panel}"
                                 Visibility="{Binding Flags.Count, Converter={StaticResource CountToVisibility}}">
                             <StackPanel>
-                                <TextBlock Text="İşaretler" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <TextBlock Text="{loc:T callwindow.isaretler}" FontWeight="SemiBold" Margin="0,0,0,6" />
                                 <ItemsControl ItemsSource="{Binding Flags}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -497,15 +498,15 @@
 
                         <StackPanel Style="{StaticResource EmptyState}"
                                     Visibility="{Binding ShowEmptyLedger, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Style="{StaticResource EmptyTitle}" Text="Bu görüşmeden çıkarılmış bir kayıt yok." />
+                            <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T callwindow.bu-gorusmeden-cikarilmis-bir-kayit-yok}" />
                             <TextBlock Style="{StaticResource EmptyBody}"
-                                       Text="Söz verilmemiş, rakam ya da tarih geçmemiş bir konuşmada bu normaldir." />
+                                       Text="{loc:T callwindow.soz-verilmemis-rakam-ya-da-tarih-gecmemis}" />
                         </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
 
-                        <TabItem Header="Aksiyonlar">
+                        <TabItem Header="{loc:T callwindow.aksiyonlar}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                                 <StackPanel>
 
@@ -524,9 +525,9 @@
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                        <TextBlock Text="Önerilen aksiyonlar" FontWeight="SemiBold" />
+                                        <TextBlock Text="{loc:T callwindow.onerilen-aksiyonlar}" FontWeight="SemiBold" />
                                         <TextBlock Style="{StaticResource Caption}" Margin="0,2,8,0"
-                                                   Text="Öneridir — sen onaylamadan hiçbir yere yazılmaz." />
+                                                   Text="{loc:T callwindow.oneridir-sen-onaylamadan-hicbir-yere-yazil}" />
                                     </StackPanel>
 
                                     <!-- Manual trigger, because the automatic run only covers
@@ -585,30 +586,30 @@
                                                     <Border Background="Transparent" Cursor="Hand" Margin="0,4,0,0"
                                                             DataContext="{Binding Quote}"
                                                             MouseLeftButtonUp="Citation_Click"
-                                                            ToolTip="Dayandığı anı dinle">
+                                                            ToolTip="{loc:T callwindow.dayandigi-ani-dinle}">
                                                         <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
                                                                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                                                    Text="{Binding Text, StringFormat='&quot;{0}&quot;'}" />
                                                     </Border>
 
                                                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                                        <ui:Button Content="Hatırlatıcıya" Appearance="Secondary" Padding="10,3"
+                                                        <ui:Button Content="{loc:T callwindow.hatirlaticiya}" Appearance="Secondary" Padding="10,3"
                                                                    Margin="0,0,6,0" Click="ActionRemind_Click">
                                                             <ui:Button.Icon>
                                                                 <ui:SymbolIcon Symbol="Clock24" />
                                                             </ui:Button.Icon>
                                                         </ui:Button>
-                                                        <ui:Button Content="Önemlilere" Appearance="Secondary" Padding="10,3"
+                                                        <ui:Button Content="{loc:T callwindow.onemlilere}" Appearance="Secondary" Padding="10,3"
                                                                    Margin="0,0,6,0" Click="ActionBoard_Click">
                                                             <ui:Button.Icon>
                                                                 <ui:SymbolIcon Symbol="Board24" />
                                                             </ui:Button.Icon>
                                                         </ui:Button>
-                                                        <ui:Button Content="Yaptım" Appearance="Transparent" Padding="10,3"
+                                                        <ui:Button Content="{loc:T callwindow.yaptim}" Appearance="Transparent" Padding="10,3"
                                                                    Margin="0,0,6,0" Click="ActionDone_Click" />
-                                                        <ui:Button Content="Gizle" Appearance="Transparent" Padding="10,3"
+                                                        <ui:Button Content="{loc:T callwindow.gizle}" Appearance="Transparent" Padding="10,3"
                                                                    Click="ActionHide_Click"
-                                                                   ToolTip="Bu öneri bir daha gösterilmez." />
+                                                                   ToolTip="{loc:T callwindow.bu-oneri-bir-daha-gosterilmez}" />
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Border>
@@ -625,7 +626,7 @@
                             </ScrollViewer>
                         </TabItem>
 
-                        <TabItem x:Name="ConsistencyTab" Header="Tutarlılık">
+                        <TabItem x:Name="ConsistencyTab" Header="{loc:T callwindow.tutarlilik}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                                 <StackPanel>
 
@@ -644,12 +645,12 @@
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                        <TextBlock Text="Tutarlılık" FontWeight="SemiBold" />
+                                        <TextBlock Text="{loc:T callwindow.tutarlilik}" FontWeight="SemiBold" />
                                         <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,8,0"
-                                                   Text="Çelişki, cevapsız soru ve zaman uyumsuzluklarını arar. Her bulgu birebir alıntıyla gelir; hükmü sen verirsin." />
+                                                   Text="{loc:T callwindow.celiski-cevapsiz-soru-ve-zaman-uyumsuzlukl}" />
                                     </StackPanel>
 
-                                    <ui:Button Grid.Column="1" Content="Tutarlılığı denetle"
+                                    <ui:Button Grid.Column="1" Content="{loc:T callwindow.tutarliligi-denetle}"
                                                VerticalAlignment="Center"
                                                Command="{Binding CheckConsistencyCommand}"
                                                IsEnabled="{Binding IsCheckingConsistency, Converter={StaticResource InverseBool}}">
@@ -682,11 +683,11 @@
                                             <ui:SymbolIcon Symbol="Warning24" FontSize="14" Margin="0,0,6,0"
                                                            VerticalAlignment="Center"
                                                            Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-                                            <TextBlock Text="Uyarı notu" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Text="{loc:T callwindow.uyari-notu}" FontWeight="SemiBold" VerticalAlignment="Center" />
                                         </StackPanel>
                                         <TextBlock Text="{Binding ConsistencyWarning}" TextWrapping="Wrap" />
                                         <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0"
-                                                   Text="Bu bir modelin gözlemidir, hüküm değildir." />
+                                                   Text="{loc:T callwindow.bu-bir-modelin-gozlemidir-hukum-degildir}" />
                                     </StackPanel>
                                 </Border>
 
@@ -708,7 +709,7 @@
                                                                    VerticalAlignment="Center" />
                                                         <TextBlock Text="{Binding ConfidenceLabel}" Margin="10,0,0,0"
                                                                    Style="{StaticResource Caption}" VerticalAlignment="Center" />
-                                                        <TextBlock Text="· ses net değil" Margin="6,0,0,0"
+                                                        <TextBlock Text="{loc:T callwindow.ses-net-degil}" Margin="6,0,0,0"
                                                                    Style="{StaticResource Caption}" VerticalAlignment="Center"
                                                                    Visibility="{Binding AudioUnclear, Converter={StaticResource BoolToVisibility}}" />
                                                     </StackPanel>
@@ -719,7 +720,7 @@
                                                     <Border Background="Transparent" Cursor="Hand" Margin="0,4,0,0"
                                                             DataContext="{Binding Quote}"
                                                             MouseLeftButtonUp="Citation_Click"
-                                                            ToolTip="Bu anı dinlemek için tıkla">
+                                                            ToolTip="{loc:T callwindow.bu-ani-dinlemek-icin-tikla}">
                                                         <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
                                                                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                                                    Text="{Binding Text, StringFormat='&quot;{0}&quot;'}" />
@@ -731,7 +732,7 @@
                                                         <Border Background="Transparent" Cursor="Hand"
                                                                 DataContext="{Binding CounterQuote}"
                                                                 MouseLeftButtonUp="ConsistencyCounter_Click"
-                                                                ToolTip="Karşı ifadeye git">
+                                                                ToolTip="{loc:T callwindow.karsi-ifadeye-git}">
                                                             <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
                                                                        Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                                                        Text="{Binding Text, StringFormat='&quot;{0}&quot;'}" />
@@ -740,11 +741,11 @@
 
                                                     <!-- The advice made executable: two clicks
                                                          from the finding to a dated reminder. -->
-                                                    <ui:Button Content="Hatırlatıcı kur" Appearance="Transparent"
+                                                    <ui:Button Content="{loc:T callwindow.hatirlatici-kur}" Appearance="Transparent"
                                                                Padding="8,2" Margin="0,6,0,0"
                                                                HorizontalAlignment="Left"
                                                                Click="ConsistencyRemind_Click"
-                                                               ToolTip="Sebep bulgudan hazır gelir; günü sen seçersin.">
+                                                               ToolTip="{loc:T callwindow.sebep-bulgudan-hazir-gelir-gunu-sen-secers}">
                                                         <ui:Button.Icon>
                                                             <ui:SymbolIcon Symbol="Clock24" />
                                                         </ui:Button.Icon>
@@ -758,7 +759,7 @@
                                 <!-- What held together — the tool observes, it does not prosecute. -->
                                 <StackPanel Margin="0,8,0,0"
                                             Visibility="{Binding ConsistencyObservations.Count, Converter={StaticResource CountToVisibility}}">
-                                    <TextBlock Text="Tutarlı görünen noktalar" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <TextBlock Text="{loc:T callwindow.tutarli-gorunen-noktalar}" FontWeight="SemiBold" Margin="0,0,0,4" />
                                     <ItemsControl ItemsSource="{Binding ConsistencyObservations}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
@@ -797,9 +798,9 @@
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                        <TextBlock Text="Yalan ve manipülasyon değerlendirmesi" FontWeight="SemiBold" />
+                                        <TextBlock Text="{loc:T callwindow.yalan-ve-manipulasyon-degerlendirmesi}" FontWeight="SemiBold" />
                                         <TextBlock Style="{StaticResource Caption}" FontStyle="Italic" Margin="0,2,8,0"
-                                                   Text="Modelin görüşüdür — metinden çıkarım, gerçeğin hakemi değil. Hükmü sen ver." />
+                                                   Text="{loc:T callwindow.modelin-gorusudur-metinden-cikarim-gercegi}" />
                                     </StackPanel>
 
                                     <ui:Button Grid.Column="1" VerticalAlignment="Center"
@@ -849,7 +850,7 @@
                                                                    TextWrapping="Wrap" Margin="0,2,0,0" Cursor="Hand"
                                                                    TextDecorations="Underline"
                                                                    MouseLeftButtonUp="DeceptionQuote_Click"
-                                                                   ToolTip="Tıkla — bu anı çalar." />
+                                                                   ToolTip="{loc:T callwindow.tikla-bu-ani-calar}" />
                                                     </StackPanel>
                                                 </Border>
                                             </DataTemplate>
@@ -873,7 +874,7 @@
                             and a dead end in the data model, so it never leaks anywhere else.
                             The whole tab disappears when the setting is off.
                         -->
-                        <TabItem Header="Okuma"
+                        <TabItem Header="{loc:T callwindow.okuma}"
                                  Visibility="{Binding CommentaryEnabled, Converter={StaticResource BoolToVisibility}}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                                 <StackPanel>
@@ -888,9 +889,9 @@
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                        <TextBlock Text="Modelin okuması" FontWeight="SemiBold" />
+                                        <TextBlock Text="{loc:T callwindow.modelin-okumasi}" FontWeight="SemiBold" />
                                         <TextBlock Style="{StaticResource Caption}" FontStyle="Italic" Margin="0,2,8,0"
-                                                   Text="Öznel yorumdur, bulgu değildir — kanıt için defter ve bulgular yukarıda." />
+                                                   Text="{loc:T callwindow.oznel-yorumdur-bulgu-degildir-kanit-icin-d}" />
                                     </StackPanel>
 
                                     <ui:Button Grid.Column="1" VerticalAlignment="Center"
@@ -928,12 +929,12 @@
                                                Margin="0,10,0,0"
                                                Visibility="{Binding Reading.GeneralReading, Converter={StaticResource NullToCollapsed}}" />
 
-                                    <TextBlock Text="Müzakere durumu" FontWeight="SemiBold" Margin="0,10,0,2"
+                                    <TextBlock Text="{loc:T callwindow.muzakere-durumu}" FontWeight="SemiBold" Margin="0,10,0,2"
                                                Visibility="{Binding Reading.NegotiationState, Converter={StaticResource NullToCollapsed}}" />
                                     <TextBlock Text="{Binding Reading.NegotiationState}" TextWrapping="Wrap"
                                                Visibility="{Binding Reading.NegotiationState, Converter={StaticResource NullToCollapsed}}" />
 
-                                    <TextBlock Text="Üslup gözlemleri" FontWeight="SemiBold" Margin="0,10,0,2"
+                                    <TextBlock Text="{loc:T callwindow.uslup-gozlemleri}" FontWeight="SemiBold" Margin="0,10,0,2"
                                                Visibility="{Binding Reading.StyleObservations.Count, Converter={StaticResource CountToVisibility}}" />
                                     <ItemsControl ItemsSource="{Binding Reading.StyleObservations}">
                                         <ItemsControl.ItemTemplate>
@@ -952,7 +953,7 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
-                                    <TextBlock Text="Riskli noktalar" FontWeight="SemiBold" Margin="0,10,0,2"
+                                    <TextBlock Text="{loc:T callwindow.riskli-noktalar}" FontWeight="SemiBold" Margin="0,10,0,2"
                                                Visibility="{Binding Reading.RiskPoints.Count, Converter={StaticResource CountToVisibility}}" />
                                     <ItemsControl ItemsSource="{Binding Reading.RiskPoints}">
                                         <ItemsControl.ItemTemplate>
@@ -976,7 +977,7 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
-                                    <TextBlock Text="Çözülmeyenler" FontWeight="SemiBold" Margin="0,10,0,2"
+                                    <TextBlock Text="{loc:T callwindow.cozulmeyenler}" FontWeight="SemiBold" Margin="0,10,0,2"
                                                Visibility="{Binding Reading.Unresolved.Count, Converter={StaticResource CountToVisibility}}" />
                                     <ItemsControl ItemsSource="{Binding Reading.Unresolved}">
                                         <ItemsControl.ItemTemplate>
@@ -988,11 +989,11 @@
 
                                     <!-- The mandatory counter-reading: a single narrative never
                                          stands alone in this product, even a chosen one. -->
-                                    <TextBlock Text="Başka bir okuma" FontWeight="SemiBold" Margin="0,10,0,2" />
+                                    <TextBlock Text="{loc:T callwindow.baska-bir-okuma}" FontWeight="SemiBold" Margin="0,10,0,2" />
                                     <TextBlock Text="{Binding Reading.CounterReading}" TextWrapping="Wrap"
                                                FontStyle="Italic" />
 
-                                    <TextBlock Text="Sorulabilecek sorular" FontWeight="SemiBold" Margin="0,10,0,2"
+                                    <TextBlock Text="{loc:T callwindow.sorulabilecek-sorular}" FontWeight="SemiBold" Margin="0,10,0,2"
                                                Visibility="{Binding Reading.SuggestedQuestions.Count, Converter={StaticResource CountToVisibility}}" />
                                     <ItemsControl ItemsSource="{Binding Reading.SuggestedQuestions}">
                                         <ItemsControl.ItemTemplate>
@@ -1015,7 +1016,7 @@
                         </TabItem>
 
             <!-- ================= questions about this call ================= -->
-            <TabItem Header="Sor">
+            <TabItem Header="{loc:T callwindow.sor}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
@@ -1050,7 +1051,7 @@
                                                                            Style="{StaticResource Caption}" />
                                                                 <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
                                                                            Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
-                                                                           Text="dinlemek için tıkla" />
+                                                                           Text="{loc:T callwindow.dinlemek-icin-tikla}" />
                                                             </StackPanel>
                                                         </Border>
                                                     </DataTemplate>
@@ -1074,11 +1075,11 @@
                         </Grid.ColumnDefinitions>
 
                         <ui:TextBox Grid.Column="0" Margin="0,0,8,0"
-                                    PlaceholderText="Bu görüşme hakkında sor — cevap alıntılarla gelir"
+                                    PlaceholderText="{loc:T callwindow.bu-gorusme-hakkinda-sor-cevap-alintilarla}"
                                     Text="{Binding Question, UpdateSourceTrigger=PropertyChanged}"
                                     KeyDown="Question_KeyDown" />
 
-                        <ui:Button Grid.Column="1" Content="Sor" Appearance="Primary"
+                        <ui:Button Grid.Column="1" Content="{loc:T callwindow.sor}" Appearance="Primary"
                                    Command="{Binding AskCommand}"
                                    IsEnabled="{Binding IsAsking, Converter={StaticResource InverseBool}}" />
                     </Grid>
@@ -1086,7 +1087,7 @@
             </TabItem>
 
             <!-- ================= notes ================= -->
-            <TabItem Header="Notlar">
+            <TabItem Header="{loc:T callwindow.notlar}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -1098,7 +1099,7 @@
                          writing: reprocessing replaces the summary, the commitments and the flags,
                          and never touches this. -->
                     <TextBlock Grid.Row="0" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="0,0,0,8"
-                               Text="Buraya yazdıkların sana aittir. Görüşme yeniden çözümlense bile silinmez." />
+                               Text="{loc:T callwindow.buraya-yazdiklarin-sana-aittir-gorusme-yen}" />
 
                     <TextBox Grid.Row="1" AcceptsReturn="True" TextWrapping="Wrap"
                              VerticalScrollBarVisibility="Auto"
@@ -1106,12 +1107,12 @@
                              Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}" />
 
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                        <TextBlock Text="Kaydedildi" VerticalAlignment="Center" Margin="0,0,12,0"
+                        <TextBlock Text="{loc:T callwindow.kaydedildi}" VerticalAlignment="Center" Margin="0,0,12,0"
                                    Style="{StaticResource Caption}"
                                    Foreground="{DynamicResource SystemFillColorSuccessBrush}"
                                    Visibility="{Binding NoteSaved, Converter={StaticResource BoolToVisibility}}" />
 
-                        <ui:Button Content="Notu kaydet" Appearance="Primary" Command="{Binding SaveNoteCommand}" />
+                        <ui:Button Content="{loc:T callwindow.notu-kaydet}" Appearance="Primary" Command="{Binding SaveNoteCommand}" />
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -1177,7 +1178,7 @@
                 -->
                 <Grid Height="38" Margin="0,0,0,4" Background="Transparent" Cursor="Hand"
                       controls:Scrubbable.Player="{Binding Playback}"
-                      ToolTip="Tıkla ya da sürükle — o andan dinlersin."
+                      ToolTip="{loc:T callwindow.tikla-ya-da-surukle-o-andan-dinlersin}"
                       Visibility="{Binding Playback.IsLoaded, Converter={StaticResource BoolToVisibility}}">
                     <Viewbox Stretch="Fill">
                         <Canvas Width="1000" Height="68">
@@ -1207,7 +1208,7 @@
 
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                         <ui:Button Appearance="Transparent" Command="{Binding Playback.SkipBackCommand}"
-                                   ToolTip="10 saniye geri">
+                                   ToolTip="{loc:T callwindow.10-saniye-geri}">
                             <ui:Button.Icon>
                                 <ui:SymbolIcon Symbol="ArrowCounterclockwise24" />
                             </ui:Button.Icon>
@@ -1227,7 +1228,7 @@
                             the contact page already uses and it is known to work.
                         -->
                         <ui:Button Appearance="Transparent" Command="{Binding Playback.TogglePlayCommand}"
-                                   ToolTip="Çal / duraklat">
+                                   ToolTip="{loc:T callwindow.cal-duraklat}">
                             <Grid>
                                 <ui:SymbolIcon Symbol="Play24"
                                                Visibility="{Binding Playback.IsPlaying, Converter={StaticResource InverseBoolToVisibility}}" />
@@ -1237,7 +1238,7 @@
                         </ui:Button>
 
                         <ui:Button Appearance="Transparent" Command="{Binding Playback.SkipForwardCommand}"
-                                   ToolTip="10 saniye ileri">
+                                   ToolTip="{loc:T callwindow.10-saniye-ileri}">
                             <ui:Button.Icon>
                                 <ui:SymbolIcon Symbol="ArrowClockwise24" />
                             </ui:Button.Icon>
@@ -1252,7 +1253,7 @@
                         <ui:Button Appearance="Transparent" Margin="8,0,0,0"
                                    Command="{Binding Playback.SwitchSpeakerCommand}"
                                    Content="{Binding Playback.ChannelName}"
-                                   ToolTip="Tüm görüşme, sen, karşı taraf arasında geçiş yapar.">
+                                   ToolTip="{loc:T callwindow.tum-gorusme-sen-karsi-taraf-arasinda-gecis}">
                             <ui:Button.Icon>
                                 <ui:SymbolIcon Symbol="PersonVoice24" />
                             </ui:Button.Icon>

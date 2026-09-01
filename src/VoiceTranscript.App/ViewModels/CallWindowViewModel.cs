@@ -449,6 +449,19 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             ConsistencyStamp = ConsistencyFindings.Count > 0 ? "önceki koşum" : null;
         }
 
+        // The observations are not stored — only the findings and the note are — so a reopened
+        // window used to show the accusatory half of a consistency run with its balancing half
+        // silently missing, and nothing said so. The reader saw findings against a person and
+        // no observations in their favour, and had no way to know the run had produced any.
+        ConsistencyObservations.Clear();
+
+        if (ConsistencyFindings.Count > 0)
+        {
+            ConsistencyMessage =
+                "Önceki koşumun bulguları. Gözlemler saklanmaz; dengeleyici gözlemleri görmek " +
+                "için denetimi yeniden çalıştır.";
+        }
+
         OnPropertyChanged(nameof(HasConsistencyRun));
         RefreshAttention();
 
