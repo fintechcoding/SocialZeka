@@ -26,6 +26,12 @@ public static class ProcessingStage
     /// to the feature that produced it.
     /// </summary>
     public const string Consistency = "consistency";
+
+    /// <summary>Proposing the user's next moves from one conversation.</summary>
+    public const string Action = "action";
+
+    /// <summary>The model's free reading of one conversation — run only when asked.</summary>
+    public const string Reading = "reading";
 }
 
 /// <summary>

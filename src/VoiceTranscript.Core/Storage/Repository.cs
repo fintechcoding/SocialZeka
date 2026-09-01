@@ -1102,6 +1102,158 @@ public sealed class Repository(Database database)
         return [.. connection.Query<FlagRow>(sql, new { callId }).Select(r => r.ToModel())];
     }
 
+    // ---- action suggestions ------------------------------------------------
+    //
+    // Machine-owned rows. Routing into the user's spaces happens only via their click, and a
+    // hidden suggestion is a judgement the user made once — re-runs must respect it.
+
+    public long InsertAction(ActionItem action)
+    {
+        using var connection = Open();
+
+        return connection.ExecuteScalar<long>(
+            """
+            INSERT INTO action_item (call_id, contact_id, action, reason, kind, quote,
+                                     quote_start_ms, quote_is_me, deadline_raw, deadline_date,
+                                     status, routed_note, model_used, created_at)
+            VALUES (@CallId, @ContactId, @Action, @Reason, @Kind, @Quote,
+                    @QuoteStartMs, @QuoteIsMe, @DeadlineRaw, @DeadlineDate,
+                    @Status, @RoutedNote, @ModelUsed, @CreatedAt)
+            RETURNING id;
+            """,
+            new
+            {
+                action.CallId,
+                action.ContactId,
+                action.Action,
+                action.Reason,
+                action.Kind,
+                action.Quote,
+                action.QuoteStartMs,
+                QuoteIsMe = action.QuoteIsMe ? 1 : 0,
+                action.DeadlineRaw,
+                DeadlineDate = action.DeadlineDate?.ToString("yyyy-MM-dd"),
+                Status = (int)action.Status,
+                action.RoutedNote,
+                action.ModelUsed,
+                CreatedAt = Iso(action.CreatedAt == default ? DateTimeOffset.UtcNow : action.CreatedAt),
+            });
+    }
+
+    /// <summary>One conversation's suggestions, open first, then in spoken order.</summary>
+    public IReadOnlyList<ActionItem> ActionsOf(long callId, bool includeClosed = true)
+    {
+        using var connection = Open();
+
+        var sql = includeClosed
+            ? "SELECT * FROM action_item WHERE call_id = @callId ORDER BY status, quote_start_ms, id;"
+            : "SELECT * FROM action_item WHERE call_id = @callId AND status = 0 ORDER BY quote_start_ms, id;";
+
+        return [.. connection.Query<ActionRow>(sql, new { callId }).Select(r => r.ToModel())];
+    }
+
+    /// <summary>
+    /// The home screen's list: open suggestions whose deadline has arrived, plus recent
+    /// undated ones — capped, newest conversations first.
+    /// </summary>
+    public IReadOnlyList<(ActionItem Action, string ContactName)> OpenActions(
+        DateOnly today, int recentDays = 3, int limit = 5)
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<ActionRow, string?, (ActionRow, string?)>(
+            """
+            SELECT a.*, ct.name
+            FROM action_item a
+            JOIN call c          ON c.id = a.call_id
+            LEFT JOIN contact ct ON ct.id = a.contact_id
+            WHERE a.status = 0
+              AND (
+                    (a.deadline_date IS NOT NULL AND a.deadline_date <= @today)
+                 OR (a.deadline_date IS NULL AND c.started_at >= @since)
+              )
+            ORDER BY a.deadline_date IS NULL, a.deadline_date, c.started_at DESC
+            LIMIT @limit;
+            """,
+            (action, name) => (action, name),
+            new
+            {
+                today = today.ToString("yyyy-MM-dd"),
+                since = today.AddDays(-recentDays).ToString("yyyy-MM-dd"),
+                limit,
+            },
+            splitOn: "name");
+
+        return [.. rows.Select(r => (r.Item1.ToModel(), r.Item2 ?? "İsimsiz görüşme"))];
+    }
+
+    public void SetActionStatus(long actionId, ActionStatus status, string? routedNote = null)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            "UPDATE action_item SET status = @status, routed_note = @routedNote WHERE id = @actionId;",
+            new { actionId, status = (int)status, routedNote });
+    }
+
+    /// <summary>Hidden suggestions' identities: (folded action, folded quote) — never resurrected.</summary>
+    public IReadOnlySet<(string Action, string Quote)> HiddenActionKeys(long callId)
+    {
+        using var connection = Open();
+
+        return connection
+            .Query<(string Action, string Quote)>(
+                "SELECT action, quote FROM action_item WHERE call_id = @callId AND status = 2;",
+                new { callId })
+            .Select(r => (
+                Text.TurkishText.NormalizeForSearch(r.Action),
+                Text.TurkishText.NormalizeForSearch(r.Quote)))
+            .ToHashSet();
+    }
+
+    /// <summary>A re-run replaces open suggestions only: done, hidden and routed rows are the
+    /// user's history with the list and stay.</summary>
+    public void ClearOpenActions(long callId)
+    {
+        using var connection = Open();
+        connection.Execute(
+            "DELETE FROM action_item WHERE call_id = @callId AND status = 0;", new { callId });
+    }
+
+    // ---- the model's stored reading -----------------------------------------
+
+    /// <summary>Saves the reading for a conversation, replacing any earlier one.</summary>
+    public void SaveReading(long callId, string json, string? modelUsed)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO reading_note (call_id, json, model_used, created_at)
+            VALUES (@callId, @json, @modelUsed, @now)
+            ON CONFLICT(call_id) DO UPDATE SET
+                json = excluded.json, model_used = excluded.model_used, created_at = excluded.created_at;
+            """,
+            new { callId, json, modelUsed, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    public (string Json, string? ModelUsed, DateTimeOffset CreatedAt)? GetReading(long callId)
+    {
+        using var connection = Open();
+
+        var row = connection.QuerySingleOrDefault<(string Json, string? ModelUsed, string CreatedAt)>(
+            "SELECT json, model_used, created_at FROM reading_note WHERE call_id = @callId;",
+            new { callId });
+
+        return row == default ? null : (row.Json, row.ModelUsed, ParseIso(row.CreatedAt));
+    }
+
+    public void DeleteReading(long callId)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM reading_note WHERE call_id = @callId;", new { callId });
+    }
+
     /// <summary>Saves the consistency check's overall note for a conversation (one per call).</summary>
     public void SaveConsistencyNote(long callId, string note, string? modelUsed)
     {
@@ -2922,6 +3074,44 @@ public sealed class Repository(Database database)
             DismissedByUser = dismissed_by_user != 0,
             Source = source,
             Confidence = confidence,
+            CreatedAt = ParseIso(created_at),
+        };
+    }
+
+    private sealed class ActionRow
+    {
+        public long id { get; set; }
+        public long call_id { get; set; }
+        public long? contact_id { get; set; }
+        public string action { get; set; } = "";
+        public string? reason { get; set; }
+        public string kind { get; set; } = "diger";
+        public string quote { get; set; } = "";
+        public long quote_start_ms { get; set; }
+        public long quote_is_me { get; set; }
+        public string? deadline_raw { get; set; }
+        public string? deadline_date { get; set; }
+        public long status { get; set; }
+        public string? routed_note { get; set; }
+        public string? model_used { get; set; }
+        public string created_at { get; set; } = "";
+
+        public ActionItem ToModel() => new()
+        {
+            Id = id,
+            CallId = call_id,
+            ContactId = contact_id,
+            Action = action,
+            Reason = reason,
+            Kind = kind,
+            Quote = quote,
+            QuoteStartMs = (int)quote_start_ms,
+            QuoteIsMe = quote_is_me != 0,
+            DeadlineRaw = deadline_raw,
+            DeadlineDate = deadline_date is null ? null : DateOnly.Parse(deadline_date),
+            Status = (ActionStatus)status,
+            RoutedNote = routed_note,
+            ModelUsed = model_used,
             CreatedAt = ParseIso(created_at),
         };
     }

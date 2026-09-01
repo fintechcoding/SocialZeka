@@ -131,17 +131,16 @@ public partial class ContactWindow
         if (dialog.ShowDialog() == true) model.SetPhoto(dialog.FileName);
     }
 
-    private void RemoveField_Click(object sender, RoutedEventArgs e)
+    private async void RemoveField_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is not Core.Domain.ContactField field) return;
 
         // One click used to be a permanent DELETE. A fact the user typed deserves at least the
         // one-sentence pause every other destructive action in this product gets.
-        var answer = MessageBox.Show(
-            $"\"{field.Label}: {field.Value}\" silinsin mi?",
-            "Bilgiyi sil", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var confirmed = await Services.Dialogs.ConfirmAsync(
+            this, "Bilgiyi sil", $"\"{field.Label}: {field.Value}\" silinsin mi?", okText: "Sil");
 
-        if (answer == MessageBoxResult.Yes) ViewModel?.RemoveField(field);
+        if (confirmed) ViewModel?.RemoveField(field);
     }
 
     /// <summary>Onto the important pile, from this person's own history.</summary>
@@ -196,5 +195,12 @@ public partial class ContactWindow
 
         MainWindow.SearchTagFromAnywhere(tag);
         e.Handled = true;
+    }
+
+    /// <summary>A flow row opens the conversation it happened in.</summary>
+    private void FlowRow_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is FlowEvent { CallId: { } callId })
+            OpenCall(callId);
     }
 }

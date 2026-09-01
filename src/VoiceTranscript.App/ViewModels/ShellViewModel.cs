@@ -115,12 +115,16 @@ public sealed partial class ShellViewModel : ObservableObject
         Ask.OpenRequested += (_, target) => OpenCall(target.CallId, target.StartMs);
 
         Ledger.OpenRequested += (_, target) => OnUi(() => OpenContact(target.ContactId, target.CallId));
-        Ledger.Notice += (_, message) => OnUi(() => Notice = message);
-        Contacts.Notice += (_, message) => OnUi(() => Notice = message);
+
+        // Severity travels WITH the message from here on. Page notices are ordinary news;
+        // everything the orchestrator says out loud is a heads-up ("X yanıt vermedi, Y
+        // deneniyor", "alıntıların %40'ı bulunamadı") — that is what its Notice event is FOR.
+        Ledger.Notice += (_, message) => OnUi(() => Post(message, Services.NoticeSeverity.Info));
+        Contacts.Notice += (_, message) => OnUi(() => Post(message, Services.NoticeSeverity.Info));
         Search.OpenRequested += (_, target) => OnUi(() => OpenContact(target.ContactId, target.CallId));
 
         orchestrator.StateChanged += (_, state) => OnUi(() => OnStateChanged(state));
-        orchestrator.Notice += (_, message) => OnUi(() => Notice = message);
+        orchestrator.Notice += (_, message) => OnUi(() => Post(message, Services.NoticeSeverity.Warning));
         orchestrator.CallFinished += (_, _) => OnUi(RefreshAll);
 
         // Straight through to the screen, on the UI thread. The worker reports several times a
@@ -128,11 +132,34 @@ public sealed partial class ShellViewModel : ObservableObject
         orchestrator.ProgressChanged += (_, p) =>
             OnUi(() => Processing.ReportProgress(p.CallId, p.Stage, p.Percent));
 
-        orchestrator.CallProcessed += (_, _) => OnUi(() =>
+        orchestrator.CallProcessed += (_, processed) => OnUi(() =>
         {
             Processing.ClearProgress();
             Processing.Refresh();
-        AiStatus.Refresh();
+            AiStatus.Refresh();
+
+            // "Ne oldu?" — the end of processing told as one sentence, with the suggestion
+            // count as a plain number. The summary itself already passed the pipeline's
+            // verification; the toast adds no commentary of its own.
+            if (processed.Succeeded)
+            {
+                var actions = repository.ActionsOf(processed.CallId, includeClosed: false).Count;
+
+                Post(
+                    $"{processed.ContactName} görüşmesi işlendi"
+                    + (actions > 0 ? $" · {actions} aksiyon önerildi" : "")
+                    + (processed.Summary is { Length: > 0 } s
+                        ? $" — {(s.Length <= 120 ? s : s[..117] + "…")}"
+                        : "."),
+                    Services.NoticeSeverity.Success);
+            }
+            else if (processed.Failure is { } failure)
+            {
+                Post(
+                    $"{processed.ContactName} görüşmesi işlenemedi: "
+                    + Core.Asr.FailureText.Summarise(failure),
+                    Services.NoticeSeverity.Error);
+            }
         });
         orchestrator.LevelChanged += (_, levels) => OnUi(() => SetLevels(levels.Mic, levels.Far));
 
@@ -234,10 +261,66 @@ public sealed partial class ShellViewModel : ObservableObject
         if (state == OrchestratorState.Idle) RefreshAll();
     }
 
+    // ---- the keyboard layer -------------------------------------------------
+
+    /// <summary>Raised when Ctrl+K asks for the palette; the window opens it (a VM cannot).</summary>
+    public event EventHandler? PaletteRequested;
+
+    public IRelayCommand OpenPaletteCommand => _openPalette ??= new RelayCommand(
+        () => PaletteRequested?.Invoke(this, EventArgs.Empty));
+
+    private IRelayCommand? _openPalette;
+
+    /// <summary>Raised by Ctrl+? — the window shows the cheatsheet.</summary>
+    public event EventHandler? ShortcutsRequested;
+
+    public IRelayCommand ShowShortcutsCommand => _showShortcuts ??= new RelayCommand(
+        () => ShortcutsRequested?.Invoke(this, EventArgs.Empty));
+
+    private IRelayCommand? _showShortcuts;
+
+    // ---- the notice layer ---------------------------------------------------
+    //
+    // Typed at the source. Severity used to be guessed downstream by substring-matching the
+    // Turkish message text; now the code that knows what happened says how loud it is, the
+    // history keeps the last fifty so a missed toast is recoverable, and the bell's badge
+    // counts what arrived while nobody was looking.
+
+    public System.Collections.ObjectModel.ObservableCollection<Services.Notice> NoticeHistory { get; } = [];
+
+    [ObservableProperty] private Services.NoticeSeverity _noticeSeverity;
+    [ObservableProperty] private int _unseenNoticeCount;
+
+    public bool HasUnseenNotices => UnseenNoticeCount > 0;
+
+    /// <summary>Raises one notice: the toast shows it, the history keeps it.</summary>
+    public void Post(string message, Services.NoticeSeverity severity)
+    {
+        NoticeHistory.Insert(0, new Services.Notice(severity, message, DateTimeOffset.Now));
+        while (NoticeHistory.Count > 50) NoticeHistory.RemoveAt(NoticeHistory.Count - 1);
+
+        UnseenNoticeCount++;
+        OnPropertyChanged(nameof(HasUnseenNotices));
+
+        // Severity travels ahead of the message: the snackbar factory reads it when the
+        // Notice change lands.
+        NoticeSeverity = severity;
+        Notice = message;
+
+        if (severity == Services.NoticeSeverity.Error) HasProblem = true;
+    }
+
+    /// <summary>The bell was opened; everything in it has now been seen.</summary>
+    public void MarkNoticesSeen()
+    {
+        UnseenNoticeCount = 0;
+        OnPropertyChanged(nameof(HasUnseenNotices));
+    }
+
     partial void OnNoticeChanged(string? value)
     {
-        // A notice about a failure should also change the status dot, so the problem is visible
-        // even after the message bar is dismissed.
+        // Direct assignments (start/stop failures below) still pass through here; they are
+        // errors by construction.
         if (value is not null && (value.Contains("başlatılamadı") || value.Contains("hata")))
             HasProblem = true;
     }

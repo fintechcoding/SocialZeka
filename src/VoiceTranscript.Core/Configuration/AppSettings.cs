@@ -277,6 +277,15 @@ public sealed record AppSettings
     public string ResolvedConsistencyModel =>
         string.IsNullOrWhiteSpace(ConsistencyModel) ? ResolvedModelName : ConsistencyModel.Trim();
 
+    /// <summary>"system" follows Windows; "light"/"dark" pin the palette.</summary>
+    public string ThemeChoice { get; init; } = "system";
+
+    /// <summary>Propose next moves after every analysis. Suggestions only — routing is a click.</summary>
+    public bool ExtractActions { get; init; } = true;
+
+    /// <summary>Show the model's free reading panel. The one deliberately subjective surface.</summary>
+    public bool CommentaryEnabled { get; init; } = true;
+
     public LlmProviderKind LlmProvider { get; init; } = LlmProviderKind.LlamaServer;
 
     /// <summary>Which entry of the local model catalogue to use. Ignored by remote providers.</summary>

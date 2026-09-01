@@ -423,6 +423,83 @@
                             </StackPanel>
                         </Border>
 
+                        <!--
+                            The user's proposed next moves. Suggestions, and the panel says so:
+                            nothing here writes anywhere until the user clicks it there. Every
+                            card rests on a verified, playable quote — an unanchored suggestion
+                            was dropped before it got here.
+                        -->
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,10"
+                                Visibility="{Binding HasActions, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="Önerilen aksiyonlar" FontWeight="SemiBold" />
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,6"
+                                           Text="Öneridir — sen onaylamadan hiçbir yere yazılmaz." />
+
+                                <ItemsControl ItemsSource="{Binding Actions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderThickness="0,0,0,1" Padding="0,8"
+                                                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <ui:SymbolIcon Symbol="{Binding KindIcon}" FontSize="14"
+                                                                       Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                                        <TextBlock Text="{Binding Action}" FontWeight="SemiBold"
+                                                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding KindLabel}" Margin="10,0,0,0"
+                                                                   Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding DeadlineText, StringFormat='· {0}'}"
+                                                                   Margin="6,0,0,0" Style="{StaticResource Caption}"
+                                                                   VerticalAlignment="Center"
+                                                                   Visibility="{Binding HasDeadline, Converter={StaticResource BoolToVisibility}}" />
+                                                    </StackPanel>
+
+                                                    <TextBlock Text="{Binding Reason}" Style="{StaticResource Caption}"
+                                                               TextWrapping="Wrap" Margin="0,2,0,0"
+                                                               Visibility="{Binding Reason, Converter={StaticResource NullToCollapsed}}" />
+
+                                                    <Border Background="Transparent" Cursor="Hand" Margin="0,4,0,0"
+                                                            DataContext="{Binding Quote}"
+                                                            MouseLeftButtonUp="Citation_Click"
+                                                            ToolTip="Dayandığı anı dinle">
+                                                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                                   Text="{Binding Text, StringFormat='&quot;{0}&quot;'}" />
+                                                    </Border>
+
+                                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                        <ui:Button Content="Hatırlatıcıya" Appearance="Secondary" Padding="10,3"
+                                                                   Margin="0,0,6,0" Click="ActionRemind_Click">
+                                                            <ui:Button.Icon>
+                                                                <ui:SymbolIcon Symbol="Clock24" />
+                                                            </ui:Button.Icon>
+                                                        </ui:Button>
+                                                        <ui:Button Content="Önemlilere" Appearance="Secondary" Padding="10,3"
+                                                                   Margin="0,0,6,0" Click="ActionBoard_Click">
+                                                            <ui:Button.Icon>
+                                                                <ui:SymbolIcon Symbol="Board24" />
+                                                            </ui:Button.Icon>
+                                                        </ui:Button>
+                                                        <ui:Button Content="Yaptım" Appearance="Transparent" Padding="10,3"
+                                                                   Margin="0,0,6,0" Click="ActionDone_Click" />
+                                                        <ui:Button Content="Gizle" Appearance="Transparent" Padding="10,3"
+                                                                   Click="ActionHide_Click"
+                                                                   ToolTip="Bu öneri bir daha gösterilmez." />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="{Binding ActionsMessage}" Style="{StaticResource Caption}"
+                                           TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Visibility="{Binding ActionsMessage, Converter={StaticResource NullToCollapsed}}" />
+                            </StackPanel>
+                        </Border>
+
                         <Border Style="{StaticResource Panel}"
                                 Visibility="{Binding Flags.Count, Converter={StaticResource CountToVisibility}}">
                             <StackPanel>
@@ -596,6 +673,146 @@
                                 <TextBlock Text="{Binding ConsistencyStamp}" Style="{StaticResource Caption}"
                                            Margin="0,8,0,0" HorizontalAlignment="Right"
                                            Visibility="{Binding ConsistencyStamp, Converter={StaticResource NullToCollapsed}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!--
+                            The model's free reading — the one deliberately subjective surface,
+                            at the user's explicit request. Separated, signed and hatted so it
+                            can never be mistaken for the evidence beside it; and a dead end in
+                            the data model, so it never leaks anywhere else.
+                        -->
+                        <Border Style="{StaticResource Panel}" Margin="0,10,0,0"
+                                Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                Visibility="{Binding CommentaryEnabled, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="Modelin okuması" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Caption}" FontStyle="Italic" Margin="0,2,8,0"
+                                                   Text="Öznel yorumdur, bulgu değildir — kanıt için defter ve bulgular yukarıda." />
+                                    </StackPanel>
+
+                                    <ui:Button Grid.Column="1" VerticalAlignment="Center"
+                                               Command="{Binding RunReadingCommand}"
+                                               IsEnabled="{Binding IsReadingRunning, Converter={StaticResource InverseBool}}">
+                                        <ui:Button.Style>
+                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                <Setter Property="Content" Value="Okumasını iste" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasReading}" Value="True">
+                                                        <Setter Property="Content" Value="Yeniden oku" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ui:Button.Style>
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="BookOpen24" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+
+                                <TextBlock Text="{Binding ConsistencyCostLine}" Style="{StaticResource Caption}"
+                                           Margin="0,4,0,0"
+                                           Visibility="{Binding ConsistencyCostLine, Converter={StaticResource NullToCollapsed}}" />
+
+                                <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
+                                             Visibility="{Binding IsReadingRunning, Converter={StaticResource BoolToVisibility}}" />
+
+                                <TextBlock Text="{Binding ReadingProblem}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                           Visibility="{Binding ReadingProblem, Converter={StaticResource NullToCollapsed}}" />
+
+                                <StackPanel Visibility="{Binding HasReading, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="{Binding Reading.GeneralReading}" TextWrapping="Wrap"
+                                               Margin="0,10,0,0"
+                                               Visibility="{Binding Reading.GeneralReading, Converter={StaticResource NullToCollapsed}}" />
+
+                                    <TextBlock Text="Müzakere durumu" FontWeight="SemiBold" Margin="0,10,0,2"
+                                               Visibility="{Binding Reading.NegotiationState, Converter={StaticResource NullToCollapsed}}" />
+                                    <TextBlock Text="{Binding Reading.NegotiationState}" TextWrapping="Wrap"
+                                               Visibility="{Binding Reading.NegotiationState, Converter={StaticResource NullToCollapsed}}" />
+
+                                    <TextBlock Text="Üslup gözlemleri" FontWeight="SemiBold" Margin="0,10,0,2"
+                                               Visibility="{Binding Reading.StyleObservations.Count, Converter={StaticResource CountToVisibility}}" />
+                                    <ItemsControl ItemsSource="{Binding Reading.StyleObservations}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,2">
+                                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                                                    <Border Background="Transparent" Cursor="Hand"
+                                                            MouseLeftButtonUp="ReadingQuote_Click"
+                                                            Visibility="{Binding Quote, Converter={StaticResource NullToCollapsed}}">
+                                                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                                   Text="{Binding Quote, StringFormat='&quot;{0}&quot;'}" />
+                                                    </Border>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="Riskli noktalar" FontWeight="SemiBold" Margin="0,10,0,2"
+                                               Visibility="{Binding Reading.RiskPoints.Count, Converter={StaticResource CountToVisibility}}" />
+                                    <ItemsControl ItemsSource="{Binding Reading.RiskPoints}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,2">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <ui:SymbolIcon Symbol="Warning24" FontSize="13" Margin="0,2,6,0"
+                                                                       VerticalAlignment="Top"
+                                                                       Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" MaxWidth="640" />
+                                                    </StackPanel>
+                                                    <Border Background="Transparent" Cursor="Hand" Margin="19,0,0,0"
+                                                            MouseLeftButtonUp="ReadingQuote_Click"
+                                                            Visibility="{Binding Quote, Converter={StaticResource NullToCollapsed}}">
+                                                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                                   Text="{Binding Quote, StringFormat='&quot;{0}&quot;'}" />
+                                                    </Border>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="Çözülmeyenler" FontWeight="SemiBold" Margin="0,10,0,2"
+                                               Visibility="{Binding Reading.Unresolved.Count, Converter={StaticResource CountToVisibility}}" />
+                                    <ItemsControl ItemsSource="{Binding Reading.Unresolved}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,2" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- The mandatory counter-reading: a single narrative never
+                                         stands alone in this product, even a chosen one. -->
+                                    <TextBlock Text="Başka bir okuma" FontWeight="SemiBold" Margin="0,10,0,2" />
+                                    <TextBlock Text="{Binding Reading.CounterReading}" TextWrapping="Wrap"
+                                               FontStyle="Italic" />
+
+                                    <TextBlock Text="Sorulabilecek sorular" FontWeight="SemiBold" Margin="0,10,0,2"
+                                               Visibility="{Binding Reading.SuggestedQuestions.Count, Converter={StaticResource CountToVisibility}}" />
+                                    <ItemsControl ItemsSource="{Binding Reading.SuggestedQuestions}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                                    <TextBlock Text="•" Margin="0,0,6,0" />
+                                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" MaxWidth="640" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="{Binding ReadingStamp}" Style="{StaticResource Caption}"
+                                               Margin="0,10,0,0" HorizontalAlignment="Right" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -862,5 +1079,10 @@
                 </Grid>
             </StackPanel>
         </Border>
+
+        <!-- In-window dialog layer: Dialogs.ConfirmAsync/InfoAsync present here, over
+             everything, instead of the Win32-gray MessageBox. -->
+        <ContentPresenter x:Name="DialogHost" Grid.RowSpan="99" Grid.ColumnSpan="99"
+                          Panel.ZIndex="9999" />
     </Grid>
 </ui:FluentWindow>

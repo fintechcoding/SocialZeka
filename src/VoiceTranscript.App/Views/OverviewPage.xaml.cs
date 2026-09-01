@@ -326,4 +326,30 @@ public partial class OverviewPage
         if ((sender as FrameworkElement)?.DataContext is CalendarPromise promise)
             Open(promise.CallId);
     }
+
+    // ---- the day's suggested actions ----------------------------------------
+
+    private DayAction? DayActionOf(object sender) =>
+        (sender as FrameworkElement)?.DataContext as DayAction;
+
+    private void DayAction_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (DayActionOf(sender) is { } row) Open(row.CallId);
+    }
+
+    private void DayActionDone_Click(object sender, RoutedEventArgs e)
+    {
+        if (DayActionOf(sender) is { } row)
+            ViewModel?.SetDayActionStatus(row, Core.Domain.ActionStatus.Done);
+
+        e.Handled = true;
+    }
+
+    private void DayActionHide_Click(object sender, RoutedEventArgs e)
+    {
+        if (DayActionOf(sender) is { } row)
+            ViewModel?.SetDayActionStatus(row, Core.Domain.ActionStatus.Hidden);
+
+        e.Handled = true;
+    }
 }

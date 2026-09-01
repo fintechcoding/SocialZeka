@@ -18,6 +18,21 @@
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica">
 
+    <ui:FluentWindow.InputBindings>
+        <!-- The keyboard layer: pages on Ctrl+1..6, palette on Ctrl+K, search on Ctrl+F,
+             refresh on F5 — the quiet definition of corporate software. -->
+        <KeyBinding Modifiers="Control" Key="K" Command="{Binding OpenPaletteCommand}" />
+        <KeyBinding Modifiers="Control" Key="D1" Command="{Binding NavigateCommand}" CommandParameter="Overview" />
+        <KeyBinding Modifiers="Control" Key="D2" Command="{Binding NavigateCommand}" CommandParameter="Ledger" />
+        <KeyBinding Modifiers="Control" Key="D3" Command="{Binding NavigateCommand}" CommandParameter="Contacts" />
+        <KeyBinding Modifiers="Control" Key="D4" Command="{Binding NavigateCommand}" CommandParameter="Search" />
+        <KeyBinding Modifiers="Control" Key="D5" Command="{Binding NavigateCommand}" CommandParameter="Ask" />
+        <KeyBinding Modifiers="Control" Key="D6" Command="{Binding NavigateCommand}" CommandParameter="Health" />
+        <KeyBinding Modifiers="Control" Key="F" Command="{Binding NavigateCommand}" CommandParameter="Search" />
+        <KeyBinding Key="F5" Command="{Binding RefreshAllCommand}" />
+        <KeyBinding Modifiers="Control" Key="OemQuestion" Command="{Binding ShowShortcutsCommand}" />
+    </ui:FluentWindow.InputBindings>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -174,7 +189,8 @@
 
                 <!-- Navigation -->
                 <StackPanel Grid.Row="1">
-                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}" IsChecked="True"
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Overview}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Overview">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="Home24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
@@ -183,6 +199,7 @@
                     </RadioButton>
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Ledger}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Ledger">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -201,6 +218,7 @@
                     </RadioButton>
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Contacts}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Contacts">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -216,6 +234,7 @@
 
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Search}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Search">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="Search24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
@@ -224,6 +243,7 @@
                     </RadioButton>
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Ask}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Ask">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="Chat24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
@@ -232,6 +252,7 @@
                     </RadioButton>
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Health}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Health">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="Pulse24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
@@ -243,6 +264,76 @@
                 <!-- Tools -->
                 <StackPanel Grid.Row="3">
                     <Border Style="{StaticResource Hairline}" Margin="4,0,4,10" />
+
+                    <!-- The bell: a missed toast is recoverable here. The badge counts what
+                         arrived while nobody was looking; opening the list clears it. -->
+                    <ui:Button x:Name="BellButton" HorizontalAlignment="Stretch" Appearance="Transparent"
+                               Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="14,9"
+                               Click="Bell_Click">
+                        <Grid HorizontalAlignment="Stretch">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Alert24" FontSize="16" Margin="0,0,12,0" />
+                                <TextBlock Text="Bildirimler" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Border Style="{StaticResource CountPill}" HorizontalAlignment="Right"
+                                    Visibility="{Binding HasUnseenNotices, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Style="{StaticResource CountPillText}" Text="{Binding UnseenNoticeCount}" />
+                            </Border>
+                        </Grid>
+                        <ui:Button.ContextMenu>
+                            <ContextMenu x:Name="BellMenu" Placement="Right" MaxWidth="420">
+                                <ContextMenu.Template>
+                                    <ControlTemplate TargetType="ContextMenu">
+                                        <Border Background="{DynamicResource FlyoutBackground}"
+                                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                BorderThickness="1" CornerRadius="8" Padding="8"
+                                                MaxHeight="420">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <StackPanel>
+                                                    <TextBlock Text="Son bildirimler" FontWeight="SemiBold"
+                                                               Margin="6,2,6,6" />
+                                                    <ItemsControl ItemsSource="{Binding NoticeHistory}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Grid Margin="6,4" MaxWidth="380">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <ui:SymbolIcon Grid.Column="0" Symbol="{Binding Icon}"
+                                                                                   FontSize="14" Margin="0,2,8,0"
+                                                                                   VerticalAlignment="Top" />
+                                                                    <TextBlock Grid.Column="1" Text="{Binding Message}"
+                                                                               TextWrapping="Wrap"
+                                                                               FontSize="{StaticResource TextSecondary}" />
+                                                                    <TextBlock Grid.Column="2" Text="{Binding When}"
+                                                                               Style="{StaticResource Caption}"
+                                                                               Margin="8,2,0,0" VerticalAlignment="Top" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <TextBlock Text="Henüz bildirim yok." Margin="6,4">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding NoticeHistory.Count}" Value="0">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </ControlTemplate>
+                                </ContextMenu.Template>
+                            </ContextMenu>
+                        </ui:Button.ContextMenu>
+                    </ui:Button>
 
                     <ui:Button HorizontalAlignment="Stretch" Appearance="Transparent" Margin="0,0,0,2"
                                HorizontalContentAlignment="Left" Padding="14,9" Click="Setup_Click">
@@ -369,5 +460,10 @@
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
+
+        <!-- In-window dialog layer: Dialogs.ConfirmAsync/InfoAsync present here, over
+             everything, instead of the Win32-gray MessageBox. -->
+        <ContentPresenter x:Name="DialogHost" Grid.RowSpan="99" Grid.ColumnSpan="99"
+                          Panel.ZIndex="9999" />
     </Grid>
 </ui:FluentWindow>

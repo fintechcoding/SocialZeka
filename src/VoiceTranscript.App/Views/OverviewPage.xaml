@@ -604,6 +604,47 @@
                             </ItemsControl>
                         </StackPanel>
 
+                        <!-- Machine suggestions, in their own captioned section UNDER the
+                             user's reminders — never mixed with them. Due first, then the
+                             last few days' undated ones; capped at five. -->
+                        <StackPanel Margin="0,12,0,0"
+                                    Visibility="{Binding HasDayActions, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="Önerilen aksiyonlar" Style="{StaticResource GroupHeader}" />
+                            <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,4"
+                                       Text="Görüşmelerden çıkarılan önerilerdir; onaylamadan hiçbir yere yazılmaz." />
+
+                            <ItemsControl ItemsSource="{Binding DayActions}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource SettingCard}" Padding="12,8" Margin="0,0,0,6"
+                                                Cursor="Hand" MouseLeftButtonUp="DayAction_Click"
+                                                ToolTip="İlgili görüşmeyi açar">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Line}" TextWrapping="Wrap"
+                                                               FontSize="{StaticResource TextSecondary}" />
+                                                    <TextBlock Text="{Binding DueText, StringFormat='vade: {0}'}"
+                                                               Style="{StaticResource Caption}"
+                                                               Visibility="{Binding DueText, Converter={StaticResource NullToCollapsed}}" />
+                                                </StackPanel>
+
+                                                <ui:Button Grid.Column="1" Content="Yaptım" Appearance="Transparent"
+                                                           Padding="8,2" Margin="4,0,0,0" Click="DayActionDone_Click" />
+                                                <ui:Button Grid.Column="2" Content="Gizle" Appearance="Transparent"
+                                                           Padding="8,2" Click="DayActionHide_Click" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
                         <StackPanel Margin="8,24" HorizontalAlignment="Center"
                                     Visibility="{Binding TodayIsEmpty, Converter={StaticResource BoolToVisibility}}">
                             <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="28" HorizontalAlignment="Center"

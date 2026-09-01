@@ -218,6 +218,19 @@ public sealed class MigrationTests : IDisposable
             note.CommandText = "SELECT COUNT(*) FROM consistency_note;";
             Assert.Equal(0L, note.ExecuteScalar());
         }
+
+        // v6: the action list and the model's reading arrived — by step here, by baseline for
+        // fresh files. Empty, because the machine has written nothing yet.
+        using (var connection = new Database(_path).Open())
+        {
+            using var actions = connection.CreateCommand();
+            actions.CommandText = "SELECT COUNT(*) FROM action_item;";
+            Assert.Equal(0L, actions.ExecuteScalar());
+
+            using var reading = connection.CreateCommand();
+            reading.CommandText = "SELECT COUNT(*) FROM reading_note;";
+            Assert.Equal(0L, reading.ExecuteScalar());
+        }
     }
 
     private bool ColumnExistsIn(string table, string column)

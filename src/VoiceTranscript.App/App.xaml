@@ -43,6 +43,7 @@
             <local:TagToIconConverter x:Key="TagIcon" />
             <local:TagToBrushConverter x:Key="TagBrush" />
             <local:SymbolFromNameConverter x:Key="SymbolFromName" />
+            <local:EqualsParameterConverter x:Key="IsPage" />
             <local:EqualToVisibilityConverter x:Key="EqualToVisibility" />
             <local:FilterToAppearanceConverter x:Key="FilterAppearance" />
 

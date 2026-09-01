@@ -80,6 +80,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         _consistencyModel = settings.ConsistencyModel ?? "";
         _consistencyUsesLedgerContext = settings.ConsistencyUsesLedgerContext;
         _consistencyOtherPartyOnly = settings.ConsistencyOtherPartyOnly;
+        _extractActions = settings.ExtractActions;
+        _themeChoice = settings.ThemeChoice ?? "system";
+        _commentaryEnabled = settings.CommentaryEnabled;
         _llmRemoteModel = settings.LlmRemoteModel ?? "";
         _llmBaseUrl = settings.LlmBaseUrl ?? "";
         _llmApiKey = settings.LlmApiKey ?? "";
@@ -296,6 +299,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _consistencyModel = "";
     [ObservableProperty] private bool _consistencyUsesLedgerContext = true;
     [ObservableProperty] private bool _consistencyOtherPartyOnly;
+    [ObservableProperty] private bool _extractActions = true;
+    [ObservableProperty] private string _themeChoice = "system";
+    [ObservableProperty] private bool _commentaryEnabled = true;
     [ObservableProperty] private string _llmRemoteModel;
     [ObservableProperty] private string _llmBaseUrl;
     [ObservableProperty] private string _llmApiKey;
@@ -628,6 +634,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         ConsistencyModel = ConsistencyModel.Trim(),
         ConsistencyUsesLedgerContext = ConsistencyUsesLedgerContext,
         ConsistencyOtherPartyOnly = ConsistencyOtherPartyOnly,
+        ExtractActions = ExtractActions,
+        ThemeChoice = ThemeChoice,
+        CommentaryEnabled = CommentaryEnabled,
         LlmProvider = SelectedProvider.Kind,
         LlmModelId = SelectedLlmModel.Id,
         LlmRemoteModel = string.IsNullOrWhiteSpace(LlmRemoteModel) ? null : LlmRemoteModel.Trim(),

@@ -454,6 +454,21 @@
                         <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,16" TextWrapping="Wrap"
                                    Text="{loc:T settingswindow.veriler-aciklama}" />
 
+                        <TextBlock Text="Görünüm" Style="{StaticResource GroupHeader}" Margin="0,0,0,4" />
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="Tema" FontSize="{StaticResource TextBody}" />
+                                <ComboBox SelectedValue="{Binding ThemeChoice}" SelectedValuePath="Tag"
+                                          Margin="0,8,0,0" HorizontalAlignment="Left" MinWidth="200">
+                                    <ComboBoxItem Content="Sistemi izle" Tag="system" />
+                                    <ComboBoxItem Content="Açık" Tag="light" />
+                                    <ComboBoxItem Content="Koyu" Tag="dark" />
+                                </ComboBox>
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Text="Sistemi izle, Windows'un açık/koyu ayarıyla birlikte değişir. Seçim kaydedince uygulanır; sistem-izleme değişikliği tam olarak yeniden başlatınca oturur." />
+                            </StackPanel>
+                        </Border>
+
                         <Border Style="{StaticResource SettingCard}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -1047,6 +1062,40 @@
                                                  IsChecked="{Binding ConsistencyOtherPartyOnly}" />
                             </Grid>
                         </Border>
+
+                        <TextBlock Text="Aksiyonlar ve okuma" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Görüşmeden aksiyon önerileri çıkar" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Çözümlemeyle birlikte, atman gereken adımları önerir. Yalnız öneridir — sen onaylamadan hiçbir yere yazılmaz." />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding ExtractActions}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Modelin okuması paneli" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Görüşme penceresinde, istek üzerine üretilen serbest yorum bölümü. Öznel bir okumadır ve öyle etiketlenir; kapatınca bölüm hiç görünmez." />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding CommentaryEnabled}" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- Export -->
@@ -1235,5 +1284,10 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- In-window dialog layer: Dialogs.ConfirmAsync/InfoAsync present here, over
+             everything, instead of the Win32-gray MessageBox. -->
+        <ContentPresenter x:Name="DialogHost" Grid.RowSpan="99" Grid.ColumnSpan="99"
+                          Panel.ZIndex="9999" />
     </Grid>
 </ui:FluentWindow>

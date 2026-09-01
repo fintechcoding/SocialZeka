@@ -468,6 +468,7 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
         OnPropertyChanged(nameof(TodayIsEmpty));
 
         BuildCalendar();
+        LoadDayActions();
     }
 
     // ---- the panel's verbs --------------------------------------------------
@@ -580,6 +581,33 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
     public void SelectCalendarDay(CalendarDay day)
         => SelectedCalendarDay = day.HasAnything ? day : null;
 
+    // ---- the day's suggested actions ---------------------------------------
+    //
+    // Machine suggestions, clearly captioned as such, in their own section UNDER the user's
+    // own reminders — never mixed with them. Due ones plus the last few days' undated ones.
+
+    public ObservableCollection<DayAction> DayActions { get; } = [];
+
+    public bool HasDayActions => DayActions.Count > 0;
+
+    private void LoadDayActions()
+    {
+        DayActions.Clear();
+
+        foreach (var (action, contactName) in repository.OpenActions(DateOnly.FromDateTime(DateTime.Today)))
+            DayActions.Add(new DayAction(action, contactName));
+
+        OnPropertyChanged(nameof(HasDayActions));
+    }
+
+    /// <summary>The user's verdict on a suggestion from the home screen.</summary>
+    public void SetDayActionStatus(DayAction row, ActionStatus status)
+    {
+        repository.SetActionStatus(row.Item.Id, status);
+        DayActions.Remove(row);
+        OnPropertyChanged(nameof(HasDayActions));
+    }
+
     private void BuildCalendar()
     {
         // Monday-first: the Turkish week starts there, and a calendar that disagrees with the
@@ -630,6 +658,20 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
             ? CalendarDays.FirstOrDefault(d => d.Date == picked.Date && d.HasAnything)
             : null;
     }
+}
+
+/// <summary>One suggested action on the home screen, with the person it concerns.</summary>
+public sealed record DayAction(ActionItem Item, string ContactName)
+{
+    public long CallId => Item.CallId;
+
+    public string Line => $"{Item.Action} — {ContactName}";
+
+    public bool IsDue => Item.DeadlineDate is { } day && day <= DateOnly.FromDateTime(DateTime.Today);
+
+    public string? DueText => Item.DeadlineDate is { } day
+        ? day.ToDateTime(TimeOnly.MinValue).ToString("d MMM")
+        : null;
 }
 
 /// <summary>One reminder as the calendar tells it: who, why, and the conversation it hangs on.</summary>

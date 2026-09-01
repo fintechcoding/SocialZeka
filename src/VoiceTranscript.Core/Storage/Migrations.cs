@@ -67,5 +67,40 @@ public static class Migrations
                 );
                 """,
             ]),
+
+        // v6 — the action layer and the reading panel. Suggestions for the user's next moves
+        // (quote-anchored, user-routed) and the model's stored free reading of a call.
+        new(6, "Aksiyon önerileri ve model okuması tabloları",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS action_item (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    call_id        INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+                    contact_id     INTEGER REFERENCES contact(id) ON DELETE CASCADE,
+                    action         TEXT    NOT NULL,
+                    reason         TEXT,
+                    kind           TEXT    NOT NULL DEFAULT 'diger',
+                    quote          TEXT    NOT NULL,
+                    quote_start_ms INTEGER NOT NULL DEFAULT 0,
+                    quote_is_me    INTEGER NOT NULL DEFAULT 0,
+                    deadline_raw   TEXT,
+                    deadline_date  TEXT,
+                    status         INTEGER NOT NULL DEFAULT 0,
+                    routed_note    TEXT,
+                    model_used     TEXT,
+                    created_at     TEXT    NOT NULL
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS ix_action_call ON action_item(call_id);",
+                "CREATE INDEX IF NOT EXISTS ix_action_open ON action_item(status, deadline_date);",
+                """
+                CREATE TABLE IF NOT EXISTS reading_note (
+                    call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+                    json       TEXT    NOT NULL,
+                    model_used TEXT,
+                    created_at TEXT    NOT NULL
+                );
+                """,
+            ]),
     ];
 }

@@ -90,7 +90,7 @@ public partial class ContactsPage
     /// its recording, and being able to reach it is the difference between "the audio is safe" and
     /// having to take the application's word for it.
     /// </summary>
-    private void ShowInFolder_Click(object sender, RoutedEventArgs e)
+    private async void ShowInFolder_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel?.SelectedCall is not { } row) return;
 
@@ -98,9 +98,8 @@ public partial class ContactsPage
 
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
-            MessageBox.Show(
-                "Bu görüşmenin ses dosyası bulunamadı. Kayıt tamamlanmamış olabilir.",
-                "Ses dosyası", MessageBoxButton.OK, MessageBoxImage.Information);
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Ses dosyası",
+                "Bu görüşmenin ses dosyası bulunamadı. Kayıt tamamlanmamış olabilir.");
             return;
         }
 
@@ -114,8 +113,8 @@ public partial class ContactsPage
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Klasör açılamadı: {ex.Message}", "Ses dosyası",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Ses dosyası",
+                $"Klasör açılamadı: {ex.Message}");
         }
     }
 
@@ -263,7 +262,7 @@ public partial class ContactsPage
     /// Useful after editing a name or dismissing a flag: the contact page is regenerated from
     /// the database each time, so exporting on demand is how the file catches up.
     /// </summary>
-    private void Export_Click(object sender, RoutedEventArgs e)
+    private async void Export_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel?.SelectedContact is not { } contact) return;
 
@@ -271,9 +270,8 @@ public partial class ContactsPage
 
         if (string.IsNullOrWhiteSpace(vault) || !Directory.Exists(vault))
         {
-            MessageBox.Show(
-                "Obsidian kasası ayarlanmamış. Ayarlar → Dışa aktarma bölümünden bir klasör seç.",
-                "Dışa aktarma", MessageBoxButton.OK, MessageBoxImage.Information);
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Dışa aktarma",
+                "Obsidian kasası ayarlanmamış. Ayarlar → Dışa aktarma bölümünden bir klasör seç.");
             return;
         }
 
@@ -282,13 +280,12 @@ public partial class ContactsPage
             var path = new ObsidianExporter(App.Repository, new ObsidianOptions { VaultPath = vault })
                 .ExportContact(contact.Contact.Id);
 
-            MessageBox.Show($"Yazıldı:\n{path}", "Dışa aktarma",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Dışa aktarma", $"Yazıldı:\n{path}");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Dışa aktarılamadı: {ex.Message}", "Dışa aktarma",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Dışa aktarma",
+                $"Dışa aktarılamadı: {ex.Message}");
         }
     }
 
@@ -300,20 +297,18 @@ public partial class ContactsPage
     /// the promise the product rests on: a "delete" that leaves audio on disk or words in a
     /// search index would not be deletion at all.
     /// </summary>
-    private void DeleteContact_Click(object sender, RoutedEventArgs e)
+    private async void DeleteContact_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is not { SelectedContact: { } contact } model) return;
 
-        var answer = MessageBox.Show(
+        var confirmed = await Services.Dialogs.ConfirmAsync(
+            Window.GetWindow(this), "Kişiyi sil",
             $"{contact.Name} ile ilgili her şey kalıcı olarak silinecek:\n\n" +
             "• ses kayıtları\n• görüşme metinleri\n• arama dizini\n• çıkarılmış olgular ve defter\n\n" +
             "Bu işlem geri alınamaz. Devam edilsin mi?",
-            "Kişiyi sil",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No);
+            okText: "Sil", cancelText: "Vazgeç");
 
-        if (answer != MessageBoxResult.Yes) return;
+        if (!confirmed) return;
 
         try
         {
@@ -330,13 +325,12 @@ public partial class ContactsPage
                   + "(dosya kullanımda olabilir):" + Environment.NewLine + Environment.NewLine
                   + string.Join(Environment.NewLine, result.FilesLeftBehind.Take(5));
 
-            MessageBox.Show(message, "Kişiyi sil", MessageBoxButton.OK,
-                result.IsComplete ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Kişiyi sil", message);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Silinemedi: {ex.Message}", "Kişiyi sil",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Kişiyi sil",
+                $"Silinemedi: {ex.Message}");
         }
     }
 

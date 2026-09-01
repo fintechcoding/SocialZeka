@@ -191,6 +191,10 @@ public partial class App : Application
 
         Settings = AppSettings.Load(Paths.SettingsFile);
 
+        // The boot default above followed Windows because nothing else was knowable yet; a
+        // saved Açık/Koyu choice overrides it the moment settings are readable.
+        ApplyTheme(Settings.ThemeChoice, window: null);
+
         // Before any window exists. The strings are resolved by a markup extension while the
         // markup is parsed, so a language chosen after a page has been built does not reach it —
         // which is why changing it asks for a restart rather than pretending to apply live.
@@ -338,8 +342,9 @@ public partial class App : Application
         // Watch after the window exists, not before: the watcher needs a window to hook, and
         // this application lives in the tray for weeks at a time, so it will be running when the
         // user switches Windows between light and dark — or when the scheduled switch does it
-        // for them at sunset.
-        Wpf.Ui.Appearance.SystemThemeWatcher.Watch(window);
+        // for them at sunset. A pinned Açık/Koyu skips the watcher on purpose: a deliberate
+        // choice must not be overturned by that scheduled switch.
+        ApplyTheme(Settings.ThemeChoice, window);
 
         // Reconciled on every start rather than only when the setting is changed.
         //
@@ -399,6 +404,35 @@ public partial class App : Application
     /// make somebody wait for their application, and it logs what it did — a sweep that removes
     /// recordings silently is indistinguishable from recordings going missing.
     /// </summary>
+    /// <summary>
+    /// Puts the chosen palette into effect. "system" follows Windows and keeps following it;
+    /// "light"/"dark" pin the palette and stop listening. Idempotent, so the settings screen
+    /// calls it on every save without caring what the previous choice was.
+    /// </summary>
+    /// <param name="window">
+    /// The window the system watcher hooks. Null before any window exists — the palette still
+    /// applies; only the live following waits for the main window.
+    /// </param>
+    internal static void ApplyTheme(string? choice, Window? window)
+    {
+        // Always detach first: Watch stacks hooks, and a pin must actually silence the watcher.
+        if (window is not null) Wpf.Ui.Appearance.SystemThemeWatcher.UnWatch(window);
+
+        switch (choice)
+        {
+            case "light":
+                Wpf.Ui.Appearance.ApplicationThemeManager.Apply(Wpf.Ui.Appearance.ApplicationTheme.Light);
+                break;
+            case "dark":
+                Wpf.Ui.Appearance.ApplicationThemeManager.Apply(Wpf.Ui.Appearance.ApplicationTheme.Dark);
+                break;
+            default:
+                Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
+                if (window is not null) Wpf.Ui.Appearance.SystemThemeWatcher.Watch(window);
+                break;
+        }
+    }
+
     private static async Task SweepOldAudioAsync()
     {
         try

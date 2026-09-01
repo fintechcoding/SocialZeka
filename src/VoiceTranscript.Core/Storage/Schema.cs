@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 5;
+    public const int Version = 6;
 
     public static readonly string[] Statements =
     [
@@ -277,6 +277,48 @@ public static class Schema
         CREATE TABLE IF NOT EXISTS consistency_note (
             call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
             note       TEXT    NOT NULL,
+            model_used TEXT,
+            created_at TEXT    NOT NULL
+        );
+        """,
+
+        // The model's proposed next moves for the USER, one row per suggestion. Machine-owned:
+        // suggestions never write into user spaces — routing to a reminder or the board happens
+        // only through the user's click, and a hidden suggestion stays hidden across re-runs.
+        // Every row is anchored to a verbatim, verified quote; unanchored suggestions never
+        // reach this table.
+        """
+        CREATE TABLE IF NOT EXISTS action_item (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id        INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+            contact_id     INTEGER REFERENCES contact(id) ON DELETE CASCADE,
+            action         TEXT    NOT NULL,
+            reason         TEXT,
+            kind           TEXT    NOT NULL DEFAULT 'diger',
+            quote          TEXT    NOT NULL,
+            quote_start_ms INTEGER NOT NULL DEFAULT 0,
+            quote_is_me    INTEGER NOT NULL DEFAULT 0,
+            deadline_raw   TEXT,
+            deadline_date  TEXT,
+
+            -- 0 open, 1 done, 2 hidden, 3 routed (to a reminder or the board).
+            status         INTEGER NOT NULL DEFAULT 0,
+            routed_note    TEXT,
+            model_used     TEXT,
+            created_at     TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_action_call ON action_item(call_id);",
+        "CREATE INDEX IF NOT EXISTS ix_action_open ON action_item(status, deadline_date);",
+
+        // The model's free-form reading of one conversation, stored as the JSON it produced.
+        // Deliberately a dead end in the data model: nothing joins on it, nothing feeds it to
+        // other prompts, nothing surfaces it outside the one panel beside the evidence — a
+        // subjective reading lives next to the transcript it read, and nowhere else.
+        """
+        CREATE TABLE IF NOT EXISTS reading_note (
+            call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+            json       TEXT    NOT NULL,
             model_used TEXT,
             created_at TEXT    NOT NULL
         );

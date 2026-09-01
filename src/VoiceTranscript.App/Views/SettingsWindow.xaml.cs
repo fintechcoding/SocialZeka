@@ -50,8 +50,7 @@ public partial class SettingsWindow
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Klasör açılamadı: {ex.Message}", "Veri klasörü",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            _ = Services.Dialogs.InfoAsync(this, "Veri klasörü", $"Klasör açılamadı: {ex.Message}");
         }
     }
 

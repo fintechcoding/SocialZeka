@@ -1289,3 +1289,60 @@ unutabiliyorlar, bunu da analiz etsin." + plan onayı. Ayrı-repo yönü kullan�
 - [x] **18.4 Testler:** PromiseSideTests (8) — OwnCommitmentsBetween süzgeçleri, Defter çift
   taraf + kendi-geciken önceliği, Genel bakış ayrık kartlar + Sen→ satırı, takvim noktası,
   bayrak taraf adı, prompt paragrafı, hatırlatıcı taslakları. Tam koşu 743/0.
+
+## 19. V2 Faz 2 — "Okuma + Aksiyon + UI Kuşağı" (v2.1.0)
+
+Kullanıcı: "sen tekrar plan yap yaratıcı da düşünebilirsin, ui'yi özellikle nasıl
+geliştireceğini planla, bir de bu yalan detect ai ile konuşmalardan yorum çıkarmak aksiyon
+çıkarmakla ilgili tüm fikirlerini ver" + soru-cevapla üç karar: yorum dozu TAM SERBEST
+YORUMCU; aksiyonlar öneri kartları + tek tık yönlendirme; bu parti v2.1.0, kanıt derinliği
+v2.2'ye; UI'de dört eksen birden. Plan onaylı.
+
+- [x] **19.A Modelin okuması (serbest yorum paneli):** yalnız istek üzerine ("Okumasını
+  iste"), ResolvedConsistencyModel ile; `reading_note` tablosu (şema v6, sil-yaz);
+  ZORLANAN ŞEKİL saklanır — üslup gözlemi ve risk maddesi alıntısı doğrulanamazsa DÜŞER,
+  risk tavanı 3, karşı-okuma (baska_okuma) zorunlu. İçerik kullanıcı tercihiyle serbest
+  (niyet/karakter İZLENİMİ "bana ... gibi görünüyor, çünkü ..." çerçevesinde); dürüstlük
+  yasakları kodda+prompt'ta: kesinlik dili yok, SES TONU iddiası yok (elinde yazı var),
+  yağcılık yok (simetri: BEN'in zaafları da yazılır), skor yok. Panel Tutarlılık'ın altında
+  farklı zeminde, sabit şapka "Öznel yorumdur, bulgu değildir" + model/tarih damgası;
+  bayraklara/Sor'a/başka prompt'lara asla sızmaz. Ayar: CommentaryEnabled (varsayılan açık).
+- [x] **19.B Aksiyon katmanı (onaylı öneri kartları):** çözümlemeyle otomatik küçük istek
+  (stage="action", ExtractActions ayarı) + elle "Aksiyonları çıkar"; `action_item` tablosu
+  (şema v6); alıntı doğrulanamayan öneri DÜŞER; kayıtlı taahhüdün yeniden söylenişi DÜŞER
+  (tur="takip" hariç); GİZLENEN (katlanmış eylem+alıntı) asla dirilmez; yeniden koşum yalnız
+  AÇIK satırları değiştirir (yapıldı/gizlendi/yönlendirildi kullanıcı tarihi); tavan 5;
+  tarih_ham → TurkishDates. Kart: tur ikonu + gerekçe + çalınabilir alıntı +
+  →Hatırlatıcı (sebep ön-dolu, kaydedilirse yönlendirildi) / →Önemliler / Yaptım / Gizle;
+  panel altyazısı "Öneridir — sen onaylamadan hiçbir yere yazılmaz". Genel bakış'ta "Günün
+  aksiyonları" (vadesi gelen + son 3 günün tarihsizleri, ≤5).
+- [x] **19.C1 Bildirim merkezi:** NoticeSeverity tipli önem KAYNAKTA (MainWindow'daki Türkçe
+  substring hack'i silindi); zil + CountPill rozeti + son 50 bildirim geçmişi; çözümleme
+  sonrası "Ne oldu?" tostu (kişi + deterministik aksiyon sayısı + ≤120 karakter özet;
+  hatada FailureText özeti). Dialogs.ConfirmAsync/InfoAsync (ContentDialog; DialogHost'suz
+  pencerede MessageBox yedeği) — 13 MessageBox sahası takas edildi.
+- [x] **19.C2 Komut paleti + klavye:** ActionRegistry (6 sayfa + kayıt başlat/durdur +
+  yenile; palet ve kısayollar AYNI listeyi okur); PaletteWindow (kromsuz, üst-üçte,
+  Deactivated/Esc kapatır, ok tuşları kutudan ayrılmadan gezer); kişi araması 2 harften
+  itibaren sonuçlara karışır; Türkçe katlamalı skor (önek 100 > içerir 50 > altdizi 10).
+  Ctrl+K palet, Ctrl+1..6 sayfalar (nav radio ↔ Page çift yönlü senkron), Ctrl+F arama,
+  F5 yenile, Ctrl+? kısayol örtüsü.
+- [x] **19.C3 Kişi akışı:** ContactWindow'a İLK sekme "Akış" — görüşme/not/bulgu/açık söz
+  (Sen/O)/aksiyon/hatırlatıcı tek azalan şeritte, ay başlıklı gruplar, 2px ray + tip renkli
+  nokta, satıra tıkla → görüşme penceresi. Şema değişikliği yok; mevcut sorgular birleşti.
+- [x] **19.C4 Tema:** Ayarlar > Görünüm > Tema (sistemi izle / açık / koyu);
+  AppSettings.ThemeChoice; App.ApplyTheme tek yol (açılışta, ayar kaydında) — "sistemi izle"
+  SystemThemeWatcher'ı bağlar, sabit seçim watcher'ı BİLEREK susturur (gün batımı zamanlaması
+  bilinçli seçimi ezemez); kayıtta canlı uygulanır.
+- [x] **19.D Testler (16 yeni; toplam 758/0):** ActionExtraction 6 (alıntısız düşer;
+  taahhüt kopyası düşer ama takip kalır; gizlenen dirilmez; yeniden koşum yalnız açıkları
+  değiştirir + çoğaltmaz; 6. öneri kırpılır; tarih_ham çözülür + stage=action kullanım);
+  ReadingAnalysis 5 (doğrulanamayan risk düşer + sayılır; SAKLANAN=zorlanan şekil, düşen
+  düşük kalır; risk tavanı 3; çözülmeyen alıntısız düz metne iner; stage=reading);
+  Palet 4 (önek/içerir/altdizi/boş sorgu + Türkçe katlama "isaret"↔"İşaretler");
+  migrasyon v6 (yükseltilen eski dosyada action_item + reading_note doğar).
+- Ertelenen (bilinçli): PaletteWindow markup smoke'u — WPF, gösterilmemiş pencereye Owner
+  atamayı reddettiği için gösterimsiz kurulamıyor; elle tur kapsıyor. Yoğunluk modu, 26 view
+  token taraması, pencere içi Ctrl+1..n, RowItem klavye-odak görseli, LabelCallWindow/
+  MergeContactWindow kalan 3 MessageBox'ı, App.xaml.cs açılış MessageBox'ları (8; pencere
+  yokken kaçınılmaz), ayar kartları + Ctrl+? içeriğinin loc:T taraması → V3 havuzunda.

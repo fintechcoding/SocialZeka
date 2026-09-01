@@ -29,11 +29,15 @@ public partial class MainWindow
                 previous.PropertyChanged -= OnShellPropertyChanged;
                 previous.Overview.ActionRequested -= OnAttentionAction;
                 previous.AiStatus.SettingsRequested -= OnSettingsRequested;
+                previous.PaletteRequested -= OnPaletteRequested;
+                previous.ShortcutsRequested -= OnShortcutsRequested;
             }
 
             if (e.NewValue is ShellViewModel next)
             {
                 next.PropertyChanged += OnShellPropertyChanged;
+                next.PaletteRequested += OnPaletteRequested;
+                next.ShortcutsRequested += OnShortcutsRequested;
 
                 // The three most prominent buttons on the first screen used to raise an event
                 // nobody listened to. Pressing "İsimlendir", "Tekrar dene" or "Ayarlar" did
@@ -250,6 +254,31 @@ public partial class MainWindow
         if (DataContext is ShellViewModel viewModel) viewModel.RefreshAll();
     }
 
+    private void OnPaletteRequested(object? sender, EventArgs e)
+    {
+        if (DataContext is ShellViewModel shell) Views.PaletteWindow.Open(this, shell);
+    }
+
+    private async void OnShortcutsRequested(object? sender, EventArgs e)
+        => await Services.Dialogs.InfoAsync(this, "Klavye kısayolları",
+            "Ctrl+K — komut paleti (komut ya da kişi ara)\n" +
+            "Ctrl+1…6 — sayfalar (Genel bakış, Defter, Kişiler, Arama, Sor, Durum)\n" +
+            "Ctrl+F — arama\n" +
+            "F5 — yenile\n" +
+            "F2 — kişiyi yeniden adlandır (Kişiler)\n" +
+            "Esc — pencereyi kapat\n" +
+            "Ctrl+? — bu liste");
+
+    /// <summary>Opens the notice history; whatever it holds counts as seen from here on.</summary>
+    private void Bell_Click(object sender, RoutedEventArgs e)
+    {
+        (DataContext as ShellViewModel)?.MarkNoticesSeen();
+
+        BellMenu.PlacementTarget = BellButton;
+        BellMenu.DataContext = DataContext;
+        BellMenu.IsOpen = true;
+    }
+
     private void Setup_Click(object sender, RoutedEventArgs e)
     {
         App.ShowSetup(this);
@@ -315,6 +344,10 @@ public partial class MainWindow
         // Applied here rather than only at the next start, because a switch that does nothing
         // until you reboot is one nobody can tell they have actually thrown.
         Services.AutoStart.Apply(App.Settings.StartWithWindows);
+
+        // The theme too — and through the same helper the start-up path uses, so switching back
+        // to "sistemi izle" re-attaches the watcher instead of leaving a pinned palette behind.
+        App.ApplyTheme(App.Settings.ThemeChoice, this);
 
         // The tray tick and the settings page are two views of one switch and have to agree.
         SyncAutoRecordMenu();
@@ -429,21 +462,30 @@ public partial class MainWindow
         if (e.PropertyName != nameof(ShellViewModel.Notice)) return;
         if (DataContext is not ShellViewModel model || model.Notice is not { } message) return;
 
-        var isProblem = model.HasProblem
-                        || message.Contains("başarısız")
-                        || message.Contains("gelmedi")
-                        || message.Contains("edilemedi");
+        // Severity arrives with the message now — the substring guess this replaced styled a
+        // failure as information the first time one was phrased politely.
+        var severity = model.NoticeSeverity;
+
+        var (title, appearance, icon) = severity switch
+        {
+            Services.NoticeSeverity.Success => ("Tamamlandı",
+                Wpf.Ui.Controls.ControlAppearance.Success, Wpf.Ui.Controls.SymbolRegular.CheckmarkCircle24),
+            Services.NoticeSeverity.Warning => ("Dikkat",
+                Wpf.Ui.Controls.ControlAppearance.Caution, Wpf.Ui.Controls.SymbolRegular.Warning24),
+            Services.NoticeSeverity.Error => ("Hata",
+                Wpf.Ui.Controls.ControlAppearance.Danger, Wpf.Ui.Controls.SymbolRegular.DismissCircle24),
+            _ => ("Bilgi",
+                Wpf.Ui.Controls.ControlAppearance.Secondary, Wpf.Ui.Controls.SymbolRegular.Info24),
+        };
 
         var snackbar = new Wpf.Ui.Controls.Snackbar(Notices)
         {
-            Title = isProblem ? "Dikkat" : "Bilgi",
+            Title = title,
             Content = message,
-            Appearance = isProblem
-                ? Wpf.Ui.Controls.ControlAppearance.Caution
-                : Wpf.Ui.Controls.ControlAppearance.Secondary,
-            Icon = new Wpf.Ui.Controls.SymbolIcon(
-                isProblem ? Wpf.Ui.Controls.SymbolRegular.Warning24 : Wpf.Ui.Controls.SymbolRegular.Info24),
-            Timeout = TimeSpan.FromSeconds(isProblem ? 10 : 5),
+            Appearance = appearance,
+            Icon = new Wpf.Ui.Controls.SymbolIcon(icon),
+            Timeout = TimeSpan.FromSeconds(
+                severity is Services.NoticeSeverity.Warning or Services.NoticeSeverity.Error ? 10 : 5),
         };
 
         snackbar.Show();

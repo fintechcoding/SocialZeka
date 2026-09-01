@@ -8,6 +8,39 @@ using VoiceTranscript.Core.Storage;
 namespace VoiceTranscript.App.ViewModels;
 
 /// <summary>One of this person's conversations, as the window lists it.</summary>
+/// <summary>
+/// One moment on the person's timeline, whatever produced it — a call, a note, a finding, a
+/// reminder, a suggested action. One stream answers "bu kişiyle nerede kalmıştık" in a single
+/// scroll instead of four tabs.
+/// </summary>
+public sealed record FlowEvent(
+    DateTimeOffset When, string Kind, string Title, string? Detail, long? CallId)
+{
+    public string Month => When.ToLocalTime().ToString("MMMM yyyy");
+
+    public string WhenText => When.ToLocalTime().ToString("d MMM, HH:mm");
+
+    public Wpf.Ui.Controls.SymbolRegular Icon => Kind switch
+    {
+        "not" => Wpf.Ui.Controls.SymbolRegular.Note24,
+        "bulgu" => Wpf.Ui.Controls.SymbolRegular.Flag24,
+        "hatirlatma" => Wpf.Ui.Controls.SymbolRegular.Clock24,
+        "aksiyon" => Wpf.Ui.Controls.SymbolRegular.ArrowRight24,
+        "soz" => Wpf.Ui.Controls.SymbolRegular.ClipboardTaskListLtr24,
+        _ => Wpf.Ui.Controls.SymbolRegular.Call24,
+    };
+
+    public string DotBrushKey => Kind switch
+    {
+        "bulgu" => "SystemFillColorCautionBrush",
+        "hatirlatma" => "SystemFillColorCriticalBrush",
+        "aksiyon" or "soz" => "AccentTextFillColorPrimaryBrush",
+        _ => "TextFillColorTertiaryBrush",
+    };
+
+    public bool HasDetail => !string.IsNullOrWhiteSpace(Detail);
+}
+
 public sealed record ContactCall(
     Call Call, int SegmentCount, bool HasNote, int LedgerEntries, IReadOnlyList<string> Tags,
     DateOnly? RemindOn = null)
@@ -237,6 +270,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         LoadProfile();
         LoadCalls();
         LoadLedger();
+        LoadFlow();
     }
 
     private void LoadProfile()
@@ -515,6 +549,75 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(HasCalls));
+    }
+
+    // ---- the flow: everything with this person, one descending stream -------
+
+    public ObservableCollection<FlowEvent> Flow { get; } = [];
+
+    public System.ComponentModel.ICollectionView? FlowView { get; private set; }
+
+    public bool HasFlow => Flow.Count > 0;
+
+    private void LoadFlow()
+    {
+        Flow.Clear();
+
+        var names = new Dictionary<long, DateTimeOffset>();
+
+        foreach (var call in _repository.ListCalls(ContactId, limit: 200))
+        {
+            names[call.Id] = call.StartedAt;
+
+            Flow.Add(new FlowEvent(
+                call.StartedAt, "gorusme",
+                $"Görüşme · {(int)call.Duration.TotalMinutes:00}:{call.Duration.Seconds:00}",
+                null, call.Id));
+
+            if (_repository.GetNote(call.Id) is { Length: > 0 } note)
+                Flow.Add(new FlowEvent(call.StartedAt, "not", "Not", note, call.Id));
+        }
+
+        DateTimeOffset At(long callId) =>
+            names.TryGetValue(callId, out var when) ? when : DateTimeOffset.MinValue;
+
+        foreach (var flag in _repository.GetFlags(ContactId))
+            Flow.Add(new FlowEvent(At(flag.CallId), "bulgu", flag.Summary, flag.Quote, flag.CallId));
+
+        foreach (var commitment in _repository.GetOpenCommitments(ContactId))
+        {
+            var who = commitment.ByMe ? "Sen" : "O";
+            Flow.Add(new FlowEvent(
+                At(commitment.CallId), "soz",
+                $"Söz ({who}): {commitment.Obligation}", commitment.Quote, commitment.CallId));
+        }
+
+        foreach (var callId in names.Keys)
+        {
+            foreach (var action in _repository.ActionsOf(callId, includeClosed: false))
+                Flow.Add(new FlowEvent(At(callId), "aksiyon", $"Öneri: {action.Action}",
+                    action.Reason, callId));
+        }
+
+        var reminders = _repository.RemindersOf(names.Keys);
+        foreach (var (callId, day) in reminders)
+        {
+            Flow.Add(new FlowEvent(
+                day.ToDateTime(TimeOnly.MinValue), "hatirlatma",
+                $"Hatırlatma · {day:d MMMM yyyy}", null, callId));
+        }
+
+        var sorted = Flow.OrderByDescending(f => f.When).ToList();
+        Flow.Clear();
+        foreach (var item in sorted) Flow.Add(item);
+
+        var view = new System.Windows.Data.ListCollectionView(Flow);
+        view.GroupDescriptions.Add(
+            new System.Windows.Data.PropertyGroupDescription(nameof(FlowEvent.Month)));
+        FlowView = view;
+
+        OnPropertyChanged(nameof(FlowView));
+        OnPropertyChanged(nameof(HasFlow));
     }
 
     private void LoadLedger()

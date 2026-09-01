@@ -324,6 +324,9 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
                     Flags.Add(f);
         }
 
+        LoadActions();
+        LoadReading();
+
         // The consistency section's own rows — split from the ledger's flags because the two
         // come from different runs, clear separately, and answer different clicks. Reloaded
         // here so reopening the window brings a past run's findings and note back.
@@ -713,6 +716,160 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         }
     }
 
+    // ---- suggested actions --------------------------------------------------
+    //
+    // The user's proposed next moves, machine-suggested and user-routed. Open rows only:
+    // done/hidden/routed suggestions are the user's history with the list, not display.
+
+    public ObservableCollection<ActionRow> Actions { get; } = [];
+
+    [ObservableProperty] private bool _isExtractingActions;
+    [ObservableProperty] private string? _actionsMessage;
+
+    public bool HasActions => Actions.Count > 0;
+
+    private void LoadActions()
+    {
+        Actions.Clear();
+        foreach (var action in _repository.ActionsOf(CallId, includeClosed: false))
+            Actions.Add(new ActionRow(action));
+
+        OnPropertyChanged(nameof(HasActions));
+    }
+
+    /// <summary>The user's verdict on one suggestion, applied and reflected immediately.</summary>
+    public void SetActionStatus(ActionRow row, ActionStatus status, string? note = null)
+    {
+        _repository.SetActionStatus(row.Item.Id, status, note);
+        Actions.Remove(row);
+        OnPropertyChanged(nameof(HasActions));
+    }
+
+    [RelayCommand]
+    private async Task ExtractActionsAsync(CancellationToken cancellationToken)
+    {
+        if (IsExtractingActions) return;
+
+        var settings = _settings();
+
+        if (!settings.LlmReachableInPrinciple)
+        {
+            ActionsMessage = "Bağlı bir yapay zekâ servisi yok. Ayarlar → Çözümleme bölümünden bir sağlayıcı seç.";
+            return;
+        }
+
+        IsExtractingActions = true;
+        ActionsMessage = null;
+
+        try
+        {
+            var client = LlmClientFactory.Create(
+                _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
+
+            var report = await new ActionExtraction(client, _repository).RunAsync(
+                CallId, settings.ResolvedModelName, cancellationToken);
+
+            if (!report.Ok)
+            {
+                ActionsMessage = report.Problem;
+                return;
+            }
+
+            LoadActions();
+
+            ActionsMessage = report.Actions.Count == 0
+                ? "Aksiyon çıkmadı — sıradan bir konuşmada bu olağandır."
+                : report.RejectedCount > 0
+                    ? $"{report.RejectedCount} öneri, alıntısı dökümde bulunamadığı için elendi."
+                    : null;
+        }
+        catch (Exception e)
+        {
+            ActionsMessage = $"Çıkarılamadı: {e.Message}";
+        }
+        finally
+        {
+            IsExtractingActions = false;
+        }
+    }
+
+    // ---- the model's reading ------------------------------------------------
+    //
+    // The one deliberately subjective surface, at the user's explicit request. Lives here
+    // and nowhere else: never fed to other prompts, never written into evidence tables.
+
+    [ObservableProperty] private ReadingReport? _reading;
+    [ObservableProperty] private string? _readingStamp;
+    [ObservableProperty] private string? _readingProblem;
+    [ObservableProperty] private bool _isReadingRunning;
+
+    public bool HasReading => Reading is { Ok: true };
+
+    public bool CommentaryEnabled => _settings().CommentaryEnabled;
+
+    private void LoadReading()
+    {
+        if (_repository.GetReading(CallId) is { } stored
+            && ReadingAnalysis.FromStored(stored.Json) is { } report)
+        {
+            Reading = report;
+            ReadingStamp = $"{stored.ModelUsed ?? "model"} · {stored.CreatedAt.ToLocalTime():d MMMM yyyy}";
+        }
+        else
+        {
+            Reading = null;
+            ReadingStamp = null;
+        }
+
+        OnPropertyChanged(nameof(HasReading));
+        OnPropertyChanged(nameof(CommentaryEnabled));
+    }
+
+    [RelayCommand]
+    private async Task RunReadingAsync(CancellationToken cancellationToken)
+    {
+        if (IsReadingRunning) return;
+
+        var settings = _settings();
+
+        if (!settings.LlmReachableInPrinciple)
+        {
+            ReadingProblem = "Bağlı bir yapay zekâ servisi yok. Ayarlar → Çözümleme bölümünden bir sağlayıcı seç.";
+            return;
+        }
+
+        IsReadingRunning = true;
+        ReadingProblem = null;
+
+        try
+        {
+            var client = LlmClientFactory.Create(
+                _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
+
+            var model = settings.ResolvedConsistencyModel;
+            var report = await new ReadingAnalysis(client, _repository).RunAsync(
+                CallId, model, cancellationToken);
+
+            if (!report.Ok)
+            {
+                ReadingProblem = report.Problem;
+                return;
+            }
+
+            Reading = report;
+            ReadingStamp = $"{model} · {DateTime.Now:d MMMM yyyy}";
+            OnPropertyChanged(nameof(HasReading));
+        }
+        catch (Exception e)
+        {
+            ReadingProblem = $"Okuma tamamlanamadı: {e.Message}";
+        }
+        finally
+        {
+            IsReadingRunning = false;
+        }
+    }
+
     // ---- notes --------------------------------------------------------------
 
     /// <summary>
@@ -731,6 +888,42 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     partial void OnNoteChanged(string value) => NoteSaved = false;
 
     public void Dispose() => Playback.Dispose();
+}
+
+/// <summary>One suggested action, dressed for the screen.</summary>
+public sealed record ActionRow(ActionItem Item)
+{
+    public string Action => Item.Action;
+    public string? Reason => Item.Reason;
+
+    public Wpf.Ui.Controls.SymbolRegular KindIcon => Item.Kind switch
+    {
+        "yazili_teyit" => Wpf.Ui.Controls.SymbolRegular.DocumentCheckmark24,
+        "gonderme" => Wpf.Ui.Controls.SymbolRegular.Send24,
+        "soru" => Wpf.Ui.Controls.SymbolRegular.QuestionCircle24,
+        "takip" => Wpf.Ui.Controls.SymbolRegular.Clock24,
+        "hazirlik" => Wpf.Ui.Controls.SymbolRegular.ClipboardTaskListLtr24,
+        _ => Wpf.Ui.Controls.SymbolRegular.ArrowRight24,
+    };
+
+    public string KindLabel => Item.Kind switch
+    {
+        "yazili_teyit" => "yazılı teyit",
+        "gonderme" => "gönderme",
+        "soru" => "soru",
+        "takip" => "takip",
+        "hazirlik" => "hazırlık",
+        _ => "adım",
+    };
+
+    public bool HasDeadline => Item.DeadlineDate is not null || Item.DeadlineRaw is not null;
+
+    public string DeadlineText => Item.DeadlineDate is { } day
+        ? day.ToDateTime(TimeOnly.MinValue).ToString("d MMMM")
+        : Item.DeadlineRaw ?? "";
+
+    /// <summary>The anchoring words, playable via the existing excerpt path.</summary>
+    public Excerpt Quote => new(0, Item.CallId, null, default, Item.QuoteStartMs, Item.QuoteIsMe, Item.Quote);
 }
 
 /// <summary>

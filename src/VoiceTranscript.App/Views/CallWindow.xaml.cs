@@ -109,7 +109,7 @@ public partial class CallWindow
     /// somebody, so the user is choosing where to put something they are about to share, and being
     /// asked is what makes that a decision rather than a side effect.
     /// </summary>
-    private void ExportExchange_Click(object sender, RoutedEventArgs e)
+    private async void ExportExchange_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: ChatTurn turn, Tag: string tag }) return;
         if (ViewModel is not { } model) return;
@@ -132,8 +132,7 @@ public partial class CallWindow
         var result = exporter.ExportExchange(
             model.CallId, from, to, dialog.FileName, model.ContactName);
 
-        MessageBox.Show(result.Message, "Ses kesiti", MessageBoxButton.OK,
-            result.Ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        await Services.Dialogs.InfoAsync(this, "Ses kesiti", result.Message);
 
         Services.AppLog.Write(
             "kesit", result.Ok ? "görüşmeden kesit yazıldı" : $"kesit alınamadı: {result.Message}");
@@ -309,5 +308,52 @@ public partial class CallWindow
         if (ViewModel is not { } model) return;
 
         RemindWindow.Open(this, App.Repository, model.CallId, model.Title, row.ReminderDraft);
+    }
+
+    // ---- suggested actions: the user routes, the machine never writes -------
+
+    private ActionRow? ActionOf(object sender) =>
+        (sender as FrameworkElement)?.DataContext as ActionRow;
+
+    /// <summary>Suggestion → reminder: the dialog opens with the action as the drafted reason.</summary>
+    private void ActionRemind_Click(object sender, RoutedEventArgs e)
+    {
+        if (ActionOf(sender) is not { } row || ViewModel is not { } model) return;
+
+        RemindWindow.Open(this, App.Repository, model.CallId, model.Title, row.Action);
+        model.SetActionStatus(row, Core.Domain.ActionStatus.Routed, "hatırlatıcı");
+    }
+
+    /// <summary>Suggestion → the important pile. Existing card titles are never overwritten.</summary>
+    private void ActionBoard_Click(object sender, RoutedEventArgs e)
+    {
+        if (ActionOf(sender) is not { } row || ViewModel is not { } model) return;
+
+        var existing = App.Repository.BoardCardOf(model.CallId);
+        App.Repository.PutOnBoard(
+            model.CallId, Core.Domain.BoardLane.ToLookAt,
+            title: existing?.Title is null ? row.Action : null);
+
+        model.SetActionStatus(row, Core.Domain.ActionStatus.Routed, "önemliler");
+    }
+
+    private void ActionDone_Click(object sender, RoutedEventArgs e)
+    {
+        if (ActionOf(sender) is { } row) ViewModel?.SetActionStatus(row, Core.Domain.ActionStatus.Done);
+    }
+
+    private void ActionHide_Click(object sender, RoutedEventArgs e)
+    {
+        if (ActionOf(sender) is { } row) ViewModel?.SetActionStatus(row, Core.Domain.ActionStatus.Hidden);
+    }
+
+    /// <summary>A reading line's quote plays when it verified — and only then carries a link.</summary>
+    private void ReadingQuote_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not Core.Analysis.ReadingLine line) return;
+        if (line.StartMs is not { } at || ViewModel is not { } model) return;
+
+        model.PlayExcerptCommand.Execute(
+            new Excerpt(0, model.CallId, null, default, at, line.IsMe, line.Quote ?? ""));
     }
 }

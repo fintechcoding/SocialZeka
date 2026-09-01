@@ -31,16 +31,14 @@ public partial class HealthPage
             // Asked plainly, because a restore from the wrong file is the one mistake here that
             // somebody would really regret. The current data is kept either way, and saying so
             // is what makes the answer easy to give.
-            var answer = MessageBox.Show(
+            var confirmed = await Services.Dialogs.ConfirmAsync(
+                Window.GetWindow(this), "Yedekten geri yükle",
                 "Bu yedek uygulama yeniden başlatıldığında yerine konacak.\n\n" +
                 "Şu anki verilerin silinmeyecek; yanında bir klasöre alınacak, " +
                 "böylece yanlış dosya seçtiysen geri dönebilirsin.\n\nDevam edilsin mi?",
-                "Yedekten geri yükle",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question,
-                MessageBoxResult.Yes);
+                okText: "Geri yükle");
 
-            if (answer != MessageBoxResult.Yes) return;
+            if (!confirmed) return;
         }
 
         await model.RunDataActionAsync(request, path);
@@ -144,17 +142,15 @@ public partial class HealthPage
     /// before reproducing a fault is how you get a log about one thing rather than three days of
     /// unrelated history.
     /// </summary>
-    private void ClearLog_Click(object sender, RoutedEventArgs e)
+    private async void ClearLog_Click(object sender, RoutedEventArgs e)
     {
-        var answer = MessageBox.Show(
+        var confirmed = await Services.Dialogs.ConfirmAsync(
+            Window.GetWindow(this), "Günlüğü temizle",
             "Günlük dosyaları silinecek. Bu, uygulamanın ne yaptığının tek kaydı — bildirmek "
             + "istediğin bir hata varsa önce \"Günlüğü kopyala\" ile al.\n\nDevam edilsin mi?",
-            "Günlüğü temizle",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No);
+            okText: "Temizle");
 
-        if (answer != MessageBoxResult.Yes) return;
+        if (!confirmed) return;
 
         var (removed, kept) = Services.AppLog.Clear();
 

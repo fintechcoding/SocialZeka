@@ -1448,6 +1448,26 @@ public sealed class CallOrchestrator : IDisposable
 
         _repository.SetCallState(callId, ProcessingState.Analysed);
 
+        // The user's proposed next moves — cheap, quote-anchored, suggestions only. Failure
+        // never fails the call: the ledger is already saved.
+        if (settings.ExtractActions)
+        {
+            try
+            {
+                var actions = await new Core.Analysis.ActionExtraction(client, _repository).RunAsync(
+                    callId, settings.ResolvedModelName, cancellationToken);
+
+                AppLog.Write("aksiyon", actions.Ok
+                    ? $"görüşme #{callId} · {actions.Actions.Count} öneri"
+                      + (actions.RejectedCount > 0 ? $" · {actions.RejectedCount} alıntı elendi" : "")
+                    : $"görüşme #{callId} · çıkarılamadı: {actions.Problem}");
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                AppLog.Error("aksiyon", e, $"görüşme #{callId} aksiyon çıkarımı başarısız");
+            }
+        }
+
         // The consistency check, when the user opted into paying for it on every analysis.
         // A failure here never fails the call: the ledger is already built and saved, and a
         // secondary read that could not run is a notice, not a processing failure.
