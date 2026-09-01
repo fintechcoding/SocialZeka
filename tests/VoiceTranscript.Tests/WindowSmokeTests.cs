@@ -191,6 +191,24 @@ public class WindowSmokeTests
                         RestorePending = false,
                     }), failures);
 
+                // The theme entry point, against a window that was constructed but never shown —
+                // exactly the state it meets on every start and from the tray's settings entry.
+                // v2.1.0 shipped a crash here: UnWatch refuses a window that has not loaded, and
+                // only a real unloaded window catches that class of precondition. Every choice,
+                // twice each, because the second call meets an already-applied state; "light"
+                // last so the shared Application resources end where the other builds began.
+                Build("Tema (yüklenmemiş pencereyle)", () =>
+                {
+                    var themed = new App.MainWindow();
+                    foreach (var choice in new[] { "system", "dark", null, "light" })
+                    {
+                        App.App.ApplyTheme(choice, themed);
+                        App.App.ApplyTheme(choice, themed);
+                    }
+
+                    return themed;
+                }, failures);
+
                 database.ClearPool();
 
                 try

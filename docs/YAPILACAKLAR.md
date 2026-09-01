@@ -1346,3 +1346,28 @@ v2.2'ye; UI'de dört eksen birden. Plan onaylı.
   token taraması, pencere içi Ctrl+1..n, RowItem klavye-odak görseli, LabelCallWindow/
   MergeContactWindow kalan 3 MessageBox'ı, App.xaml.cs açılış MessageBox'ları (8; pencere
   yokken kaçınılmaz), ayar kartları + Ctrl+? içeriğinin loc:T taraması → V3 havuzunda.
+
+## 20. 1 Eylül — v2.1.0 canlı testinden: başlangıç çökmesi (v2.1.1)
+
+Kullanıcı ekran görüntüsü: "You cannot unwatch a window that is not yet loaded."
+
+- [x] **20.1 Tema başlangıç çökmesi (KRİTİK):** App.ApplyTheme, OnStartup'ta pencere daha
+  gösterilmeden SystemThemeWatcher.UnWatch çağırıyordu; WPF-UI 4.3 yüklenmemiş pencerede
+  fırlatıyor (kaynak koddan doğrulandı, 4.3.0 etiketi). Hata sözlükçe yakalanıp kutu
+  gösteriliyor ama OnStartup o satırda KESİLİYORDU: pencere.Show, kurulum sihirbazı,
+  ORKESTRATÖR (yani kayıt!), süpürme ve güncelleme denetimi hiç çalışmıyordu. Düzeltme:
+  ApplyTheme yüklenmemiş pencerede paleti hemen uygular, kanca kararını Loaded'a erteler
+  (kendini söken işleyici, o anki ayarı okur — gizliyken yapılan sabit seçim kazanır);
+  _watchingSystemTheme bayrağı yalnız bizim taktığımızı söktürür ve çift kancayı önler
+  (WPF-UI'nin Watch'u idempotent DEĞİL: iki çağrı = iki WndProc kancası, tek UnWatch birini
+  bırakır — kaynaktan doğrulandı). Regresyon testi: WindowSmokeTests gösterilmemiş gerçek
+  pencereyle dört seçimi ikişer kez uyguluyor; şimle kırmızı koşuldu (birebir aynı mesajla
+  düştü), düzeltmeyle yeşil.
+- [x] **20.2 Sınıf taraması (ajanlı, tüm src):** 20+ Owner ataması, tüm Watch/UnWatch/
+  interop siteleri izlendi. Bulunanlar: OpenSettings'teki korumasız `Owner = this` bugün
+  erişilemez ama tepsiye "Ayarlar" eklenirse patlar → koddaki `IsVisible ? this : null`
+  kalıbına çekildi; OpenSearchForTag Show'suz Activate — görüşme penceresinden etiket
+  tıklanınca ana pencere gizliyse HİÇBİR ŞEY görünmüyordu → Show + Normal + Activate.
+  Güvenli çıkanlar: LabelCallWindow/UpdateWindow/SetupWindow (zaten korumalı),
+  RemindWindow/PaletteWindow (yalnız görünür pencereden erişilebilir), Ctrl+K pencere-içi
+  KeyBinding (global kısayol yok).

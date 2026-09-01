@@ -397,13 +397,9 @@ public partial class App : Application
         _ = Task.Run(() => CheckForUpdateAsync(window));
     }
 
-    /// <summary>
-    /// Deletes audio past the retention period, keeping everything derived from it.
-    ///
-    /// It runs after startup rather than during it, because deleting files is never a reason to
-    /// make somebody wait for their application, and it logs what it did — a sweep that removes
-    /// recordings silently is indistinguishable from recordings going missing.
-    /// </summary>
+    /// <summary>True while the system-theme watcher is hooked into the main window.</summary>
+    private static bool _watchingSystemTheme;
+
     /// <summary>
     /// Puts the chosen palette into effect. "system" follows Windows and keeps following it;
     /// "light"/"dark" pin the palette and stop listening. Idempotent, so the settings screen
@@ -413,26 +409,64 @@ public partial class App : Application
     /// The window the system watcher hooks. Null before any window exists — the palette still
     /// applies; only the live following waits for the main window.
     /// </param>
-    internal static void ApplyTheme(string? choice, Window? window)
+    public static void ApplyTheme(string? choice, Window? window)
     {
-        // Always detach first: Watch stacks hooks, and a pin must actually silence the watcher.
-        if (window is not null) Wpf.Ui.Appearance.SystemThemeWatcher.UnWatch(window);
+        var pinned = choice is "light" or "dark";
 
-        switch (choice)
+        if (pinned)
         {
-            case "light":
-                Wpf.Ui.Appearance.ApplicationThemeManager.Apply(Wpf.Ui.Appearance.ApplicationTheme.Light);
-                break;
-            case "dark":
-                Wpf.Ui.Appearance.ApplicationThemeManager.Apply(Wpf.Ui.Appearance.ApplicationTheme.Dark);
-                break;
-            default:
-                Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
-                if (window is not null) Wpf.Ui.Appearance.SystemThemeWatcher.Watch(window);
-                break;
+            Wpf.Ui.Appearance.ApplicationThemeManager.Apply(choice is "dark"
+                ? Wpf.Ui.Appearance.ApplicationTheme.Dark
+                : Wpf.Ui.Appearance.ApplicationTheme.Light);
+        }
+        else
+        {
+            Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
+        }
+
+        if (window is null) return;
+
+        // The watcher only ever touches a loaded window. UnWatch throws on one that has never
+        // been shown — the state this method meets on every start, and from the tray's settings
+        // entry when the main window has never been opened. So on an unloaded window the palette
+        // applies now and the hook decision waits for Loaded, which re-reads whatever the choice
+        // is by then — a pin made while the window was hidden must win over the deferred hook.
+        if (!window.IsLoaded)
+        {
+            window.Loaded -= ReapplyThemeOnLoaded;
+            window.Loaded += ReapplyThemeOnLoaded;
+            return;
+        }
+
+        // Detach before deciding: switching to a pin must actually silence the watcher, and
+        // re-choosing "system" must not stack a second hook. Only what was hooked is unhooked.
+        if (_watchingSystemTheme)
+        {
+            Wpf.Ui.Appearance.SystemThemeWatcher.UnWatch(window);
+            _watchingSystemTheme = false;
+        }
+
+        if (!pinned)
+        {
+            Wpf.Ui.Appearance.SystemThemeWatcher.Watch(window);
+            _watchingSystemTheme = true;
         }
     }
 
+    private static void ReapplyThemeOnLoaded(object sender, RoutedEventArgs e)
+    {
+        var window = (Window)sender;
+        window.Loaded -= ReapplyThemeOnLoaded;
+        ApplyTheme(Settings.ThemeChoice, window);
+    }
+
+    /// <summary>
+    /// Deletes audio past the retention period, keeping everything derived from it.
+    ///
+    /// It runs after startup rather than during it, because deleting files is never a reason to
+    /// make somebody wait for their application, and it logs what it did — a sweep that removes
+    /// recordings silently is indistinguishable from recordings going missing.
+    /// </summary>
     private static async Task SweepOldAudioAsync()
     {
         try

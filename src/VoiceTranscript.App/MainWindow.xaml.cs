@@ -314,6 +314,11 @@ public partial class MainWindow
         shell.Search.Query = "";
         shell.Search.TagChoice = tag;
 
+        // The pill can be clicked from a call window while this window sits hidden in the tray —
+        // Activate() alone on a hidden window returns false and the navigation lands nowhere
+        // the user can see.
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
     }
 
@@ -324,7 +329,10 @@ public partial class MainWindow
     public void OpenSettings(string? section = null)
     {
         var viewModel = new SettingsViewModel(App.Settings, App.Paths, App.HttpClient);
-        var dialog = new SettingsWindow(viewModel) { Owner = this };
+
+        // Owner only when this window has actually been on screen — WPF refuses a never-shown
+        // owner, and settings must stay reachable if a tray entry for it ever appears.
+        var dialog = new SettingsWindow(viewModel) { Owner = IsVisible ? this : null };
 
         if (section is not null) dialog.ShowSection(section);
 
