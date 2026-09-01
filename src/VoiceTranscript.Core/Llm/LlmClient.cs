@@ -130,6 +130,27 @@ public sealed class OpenAiCompatibleClient(
         return false;
     }
 
+    /// <summary>
+    /// Removes a reasoning preamble, which thinking models put in front of their answer.
+    ///
+    /// Qwen3-family models (and several others served through llama-server, Ollama and
+    /// OpenRouter) open with a <c>&lt;think&gt;…&lt;/think&gt;</c> block when their chat template
+    /// leaves thinking on. When structured output is grammar-enforced the block never appears;
+    /// on the instruction-only fallback it does, and everything before the closing tag is the
+    /// model talking to itself — JSON.Parse meets an essay. An unclosed block means the whole
+    /// reply was thinking and there is no answer in it at all.
+    /// </summary>
+    private static string StripReasoning(string content)
+    {
+        var trimmed = content.TrimStart();
+
+        if (!trimmed.StartsWith("<think>", StringComparison.OrdinalIgnoreCase)) return content;
+
+        var close = trimmed.IndexOf("</think>", StringComparison.OrdinalIgnoreCase);
+
+        return close < 0 ? "" : trimmed[(close + "</think>".Length)..].TrimStart();
+    }
+
     /// <summary>Removes a markdown code fence, which models add despite being told not to.</summary>
     private static string StripCodeFence(string content)
     {
@@ -315,7 +336,9 @@ public sealed class OpenAiCompatibleClient(
         var choice = root?["choices"]?.AsArray().FirstOrDefault()
             ?? throw new LlmException($"Yanıtta 'choices' yok: {Truncate(body)}");
 
-        var content = choice["message"]?["content"]?.GetValue<string>() ?? "";
+        // Reasoning models think before they answer, and not every server keeps the thinking
+        // out of the content field. Stripped here, centrally, so no caller ever parses an essay.
+        var content = StripReasoning(choice["message"]?["content"]?.GetValue<string>() ?? "");
         var finish = choice["finish_reason"]?.GetValue<string>();
         var usage = root?["usage"];
 
