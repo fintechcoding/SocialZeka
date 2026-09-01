@@ -122,4 +122,50 @@ public class TokenFieldTests
 
         Assert.Single(handler.Bodies);
     }
+    private const string TemperatureRejection =
+        """
+        {"error":{"message":"Unsupported value: 'temperature' does not support 0.2 with this
+         model. Only the default (1) value is supported.","type":"invalid_request_error",
+         "param":"temperature","code":"unsupported_value"}}
+        """;
+
+    /// <summary>
+    /// The same vintage of models that renamed the token field also refuses temperature.
+    /// Hit verbatim by a real archive; the fix is to stop sending the field, not send 1 —
+    /// the model has already decided determinism is not on offer.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedTemperatureIsDroppedAndRetriedOnce()
+    {
+        var handler = new StubHandler(
+            _ => Json(TemperatureRejection, HttpStatusCode.BadRequest),
+            _ => Json(Reply));
+
+        var response = await Client(handler, "https://api.openai.com/v1").CompleteAsync(Request());
+
+        Assert.Equal("tamam", response.Content);
+        Assert.Equal(2, handler.Bodies.Count);
+
+        Assert.NotNull(JsonNode.Parse(handler.Bodies[0])!["temperature"]);
+        Assert.Null(JsonNode.Parse(handler.Bodies[1])!["temperature"]);
+    }
+
+    /// <summary>Both corrections can be needed by one model, in either order.</summary>
+    [Fact]
+    public async Task TokenFieldAndTemperatureCorrectionsCompose()
+    {
+        var handler = new StubHandler(
+            _ => Json(Rejection, HttpStatusCode.BadRequest),
+            _ => Json(TemperatureRejection, HttpStatusCode.BadRequest),
+            _ => Json(Reply));
+
+        var response = await Client(handler, "http://localhost:1234/v1").CompleteAsync(Request());
+
+        Assert.Equal("tamam", response.Content);
+        Assert.Equal(3, handler.Bodies.Count);
+
+        var last = JsonNode.Parse(handler.Bodies[2])!;
+        Assert.NotNull(last["max_completion_tokens"]);
+        Assert.Null(last["temperature"]);
+    }
 }

@@ -166,40 +166,67 @@ public sealed class OpenAiCompatibleClient(
         body.Contains("unsupported_parameter", StringComparison.OrdinalIgnoreCase)
         && body.Contains(otherField, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Whether the provider just refused our temperature outright.
+    ///
+    /// The same vintage of OpenAI models that renamed the token field also stopped accepting any
+    /// temperature but their default — a real archive hit it verbatim: "'temperature' does not
+    /// support 0.2 with this model. Only the default (1) value is supported." The right answer is
+    /// to stop sending the field, not to send 1: the point of a low temperature was determinism,
+    /// and a model that refuses the field has made that decision for us.
+    /// </summary>
+    private static bool RefusesTemperature(string body) =>
+        body.Contains("temperature", StringComparison.OrdinalIgnoreCase)
+        && (body.Contains("unsupported_value", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("does not support", StringComparison.OrdinalIgnoreCase));
+
     private async Task<LlmResponse> SendAsync(LlmRequest request, CancellationToken cancellationToken)
     {
         var tokenField = PreferredTokenField();
+        var sendTemperature = true;
 
-        for (var attempt = 0; ; attempt++)
+        // At most one corrective retry per rejected parameter: each 400 names exactly one
+        // fault, and each correction can only be applied once. Anything else is a real error.
+        for (var corrections = 0; ; corrections++)
         {
             try
             {
-                return await SendOnceAsync(request, tokenField, cancellationToken);
+                return await SendOnceAsync(request, tokenField, sendTemperature, cancellationToken);
             }
-            catch (LlmException e) when (attempt == 0)
+            catch (LlmException e) when (corrections < 2)
             {
                 var other = tokenField == "max_tokens" ? "max_completion_tokens" : "max_tokens";
 
-                if (!WantsOtherTokenField(e.Message, other)) throw;
-
-                tokenField = other;
+                if (WantsOtherTokenField(e.Message, other))
+                {
+                    tokenField = other;
+                }
+                else if (sendTemperature && RefusesTemperature(e.Message))
+                {
+                    sendTemperature = false;
+                }
+                else
+                {
+                    throw;
+                }
             }
         }
     }
 
     private async Task<LlmResponse> SendOnceAsync(
-        LlmRequest request, string tokenField, CancellationToken cancellationToken)
+        LlmRequest request, string tokenField, bool sendTemperature, CancellationToken cancellationToken)
     {
         var payload = new JsonObject
         {
             ["model"] = request.Model,
-            ["temperature"] = request.Temperature,
             [tokenField] = request.MaxTokens,
             ["stream"] = false,
             ["messages"] = new JsonArray(
                 new JsonObject { ["role"] = "system", ["content"] = request.SystemPrompt },
                 new JsonObject { ["role"] = "user", ["content"] = request.UserPrompt }),
         };
+
+        if (sendTemperature) payload["temperature"] = request.Temperature;
 
         if (request.JsonSchema is not null)
         {

@@ -1078,3 +1078,35 @@ Ayrıca §8.1/8.2 (saklama süresi gerçek oldu, ölü ayar silindi) ve ölü ko
   çözümleme sekmesinin toplu butonu diyalogsuz, doğrudan metinden çalışır.
 - [x] **12.17 — Kullanım ekranına çözümleme jeton dökümü** *(1 Eylül)*: model model,
   giriş+çıkış jeton; yazıya dökme dakikayla, çözümleme jetonla faturalanır — ikisi de kalemli.
+
+## 13. 1 Eylül ikinci tur — kullanıcının akış eleştirisi (ekran görüntülü)
+
+- [ ] **13.1** Çözümleme sekmesindeki satır butonu "Yeniden işle" diyor ve ses+metin diyaloğu
+  açıyor — o sekmede "Yeniden çözümle" deyip doğrudan metinden koşmalı (toplu buton zaten öyle).
+- [ ] **13.2** "Çözümleme yapılmadı: çalışan servis yok" BİLGİ mesajı, kırmızı hata genişleticisi
+  ("Hatanın tamamı") içinde gösteriliyor — bilgi ve hata ayrışmalı; bilgiye "servis bağla" yolu.
+- [ ] **13.3** Üstteki 4 sayaç sekmeyle konuşmuyor (Çözümleme sekmesinde 8 satırlık çözümlenmemiş
+  kayıt varken hepsi 0 gibi okunuyor) — sayaçlar sekme başına anlamlı olmalı.
+- [ ] **13.4** Yapay zekâ ekranında servis satırına tıklayınca AYARLARIN İLGİLİ BÖLÜMÜ açılmalı
+  (çözümleme satırı → Çözümleme bölümü, model seçimi Ollama/OpenRouter/…).
+- [ ] **13.5** Kullanım dökümünde ham kimlikler ("cloud-openai", "large-v3") — görünen ad basılmalı.
+- [ ] **13.6** Tarih/ay adları İngilizce ("30 Aug", "3 Aug") — kültür UiLanguage'a bağlanmalı.
+- [ ] **13.7** Etiket/bayraklar ikonlarıyla listelerde görünmeli (İşlemler satırları dahil);
+  CallWindow'daki etiket kutusu çıplak — placeholder/ikon yok.
+- [ ] **13.8** Genel: UI'yi sıfırdan kullanıcı gözüyle yürü — "nereye basarım, ne olur, ne olmalı".
+- [ ] **13.9** Hatırlatma sistemi var ama girişi neredeyse yok: yalnız paneldeki kartın sağ tık
+  menüsünde. Görüşmenin KENDİSİNDEN eklenebilmeli — CallWindow'da "Hatırlat" (görüşmeyi panele
+  ekleyip gün seçtiren tek adım), son görüşmeler/kişi penceresi satırlarında da aynı. Boş durum
+  metni de buna göre değişmeli.
+- [ ] **13.10** "Çözümle"den açılan diyalog yalnız çözümleme ekranı olmalı: başlık "Yeniden
+  çözümle", mod seçici gizli, sadece AKTİF sağlayıcının modelleri. Rozet hatası: çözümleme
+  satırlarında "ses makineden çıkar" yazıyor — doğrusu "metin makineden çıkar" (ses gitmez).
+  Sağlayıcı erişimi diyalog açılırken sınanmalı; bakiye ucu sunan sağlayıcıda (ör. OpenRouter)
+  kalan kredi gösterilmeli, sunmayanda (OpenAI/Anthropic) "bakiye ucu yok, panelden bak" denmeli.
+- [ ] **13.11** Simetrik olarak "Sesi yazıya dök / Yeniden çevir" de KENDİNE özel popup açmalı:
+  yalnız yazıya dökme motorları (Bu makinede / Buluta gönderilir grupları), mod seçici yok.
+  Sonuç: iki ayrı amaca özel diyalog; hangisinin açılacağını basılan buton belirler — kullanıcıya
+  bir daha "hangi yarı?" sorulmaz. (13.10 ile birlikte tek yeniden düzenleme.)
+- [x] **13.12 — OpenAI yeni modelleri temperature'ı reddediyor** *(gerçek logdan: "does not
+  support 0.2... Only the default (1)"; gpt-5.6-sol çözümlemesini bloke etti)*. max_tokens'la
+  aynı sınıf: 400 'unsupported_value/temperature' gelirse alan düşürülüp bir kez yeniden denenir.
