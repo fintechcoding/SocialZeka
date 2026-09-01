@@ -454,9 +454,39 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                     <StackPanel>
                         <StackPanel Visibility="{Binding HasLedger, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="Açık sözler" Style="{StaticResource GroupHeader}"
-                                       Visibility="{Binding Commitments.Count, Converter={StaticResource CountToVisibility}}" />
-                            <ItemsControl ItemsSource="{Binding Commitments}">
+                            <!-- Two owners, two groups — yours first: the obligation you can
+                                 act on this minute is your own, and people forget what THEY
+                                 promised at least as often as what they were promised. -->
+                            <TextBlock Text="Senin sözlerin" Style="{StaticResource GroupHeader}"
+                                       Visibility="{Binding MyCommitments.Count, Converter={StaticResource CountToVisibility}}" />
+                            <ItemsControl ItemsSource="{Binding MyCommitments}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource SettingCard}" Padding="14,12">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border CornerRadius="4" Padding="6,1" Margin="0,0,8,0"
+                                                            Background="{StaticResource MeBrush}" VerticalAlignment="Center">
+                                                        <TextBlock Text="SEN" FontSize="10" FontWeight="SemiBold"
+                                                                   Foreground="White" />
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Obligation}" TextWrapping="Wrap"
+                                                               FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <Border Style="{StaticResource QuoteBlock}" Margin="0,8,0,0"
+                                                        BorderBrush="{StaticResource MeBrush}">
+                                                    <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" />
+                                                </Border>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Onun sözleri" Style="{StaticResource GroupHeader}"
+                                       Margin="0,10,0,0"
+                                       Visibility="{Binding TheirCommitments.Count, Converter={StaticResource CountToVisibility}}" />
+                            <ItemsControl ItemsSource="{Binding TheirCommitments}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Style="{StaticResource SettingCard}" Padding="14,12">

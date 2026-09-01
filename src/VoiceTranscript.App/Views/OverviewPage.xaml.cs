@@ -319,4 +319,11 @@ public partial class OverviewPage
         if ((sender as FrameworkElement)?.DataContext is CalendarReminder reminder)
             Open(reminder.CallId);
     }
+
+    /// <summary>An own-promise row opens the conversation the promise was made in.</summary>
+    private void CalendarPromise_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is CalendarPromise promise)
+            Open(promise.CallId);
+    }
 }

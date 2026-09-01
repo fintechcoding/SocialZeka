@@ -381,7 +381,38 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Margin="0,4">
-                                                <TextBlock Text="{Binding Obligation}" TextWrapping="Wrap" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <!-- Whose promise this is. "Sözler" without
+                                                         an owner reads as a list of what you are
+                                                         owed; half of them may be what you owe. -->
+                                                    <Border CornerRadius="4" Padding="5,0" Margin="0,0,6,0"
+                                                            VerticalAlignment="Center">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="{StaticResource ThemBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding ByMe}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource MeBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="White">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Text" Value="O" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding ByMe}" Value="True">
+                                                                            <Setter Property="Text" Value="SEN" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Obligation}" TextWrapping="Wrap"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
                                                 <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
                                                            TextWrapping="Wrap" Margin="0,2,0,0"
                                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -446,6 +477,12 @@
                                         </ui:Button.Icon>
                                     </ui:Button>
                                 </Grid>
+
+                                <!-- The price, before the spend: this is the app's most
+                                     expensive single click, and it says so up front. -->
+                                <TextBlock Text="{Binding ConsistencyCostLine}" Style="{StaticResource Caption}"
+                                           Margin="0,6,0,0"
+                                           Visibility="{Binding ConsistencyCostLine, Converter={StaticResource NullToCollapsed}}" />
 
                                 <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
                                              Visibility="{Binding IsCheckingConsistency, Converter={StaticResource BoolToVisibility}}" />
@@ -519,6 +556,18 @@
                                                                        Text="{Binding Text, StringFormat='&quot;{0}&quot;'}" />
                                                         </Border>
                                                     </StackPanel>
+
+                                                    <!-- The advice made executable: two clicks
+                                                         from the finding to a dated reminder. -->
+                                                    <ui:Button Content="Hatırlatıcı kur" Appearance="Transparent"
+                                                               Padding="8,2" Margin="0,6,0,0"
+                                                               HorizontalAlignment="Left"
+                                                               Click="ConsistencyRemind_Click"
+                                                               ToolTip="Sebep bulgudan hazır gelir; günü sen seçersin.">
+                                                        <ui:Button.Icon>
+                                                            <ui:SymbolIcon Symbol="Clock24" />
+                                                        </ui:Button.Icon>
+                                                    </ui:Button>
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>

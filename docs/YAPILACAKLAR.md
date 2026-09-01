@@ -1267,3 +1267,25 @@ doğrulanamayan bulgu ATILIR, kanıtsız uyarı notu KODDA düşürülür, hük�
   birbirine dokunmaz; uzun döküm harcamadan reddedilir; kullanım kaydı; kapsam satırı prompt'ta.
 - Ertelenen (bilinçli): pipeline InsertFlag'in dismissed-dedup'suz oluşu (mevcut gizli açık,
   ayrı tur); ayar kartının loc:T taraması; LedgerPage'de source rozeti.
+
+## 18. V2 Faz 1 — "İki taraflı defter" (v2.0.0)
+
+Kullanıcı: "benim verdiğim sözler / karşı tarafın sözleri ayrımı; insanlar verdikleri sözleri
+unutabiliyorlar, bunu da analiz etsin." + plan onayı. Ayrı-repo yönü kullanıcı kararıyla iptal
+(VoiceTranscript2 reposu ve yerel klonu artık kullanılmıyor; silinebilir).
+
+- [x] **18.1 Söz ayrımı:** Defter'de ByMe gizlemesi kalktı — yeni "Verdiğim sözler" çipi
+  (sayaçlı), satırlarda SEN rozeti, geciken KENDİ söz listenin başına; Genel bakış vadesi-geçen
+  kartı ikiye ("SENİN N sözünün..." / "N sözün..."), Line "Sen → Uliana: ..."; mini takvimde
+  üçüncü işaret (mavi = kendi söz vadesi, 🤝 tooltip, tıkla→görüşme; OwnCommitmentsBetween);
+  ContactWindow "Senin sözlerin"/"Onun sözleri" grupları; CallWindow satır rozetleri (SEN/O);
+  DeterministicChecks özeti "(sen)/(karşı taraf)"; tutarlılık prompt'u kendi-önceki-sözle
+  çelişkiyi açıkça arar.
+- [x] **18.2 Bulgudan hatırlatıcı:** bulgu kartında "Hatırlatıcı kur" → RemindWindow sebep
+  ön-dolu (kacamak→"Şu soruyu tekrar sor", celiski/zaman→"Yazılı teyit iste",
+  belirsizlesme→"Netleştir"); tarih kullanıcının.
+- [x] **18.3 Maliyet önizlemesi:** Denetle altında "Tahmini girdi: ~N bin belirteç · Kalan: $X"
+  (OpenRouter'da bakiye kuyruğu arka planda).
+- [x] **18.4 Testler:** PromiseSideTests (8) — OwnCommitmentsBetween süzgeçleri, Defter çift
+  taraf + kendi-geciken önceliği, Genel bakış ayrık kartlar + Sen→ satırı, takvim noktası,
+  bayrak taraf adı, prompt paragrafı, hatırlatıcı taslakları. Tam koşu 743/0.

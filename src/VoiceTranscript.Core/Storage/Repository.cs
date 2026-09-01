@@ -1583,6 +1583,44 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>
+    /// The user's OWN promise deadlines inside a date window — the calendar's third marker.
+    ///
+    /// Only ByMe rows: the other side's deadlines already surface as overdue flags; what the
+    /// calendar adds is the promise the USER made and would otherwise forget until it became
+    /// an apology. Conditional promises excluded, same reasoning as the overdue check: a date
+    /// on "yollarsan gönderirim" is not yet a commitment to a day.
+    /// </summary>
+    public IReadOnlyList<(long CallId, string ContactName, string Obligation, DateOnly Day)> OwnCommitmentsBetween(
+        DateOnly from, DateOnly to)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection
+                .Query<(long CallId, string? Name, string Obligation, string Day)>(
+                    """
+                    SELECT cm.call_id, ct.name, cm.obligation, cm.deadline_date
+                    FROM commitment cm
+                    LEFT JOIN contact ct ON ct.id = cm.contact_id
+                    WHERE cm.by_me = 1
+                      AND cm.status = 0
+                      AND cm.dismissed_by_user = 0
+                      AND cm.is_conditional = 0
+                      AND cm.deadline_date IS NOT NULL
+                      AND cm.deadline_date >= @from AND cm.deadline_date <= @to
+                    ORDER BY cm.deadline_date;
+                    """,
+                    new { from = from.ToString("yyyy-MM-dd"), to = to.ToString("yyyy-MM-dd") })
+                .Select(r => (
+                    r.CallId,
+                    string.IsNullOrWhiteSpace(r.Name) ? "İsimsiz görüşme" : r.Name,
+                    r.Obligation,
+                    DateOnly.Parse(r.Day))),
+        ];
+    }
+
+    /// <summary>
     /// Birthdays falling within the window, soonest first.
     ///
     /// Every date here was typed by the user on the person's profile — the application infers

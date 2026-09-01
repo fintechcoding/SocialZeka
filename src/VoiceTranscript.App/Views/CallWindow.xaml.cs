@@ -301,4 +301,13 @@ public partial class CallWindow
 
         counterpart.Playback.PlayFrom(excerpt.StartMs, excerpt.IsMe);
     }
+
+    /// <summary>A finding becomes a follow-up: the reminder dialog opens with the reason drafted.</summary>
+    private void ConsistencyRemind_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ConsistencyRow row) return;
+        if (ViewModel is not { } model) return;
+
+        RemindWindow.Open(this, App.Repository, model.CallId, model.Title, row.ReminderDraft);
+    }
 }

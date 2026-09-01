@@ -712,12 +712,16 @@
                                         </TextBlock.Style>
                                     </TextBlock>
 
-                                    <!-- The marks: red = a reminder comes due, accent = a birthday. -->
+                                    <!-- The marks: red = a reminder comes due, blue = one of the
+                                         user's OWN promise deadlines, accent = a birthday. -->
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                                                 Height="5" Margin="0,1,0,0">
                                         <Ellipse Width="5" Height="5"
                                                  Fill="{DynamicResource SystemFillColorCriticalBrush}"
                                                  Visibility="{Binding HasReminders, Converter={StaticResource BoolToVisibility}}" />
+                                        <Ellipse Width="5" Height="5" Margin="2,0,0,0"
+                                                 Fill="{StaticResource MeBrush}"
+                                                 Visibility="{Binding HasPromises, Converter={StaticResource BoolToVisibility}}" />
                                         <Ellipse Width="5" Height="5" Margin="2,0,0,0"
                                                  Fill="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                                  Visibility="{Binding HasBirthday, Converter={StaticResource BoolToVisibility}}" />
@@ -744,6 +748,25 @@
                                         <ui:SymbolIcon Symbol="Clock24" FontSize="13" Margin="0,0,6,0"
                                                        VerticalAlignment="Center"
                                                        Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        <TextBlock Text="{Binding Line}" TextWrapping="Wrap"
+                                                   FontSize="{StaticResource TextSecondary}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- The user's own promise deadlines: the row opens the conversation the
+                         promise was made in — the words are one click from the obligation. -->
+                    <ItemsControl ItemsSource="{Binding SelectedCalendarDay.Promises}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="Transparent" CornerRadius="4" Padding="6,4"
+                                        Cursor="Hand" MouseLeftButtonUp="CalendarPromise_Click"
+                                        ToolTip="Sözün verildiği görüşmeyi açar">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="🤝" Margin="0,0,6,0" VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding Line}" TextWrapping="Wrap"
                                                    FontSize="{StaticResource TextSecondary}"
                                                    VerticalAlignment="Center" />

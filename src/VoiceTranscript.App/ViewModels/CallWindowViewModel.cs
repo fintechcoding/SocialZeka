@@ -268,6 +268,8 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         var segments = _repository.GetSegments(CallId);
 
+        UpdateConsistencyCostLine(segments.Sum(s => s.Text.Length));
+
         Turns.Clear();
         foreach (var segment in segments)
         {
@@ -593,6 +595,55 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
     public bool HasConsistencyRun => ConsistencyFindings.Count > 0 || ConsistencyStamp is not null;
 
+    /// <summary>
+    /// What pressing the button would roughly cost, said BEFORE the spend: the check sends the
+    /// whole transcript in one request by design, which makes it the most expensive single
+    /// click in the application — and a price you only learn from the bill is a trap.
+    /// </summary>
+    [ObservableProperty] private string? _consistencyCostLine;
+
+    private void UpdateConsistencyCostLine(int transcriptChars)
+    {
+        if (transcriptChars == 0)
+        {
+            ConsistencyCostLine = null;
+            return;
+        }
+
+        // Same ~4 chars/token rule the chunker budgets with. An estimate, and labelled as one.
+        var tokens = transcriptChars / 4;
+
+        ConsistencyCostLine = tokens >= 1000
+            ? $"Tahmini girdi: ~{tokens / 1000} bin belirteç"
+            : $"Tahmini girdi: ~{tokens} belirteç";
+
+        // Balance, only where an endpoint publishes one. Fetched in the background; the line
+        // simply grows a tail when the answer lands.
+        var settings = _settings();
+
+        if (settings.LlmProvider == LlmProviderKind.OpenRouter
+            && !string.IsNullOrWhiteSpace(settings.LlmApiKey))
+        {
+            _ = AppendBalanceAsync(ConsistencyCostLine);
+        }
+    }
+
+    private async Task AppendBalanceAsync(string prefix)
+    {
+        try
+        {
+            var balance = await Core.Llm.LlmBalance.OpenRouterAsync(
+                _http, _settings().LlmApiKey, CancellationToken.None);
+
+            if (balance is not null && ConsistencyCostLine == prefix)
+                ConsistencyCostLine = $"{prefix} · {balance}";
+        }
+        catch (Exception)
+        {
+            // The line is a courtesy; a failed balance probe must never surface as an error.
+        }
+    }
+
     [RelayCommand]
     private async Task CheckConsistencyAsync(CancellationToken cancellationToken)
     {
@@ -742,4 +793,26 @@ public sealed record ConsistencyRow(Flag Flag, Repository Repository)
             ? $"Önceki görüşme · {day}:"
             : "Önceki görüşme:"
         : "Karşı ifade:";
+
+    /// <summary>
+    /// The reason the reminder dialog opens with when this finding is turned into a follow-up.
+    /// The warning note's advice ("teyit et, tekrar sor") made executable: two clicks from the
+    /// finding to a dated reminder, wording matched to what kind of finding it was.
+    /// </summary>
+    public string ReminderDraft
+    {
+        get
+        {
+            var quote = Flag.Quote.Length <= 80 ? Flag.Quote : Flag.Quote[..77] + "…";
+
+            return Flag.Kind switch
+            {
+                FlagKind.EvadedQuestion => $"Şu soruyu tekrar sor: \"{quote}\"",
+                FlagKind.Contradiction or FlagKind.TimelineMismatch =>
+                    $"Yazılı teyit iste: \"{quote}\"",
+                FlagKind.VagueShift => $"Netleştir: \"{quote}\"",
+                _ => $"Üzerine git: \"{quote}\"",
+            };
+        }
+    }
 }

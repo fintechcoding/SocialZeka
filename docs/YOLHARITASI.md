@@ -123,3 +123,22 @@ birleştirmesi tasarlanır. **Durum:** ihtiyaç doğrulanana dek kapalı.
 4. **Her hata mesajı adres/model/neden taşır** — log kendi teşhisini içermeli ("deneniyor: X @ Y").
 5. Ürün kuralı her özellikte denetlenir: makine hatırlar, insan yargılar; her iddia alıntı +
    çalınabilir zaman damgası taşır.
+
+## V2 Programı (2026-09-01 onaylı — bu repoda, faz başına tek sürüm)
+
+Tema: V1 kaydetti/yazdı/defter tuttu; V2 kanıtı KULLANILIR yapar. Demir kural her fazda:
+skor yok, hüküm yok, kullanıcı alanına otomatik yazma yok, her iddia çalınabilir alıntı.
+(Ayrı-repo denemesi iptal edildi; github.com/fintechcoding/VoiceTranscript2 artık kullanılmıyor.)
+
+- **Faz 1 — İki taraflı defter → v2.0.0 (BİTTİ):** söz ayrımı her yüzeyde (Defter "Verdiğim
+  sözler" çipi + SEN rozeti + kendi-gecikeni öne; Genel bakış'ta SENİN/karşı taraf ayrık
+  vadesi-geçen kartları; takvimde mavi kendi-söz noktası; ContactWindow iki grup; CallWindow
+  rozetleri; bayrak özeti taraflı; tutarlılık prompt'u kendi-sözünle-çelişkiyi arar);
+  bulgudan hatırlatıcı köprüsü (sebep ön-dolu RemindWindow); tutarlılık maliyet önizlemesi.
+- **Faz 2 — Kanıt derinliği → v2.1.0:** bağlam penceresi (±45 sn iki panel), kulak teyidi
+  (şema v6: flag_verification), kanıt paketi (WAV'lar + kayit.md, opt-in kurallı), rakam
+  zaman çizelgesi.
+- **Faz 3 — Çapraz kaynak + akış → v2.2.0:** Söz–Yazı Telegram çaprazı ([M#], şema v7),
+  kişi tutarlılık geçmişi, sessiz denetim vitrini, görüşme öncesi brifing.
+- **V3 havuzu:** iki model mutabakatı, denetim geçmişi, uyarı→Önemliler önerisi, açık soru
+  yaşam döngüsü, şifreleme, anlamsal arama, ilişki analitiği.

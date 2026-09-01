@@ -75,6 +75,12 @@ public static class ConsistencyPrompt
           cevaplanmadı", "tarih şuradan şuraya değişti".
         - Niyet atfetme. "Saklamaya çalışıyor" değil; "soru cevapsız kaldı" yeterlidir.
 
+        ÖNCEKİ KAYITLARDA İKİ TARAF DA VARDIR: [B#] satırları arasında BEN'in verdiği sözler
+        ve söylediği rakamlar da bulunur. Bu görüşmedeki bir ifade, konuşanın KENDİ önceki
+        sözüyle ya da rakamıyla çelişiyorsa bu da "celiski"dir; "konusan" alanı o tarafı
+        gösterir. İnsanlar kendi verdikleri sözleri de unutur; bu araç iki yönde de aynı
+        titizlikle bakar.
+
         "tutarli_gozlemler": Dengeli ol. Tutarlı kalan, net cevaplanan, önceki ifadelerle
         örtüşen yerleri de yaz — her biri AYNEN alıntıyla. Tutarlılık da bir bulgudur; bu
         araç bir suçlama makinesi değildir.

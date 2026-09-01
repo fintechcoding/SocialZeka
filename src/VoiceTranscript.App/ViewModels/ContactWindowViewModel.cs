@@ -154,6 +154,13 @@ public sealed partial class ContactWindowViewModel : ObservableObject
     public ObservableCollection<ContactCall> Calls { get; } = [];
     public ObservableCollection<ContactHit> Hits { get; } = [];
     public ObservableCollection<Commitment> Commitments { get; } = [];
+
+    /// <summary>The user's own open promises to this person — listed FIRST on the tab, because
+    /// the obligation you can act on immediately is your own.</summary>
+    public ObservableCollection<Commitment> MyCommitments { get; } = [];
+
+    /// <summary>The other side's open promises. What "Açık sözler" always meant.</summary>
+    public ObservableCollection<Commitment> TheirCommitments { get; } = [];
     public ObservableCollection<Claim> Claims { get; } = [];
     public ObservableCollection<Flag> Flags { get; } = [];
 
@@ -513,10 +520,17 @@ public sealed partial class ContactWindowViewModel : ObservableObject
     private void LoadLedger()
     {
         Commitments.Clear();
+        MyCommitments.Clear();
+        TheirCommitments.Clear();
         Claims.Clear();
         Flags.Clear();
 
-        foreach (var c in _repository.GetOpenCommitments(ContactId)) Commitments.Add(c);
+        foreach (var c in _repository.GetOpenCommitments(ContactId))
+        {
+            Commitments.Add(c);
+            (c.ByMe ? MyCommitments : TheirCommitments).Add(c);
+        }
+
         foreach (var c in _repository.GetAllClaims(ContactId)) Claims.Add(c);
         foreach (var f in _repository.GetFlags(ContactId)) Flags.Add(f);
 

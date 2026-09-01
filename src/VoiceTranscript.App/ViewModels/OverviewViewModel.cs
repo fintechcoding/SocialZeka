@@ -214,7 +214,14 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
         public int DaysLate =>
             DateOnly.FromDateTime(DateTime.Now).DayNumber - (Commitment.DeadlineDate?.DayNumber ?? 0);
 
-        public string Line => $"{ContactName}: {Commitment.Obligation}";
+        public bool ByMe => Commitment.ByMe;
+
+        /// <summary>Who owes whom, said plainly: "Sen → Uliana: evrak" is a different sentence
+        /// from "Uliana: evrak", and the two used to be indistinguishable here.</summary>
+        public string Line => ByMe
+            ? $"Sen → {ContactName}: {Commitment.Obligation}"
+            : $"{ContactName}: {Commitment.Obligation}";
+
         public string Quote => Commitment.Quote.Trim();
     }
 
@@ -320,12 +327,26 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
                 AttentionAction.RetryFailed));
         }
 
-        if (Overdue.Count > 0)
+        // Split by who made the promise. One mixed count taught nothing: "3 sözün tarihi
+        // geçti" could be three things somebody owes you or three things you forgot you owe —
+        // and the second kind is the one the user can fix this minute.
+        var mine = Overdue.Where(o => o.ByMe).ToList();
+        var theirs = Overdue.Where(o => !o.ByMe).ToList();
+
+        if (mine.Count > 0)
         {
             Attention.Add(new AttentionItem(
                 AttentionKind.Action,
-                $"{Overdue.Count} sözün tarihi geçti",
-                string.Join(" · ", Overdue.Take(2).Select(o => o.Line))));
+                mine.Count == 1 ? "SENİN 1 sözünün tarihi geçti" : $"SENİN {mine.Count} sözünün tarihi geçti",
+                string.Join(" · ", mine.Take(2).Select(o => o.Line))));
+        }
+
+        if (theirs.Count > 0)
+        {
+            Attention.Add(new AttentionItem(
+                AttentionKind.Action,
+                theirs.Count == 1 ? "1 sözün tarihi geçti" : $"{theirs.Count} sözün tarihi geçti",
+                string.Join(" · ", theirs.Take(2).Select(o => o.Line))));
         }
 
         // Said on the main screen rather than buried in settings: in automatic mode a broken
@@ -577,6 +598,15 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
             .GroupBy(b => b.Day)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(b => b.Name)]);
 
+        // The user's own promise deadlines — the marker this calendar exists to make
+        // unforgettable: nobody sets a reminder for a promise they don't know they'll forget.
+        var promises = repository.OwnCommitmentsBetween(start, start.AddDays(41))
+            .GroupBy(p => p.Day)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<CalendarPromise>)
+                    [.. g.Select(p => new CalendarPromise(p.CallId, p.ContactName, p.Obligation))]);
+
         var today = DateOnly.FromDateTime(DateTime.Today);
 
         CalendarDays.Clear();
@@ -589,7 +619,8 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
                 InMonth: date.Month == CalendarMonth.Month,
                 IsToday: date == today,
                 reminders.GetValueOrDefault(date, []),
-                birthdays.GetValueOrDefault(date, [])));
+                birthdays.GetValueOrDefault(date, []),
+                promises.GetValueOrDefault(date, [])));
         }
 
         CalendarTitle = CalendarMonth.ToDateTime(TimeOnly.MinValue).ToString("MMMM yyyy");
@@ -607,26 +638,36 @@ public sealed record CalendarReminder(long CallId, string ContactName, string Ti
     public string Line => Title.Length > 0 ? $"{ContactName} — {Title}" : ContactName;
 }
 
+/// <summary>One of the user's own promise deadlines, anchored to the conversation it was made in.</summary>
+public sealed record CalendarPromise(long CallId, string ContactName, string Obligation)
+{
+    public string Line => $"Sen: {Obligation} — {ContactName}";
+}
+
 /// <summary>One cell of the month grid.</summary>
 public sealed record CalendarDay(
     DateOnly Date,
     bool InMonth,
     bool IsToday,
     IReadOnlyList<CalendarReminder> Reminders,
-    IReadOnlyList<string> BirthdayNames)
+    IReadOnlyList<string> BirthdayNames,
+    IReadOnlyList<CalendarPromise> Promises)
 {
     public string Label => Date.Day.ToString();
 
     public bool HasReminders => Reminders.Count > 0;
     public bool HasBirthday => BirthdayNames.Count > 0;
-    public bool HasAnything => HasReminders || HasBirthday;
+    public bool HasPromises => Promises.Count > 0;
+    public bool HasAnything => HasReminders || HasBirthday || HasPromises;
 
-    /// <summary>What hovering says: every reminder and birthday on this day, one per line.</summary>
+    /// <summary>What hovering says: reminders, own promise deadlines, birthdays — one per line.</summary>
     public string? Tooltip => !HasAnything
         ? null
         : string.Join(
             Environment.NewLine,
-            Reminders.Select(r => $"🔔 {r.Line}").Concat(BirthdayNames.Select(n => $"🎂 {n}")));
+            Reminders.Select(r => $"🔔 {r.Line}")
+                .Concat(Promises.Select(p => $"🤝 {p.Line} (söz)"))
+                .Concat(BirthdayNames.Select(n => $"🎂 {n}")));
 }
 
 /// <summary>One conversation on the important pile, as the first screen shows it.</summary>

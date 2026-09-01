@@ -61,6 +61,19 @@
                     </StackPanel>
                 </RadioButton>
 
+                <!-- The user's own open promises — people forget what THEY promised too, and
+                     an archive that only watches the other side is a grievance list. -->
+                <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
+                             Command="{Binding SetFilterCommand}" CommandParameter="MyPromises">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Verdiğim sözler" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                Visibility="{Binding MyPromiseCount, Converter={StaticResource PositiveToVisibility}}">
+                            <TextBlock Style="{StaticResource PillText}" Text="{Binding MyPromiseCount}" />
+                        </Border>
+                    </StackPanel>
+                </RadioButton>
+
                 <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
                              Command="{Binding SetFilterCommand}" CommandParameter="Changes">
                     <StackPanel Orientation="Horizontal">
@@ -117,6 +130,16 @@
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                         <TextBlock Text="{Binding ContactName}" FontWeight="SemiBold"
                                                    FontSize="{StaticResource TextBody}" VerticalAlignment="Center" />
+
+                                        <!-- Whose words these are, when they are the user's own:
+                                             the row reads as an obligation to keep, not a
+                                             complaint about the person named beside it. -->
+                                        <Border CornerRadius="4" Padding="6,1" Margin="8,0,0,0"
+                                                Background="{StaticResource MeBrush}" VerticalAlignment="Center"
+                                                Visibility="{Binding ByMe, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="SEN" FontSize="10" FontWeight="SemiBold"
+                                                       Foreground="White" />
+                                        </Border>
 
                                         <Border Style="{StaticResource Pill}" Margin="10,0,0,0">
                                             <StackPanel Orientation="Horizontal">

@@ -13,6 +13,14 @@ public enum LedgerFilter
     Everything,
     Overdue,
     Promises,
+
+    /// <summary>
+    /// The user's OWN open promises. Their own words, on their own page — because people
+    /// forget what they promised too, and an archive that only watches the other side is
+    /// a grievance list, not a ledger. Overdue ones graduate to Overdue, badged SEN.
+    /// </summary>
+    MyPromises,
+
     Changes,
     Flags,
 }
@@ -56,6 +64,10 @@ public sealed partial class LedgerEntry : ObservableObject
     /// <summary>Row identity in its own table, for dismissing.</summary>
     public long SourceId { get; init; }
 
+    /// <summary>True when the words are the user's own — the row wears a SEN badge and the
+    /// obligation reads as theirs to keep, not as a complaint about somebody.</summary>
+    public bool ByMe { get; init; }
+
     public string Timestamp => $"{QuoteStartMs / 60000:00}:{QuoteStartMs / 1000 % 60:00}";
 
     public bool HasCounter => !string.IsNullOrWhiteSpace(CounterQuote);
@@ -70,6 +82,7 @@ public sealed partial class LedgerEntry : ObservableObject
     {
         LedgerFilter.Overdue => SymbolRegular.Clock24,
         LedgerFilter.Promises => SymbolRegular.ClipboardTaskListLtr24,
+        LedgerFilter.MyPromises => SymbolRegular.Person24,
         LedgerFilter.Changes => SymbolRegular.ArrowSwap24,
         _ => SymbolRegular.Flag24,
     };
@@ -78,6 +91,7 @@ public sealed partial class LedgerEntry : ObservableObject
     {
         LedgerFilter.Overdue => "vadesi geçti",
         LedgerFilter.Promises => "söz",
+        LedgerFilter.MyPromises => "senin sözün",
         LedgerFilter.Changes => "değişti",
         _ => "dikkat",
     };
@@ -113,12 +127,14 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     /// <summary>Counts for the filter chips, so the numbers are visible before clicking.</summary>
     [ObservableProperty] private int _overdueCount;
     [ObservableProperty] private int _promiseCount;
+    [ObservableProperty] private int _myPromiseCount;
     [ObservableProperty] private int _changeCount;
     [ObservableProperty] private int _flagCount;
 
     public bool HasEntries => Entries.Count > 0;
 
-    public bool HasAnything => OverdueCount + PromiseCount + ChangeCount + FlagCount > 0;
+    public bool HasAnything =>
+        OverdueCount + PromiseCount + MyPromiseCount + ChangeCount + FlagCount > 0;
 
     partial void OnFilterChanged(LedgerFilter value) => Refresh();
 
@@ -140,6 +156,7 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
 
             OverdueCount = all.Count(e => e.Kind == LedgerFilter.Overdue);
             PromiseCount = all.Count(e => e.Kind == LedgerFilter.Promises);
+            MyPromiseCount = all.Count(e => e.Kind == LedgerFilter.MyPromises);
             ChangeCount = all.Count(e => e.Kind == LedgerFilter.Changes);
             FlagCount = all.Count(e => e.Kind == LedgerFilter.Flags);
 
@@ -150,9 +167,11 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
                 .Where(e => name.Length == 0
                             || Core.Text.TurkishText.NormalizeForSearch(e.ContactName)
                                 .Contains(Core.Text.TurkishText.NormalizeForSearch(name), StringComparison.Ordinal))
-                // Overdue first, then by how late, then newest. Somebody scanning this page is
-                // looking for what has gone wrong, not for a chronology.
+                // Overdue first — and among the overdue, the user's OWN broken promises before
+                // anybody else's: the page's job is catching what went wrong, and the wrong the
+                // user can actually fix this minute is their own. Then by how late, then newest.
                 .OrderByDescending(e => e.IsLate)
+                .ThenByDescending(e => e.IsLate && e.ByMe)
                 .ThenByDescending(e => e.DaysLate)
                 .ThenByDescending(e => e.When);
 
@@ -172,10 +191,10 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     {
         foreach (var (commitment, contactName) in repository.AllOpenCommitments())
         {
-            // A promise the user made is not a grievance, and mixing the two would turn a useful
-            // page into a list of complaints about other people.
-            if (commitment.ByMe) continue;
-
+            // Both sides now. The user's own promise is still not a grievance — it gets its own
+            // chip, a SEN badge and obligation language — but hiding it entirely taught nothing:
+            // people forget what THEY promised, and this page is where a forgotten promise
+            // should be caught, not where it should be invisible.
             var late = commitment.DeadlineDate is { } due && due < today
                 ? today.DayNumber - due.DayNumber
                 : 0;
@@ -187,7 +206,10 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
 
             yield return new LedgerEntry
             {
-                Kind = late > 0 ? LedgerFilter.Overdue : LedgerFilter.Promises,
+                Kind = late > 0 ? LedgerFilter.Overdue
+                    : commitment.ByMe ? LedgerFilter.MyPromises
+                    : LedgerFilter.Promises,
+                ByMe = commitment.ByMe,
                 ContactName = contactName,
                 ContactId = commitment.ContactId,
                 CallId = commitment.CallId,

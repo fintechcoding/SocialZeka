@@ -35,12 +35,17 @@ public static class DeterministicChecks
 
             var daysLate = today.DayNumber - commitment.DeadlineDate!.Value.DayNumber;
 
+            // Who owes: "the date passed" is a different sentence when the promise was the
+            // user's own — and hiding that turned their forgotten obligations into someone
+            // else's fault by omission.
+            var who = commitment.ByMe ? "sen" : "karşı taraf";
+
             yield return new Flag
             {
                 CallId = commitment.CallId,
                 ContactId = commitment.ContactId,
                 Kind = FlagKind.OverdueCommitment,
-                Summary = $"Söz verilen tarih {daysLate} gün geçti: {commitment.Obligation}",
+                Summary = $"Söz verilen tarih {daysLate} gün geçti ({who}): {commitment.Obligation}",
                 Quote = commitment.Quote,
                 QuoteStartMs = commitment.QuoteStartMs,
                 CreatedAt = DateTimeOffset.UtcNow,

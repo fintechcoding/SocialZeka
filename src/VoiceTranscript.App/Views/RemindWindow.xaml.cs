@@ -20,7 +20,12 @@ public partial class RemindWindow
     private readonly Repository _repository;
     private readonly long _callId;
 
-    public RemindWindow(Repository repository, long callId, string subject)
+    /// <param name="reason">
+    /// A pre-drafted reason, when something concrete brought the user here — a consistency
+    /// finding's "ask this again". Wins over the stored card title on screen: it is the
+    /// user's fresh intent, and they can still edit or erase it before saving.
+    /// </param>
+    public RemindWindow(Repository repository, long callId, string subject, string? reason = null)
     {
         InitializeComponent();
 
@@ -41,6 +46,8 @@ public partial class RemindWindow
                 Clear.Visibility = Visibility.Visible;
             }
         }
+
+        if (!string.IsNullOrWhiteSpace(reason)) Reason.Text = reason;
 
         UpdateVerdict();
     }
@@ -102,9 +109,10 @@ public partial class RemindWindow
     }
 
     /// <summary>The one doorway every "Hatırlat" click goes through, wherever it started.</summary>
-    public static void Open(Window? owner, Repository repository, long callId, string subject)
+    public static void Open(
+        Window? owner, Repository repository, long callId, string subject, string? reason = null)
     {
-        var dialog = new RemindWindow(repository, callId, subject) { Owner = owner };
+        var dialog = new RemindWindow(repository, callId, subject, reason) { Owner = owner };
         dialog.ShowDialog();
     }
 }
