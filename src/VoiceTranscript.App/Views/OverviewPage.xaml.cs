@@ -305,4 +305,18 @@ public partial class OverviewPage
         MainWindow.SearchTagFromAnywhere(tag);
         e.Handled = true;
     }
+
+    /// <summary>Picks a day on the calendar; bare days clear the pick.</summary>
+    private void CalendarDay_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is CalendarDay day)
+            ViewModel?.SelectCalendarDay(day);
+    }
+
+    /// <summary>A reminder on the calendar opens the conversation it hangs on.</summary>
+    private void CalendarReminder_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is CalendarReminder reminder)
+            Open(reminder.CallId);
+    }
 }

@@ -14,6 +14,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -136,7 +137,7 @@
         </ItemsControl>
 
         <!-- Results -->
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"
+        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto"
                       Visibility="{Binding Groups.Count, Converter={StaticResource CountToVisibility}}">
             <ItemsControl ItemsSource="{Binding Groups}">
                 <ItemsControl.ItemTemplate>
@@ -223,7 +224,7 @@
         </ScrollViewer>
 
         <!-- Nothing found, or nothing searched for yet. -->
-        <StackPanel Grid.Row="3" Style="{StaticResource EmptyState}"
+        <StackPanel Grid.Row="4" Style="{StaticResource EmptyState}"
                     Visibility="{Binding Groups.Count, Converter={StaticResource CountToVisibility}, ConverterParameter=invert}">
             <ui:SymbolIcon Symbol="Search24" FontSize="40" HorizontalAlignment="Center" Margin="0,0,0,16"
                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />

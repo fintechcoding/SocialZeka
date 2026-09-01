@@ -1401,6 +1401,106 @@ public sealed class Repository(Database database)
         connection.Execute("DELETE FROM contact_field WHERE id = @fieldId;", new { fieldId });
     }
 
+    /// <summary>Reminder days for many conversations at once — one query, for list rows.</summary>
+    public IReadOnlyDictionary<long, DateOnly> RemindersOf(IEnumerable<long> callIds)
+    {
+        var ids = callIds.Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<long, DateOnly>();
+
+        using var connection = Open();
+
+        return connection
+            .Query<(long CallId, string Day)>(
+                "SELECT call_id, remind_on FROM board_card WHERE remind_on IS NOT NULL AND call_id IN @ids;",
+                new { ids })
+            .ToDictionary(r => r.CallId, r => DateOnly.Parse(r.Day));
+    }
+
+    /// <summary>
+    /// The newest transcript lines inside a window, no words required.
+    ///
+    /// This is the ask feature's fallback context: on a single short conversation, "nedir?"
+    /// deserves the transcript itself as context, not a refusal because no keyword overlapped.
+    /// Newest call first, each call's lines in speaking order.
+    /// </summary>
+    public IReadOnlyList<SearchHit> RecentSegments(
+        long? contactId = null,
+        DateTimeOffset? since = null,
+        DateTimeOffset? until = null,
+        int limit = 40)
+    {
+        using var connection = Open();
+
+        return [.. connection.Query<SearchHitRow>(
+            """
+            SELECT s.call_id      AS CallId,
+                   s.id           AS SegmentId,
+                   c.contact_id   AS ContactId,
+                   ct.name        AS ContactName,
+                   c.started_at   AS CallStartedAt,
+                   s.is_me        AS IsMe,
+                   s.start_ms     AS StartMs,
+                   s.text         AS Text
+            FROM segment s
+            JOIN call c          ON c.id = s.call_id
+            LEFT JOIN contact ct ON ct.id = c.contact_id
+            WHERE (@contactId IS NULL OR c.contact_id = @contactId)
+              AND (@since     IS NULL OR c.started_at >= @since)
+              AND (@until     IS NULL OR c.started_at <  @until)
+            ORDER BY c.started_at DESC, s.start_ms
+            LIMIT @limit;
+            """,
+            new
+            {
+                contactId,
+                since = since?.UtcDateTime.ToString("o"),
+                until = until?.UtcDateTime.ToString("o"),
+                limit,
+            })
+            .Select(r => r.ToModel())];
+    }
+
+    /// <summary>
+    /// Every reminder falling inside a date window, day order — the calendar's month at a time.
+    ///
+    /// Includes reminders not yet due: the calendar's whole point is seeing what is COMING.
+    /// Raw columns, hand-parsed, like every board query — no DateOnly type handler exists, and
+    /// materialising dates through Dapper is the exact mistake that once made a dialog throw in
+    /// its constructor on any call that had a card.
+    /// </summary>
+    public IReadOnlyList<(long CallId, string ContactName, string Title, DateOnly Day)> RemindersBetween(
+        DateOnly from, DateOnly to)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection
+                .Query<(long CallId, string? Name, string? Title, string Day)>(
+                    """
+                    SELECT b.call_id, ct.name, b.title, b.remind_on
+                    FROM board_card b
+                    JOIN call c          ON c.id = b.call_id
+                    LEFT JOIN contact ct ON ct.id = c.contact_id
+                    WHERE b.remind_on IS NOT NULL
+                      AND b.remind_on >= @from AND b.remind_on <= @to
+                      AND b.lane <> @done
+                    ORDER BY b.remind_on, ct.name;
+                    """,
+                    new
+                    {
+                        from = from.ToString("yyyy-MM-dd"),
+                        to = to.ToString("yyyy-MM-dd"),
+                        done = BoardLane.Done,
+                    })
+                .Select(r => (
+                    r.CallId,
+                    string.IsNullOrWhiteSpace(r.Name) ? "İsimsiz görüşme" : r.Name,
+                    r.Title ?? "",
+                    DateOnly.Parse(r.Day))),
+        ];
+    }
+
     /// <summary>
     /// Birthdays falling within the window, soonest first.
     ///

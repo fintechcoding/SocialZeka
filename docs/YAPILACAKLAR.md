@@ -1206,3 +1206,28 @@ Hepsi kullanıcının uygulamayı gerçek çağrılarla denemesinden; tek sürü
   satır bağlam + alıntı-zaman damgalı cevap. NotebookLM'in tüketici API'si YOK (yalnız kurumsal
   önizleme) — bağlanacak bir şey yok ve gerek de yok; kullanıcının tek ihtiyacı Ayarlar →
   Çözümleme'de çalışan bir servis.
+
+## 16. 1 Eylül beşinci tur — v0.9.28 canlı testinden (v0.9.29 partisi)
+
+- [x] **16.1 — Hatırlatma takvimi** *("Outlook'un takvimi gibi... hatırlatıcılarla birlikte
+  çalışan")*: Genel bakış sağ alt köşesinde mini ay takvimi. Hatırlatmalı gün kırmızı nokta,
+  doğum günü vurgu rengi nokta; üzerine gelince kim/niçin (🔔 kişi — sebep, 🎂 isim); güne
+  tıklayınca altında liste, satıra tıklayınca bağlı görüşme açılır. Ay adı bugüne döndürür.
+  RemindersBetween sorgusu (elle tarih parse — BoardCardOf dersi), UpcomingBirthdays yeniden
+  kullanıldı. Done şeridindeki kartların hatırlatması sayılmaz.
+- [x] **16.2 — Sor tek görüşmede "bulunamadı" diyordu** *(canlı: 23 sn'lik çağrıda "nedir" →
+  ret)*: SINIRLI pencerede (görüşme/kişi+tarih aralığı) anahtar kelime eşleşmezse pencerenin
+  kendi satırları bağlam olur (RecentSegments); arşiv genelinde dürüst ret kalır — 40 alakasız
+  satırdan cevap uydurulmaz. Boş pencerede mesaj artık gerçeği söyler: "yazıya dökülmüş konuşma
+  yok". 3 test.
+- [x] **16.3 — Ara sayfası çip şeridi üst üste biniyordu** *(ekran görüntüsü)*: çipler
+  Grid.Row=3'e kondu ama satır tanımı eklenmemişti — sonuç listesiyle çakışıyordu. Satır
+  eklendi, sonuç/boş-durum 4'e kaydı.
+- [x] **16.4 — Konuşma payı dökümün üstüne döndü** *("konuşmanın üstünde olsun")*: tek ince bar
+  + tek satır yazıyla Konuşma sekmesinin tepesinde; Özet sekmesinde yalnız özet kaldı.
+- [x] **16.5 — Kişi penceresi sayfalandırma** *("çok fazla konuşma olabilir")*: sessiz 200
+  tavanı görünür "Daha eski görüşmeleri yükle" düğmesi oldu (100'lük sayfalar, pencere+1
+  yoklamasıyla "daha var mı" bilinir). Sessiz kesme = arşivin en kötü hatasıydı.
+- [x] **16.6 — Satır detay şeridi "grid gibi"**: her satırda aynı sırayla aynı hücreler —
+  [📄 N satır] [💡 çözümlendi/çözümlenmedi] [🕐 hatırlatma tarihi, kırmızı] + etiket pilleri.
+  RemindersOf toplu sorgusu (satır başına sorgu yok).

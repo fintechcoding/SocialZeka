@@ -445,6 +445,8 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
         OnPropertyChanged(nameof(HasDue));
         OnPropertyChanged(nameof(HasBirthdays));
         OnPropertyChanged(nameof(TodayIsEmpty));
+
+        BuildCalendar();
     }
 
     // ---- the panel's verbs --------------------------------------------------
@@ -503,6 +505,128 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
 
         MoveCardTo(callId, index + delta);
     }
+
+    // ---- the calendar -------------------------------------------------------
+    //
+    // Outlook's little month, wired to the reminder system: a day carrying a reminder is
+    // marked, hovering says what and with whom, and clicking lists the reminders with the
+    // conversation each one is tied to. It exists because a reminder you cannot see coming is
+    // only an interruption on the day it fires — the calendar is where "yarın ne var?" lives.
+
+    /// <summary>First day of the month the calendar is showing.</summary>
+    [ObservableProperty] private DateOnly _calendarMonth =
+        new(DateTime.Today.Year, DateTime.Today.Month, 1);
+
+    [ObservableProperty] private string _calendarTitle = "";
+
+    /// <summary>The 42 cells of a Monday-first six-week grid.</summary>
+    public ObservableCollection<CalendarDay> CalendarDays { get; } = [];
+
+    /// <summary>The day whose reminders are listed under the grid. Null when nothing is picked.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelectedCalendarDay))]
+    [NotifyPropertyChangedFor(nameof(SelectedDayHeader))]
+    private CalendarDay? _selectedCalendarDay;
+
+    public bool HasSelectedCalendarDay => SelectedCalendarDay is not null;
+
+    public string SelectedDayHeader => SelectedCalendarDay is { } day
+        ? day.Date.ToDateTime(TimeOnly.MinValue).ToString("d MMMM dddd")
+        : "";
+
+    [RelayCommand]
+    private void CalendarPrev()
+    {
+        CalendarMonth = CalendarMonth.AddMonths(-1);
+        BuildCalendar();
+    }
+
+    [RelayCommand]
+    private void CalendarNext()
+    {
+        CalendarMonth = CalendarMonth.AddMonths(1);
+        BuildCalendar();
+    }
+
+    [RelayCommand]
+    private void CalendarToday()
+    {
+        CalendarMonth = new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1);
+        BuildCalendar();
+    }
+
+    /// <summary>Cell click: pick the day when it holds anything, clear the pick when it is bare.</summary>
+    public void SelectCalendarDay(CalendarDay day)
+        => SelectedCalendarDay = day.HasAnything ? day : null;
+
+    private void BuildCalendar()
+    {
+        // Monday-first: the Turkish week starts there, and a calendar that disagrees with the
+        // one on the user's wall reads as broken even when every date on it is right.
+        var lead = ((int)CalendarMonth.DayOfWeek + 6) % 7;
+        var start = CalendarMonth.AddDays(-lead);
+
+        var reminders = repository.RemindersBetween(start, start.AddDays(41))
+            .GroupBy(r => r.Day)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<CalendarReminder>)
+                    [.. g.Select(r => new CalendarReminder(r.CallId, r.ContactName, r.Title))]);
+
+        var birthdays = repository.UpcomingBirthdays(start, withinDays: 41)
+            .GroupBy(b => b.Day)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(b => b.Name)]);
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+
+        CalendarDays.Clear();
+        for (var i = 0; i < 42; i++)
+        {
+            var date = start.AddDays(i);
+
+            CalendarDays.Add(new CalendarDay(
+                date,
+                InMonth: date.Month == CalendarMonth.Month,
+                IsToday: date == today,
+                reminders.GetValueOrDefault(date, []),
+                birthdays.GetValueOrDefault(date, [])));
+        }
+
+        CalendarTitle = CalendarMonth.ToDateTime(TimeOnly.MinValue).ToString("MMMM yyyy");
+
+        // The pick survives a rebuild only while its day still has something to show.
+        SelectedCalendarDay = SelectedCalendarDay is { } picked
+            ? CalendarDays.FirstOrDefault(d => d.Date == picked.Date && d.HasAnything)
+            : null;
+    }
+}
+
+/// <summary>One reminder as the calendar tells it: who, why, and the conversation it hangs on.</summary>
+public sealed record CalendarReminder(long CallId, string ContactName, string Title)
+{
+    public string Line => Title.Length > 0 ? $"{ContactName} — {Title}" : ContactName;
+}
+
+/// <summary>One cell of the month grid.</summary>
+public sealed record CalendarDay(
+    DateOnly Date,
+    bool InMonth,
+    bool IsToday,
+    IReadOnlyList<CalendarReminder> Reminders,
+    IReadOnlyList<string> BirthdayNames)
+{
+    public string Label => Date.Day.ToString();
+
+    public bool HasReminders => Reminders.Count > 0;
+    public bool HasBirthday => BirthdayNames.Count > 0;
+    public bool HasAnything => HasReminders || HasBirthday;
+
+    /// <summary>What hovering says: every reminder and birthday on this day, one per line.</summary>
+    public string? Tooltip => !HasAnything
+        ? null
+        : string.Join(
+            Environment.NewLine,
+            Reminders.Select(r => $"🔔 {r.Line}").Concat(BirthdayNames.Select(n => $"🎂 {n}")));
 }
 
 /// <summary>One conversation on the important pile, as the first screen shows it.</summary>

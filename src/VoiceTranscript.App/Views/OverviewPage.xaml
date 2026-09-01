@@ -378,7 +378,13 @@
             BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
             Background="{DynamicResource LayerFillColorDefaultBrush}"
             Padding="10,8,10,10">
-        <TabControl Style="{StaticResource SegmentedTabs}" Padding="0,10,0,0">
+     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TabControl Grid.Row="0" Style="{StaticResource SegmentedTabs}" Padding="0,10,0,0">
             <TabItem Header="Önemli">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
@@ -610,6 +616,158 @@
                 </ScrollViewer>
             </TabItem>
         </TabControl>
+
+        <!--
+            Outlook's little month, wired to the reminders. A day carrying one is dotted red
+            (birthdays get the accent dot); hovering says what and with whom; clicking lists
+            the day's reminders, each opening the conversation it hangs on. It sits under the
+            panel because the two are one system: the panel is what you are tracking, the
+            calendar is when it comes back.
+        -->
+        <Border Grid.Row="1" Margin="0,10,0,0" Padding="8" CornerRadius="6" BorderThickness="1"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:Button Grid.Column="0" Appearance="Transparent" Padding="6,2"
+                               Command="{Binding CalendarPrevCommand}" ToolTip="Önceki ay">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="ChevronLeft24" />
+                        </ui:Button.Icon>
+                    </ui:Button>
+
+                    <!-- The month name is also the way home: clicking it returns to today. -->
+                    <TextBlock Grid.Column="1" Text="{Binding CalendarTitle}" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Cursor="Hand" ToolTip="Bugüne dön">
+                        <TextBlock.InputBindings>
+                            <MouseBinding MouseAction="LeftClick" Command="{Binding CalendarTodayCommand}" />
+                        </TextBlock.InputBindings>
+                    </TextBlock>
+
+                    <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6,2"
+                               Command="{Binding CalendarNextCommand}" ToolTip="Sonraki ay">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="ChevronRight24" />
+                        </ui:Button.Icon>
+                    </ui:Button>
+                </Grid>
+
+                <UniformGrid Columns="7" Margin="0,6,0,2">
+                    <TextBlock Text="Pzt" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="Sal" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="Çar" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="Per" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="Cum" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="Cmt" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                    <TextBlock Text="Paz" Style="{StaticResource Caption}" HorizontalAlignment="Center" />
+                </UniformGrid>
+
+                <ItemsControl ItemsSource="{Binding CalendarDays}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="7" Rows="6" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border CornerRadius="4" MouseLeftButtonUp="CalendarDay_Click"
+                                    ToolTip="{Binding Tooltip}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasAnything}" Value="True">
+                                                <Setter Property="Cursor" Value="Hand" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Margin="0,3,0,2">
+                                    <TextBlock Text="{Binding Label}" FontSize="11"
+                                               HorizontalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding InMonth}" Value="False">
+                                                        <Setter Property="Foreground"
+                                                                Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                        <Setter Property="FontWeight" Value="Bold" />
+                                                        <Setter Property="Foreground"
+                                                                Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <!-- The marks: red = a reminder comes due, accent = a birthday. -->
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                Height="5" Margin="0,1,0,0">
+                                        <Ellipse Width="5" Height="5"
+                                                 Fill="{DynamicResource SystemFillColorCriticalBrush}"
+                                                 Visibility="{Binding HasReminders, Converter={StaticResource BoolToVisibility}}" />
+                                        <Ellipse Width="5" Height="5" Margin="2,0,0,0"
+                                                 Fill="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                 Visibility="{Binding HasBirthday, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- The picked day, unpacked: every reminder with the conversation it points at. -->
+                <StackPanel Margin="0,6,0,0"
+                            Visibility="{Binding HasSelectedCalendarDay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{Binding SelectedDayHeader}" FontWeight="SemiBold"
+                               FontSize="{StaticResource TextSecondary}" Margin="2,0,0,4" />
+
+                    <ItemsControl ItemsSource="{Binding SelectedCalendarDay.Reminders}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="Transparent" CornerRadius="4" Padding="6,4"
+                                        Cursor="Hand" MouseLeftButtonUp="CalendarReminder_Click"
+                                        ToolTip="Bağlı görüşmeyi açar">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Clock24" FontSize="13" Margin="0,0,6,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        <TextBlock Text="{Binding Line}" TextWrapping="Wrap"
+                                                   FontSize="{StaticResource TextSecondary}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ItemsControl ItemsSource="{Binding SelectedCalendarDay.BirthdayNames}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="6,2">
+                                    <TextBlock Text="🎂" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding}" FontSize="{StaticResource TextSecondary}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+     </Grid>
     </Border>
     </Grid>
 </UserControl>

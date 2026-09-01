@@ -333,4 +333,58 @@ public class ArchiveQuestionsTests : IDisposable
         Assert.NotNull(llm.LastUserPrompt);
         Assert.Contains("ALINTILAR:", llm.LastUserPrompt!);
     }
+
+    /// <summary>
+    /// "nedir?" asked on one short conversation, live: refused for lack of keyword overlap,
+    /// though the whole transcript would have fit in front of the model forty times over. A
+    /// BOUNDED window that matches no keyword now hands the model the window's own lines.
+    /// </summary>
+    [Fact]
+    public async Task AGenericQuestionOnOneCallGetsTheCallItselfAsContext()
+    {
+        var when = DateTimeOffset.Now.AddHours(-1);
+        Seed("Uliana", when,
+            (true, "alo alo napıyon bir tanem"),
+            (false, "Uyandı mı Vigo nun uyuduğundan"));
+
+        var llm = new ScriptedLlm("""{"cevap":"Uyku konuşuldu.","dayanaklar":[1],"yetersiz":false}""");
+        var ask = new ArchiveQuestions(llm, _repository);
+
+        var answer = await ask.AskAsync(
+            "nedir", "test-model",
+            since: when.AddSeconds(-1), until: when.AddMinutes(1));
+
+        Assert.Equal(1, llm.Calls);
+        Assert.Contains("napıyon", llm.LastUserPrompt!);
+        Assert.False(answer.Insufficient);
+    }
+
+    /// <summary>Unbounded stays honest: no match, no invented context, no model call.</summary>
+    [Fact]
+    public async Task AnArchiveWideMissStillRefusesInsteadOfGuessing()
+    {
+        Seed("Ahmet", DateTimeOffset.Now.AddDays(-2), (false, "Fiyat on sekiz bin."));
+
+        var llm = new ScriptedLlm("{}");
+
+        var answer = await new ArchiveQuestions(llm, _repository)
+            .AskAsync("zeplin sigortası", "test-model");
+
+        Assert.Equal(0, llm.Calls);
+        Assert.True(answer.Insufficient);
+    }
+
+    /// <summary>A bounded window with no transcript at all says so, not "try other words".</summary>
+    [Fact]
+    public async Task AnEmptyWindowNamesTheRealProblem()
+    {
+        var llm = new ScriptedLlm("{}");
+
+        var answer = await new ArchiveQuestions(llm, _repository).AskAsync(
+            "nedir", "test-model",
+            since: DateTimeOffset.Now.AddMinutes(-5), until: DateTimeOffset.Now);
+
+        Assert.Equal(0, llm.Calls);
+        Assert.Contains("yazıya dökülmüş", answer.Text);
+    }
 }

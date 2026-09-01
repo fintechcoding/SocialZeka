@@ -9,8 +9,33 @@ namespace VoiceTranscript.App.ViewModels;
 
 /// <summary>One of this person's conversations, as the window lists it.</summary>
 public sealed record ContactCall(
-    Call Call, int SegmentCount, bool HasNote, int LedgerEntries, IReadOnlyList<string> Tags)
+    Call Call, int SegmentCount, bool HasNote, int LedgerEntries, IReadOnlyList<string> Tags,
+    DateOnly? RemindOn = null)
 {
+    // The detail strip, cell by cell: every row shows the same facts in the same order with
+    // the same dress, which is what makes a list of mixed states readable as a table.
+
+    /// <summary>First cell: did the audio become text, and how much of it.</summary>
+    public string LineChip => SegmentCount > 0 ? $"{SegmentCount} satır" : "metin yok";
+
+    public bool IsAnalysed => Call.State == ProcessingState.Analysed;
+
+    /// <summary>Second cell: did the text become a ledger.</summary>
+    public string AnalysisChip => Call.State switch
+    {
+        ProcessingState.Analysed => "çözümlendi",
+        ProcessingState.Failed => "işlenemedi",
+        ProcessingState.Skipped => "atlandı",
+        _ => "çözümlenmedi",
+    };
+
+    public bool HasReminder => RemindOn is not null;
+
+    /// <summary>Third cell: the reminder hanging on this conversation, when one is set.</summary>
+    public string ReminderChip => RemindOn is { } day
+        ? day.ToDateTime(TimeOnly.MinValue).ToString("d MMM")
+        : "";
+
     public long Id => Call.Id;
 
     public string When => Call.StartedAt.ToLocalTime().ToString("d MMMM yyyy, HH:mm")
@@ -375,9 +400,35 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveFilterCount));
     }
 
+    /// <summary>How many conversations one click of "daha eski" adds to the list.</summary>
+    private const int CallPageSize = 100;
+
+    /// <summary>How many pages the user has asked to see so far.</summary>
+    private int _visibleCallPages = 1;
+
+    /// <summary>True while the archive holds conversations older than what is loaded.</summary>
+    [ObservableProperty] private bool _hasMoreCalls;
+
+    /// <summary>
+    /// Loads the next page of history. Months of calls with one person used to be capped at a
+    /// silent 200 — conversations older than that simply did not exist on screen, which on an
+    /// archive whose whole promise is remembering is the worst possible failure to have quietly.
+    /// </summary>
+    [RelayCommand]
+    private void LoadMoreCalls()
+    {
+        _visibleCallPages++;
+        LoadCalls();
+    }
+
     private void LoadCallsCore()
     {
-        var calls = _repository.ListCalls(ContactId, limit: 200);
+        // One row past the window says whether older history exists, without counting it all.
+        var window = CallPageSize * _visibleCallPages;
+        var calls = _repository.ListCalls(ContactId, limit: window + 1);
+
+        HasMoreCalls = calls.Count > window;
+        if (HasMoreCalls) calls = [.. calls.Take(window)];
 
         // Batched: one query each for notes, tags and segment counts. A query per row would be
         // two hundred round trips every time the window opens.
@@ -385,6 +436,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         var withNotes = _repository.CallsWithNotes(ids);
         var tags = _repository.TagsOf(ids);
         var segmentCounts = _repository.SegmentCounts(ids);
+        var reminders = _repository.RemindersOf(ids);
 
         // "N defter kaydı" counts everything the ledger holds for the call — commitments,
         // claims AND flags. It used to count flags alone, so a call with three commitments and
@@ -435,7 +487,8 @@ public sealed partial class ContactWindowViewModel : ObservableObject
                 segmentCounts.GetValueOrDefault(call.Id),
                 withNotes.Contains(call.Id),
                 ledger.GetValueOrDefault(call.Id),
-                tags.GetValueOrDefault(call.Id, [])));
+                tags.GetValueOrDefault(call.Id, []),
+                reminders.TryGetValue(call.Id, out var remindOn) ? remindOn : null));
         }
 
         // The filter list holds what this person's conversations actually carry — offering the

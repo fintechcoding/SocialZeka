@@ -465,10 +465,35 @@
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="*" />
                                             </Grid.RowDefinitions>
 
-                                            <TextBlock Grid.Row="0" Text="{Binding TranscriptMessage}"
+                                            <!--
+                                                Who did the talking, thin, above the words. It came
+                                                back out of the Özet tab by request — slimmed to one
+                                                bar and one line, it costs the transcript almost
+                                                nothing and answers its question at a glance.
+                                            -->
+                                            <StackPanel Grid.Row="0" Margin="0,0,0,10"
+                                                        Visibility="{Binding HasTalkStats, Converter={StaticResource BoolToVisibility}}">
+                                                <Grid Height="6" Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=me}" />
+                                                        <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=them}" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" Background="{StaticResource MeBrush}"
+                                                            CornerRadius="3,0,0,3" />
+                                                    <Border Grid.Column="1" Background="{StaticResource ThemBrush}"
+                                                            CornerRadius="0,3,3,0" />
+                                                </Grid>
+
+                                                <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap">
+                                                    <Run Text="{Binding TalkSummary, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding InterruptionSummary, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </StackPanel>
+
+                                            <TextBlock Grid.Row="1" Text="{Binding TranscriptMessage}"
                                                        Style="{StaticResource Secondary}" Margin="0,0,0,8"
                                                        Visibility="{Binding TranscriptMessage, Converter={StaticResource NullToCollapsed}}" />
 
@@ -481,7 +506,7 @@
                                                 transcript survives being printed or read by
                                                 somebody who cannot tell the two colours apart.
                                             -->
-                                            <ListBox Grid.Row="1" Style="{StaticResource CleanList}"
+                                            <ListBox Grid.Row="2" Style="{StaticResource CleanList}"
                                                      ItemsSource="{Binding Transcript}"
                                                      Visibility="{Binding HasTranscript, Converter={StaticResource BoolToVisibility}}">
                                     <ListBox.ItemTemplate>
@@ -565,38 +590,9 @@
                                                     </StackPanel>
                                                 </Border>
 
-                                                <!--
-                                                    Who did the talking.
-
-                                                    Free from the recording design, and impossible
-                                                    to produce honestly from a single mixed stream.
-                                                    Stated as a measurement, never as a verdict
-                                                    about the other person.
-                                                -->
-                                                <Border Style="{StaticResource Panel}" Margin="0,10,0,0"
-                                                        Visibility="{Binding HasTalkStats, Converter={StaticResource BoolToVisibility}}">
-                                                    <StackPanel>
-                                                        <TextBlock Text="{loc:T contactspage.konusma-payi}" FontWeight="SemiBold" Margin="0,0,0,8" />
-
-                                                        <Grid Height="8" Margin="0,0,0,8">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=me}" />
-                                                                <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=them}" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <Border Grid.Column="0" Background="{StaticResource MeBrush}"
-                                                                    CornerRadius="4,0,0,4" />
-                                                            <Border Grid.Column="1" Background="{StaticResource ThemBrush}"
-                                                                    CornerRadius="0,4,4,0" />
-                                                        </Grid>
-
-                                                        <!-- One flowing line, wrapping only when it must:
-                                                             two stacked captions spent a row on what a
-                                                             separator dot says. -->
-                                                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap">
-                                                            <Run Text="{Binding TalkSummary, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding InterruptionSummary, Mode=OneWay}" />
-                                                        </TextBlock>
-                                                    </StackPanel>
-                                                </Border>
+                                                <!-- The talk-share strip lives above the
+                                                     transcript now, by request; this tab keeps
+                                                     only what has no other home. -->
 
                                                 <TextBlock Text="Bu görüşme için özet yok — çözümleme çalışınca burada belirir."
                                                            Margin="0,4,0,0">

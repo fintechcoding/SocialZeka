@@ -89,6 +89,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <!--
@@ -253,10 +254,62 @@
                                                            Visibility="{Binding HasNote, Converter={StaticResource BoolToVisibility}}" />
                                         </StackPanel>
 
-                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                            <TextBlock Text="{Binding State}" Style="{StaticResource Caption}"
-                                                       VerticalAlignment="Center" />
-                                            <ItemsControl ItemsSource="{Binding Tags}" Margin="6,0,0,0"
+                                        <!--
+                                            The detail strip: the same facts in the same order on
+                                            every row — lines, analysis, reminder, then the user's
+                                            tags. Uniform little cells are what make a list of
+                                            mixed states scan like a table instead of prose.
+                                        -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                            <Border CornerRadius="4" Padding="6,1" Margin="0,0,4,0"
+                                                    Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:SymbolIcon Symbol="DocumentText24" FontSize="11" Margin="0,0,3,0"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    <TextBlock Text="{Binding LineChip}" Style="{StaticResource Caption}"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border CornerRadius="4" Padding="6,1" Margin="0,0,4,0"
+                                                    Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:SymbolIcon Symbol="Lightbulb24" FontSize="11" Margin="0,0,3,0"
+                                                                   VerticalAlignment="Center">
+                                                        <ui:SymbolIcon.Style>
+                                                            <Style TargetType="ui:SymbolIcon">
+                                                                <Setter Property="Foreground"
+                                                                        Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsAnalysed}" Value="True">
+                                                                        <Setter Property="Foreground"
+                                                                                Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ui:SymbolIcon.Style>
+                                                    </ui:SymbolIcon>
+                                                    <TextBlock Text="{Binding AnalysisChip}" Style="{StaticResource Caption}"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Only when a reminder hangs on this conversation. -->
+                                            <Border CornerRadius="4" Padding="6,1" Margin="0,0,4,0"
+                                                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                    ToolTip="Bu görüşmeye bağlı hatırlatma"
+                                                    Visibility="{Binding HasReminder, Converter={StaticResource BoolToVisibility}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:SymbolIcon Symbol="Clock24" FontSize="11" Margin="0,0,3,0"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                                                    <TextBlock Text="{Binding ReminderChip}" Style="{StaticResource Caption}"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <ItemsControl ItemsSource="{Binding Tags}" Margin="2,0,0,0"
                                                           VerticalAlignment="Center"
                                                           Visibility="{Binding HasTags, Converter={StaticResource BoolToVisibility}}">
                                                 <ItemsControl.ItemsPanel>
@@ -300,6 +353,19 @@
                                 Visibility="{Binding HasCalls, Converter={StaticResource InverseBoolToVisibility}}">
                         <TextBlock Style="{StaticResource EmptyTitle}" Text="Bu kişiye ait kayıtlı görüşme yok." />
                     </StackPanel>
+
+                    <!-- History arrives a page at a time. The old silent cap of 200 made
+                         everything older simply not exist on screen; this button is the cap
+                         made visible and clickable. -->
+                    <ui:Button Grid.Row="2" Content="Daha eski görüşmeleri yükle"
+                               HorizontalAlignment="Center" Margin="0,8,0,4" Padding="14,6"
+                               Appearance="Secondary"
+                               Command="{Binding LoadMoreCallsCommand}"
+                               Visibility="{Binding HasMoreCalls, Converter={StaticResource BoolToVisibility}}">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="ChevronDown24" />
+                        </ui:Button.Icon>
+                    </ui:Button>
                 </Grid>
             </TabItem>
 

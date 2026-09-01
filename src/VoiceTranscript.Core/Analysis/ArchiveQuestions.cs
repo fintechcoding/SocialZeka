@@ -106,9 +106,13 @@ public sealed class ArchiveQuestions(ILlmClient llm, Repository repository)
 
         if (excerpts.Count == 0)
         {
+            // With the bounded-window fallback above, an empty result inside a window means the
+            // window holds no transcript at all — say that, not "try other words".
             return new Answer(
-                "Bu konuda kayıtlı bir konuşma bulunamadı. Farklı kelimelerle aramayı ya da " +
-                "kişi/tarih süzgecini gevşetmeyi deneyebilirsin.",
+                since is not null && until is not null
+                    ? "Bu aralıkta yazıya dökülmüş konuşma yok — görüşme önce yazıya dökülmeli."
+                    : "Bu konuda kayıtlı bir konuşma bulunamadı. Farklı kelimelerle aramayı ya da " +
+                      "kişi/tarih süzgecini gevşetmeyi deneyebilirsin.",
                 [], Insufficient: true);
         }
 
@@ -202,6 +206,18 @@ public sealed class ArchiveQuestions(ILlmClient llm, Repository repository)
             .ThenBy(h => h.StartMs)
             .Take(MaxExcerpts)
             .ToList();
+
+        // A BOUNDED window whose keywords matched nothing gets the window itself as context.
+        // "nedir?" asked on a 23-second conversation was refused for lack of keyword overlap —
+        // when the question names one conversation or one stretch of days, its own lines ARE
+        // the context, keywords or not. Unbounded questions keep the honest refusal: feeding
+        // forty unrelated lines to the model would manufacture answers, not find them.
+        if (kept.Count == 0 && since is not null && until is not null)
+        {
+            kept = [.. repository.RecentSegments(contactId, since, until, MaxExcerpts)
+                .OrderBy(h => h.CallStartedAt)
+                .ThenBy(h => h.StartMs)];
+        }
 
         return [.. kept.Select((h, i) => new Excerpt(
             i + 1, h.CallId, h.ContactName, h.CallStartedAt, h.StartMs, h.IsMe, h.Text.Trim()))];
