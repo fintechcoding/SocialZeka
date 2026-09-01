@@ -25,6 +25,7 @@ public sealed class AppPaths
         Models = Path.Combine(Root, "models");
         Logs = Path.Combine(Root, "logs");
         Photos = Path.Combine(Root, "photos");
+        Cache = Path.Combine(Root, "cache");
         DatabaseFile = Path.Combine(Root, "voicetranscript.db");
         SettingsFile = Path.Combine(Root, "settings.json");
     }
@@ -36,6 +37,9 @@ public sealed class AppPaths
 
     /// <summary>Contact photos, copied in and shrunk — never references to files elsewhere.</summary>
     public string Photos { get; }
+
+    /// <summary>Derived files that can be rebuilt from the archive at any time — decoded audio, mostly.</summary>
+    public string Cache { get; }
     public string DatabaseFile { get; }
     public string SettingsFile { get; }
 
@@ -46,6 +50,7 @@ public sealed class AppPaths
         Directory.CreateDirectory(Models);
         Directory.CreateDirectory(Logs);
         Directory.CreateDirectory(Photos);
+        Directory.CreateDirectory(Cache);
     }
 
     /// <summary>Directory for one call's audio, grouped by month so folders stay browsable.</summary>

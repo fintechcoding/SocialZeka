@@ -37,7 +37,8 @@ public sealed class PcmReader : IDisposable
 
     public static PcmReader Open(string path)
     {
-        var stream = File.OpenRead(path);
+        // A compressed recording is decoded into the cache first; the reader never knows.
+        var stream = File.OpenRead(AudioMaterialiser.EnsurePcm(path)!);
 
         try
         {

@@ -357,6 +357,18 @@ public sealed record AppSettings
     /// </summary>
     public bool TrimSilenceAfterProcessing { get; init; } = true;
 
+    /// <summary>
+    /// Compresses a recording to Opus once it is fully processed.
+    ///
+    /// The answer to "WAV dosyaları çok fazla konuşma olursa aşırı yer kaplar": two PCM streams
+    /// are 230 MB an hour, and a month of calls is tens of gigabytes that will be listened to
+    /// for minutes. Opus at 24 kbit/s keeps a voice call indistinguishable and makes it twenty
+    /// times smaller. The two streams stay separate — who said what is never mixed away — and
+    /// playback, clips and re-transcription decode on demand. Applied only after the transcript
+    /// exists; a recording that is the whole record of a conversation keeps its original.
+    /// </summary>
+    public bool CompressAudioAfterProcessing { get; init; } = true;
+
     // ---- retention ----------------------------------------------------------
 
     /// <summary>

@@ -146,6 +146,7 @@ public partial class App : Application
         try
         {
             Paths.EnsureCreated();
+            Core.Audio.AudioMaterialiser.CacheDirectory = Paths.Cache;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
                                               or ArgumentException or NotSupportedException)

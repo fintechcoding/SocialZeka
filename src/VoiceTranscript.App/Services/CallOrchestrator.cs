@@ -1080,8 +1080,10 @@ public sealed class CallOrchestrator : IDisposable
                 }
             }
 
-            // With the words safely out of the audio and into the archive, the dead air can go.
+            // With the words safely out of the audio and into the archive, the dead air can go —
+            // and then the rest can shrink.
             if (settings.TrimSilenceAfterProcessing) TrimSilence(callId);
+            if (settings.CompressAudioAfterProcessing) CompressAudio(callId);
 
             if (settings.ExportToObsidian && !string.IsNullOrWhiteSpace(settings.ObsidianVaultPath))
                 Export(callId, settings);
@@ -1283,8 +1285,9 @@ public sealed class CallOrchestrator : IDisposable
                     ModelRef = endpoint.ToModelRef(),
                     Device = settings.AsrDevice,
                     Language = settings.Language,
-                    MicPath = call.MicPath,
-                    FarPath = call.FarPath,
+                    // The worker reads PCM; a compressed archive is expanded into the cache first.
+                    MicPath = AudioMaterialiser.EnsurePcm(call.MicPath),
+                    FarPath = AudioMaterialiser.EnsurePcm(call.FarPath),
                     CacheDir = _paths.Models,
                 }, progress: new Progress<Core.Asr.WorkerProgress>(p =>
                 {
@@ -1326,6 +1329,119 @@ public sealed class CallOrchestrator : IDisposable
     /// one transaction with the trim stamp. A failure here is logged and ignored — losing disk
     /// economy is nothing, losing a recording would be everything.
     /// </summary>
+    /// <summary>
+    /// Replaces a processed call's PCM streams with Opus, one stream at a time.
+    ///
+    /// Each stream is encoded to a sibling file, decoded again to prove it holds every frame,
+    /// and only then does the WAV go and the row learn the new path — so a crash anywhere leaves
+    /// either the original or a verified replacement, never neither. The two streams are never
+    /// mixed: the separation is what makes speaker attribution a fact, and it survives.
+    /// </summary>
+    private void CompressAudio(long callId)
+    {
+        try
+        {
+            var call = _repository.GetCall(callId);
+            if (call is null) return;
+
+            long before = 0, after = 0;
+            var mic = CompressStream(call.MicPath, ref before, ref after);
+            var far = CompressStream(call.FarPath, ref before, ref after);
+
+            if (mic == call.MicPath && far == call.FarPath) return;
+
+            _repository.SetAudioPaths(callId, mic, far);
+
+            // The mixed copy was built from the PCM names; the next play rebuilds it from the
+            // decoded cache.
+            if (call.MicPath is { } oldMic)
+            {
+                var mix = ConversationMix.PathFor(oldMic);
+                if (File.Exists(mix)) File.Delete(mix);
+            }
+
+            AppLog.Write("veri",
+                $"sıkıştırıldı: görüşme #{callId} · {before / 1_048_576.0:0.0} MB → {after / 1_048_576.0:0.0} MB");
+        }
+        catch (Exception e)
+        {
+            // Nothing is lost when this fails: the original is still there and the row still
+            // points at it. Worth a line, not a notice.
+            AppLog.Error("veri", e, $"görüşme #{callId} sıkıştırılamadı");
+        }
+    }
+
+    /// <summary>One stream. Returns the path the row should hold afterwards.</summary>
+    private static string? CompressStream(string? wavPath, ref long before, ref long after)
+    {
+        if (wavPath is null || AudioMaterialiser.IsCompressed(wavPath) || !File.Exists(wavPath)) return wavPath;
+
+        var oggPath = OpusArchive.CompressedPathFor(wavPath);
+        var frames = OpusArchive.Encode(wavPath, oggPath);
+
+        // Verified by decoding, not by trusting the encoder: a truncated file decodes short.
+        var decoded = OpusArchive.CountFrames(oggPath, AudioFormat.WhisperPcm.SampleRate);
+        var tolerance = AudioFormat.WhisperPcm.SampleRate / 10; // 100 ms of codec padding
+
+        if (Math.Abs(decoded - frames) > tolerance)
+        {
+            File.Delete(oggPath);
+            throw new InvalidDataException($"sıkıştırılan ses eksik çözüldü ({decoded}/{frames} örnek)");
+        }
+
+        before += new FileInfo(wavPath).Length;
+        after += new FileInfo(oggPath).Length;
+
+        File.Delete(wavPath);
+        return oggPath;
+    }
+
+    /// <summary>
+    /// Shrinks the recordings that were already on disk before compression existed, one at a
+    /// time, at the lowest priority, off the processing queue.
+    ///
+    /// This is where the disk actually comes back: the user who asked has months of PCM. It is
+    /// a background thread rather than queue work because it must never delay a transcription,
+    /// and lowest priority because it must never be felt during a call.
+    /// </summary>
+    private void CompressBacklog()
+    {
+        if (!_settings().CompressAudioAfterProcessing) return;
+
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var calls = _repository.CallsWithUncompressedAudio();
+                if (calls.Count == 0) return;
+
+                AppLog.Write("veri", $"sıkıştırma birikimi: {calls.Count} görüşme");
+
+                foreach (var call in calls)
+                {
+                    if (_disposed || _cts?.IsCancellationRequested == true) return;
+
+                    // Not while the processor has it open, and not once the switch is off.
+                    if (_currentJobCallId == call.Id) continue;
+                    if (!_settings().CompressAudioAfterProcessing) return;
+
+                    CompressAudio(call.Id);
+                }
+            }
+            catch (Exception e)
+            {
+                AppLog.Error("veri", e, "sıkıştırma birikimi yarıda kaldı");
+            }
+        })
+        {
+            IsBackground = true,
+            Priority = ThreadPriority.Lowest,
+            Name = "ses-sikistirma",
+        };
+
+        thread.Start();
+    }
+
     private void TrimSilence(long callId)
     {
         try
@@ -1334,6 +1450,12 @@ public sealed class CallOrchestrator : IDisposable
 
             if (call?.MicPath is not { } mic || call.FarPath is not { } far) return;
             if (call.TrimmedAt is not null) return;
+
+            // Trimming rewrites the PCM in place. A compressed archive is not PCM, and the
+            // cut plan would have run over the decoded copy and then moved a WAV onto an
+            // .ogg path. Compression runs after trimming, never before it, so this only
+            // guards a recording compressed by an earlier run.
+            if (AudioMaterialiser.IsCompressed(mic) || AudioMaterialiser.IsCompressed(far)) return;
             if (!File.Exists(mic) || !File.Exists(far)) return;
 
             var cuts = Core.Audio.SilenceTrimmer.PlanCuts(mic, far);
@@ -1465,8 +1587,9 @@ public sealed class CallOrchestrator : IDisposable
                     ModelRef = model.ModelRef,
                     Device = settings.AsrDevice,
                     Language = settings.Language,
-                    MicPath = call.MicPath,
-                    FarPath = call.FarPath,
+                    // The worker reads PCM; a compressed archive is expanded into the cache first.
+                    MicPath = AudioMaterialiser.EnsurePcm(call.MicPath),
+                    FarPath = AudioMaterialiser.EnsurePcm(call.FarPath),
                     CacheDir = _paths.Models,
                 }, progress: new Progress<Core.Asr.WorkerProgress>(p =>
                 {
@@ -1846,6 +1969,7 @@ public sealed class CallOrchestrator : IDisposable
     public Task ProcessBacklogAsync(CancellationToken cancellationToken = default)
     {
         ReclaimStrandedRecordings();
+        CompressBacklog();
 
         foreach (var call in _repository.CallsAwaitingProcessing())
         {

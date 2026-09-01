@@ -649,6 +649,38 @@ public sealed class Repository(Database database)
     /// Safe to reclaim precisely because this is only ever called at startup: the process that
     /// might have been holding them is the one that just died.
     /// </summary>
+    /// <summary>Points a call at new audio files — after compression, when the bytes moved but nothing else did.</summary>
+    public void SetAudioPaths(long callId, string? micPath, string? farPath)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            "UPDATE call SET mic_path = @micPath, far_path = @farPath WHERE id = @callId;",
+            new { callId, micPath, farPath });
+    }
+
+    /// <summary>
+    /// Finished calls whose audio is still PCM on disk.
+    ///
+    /// Finished means the words are already in the archive — a call with no transcript keeps its
+    /// original, because for that call the audio is the whole record and a codec, however good,
+    /// is not something to put between a person and the only copy. Calls the processor is busy
+    /// with, or about to be, are left alone as well; they are read from while they are worked on.
+    /// </summary>
+    public IReadOnlyList<Call> CallsWithUncompressedAudio()
+    {
+        using var connection = Open();
+        return [.. connection.Query<CallRow>(
+            """
+            SELECT c.* FROM call c
+            WHERE c.state NOT IN (0, 1, 2, 4)
+              AND (c.mic_path LIKE '%.wav' OR c.far_path LIKE '%.wav')
+              AND EXISTS (SELECT 1 FROM segment s WHERE s.call_id = c.id)
+            ORDER BY c.started_at ASC;
+            """)
+            .Select(r => r.ToModel())];
+    }
+
     /// <summary>
     /// Calls that were being recorded when the process died: still marked as fresh recordings,
     /// with no audio attached, because the paths are only written when a recording ends properly.
@@ -2452,6 +2484,10 @@ public sealed class Repository(Database database)
 
         // The mixed copy is derived from the two streams and is a playable recording of the
         // whole conversation. Forgetting the audio while leaving it behind forgot nothing.
+        // Decoded copies in the cache go with the originals.
+        Audio.AudioMaterialiser.Forget(call.MicPath);
+        Audio.AudioMaterialiser.Forget(call.FarPath);
+
         var anchor = call.MicPath ?? call.FarPath;
         if (anchor is not null)
         {

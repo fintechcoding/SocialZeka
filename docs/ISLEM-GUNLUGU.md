@@ -877,3 +877,38 @@ kendine yeten Release yayını + Inno Setup paketi, `main @ 8a950ae` üzerinden.
 `dist/VoiceTranscript-Setup-2.1.6-beta1-win-x64.exe` (66 MB),
 SHA-256 `fbbd4cb6be858fd58c81ed30ae802e52e4e9cdead297b5908c18c758dc33ff51`. Sürüm etiketi
 atılmadı; gerçek 2.1.6, hedef makinede iki yeni ekran ve kurtarma yolu görüldükten sonra.
+
+## 2026-09-02 (ikinci tur) — WAV arşivi Opus'a: yirmi kat küçük
+
+Kullanıcı: *"WAV dosyaları çok fazla konuşma olursa aşırı yer kaplar, buna bir çözüm bulur musun?"*
+
+**Hesap.** İki 16 kHz mono PCM akışı saatte 230 MB; karışım kopyasıyla 345 MB. Günde iki saat
+görüşme, ayda 14-20 GB. Dinlenecek toplam süre belki birkaç dakika — bir söz ya da rakam kayda
+karşı denetlenirken.
+
+**Seçenekler.** Saklama süresi (ses silinir — kanıt gider), sessizlik kırpma (var, %20-30),
+ADPCM (4×, kalite düşük), AAC/Media Foundation (16 kHz girişi desteklemez, yeniden örnekleme
+gerekir), Opus (tam bu sinyal için tasarlanmış: 16 kHz konuşma, 24 kbit/s şeffaf, 20×). Opus;
+`Concentus` + `Concentus.Oggfile` ile saf C#, yerel bağımlılık ve ffmpeg yok.
+
+**Tasarım.**
+- Görüşme tamamen işlendikten sonra (döküm arşivde, sessizlik kırpılmış) iki akış ayrı ayrı
+  Ogg/Opus'a çevrilir. Kimin ne söylediği karışmaz.
+- Her akış yan dosyaya kodlanır, geri çözülüp örnek sayısı orijinalle karşılaştırılır, ancak
+  ondan sonra WAV silinip satır yeni yolu öğrenir. Çökme ya orijinali ya doğrulanmış kopyayı bırakır.
+- Dökümü olmayan kayıt sıkıştırılmaz (saklama süpürmesiyle aynı kural): o görüşme için ses tek kayıttır.
+- `AudioMaterialiser`: okuyan herkes PCM ister — `PcmReader.Open`, oynatıcı, kesit, dalga formu,
+  worker'a giden yol. `.wav` olduğu gibi geçer, `.ogg` bir kez `cache/audio/`'ya çözülür; 2 GB
+  üstünde en eskisi silinir, görüşme unutulunca kopyası gider. Görüşme penceresi çözmeyi dalga
+  formuyla aynı işçi iş parçacığında yapar, tıklandığında önbellek hazırdır.
+- Eski kayıtlar açılışta en düşük öncelikli ayrı bir iş parçacığında, kuyruğun dışında, birer
+  birer sıkıştırılır. Diskin gerçekten geri geldiği yer burası.
+- Uzantı `.ogg` (Obsidian ve Windows kabuğu söylenmeden çalar). Ayarlarda "Sesi sıkıştır"
+  anahtarı, varsayılan açık.
+
+**792 test, 0 hata** (4 yeni: kodek gidiş-dönüş ve içerik doğrulaması, önbellek tek çözme ve
+unutma, yarım dosya bırakmama, sıkıştırma birikimi sorgusu) + 57 Python.
+
+Bu makinede doğrulanamayan: gerçek bir saatlik kaydın kodlama süresi (Concentus saf C#; tahmin
+hedef makinede akış başına 1-2 dakika, en düşük öncelikte) ve oynatıcının `.ogg` görüşmede ilk
+tıklama gecikmesi.

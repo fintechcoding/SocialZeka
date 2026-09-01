@@ -72,6 +72,41 @@ public sealed class RepositoryTests : IDisposable
         Assert.DoesNotContain(transcribed, ids);
     }
 
+    /// <summary>
+    /// The compression backlog is exactly the finished calls still holding PCM. A call without
+    /// a transcript keeps its original — the audio is its whole record — and a call the queue
+    /// has or is about to have is left alone until it is done.
+    /// </summary>
+    [Fact]
+    public void OnlyFinishedTranscribedCallsWithPcmAreCompressed()
+    {
+        long Insert(ProcessingState state, string mic, string far, bool withTranscript)
+        {
+            var id = _repo.InsertCall(new Call
+            {
+                App = CallApp.WhatsApp, StartedAt = DateTimeOffset.UtcNow, State = ProcessingState.Recorded,
+            });
+            _repo.CompleteCall(id, mic, far, TimeSpan.FromMinutes(2), DateTimeOffset.UtcNow);
+            if (withTranscript)
+                _repo.ReplaceSegments(id, [new Segment { CallId = id, IsMe = false, StartMs = 0, EndMs = 1000, Text = "kayıt" }]);
+            _repo.SetCallState(id, state);
+            return id;
+        }
+
+        var done = Insert(ProcessingState.Analysed, "a-mic.wav", "a-far.wav", withTranscript: true);
+        var textOnly = Insert(ProcessingState.Transcribed, "b-mic.wav", "b-far.wav", withTranscript: true);
+        var queued = Insert(ProcessingState.Queued, "c-mic.wav", "c-far.wav", withTranscript: true);
+        var noTranscript = Insert(ProcessingState.Analysed, "d-mic.wav", "d-far.wav", withTranscript: false);
+        var already = Insert(ProcessingState.Analysed, "e-mic.ogg", "e-far.ogg", withTranscript: true);
+
+        var ids = _repo.CallsWithUncompressedAudio().Select(c => c.Id).ToList();
+
+        Assert.Equal(new[] { done, textOnly }, ids);
+        Assert.DoesNotContain(queued, ids);
+        Assert.DoesNotContain(noTranscript, ids);
+        Assert.DoesNotContain(already, ids);
+    }
+
     [Fact]
     public void SchemaAppliesAndIsIdempotent()
     {

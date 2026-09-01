@@ -170,10 +170,20 @@ public sealed partial class PlaybackViewModel : ObservableObject, IDisposable
         // the window every time somebody clicked a call. It is written once and cached beside
         // the originals, so this costs nothing from the second play onwards — including for the
         // recordings that were already on disk before the feature existed.
-        var (mic, far, both) = await Task.Run(() => (
-            micPath is not null ? WaveformPeaks.Read(micPath, Buckets) : new float[Buckets],
-            farPath is not null ? WaveformPeaks.Read(farPath, Buckets) : new float[Buckets],
-            ConversationMix.Ensure(micPath, farPath)));
+        //
+        // A compressed recording is decoded here too, on the same worker thread: an hour of
+        // Opus takes seconds to expand, and it happens once — every later read, including the
+        // player's, finds the PCM copy in the cache.
+        var (mic, far, both) = await Task.Run(() =>
+        {
+            var micPcm = AudioMaterialiser.EnsurePcm(micPath);
+            var farPcm = AudioMaterialiser.EnsurePcm(farPath);
+
+            return (
+                micPcm is not null ? WaveformPeaks.Read(micPcm, Buckets) : new float[Buckets],
+                farPcm is not null ? WaveformPeaks.Read(farPcm, Buckets) : new float[Buckets],
+                ConversationMix.Ensure(micPcm, farPcm));
+        });
 
         _bothPath = both;
         HasMixed = both is not null;
@@ -183,7 +193,8 @@ public sealed partial class PlaybackViewModel : ObservableObject, IDisposable
 
         // A duration the caller did not know can be recovered from the recording itself, which
         // matters for a call the recorder never got to close cleanly.
-        if (Duration <= TimeSpan.Zero) Duration = LengthOf(micPath) ?? LengthOf(farPath) ?? TimeSpan.Zero;
+        if (Duration <= TimeSpan.Zero)
+            Duration = LengthOf(AudioMaterialiser.EnsurePcm(micPath)) ?? LengthOf(AudioMaterialiser.EnsurePcm(farPath)) ?? TimeSpan.Zero;
 
         IsLoaded = true;
     }

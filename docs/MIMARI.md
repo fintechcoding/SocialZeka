@@ -49,9 +49,38 @@ test edilebiliyor**. Bir şeyi `Core`'dan `App`'e taşımak, onu test edilemez y
  hoparlör ──┘        (QPC damgalı)                          <görüşme>-far.wav
    (loopback)                                                      │
                                                                    ▼
+                                    döküm arşivde, sessizlik kırpılmış
+                                                                   │
+                                              OpusArchive ──► <görüşme>-mic.ogg   (saatte ~10 MB)
+                                              (24 kbit/s VBR)  <görüşme>-far.ogg   WAV silinir
+                                                                   │
+                                          AudioMaterialiser ──► cache/audio/<hash>-mic.wav
+                                          (okuyan herkes PCM ister; .ogg gerektiğinde çözülür)
+                                                                   │
                                               ConversationMix ──► <görüşme>-butun.wav
                                               (talep üzerine, önbellekli)
 ```
+
+### `OpusArchive` — neden işlemden sonra, neden iki dosya
+
+İki 16 kHz PCM akışı saatte 230 MB; bir ayın görüşmeleri onlarca gigabayt ses, dinlenecek toplam
+süre belki birkaç dakika. Opus tam bu sinyal için tasarlandı: 24 kbit/s'te bir messenger
+görüşmesi ayırt edilemez, dosya yirmi kat küçülür.
+
+- **Yalnızca döküm arşive girdikten sonra.** Yazıya dökme PCM orijinali okur; dökümü olmayan
+  kayıt hiç sıkıştırılmaz — o görüşme için ses tek kayıttır, arasına kodek koyulmaz.
+- **İki dosya kalır.** Ayrım, konuşmacı atfını tahmin değil olgu yapan şeydir; sıkıştırma onu
+  karıştırmaz.
+- **Çözerek doğrulanır.** Yan dosyaya kodlanır, geri çözülüp örnek sayısı orijinalle
+  karşılaştırılır, ancak ondan sonra WAV silinip satır yeni yolu öğrenir. Çökme ya orijinali ya
+  doğrulanmış kopyayı bırakır, ikisini birden değil.
+- **Okuyucular Opus bilmez.** `PcmReader.Open`, oynatıcı, kesit, dalga formu ve worker'a giden
+  yol `AudioMaterialiser.EnsurePcm`'den geçer: `.wav` olduğu gibi döner, `.ogg` bir kez önbelleğe
+  çözülür. Önbellek türetilmiş veridir — 2 GB üstünde en eskisi silinir, görüşme unutulunca
+  kopyası da gider.
+- **Eski kayıtlar açılışta.** En düşük öncelikli ayrı bir iş parçacığında, işlem kuyruğunun
+  dışında, birer birer. Diskin gerçekten geri geldiği yer burası.
+- Uzantı `.opus` değil `.ogg`: Obsidian ve Windows kabuğu söylenmeden çalar.
 
 ### Sessizce bozulan yerler
 

@@ -560,6 +560,8 @@
   "settingswindow.ses-opus-a-sikistirilip-gerekirse-sessiz-a": "Audio is compressed to Opus and, where needed, split at silent moments, so no word is cut in half. Each part is tried separately, a rate limit is waited out and retried, and finished parts are cached so a retry does not start from the beginning.",
   "settingswindow.ses-yakalama": "Audio capture",
   "settingswindow.ses-yakalamayi-sina": "Test audio capture",
+  "settingswindow.sesi-sikistir": "Compress audio",
+  "settingswindow.sesi-sikistir-aciklama": "Converts a processed recording to Opus: the same audio in a file twenty times smaller. The two sides stay separate; playback, clips and re-transcription decode on demand. Older recordings are compressed in the background at startup.",
   "settingswindow.sessizligi-kirp": "Trim silence after processing",
   "settingswindow.sessizligi-kirp-aciklama": "Long stretches where nobody is talking are shortened — words, pauses and timestamps stay exactly as they were. A 46-minute call can halve.",
   "settingswindow.sifir-suresiz-saklamak-demektir-sabitlenmi": "Zero keeps them forever. Only the audio goes — transcripts, the ledger and notes stay. Calls on the board or with a note are never swept.",

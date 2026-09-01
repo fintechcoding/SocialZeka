@@ -94,6 +94,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _notionDatabaseId = settings.NotionDatabaseId ?? "";
         _audioRetentionDays = settings.AudioRetentionDays;
         _trimSilence = settings.TrimSilenceAfterProcessing;
+        _compressAudio = settings.CompressAudioAfterProcessing;
 
         foreach (var endpoint in settings.SttEndpoints)
             SttEndpoints.Add(new SttEndpointViewModel(endpoint, _probe));
@@ -344,6 +345,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Shrink the nobody-talking stretches once a recording is processed.</summary>
     [ObservableProperty] private bool _trimSilence;
+    [ObservableProperty] private bool _compressAudio = true;
 
     partial void OnSelectedProviderChanged(LlmProvider value)
     {
@@ -700,6 +702,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         NotionDatabaseId = string.IsNullOrWhiteSpace(NotionDatabaseId) ? null : NotionDatabaseId.Trim(),
         AudioRetentionDays = AudioRetentionDays,
         TrimSilenceAfterProcessing = TrimSilence,
+        CompressAudioAfterProcessing = CompressAudio,
         SttEndpoints = [.. SttEndpoints.Select(e => e.ToEndpoint())],
     };
 

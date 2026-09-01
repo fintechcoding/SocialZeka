@@ -9,6 +9,8 @@
          shipped a packaging bug where a plain netX.0-windows target silently resolved the
          portable asset and dropped the whole Windows stack. -->
     <PackageVersion Include="NAudio" Version="3.0.1" />
+    <PackageVersion Include="Concentus" Version="2.2.2" />
+    <PackageVersion Include="Concentus.Oggfile" Version="1.0.7" />
     <!-- One WMI query resolves every parent/child link at once, which is far cheaper
          than asking per process while polling once a second. -->
     <PackageVersion Include="System.Management" Version="10.0.6" />

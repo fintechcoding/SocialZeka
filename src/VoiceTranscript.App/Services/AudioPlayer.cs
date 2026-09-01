@@ -30,7 +30,9 @@ public sealed class AudioPlayer : IDisposable
         {
             Stop();
 
-            _reader = new AudioFileReader(path);
+            // Compressed archives are decoded into the cache; by the time a line is clicked the
+            // window has already done that on a worker thread, so this is a cache hit.
+            _reader = new AudioFileReader(VoiceTranscript.Core.Audio.AudioMaterialiser.EnsurePcm(path)!);
             _output = new WaveOut();
             _output.Init(_reader);
             _path = path;
