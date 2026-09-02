@@ -1858,3 +1858,37 @@ yeni takasa göre düzeltildi.
 **883 test · 878 geçti · 0 kırık · 5 atlandı** + **123 Python**.
 
 **Paket.** `v2.5.0` — davranış değişikliği.
+
+---
+
+## 2026-09-03 (on ikinci tur) — "Takıldı mı çalışıyor mu"
+
+Kullanıcı bir işin uzun süre %23'te durduğunu gösterdi. Sunucu meşguldü ya da sayı bildirmiyordu;
+ikisi de normal. Sorun bu değildi — **hangisi olduğunu söyleyecek bir şey yoktu.**
+
+Yoklama yalnızca `progress_percent` geldiğinde bir şey yazıyordu. Sunucu eşzamanlılığı 1 olduğu
+için başkasının işinin arkasında beklemek olağan ve uzun sürebilir; o süre boyunca çubuk hiç
+kıpırdamıyordu. **Dört dakikadır kıpırdamayan bir çubuk, donmuş bir uygulamadan ayırt edilemez** —
+ve bakan kişi Durdur'a bastığında tıkanmış bir işi değil, kuyruktaki yerini atmış oluyor.
+
+Artık her beş saniyede bir, sunucu ne söylerse söylesin, bekleyişin kendisi mesaj:
+
+```
+1/1 yazıya dökülüyor · sunucuda sırada · 2 dk
+1/1 yazıya dökülüyor · sunucuda işleniyor · 40 sn
+1/1 yazıya dökülüyor · %60, ~3 dk kaldı
+```
+
+Sırada beklemek en çok adlandırılması gereken durum, çünkü durdurmanın en pahalı olduğu durum o.
+
+Döngü de düzeltildi: bitmiş bir yoklama için artık "bekliyor" satırı yazılmıyor, ve düşen bir
+yoklamada saat duruyordu — geçen süre geçmiştir, kullanıcının okuduğu sayaç kendi saatiyle
+uyuşmalı.
+
+Ayrıca `.partial` artıkları süpürülmeye başlandı: gerçek bir arşivde iki haftalık 1,8 MB'lık bir
+tane duruyordu. Her biri benzersiz adla yazılıp tamamlanınca yeniden adlandırılıyor, yani adı hâlâ
+duran hiç tamamlanmamış demektir. `.cloudparts` süpürülüyordu, bunlar hiç.
+
+**883 test · 878 geçti · 0 kırık · 5 atlandı** + **125 Python**.
+
+**Paket.** `v2.5.1`.

@@ -146,23 +146,18 @@ class Ex5WhisperEngine(CloudWhisperEngine):
             )
 
         url = f"{self._base_url}/jobs/{urllib.parse.quote(job_id, safe='')}"
+        waited = 0.0
 
         for _ in range(int(POLL_CEILING_SECONDS / POLL_SECONDS)):
             cloud_engine._sleep(POLL_SECONDS)
 
+            # Counted here, not after a successful read: a dropped poll is not progress, but the
+            # time still passed and the clock the user reads has to agree with their own.
+            waited += POLL_SECONDS
+
             state = self._poll(url)
             if state is None:
                 continue  # a blip on the way to the server; the job is still running
-
-            # How far into the audio the server has got. Without it a twenty-minute chunk is five
-            # minutes of a bar that does not move, which reads as a hang rather than as work.
-            done = state.get("progress_percent")
-
-            if self._progress is not None and isinstance(done, (int, float)):
-                self._progress(
-                    self._progress_base + self._progress_span * min(1.0, max(0.0, float(done)) / 100),
-                    f"{self._progress_label} · %{float(done):.0f}",
-                )
 
             status = str(state.get("status") or "").strip().lower()
 
@@ -178,10 +173,29 @@ class Ex5WhisperEngine(CloudWhisperEngine):
                     + (f" {detail}" if detail else ""),
                 )
 
-            if status and status not in PENDING_STATUSES:
-                # An unknown word is not a reason to abandon a job that may still finish, but it
-                # is a reason to say what was seen when the wait eventually runs out.
-                continue
+            # Still going. Say something, whatever the server chose to tell us.
+            #
+            # Reporting only progress_percent left the bar frozen for minutes whenever the server
+            # did not send one — while queued behind another job, or while transcribing without
+            # counting — and a bar that has not moved in four minutes is indistinguishable from a
+            # hung application. Somebody watching one cannot tell whether to wait or to press
+            # Durdur, and pressing it throws away a place in a queue rather than a stuck job.
+            done = state.get("progress_percent")
+
+            if self._progress is not None:
+                fraction = (
+                    min(1.0, max(0.0, float(done)) / 100)
+                    if isinstance(done, (int, float))
+                    else 0.0
+                )
+
+                self._progress(
+                    self._progress_base + self._progress_span * fraction,
+                    f"{self._progress_label} · {_waiting_text(status, done, state, waited)}",
+                )
+
+            # An unknown word is not a reason to abandon a job that may still finish, but it is a
+            # reason to say what was seen when the wait eventually runs out.
 
         raise EngineError(
             "timeout",
@@ -289,6 +303,28 @@ class Ex5WhisperEngine(CloudWhisperEngine):
             )
 
         return super()._fatal(status, url, detail)
+
+
+def _waiting_text(status: str, done: object, state: dict, waited: float) -> str:
+    """
+    One line saying what the wait is, so it can be told apart from a hang.
+
+    The queue holds one job at a time, so "nothing is happening" is a normal and often long state
+    — and it is the one the user most needs named, because it is the one where pressing Durdur
+    throws away a place in a queue rather than a stuck job.
+    """
+    minutes = f"{waited / 60:.0f} dk" if waited >= 60 else f"{waited:.0f} sn"
+
+    if status in ("queued", "pending"):
+        return f"sunucuda sırada · {minutes}"
+
+    if isinstance(done, (int, float)):
+        eta = state.get("eta_seconds")
+        left = f", ~{float(eta) / 60:.0f} dk kaldı" if isinstance(eta, (int, float)) and eta > 60 else ""
+
+        return f"%{float(done):.0f}{left}"
+
+    return f"sunucuda işleniyor · {minutes}"
 
 
 def _no_speech_in(reason: str) -> float:

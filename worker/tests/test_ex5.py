@@ -407,6 +407,50 @@ def test_a_long_job_reports_how_far_it_has_got(engine, monkeypatch):
     assert said[0][0] < said[1][0]
 
 
+def test_a_wait_with_no_percentage_still_says_what_it_is(engine, monkeypatch):
+    """
+    The state that most needs naming, because it is the one where stopping costs the most.
+
+    The server holds one job at a time, so waiting behind somebody else's hour is normal and can be
+    long. Reporting only progress_percent left the bar frozen through all of it, and a bar that has
+    not moved in four minutes is indistinguishable from a hung application — somebody watching it
+    presses Durdur and throws away a place in a queue rather than a stuck job.
+    """
+    said: list[str] = []
+    engine._progress = lambda pct, note: said.append(note)
+    engine._progress_base, engine._progress_span = 0.0, 1.0
+    engine._progress_label = "1/1"
+
+    states = [
+        {"status": "queued"},
+        {"status": "processing"},
+        {"status": "processing", "progress_percent": 60, "eta_seconds": 180},
+        {"status": "completed", "result": {"text": "bitti"}},
+    ]
+    monkeypatch.setattr(engine, "_poll", lambda url: states.pop(0))
+
+    engine._await_job({"id": "j-w"})
+
+    assert said[0] == "1/1 · sunucuda sırada · 5 sn"
+    assert said[1] == "1/1 · sunucuda işleniyor · 10 sn"
+    assert said[2] == "1/1 · %60, ~3 dk kaldı"
+
+
+def test_a_blip_does_not_reset_how_long_it_has_been_waiting(engine, monkeypatch):
+    """A dropped poll is not progress. The clock the user reads has to keep running."""
+    said: list[str] = []
+    engine._progress = lambda pct, note: said.append(note)
+    engine._progress_label = "1/1"
+
+    states = [{"status": "queued"}, None, {"status": "queued"},
+              {"status": "completed", "result": {"text": "x"}}]
+    monkeypatch.setattr(engine, "_poll", lambda url: states.pop(0))
+
+    engine._await_job({"id": "j-b"})
+
+    assert said == ["1/1 · sunucuda sırada · 5 sn", "1/1 · sunucuda sırada · 15 sn"]
+
+
 # ---- what the server took out ------------------------------------------------
 
 
