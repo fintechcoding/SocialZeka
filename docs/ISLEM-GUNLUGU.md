@@ -1693,3 +1693,56 @@ yönlendiriyor, bulutta yalnızca `prompt`'un ilk 40 terimi var ve Whisper promp
 
 Sunucudan `condition_on_previous_text` alanı istendi. Kod değişikliği yok — **yerel motora
 dokunulmadı**, zaten doğru olan taraf o.
+
+---
+
+## 2026-09-03 (sekizinci tur) — Yanlış teşhis, ve doğru düzeltme
+
+Kullanıcı "OpenAI'de de aynı sorun var" dedi, ve sunucu ekibi teşhisimi çürüttü. İkisi de önemli.
+
+### Teşhis yanlıştı
+
+`condition_on_previous_text`'in sunucuda açık olduğunu söylemiştim. Değilmiş — kurulumdan beri
+`False`, ve ekip bunu `transcribe()` çağrısını canlı yakalayarak gösterdi. **Kütüphanenin
+varsayılanına bakıp çağıranın ne geçirdiğini varsaymışım**; ikisi farklı şeyler ve burada
+karıştırıldı. `speech_only.py` içindeki gerekçe düzeltildi: bu projede yorum belgedir, çürütülmüş
+bir sebebi anlatan yorum yanlış kod kadar zararlıdır.
+
+Ekip ayrıca dört çözümleme alanını `/v1/jobs`'a açtı ve `/health`'e `decode_defaults` ekledi —
+artık kaynak koda bakmadan tek `curl` ile sunucunun ne yaptığı görülüyor. Kalıcı çözüm bu, ve
+teşhisimin yanlış olmasının sebebi de zaten görünmez olmasıydı.
+
+### Ama düzeltme yine de doğru yerde
+
+Kullanıcının "OpenAI'de de aynı" gözlemi asıl ipucuydu: sorun **tek bir sağlayıcıda** değil,
+barındırılan her Whisper'da. Kalan tek yapısal fark VAD:
+
+- Yerelde `vad_filter=True` — faster-whisper konuşma dışını **modele hiç göstermeden** atıyor.
+- ex5'te `vad=false`. OpenAI'de böyle bir parametre **hiç yok**.
+
+Ve bu uygulama görüşmenin tamamını iki ayrı kanala kaydediyor: biri konuşurken öteki dakikalarca
+sessiz. Whisper sessizliğe "hiçbir şey" dönmez — otuz saniyelik pencerelerde eğitildiği için,
+konuşma olmayan pencerede eğitim verisinde en çok ne varsa onu üretir; Türkçede "abone ol". Sunucunun
+halüsinasyon filtresinin var olması bunun ne sıklıkta olduğunun ölçüsü.
+
+**Yani sessizlik istemcide, yüklemeden önce atılıyor** — sağlayıcıdan bayrak istemek yerine, çünkü
+o zaman hepsinde çalışıyor. `speech_only.py`: kare kare seviye taraması, konuşma aralıkları,
+cömert dolgu (kırpılmış ünsüz Whisper'ın uydurduğu bir kelimeye dönüşür), yakın aralıkların
+birleştirilmesi, ve **zamanların geri haritalanması.**
+
+Haritalama bu işin kritik yeri. Defterdeki her satır tıklanıp dinlenebilen bir an taşıyor; bir
+saniye kayan damga, içermediği sesi gösteren bir alıntıdır. Aralıklar açık bir liste olarak
+tutuluyor, zamanlar koşan toplam üzerinden değil o liste üzerinden çevriliyor, ve modelin son
+aralığın ötesinde bildirdiği her şey uzatılmıyor **kırpılıyor** — attığımız sessizliğin içine
+kelime koymak, o kelimenin kanıtlanabilir biçimde söylenmediği bir yere koymaktır.
+
+Kendini sınırlıyor: kayıt çoğunlukla konuşmaysa dokunmuyor (haritalama yanlış olabilecek bir şey
+daha, bir şey kazandırmalı), hiç konuşma yoksa dokunmuyor (sessiz kanal transkriptin göstermesi
+gereken bir olgu), okunamayan dosyaya dokunmuyor (daha iyi transkript uğruna hiç transkript
+olmaması takas edilmez).
+
+**Yerel motora dokunulmadı.**
+
+**873 test · 868 geçti · 0 kırık · 5 atlandı** + **123 Python** (dokuzu haritalama ve sınırlar).
+
+**Paket.** `v2.4.0`.

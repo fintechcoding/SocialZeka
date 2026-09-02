@@ -40,6 +40,7 @@ import uuid
 from pathlib import Path
 
 from vt_worker.chunking import plan_chunks, slice_wav
+from vt_worker.speech_only import SpeechSpan, to_original, write_speech_only
 from vt_worker.engines.base import (
     AsrEngine,
     EngineError,
@@ -248,7 +249,24 @@ class CloudWhisperEngine(AsrEngine):
             if not os.path.exists(source):
                 slice_wav(wav_path, source, chunk.start_seconds, chunk.end_seconds)
 
-        upload = self._compress(source, workspace, suffix=f"-{chunk.index}")
+        # Only the parts where somebody is speaking.
+        #
+        # The local engine runs with vad_filter=True and drops non-speech before decoding; no
+        # hosted API does the equivalent. This application records the whole call on two separate
+        # channels, so while one person talks the other channel is minutes of nothing, and Whisper
+        # given silence does not return nothing — it returns whatever its training data has most
+        # of. Doing it here rather than asking each provider for a flag means it works on all of
+        # them, OpenAI included. See speech_only for the reasoning and for the mapping back.
+        speech = os.path.join(workspace, f"speech-{chunk.index}.wav")
+        spans = write_speech_only(source, speech)
+
+        if not spans and os.path.exists(speech):
+            try:
+                os.unlink(speech)
+            except OSError:
+                pass
+
+        upload = self._compress(speech if spans else source, workspace, suffix=f"-{chunk.index}")
 
         # Said out loud, because working it out afterwards is guesswork and somebody did.
         #
@@ -283,14 +301,38 @@ class CloudWhisperEngine(AsrEngine):
 
         # The slice and its compressed copy are large and no longer needed once the answer is
         # cached; the answer is what makes a resume cheap.
-        for path in (source, upload):
+        for path in (source, speech, upload):
             if path != wav_path and os.path.exists(path):
                 try:
                     os.unlink(path)
                 except OSError:
                     pass
 
-        return self._to_segments(payload, chunk.start_seconds)
+        return self._restore(self._to_segments(payload, 0.0), spans, chunk.start_seconds)
+
+    @staticmethod
+    def _restore(segments: list[Segment], spans: list[SpeechSpan], chunk_start: float) -> list[Segment]:
+        """
+        Puts every time back on the recording's own clock.
+
+        Two shifts, in order. First out of the upload and back onto the chunk, undoing the silence
+        that was removed; then onto the whole call, undoing the chunk's own position. Doing it in
+        one step is what would go wrong: the spans describe the chunk, not the call, so adding the
+        chunk offset before the mapping would look up the wrong span and be wrong by minutes rather
+        than by the silence.
+
+        Every line in this product carries a moment you can click to hear, so a time that is out by
+        a second is a quote pointing at audio that does not contain it.
+        """
+        for segment in segments:
+            segment.start = to_original(segment.start, spans) + chunk_start
+            segment.end = to_original(segment.end, spans) + chunk_start
+
+            for word in segment.words:
+                word.start = to_original(word.start, spans) + chunk_start
+                word.end = to_original(word.end, spans) + chunk_start
+
+        return segments
 
     def _to_segments(self, payload: dict, offset: float) -> list[Segment]:
         """The provider's response, as segments on the call timeline. OpenAI's shape by default."""
