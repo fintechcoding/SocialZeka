@@ -413,3 +413,26 @@ def test_a_chunk_that_fits_goes_up_as_recorded(engine, tmp_path):
     wav.write_bytes(b"RIFF" + bytes(38 * 1024 * 1024))  # twenty minutes of 16 kHz mono PCM
 
     assert engine._compress(str(wav), str(tmp_path)) == str(wav)
+
+
+def test_the_upload_says_its_size_and_format(engine, monkeypatch, tmp_path):
+    """
+    Nobody should have to reverse-engineer a byte count to know what was sent.
+
+    The service operator saw seven uploads, assumed the old 24 kbps Opus, divided words by
+    megabytes and concluded transcription had become twenty times worse. It was the arithmetic:
+    the same audio uncompressed is thirteen times the bytes, so every ratio against size moves by
+    that much and nothing was actually wrong.
+    """
+    said: list[str] = []
+    monkeypatch.setattr(engine, "_send", lambda url, headers, body=None: {"text": "x"})
+    monkeypatch.setattr(engine, "_poll", lambda url: {"status": "completed", "result": {"text": "x"}})
+
+    wav = tmp_path / "call.wav"
+    wav.write_bytes(b"RIFF" + bytes(1_500_000))
+
+    engine._chunk_segments(
+        str(wav), cloud_engine.plan_chunks.__globals__["Chunk"](0, 0.0, 47.0),
+        _options(), str(tmp_path), 1, lambda pct, text: said.append(text))
+
+    assert any("MB" in line and "kayıpsız" in line for line in said), said

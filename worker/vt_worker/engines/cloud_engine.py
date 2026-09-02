@@ -184,7 +184,8 @@ class CloudWhisperEngine(AsrEngine):
                         f"{chunk.index + 1}/{len(chunks)} yükleniyor",
                     )
 
-                segments.extend(self._chunk_segments(wav_path, chunk, options, workspace, len(chunks)))
+                segments.extend(
+                    self._chunk_segments(wav_path, chunk, options, workspace, len(chunks), progress))
 
             if progress:
                 progress(1.0, "tamamlandı")
@@ -221,6 +222,7 @@ class CloudWhisperEngine(AsrEngine):
         options: EngineOptions,
         workspace: str,
         total_chunks: int,
+        progress: ProgressCallback | None = None,
     ) -> list[Segment]:
         # The model is part of the key: changing model must not reuse the old model's answers.
         cache = os.path.join(workspace, f"{self.name}-{self._model}-{chunk.index}-{total_chunks}.json")
@@ -240,6 +242,22 @@ class CloudWhisperEngine(AsrEngine):
                 slice_wav(wav_path, source, chunk.start_seconds, chunk.end_seconds)
 
         upload = self._compress(source, workspace, suffix=f"-{chunk.index}")
+
+        # Said out loud, because working it out afterwards is guesswork and somebody did.
+        #
+        # The service operator saw seven uploads, assumed the old 24 kbps Opus, divided words by
+        # megabytes and concluded the transcription was twenty times worse than usual. It was the
+        # arithmetic: the same audio uncompressed is thirteen times the bytes, so every ratio
+        # against size moves by that much and nothing was wrong. One line naming the size and the
+        # format settles it without anyone reverse-engineering a byte count.
+        if progress:
+            megabytes = os.path.getsize(upload) / 1_000_000
+            how = "kayıpsız" if upload == source else "Opus"
+
+            progress(
+                0.02 + 0.94 * chunk.index / total_chunks,
+                f"{chunk.index + 1}/{total_chunks} yükleniyor · {megabytes:.1f} MB · {how}",
+            )
 
         self._chunk_seconds = chunk.length_seconds
         payload = self._post_with_retry(upload, options)

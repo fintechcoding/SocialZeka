@@ -1362,3 +1362,38 @@ kaydırmamız bayrakla işaretli, yoksa kendi hareketimizi kullanıcının harek
 **856 test · 851 geçti · 0 kırık · 5 atlandı** + **96 Python**.
 
 **Paket.** `v2.2.1`.
+
+---
+
+## 2026-09-02 (on dördüncü tur) — Bayt sayısından süre tahmin etmek
+
+Sunucu tarafı yedi yüklemeyi özetledi ve alarma geçti: *"5 MB'lık dosyadan 170 kelime çıkıyor,
+veri başına verim yirmide bir."* Kıyas noktası olarak *"1.7 MB → 1405 kelime"* verdi.
+
+**Aritmetik hatası.** O kıyas 20 kbps Opus döneminden; bugünküler kayıpsız. Kayıt 16 kHz mono
+16-bit, yani 256 kbps — saniyede 32 KB. Aynı ses, on üç kat daha fazla bayt:
+
+| boyut | 20 kbps varsayılırsa | gerçekte (kayıpsız) | kelime | kelime/dk |
+|---|---|---|---|---|
+| 2.1 MB | ~14 dk | **66 sn** | 71 | 65 |
+| 5.0 MB | ~33 dk | **156 sn** | 170 | 65 |
+| 1.7 MB | 11 dk → 1405 kelime makul | **53 sn** | 1405 | **1587 — imkânsız** |
+
+Boyuta bölünen her oran on üç kat kayıyor. Kelime/dakika olarak bakınca 65, 65, 60, 28, 23, 17 —
+sıradan konuşma temposu.
+
+**Dosyaların tam çift olması da kanıt.** 1.1/1.1, 2.1/2.1, 510KB/510KB. Opus değişken bit hızıyla
+çalışır; iki farklı içerik asla aynı bayta çıkmaz. Aynı bayt aynı süre demektir: bir görüşmenin
+mikrofon ve karşı taraf akışları. Günlük de aynını söylüyor (`mic %50 → far %51`). Yani sunucunun
+"ikili kötü/iyi deseni" dediği şey, konuşmacı ayrımının çalışıyor olması.
+
+**Yapılan.** Düzeltilecek kusur yoktu; düzeltilen, bunu tahmin etmek zorunda kalmak. Yükleme artık
+kendini söylüyor: `1/1 yükleniyor · 1,5 MB · kayıpsız`. Bir satır, ve kimse bir daha bayt
+sayısından süre çıkarmaya çalışmıyor.
+
+Ayrıca doğrulandı: `2.2.0` hedef makinede kurulu (23:31:52) ve o günden sonraki her görüşme
+`mic → far → merge` ile hatasız tamamlanıyor.
+
+**856 test · 851 geçti · 0 kırık · 5 atlandı** + **97 Python**.
+
+**Paket.** `v2.2.2`.
