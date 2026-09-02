@@ -100,6 +100,20 @@ public static class AudioMaterialiser
                     try { stale.Delete(recursive: true); } catch (IOException) { }
             }
 
+            // Half-written files from a compression or a mix that was interrupted.
+            //
+            // Each is written under a unique name and renamed the moment it is complete, so one
+            // that still has the name is one that never finished — an application closed mid-job,
+            // or a machine that slept. Nothing reads them and nothing ever will; they were simply
+            // never swept, and a real archive had a 1.8 MB one from a fortnight earlier sitting
+            // beside the recording it failed to become. A day is far longer than the seconds one
+            // of these legitimately exists for.
+            foreach (var abandoned in new DirectoryInfo(directory).GetFiles("*.partial"))
+            {
+                if (abandoned.LastWriteTimeUtc < DateTime.UtcNow - TimeSpan.FromDays(1))
+                    try { abandoned.Delete(); } catch (IOException) { }
+            }
+
             foreach (var file in files)
             {
                 if (total <= CacheCapBytes) break;
