@@ -103,20 +103,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         foreach (var endpoint in settings.SttEndpoints)
             SttEndpoints.Add(new SttEndpointViewModel(endpoint, _probe));
 
-        // An older settings file has one key rather than a list. Bring it across so nothing is
-        // lost and the user sees their existing configuration where they now expect it.
-        if (SttEndpoints.Count == 0 && !string.IsNullOrWhiteSpace(settings.AsrApiKey))
-        {
-            SttEndpoints.Add(new SttEndpointViewModel(
-                new SttEndpoint
-                {
-                    Kind = "openai",
-                    BaseUrl = settings.ResolvedAsrBaseUrl,
-                    ApiKey = settings.AsrApiKey,
-                    Model = _selectedCloudAsrModel.ModelRef,
-                },
-                _probe));
-        }
 
         // Every service the application knows how to talk to, whether or not it has been set up.
         //
@@ -141,6 +127,41 @@ public sealed partial class SettingsViewModel : ObservableObject
             if (SttEndpoints.Any(e => e.Kind == provider.Kind)) continue;
 
             SttEndpoints.Add(new SttEndpointViewModel(SttEndpoint.FromProvider(provider), _probe));
+        }
+
+        // The older single-key field, moved onto the card it belongs to.
+        //
+        // This used to run only when the list was completely empty, which meant that adding any
+        // service through the new screen stranded it: the key was still in the settings file, still
+        // valid, and never shown or used again. Now the card exists either way, so the key simply
+        // goes where somebody would look for it.
+        //
+        // Only onto an empty card. A key typed into the screen is the more recent decision and must
+        // not be overwritten by one carried over from an older file.
+        if (!string.IsNullOrWhiteSpace(settings.AsrApiKey))
+        {
+            var openAiDefault = SttProviderCatalog.Find("openai").BaseUrl;
+
+            var home = SttEndpoints.FirstOrDefault(
+                e => string.IsNullOrWhiteSpace(e.ApiKey)
+                     && e.Kind == (settings.ResolvedAsrBaseUrl == openAiDefault ? "openai" : "custom"));
+
+            // No "custom" card is seeded, so an older key pointing somewhere else gets one made
+            // for it rather than being dropped on the floor.
+            if (home is null && settings.ResolvedAsrBaseUrl != openAiDefault)
+            {
+                home = new SttEndpointViewModel(
+                    SttEndpoint.FromProvider(SttProviderCatalog.Find("custom")) with
+                    {
+                        BaseUrl = settings.ResolvedAsrBaseUrl,
+                        Model = _selectedCloudAsrModel.ModelRef,
+                    },
+                    _probe);
+
+                SttEndpoints.Add(home);
+            }
+
+            if (home is not null) home.ApiKey = settings.AsrApiKey;
         }
 
         // Editing a service has to re-run the checks, and nothing was listening.

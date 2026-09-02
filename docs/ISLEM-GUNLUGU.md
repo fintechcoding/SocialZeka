@@ -1746,3 +1746,33 @@ olmaması takas edilmez).
 **873 test · 868 geçti · 0 kırık · 5 atlandı** + **123 Python** (dokuzu haritalama ve sınırlar).
 
 **Paket.** `v2.4.0`.
+
+---
+
+## 2026-09-03 (dokuzuncu tur) — Kaybolan OpenAI anahtarı
+
+Kullanıcı: "yeniden çevirde sadece bizimki var ama OpenAI keyi de var."
+
+**Vardı, ve iki yerde birden görünmez olmuştu.** Tek anahtar bir zamanlar tek alanda (`AsrApiKey`)
+dururdu; servisler listeye dönünce o alan "başka bir şey yapılandırılmamışsa" yedeği olarak
+bırakılmıştı. Koşul her iki yerde de `Count == 0`:
+
+- `AppSettings.UsableSttEndpoints` — liste boş değilse eski anahtara hiç bakmıyordu.
+- `SettingsViewModel` — göçü yalnızca liste boşken yapıyordu.
+
+Yani ex5 kartını ekledikleri an OpenAI anahtarı hâlâ dosyada, hâlâ geçerli, ve bir daha ne
+gösteriliyor ne kullanılıyordu. **Hata vermedi, kayboldu** — ikisinin kötüsü bu.
+
+Artık eski anahtar listenin **sonuna ekleniyor**, yerine geçmiyor. Sona, çünkü sıralama denenme
+sırasıdır ve o kişinin kendi kararı; eski dosyadan taşınan bir anahtar sessizce kuyruğun başına
+geçmemeli. Aynı anahtarı taşıyan bir kart varsa eklenmiyor — aynı servis iki adla iki kez
+denenmesin. Ayarlar ekranında da anahtar artık kendi kartına taşınıyor, ve kartı boş olana; ekrana
+yazılmış bir anahtar daha yeni bir karardır, eski dosyadan gelenle ezilmemeli.
+
+`SttProviderTests.TheListWinsOverTheOlderSingleKeyOnceItIsConfigured` tam da bu davranışı
+savunuyordu. Niyeti yanlıştı ve gerçek bir kullanıcıya anahtarını kaybettirdi; test yeniden yazıldı
+ve sebebi içine kondu.
+
+**880 test · 875 geçti · 0 kırık · 5 atlandı** + **123 Python**.
+
+**Paket.** `v2.4.1`.

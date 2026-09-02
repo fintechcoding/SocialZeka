@@ -219,8 +219,19 @@ public class SttProviderTests
         Assert.Contains("openai.com", endpoints[0].ResolvedBaseUrl);
     }
 
+    /// <summary>
+    /// The list comes first, and the older single key comes after it — not instead of it.
+    ///
+    /// This test used to assert the opposite: that configuring anything made the old field stop
+    /// counting. That reading cost a real user their OpenAI key. It was in that field, they added
+    /// our own server through the new screen, and the key was never looked at again — the reprocess
+    /// dialog offered one service on a machine that had two, and nothing said why. It did not fail,
+    /// it disappeared, which is the worse of the two.
+    ///
+    /// Order still belongs to the person who chose it, so the carried-over key goes on the end.
+    /// </summary>
     [Fact]
-    public void TheListWinsOverTheOlderSingleKeyOnceItIsConfigured()
+    public void TheOlderSingleKeyIsAddedAfterTheListRatherThanReplacedByIt()
     {
         var settings = new AppSettings
         {
@@ -228,8 +239,11 @@ public class SttProviderTests
             SttEndpoints = [Configured("groq", "gsk-new") with { Name = "Yeni" }],
         };
 
-        Assert.Single(settings.UsableSttEndpoints);
-        Assert.Equal("Yeni", settings.UsableSttEndpoints[0].ResolvedName);
+        var endpoints = settings.UsableSttEndpoints;
+
+        Assert.Equal(2, endpoints.Count);
+        Assert.Equal("Yeni", endpoints[0].ResolvedName);
+        Assert.Equal("sk-legacy", endpoints[1].ApiKey);
     }
 
     [Fact]

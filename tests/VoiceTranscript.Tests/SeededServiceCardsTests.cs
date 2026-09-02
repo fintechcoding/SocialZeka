@@ -1,4 +1,5 @@
 using VoiceTranscript.Core.Asr;
+using VoiceTranscript.Core.Configuration;
 
 namespace VoiceTranscript.Tests;
 
@@ -65,6 +66,33 @@ public class SeededServiceCardsTests
     /// The seeded cards change nothing until a key is typed into one: an endpoint without a key is
     /// not usable, so it is never tried and no service is contacted.
     /// </summary>
+    /// <summary>
+    /// The question this was all for: every service with a key shows up, all of them, not one.
+    ///
+    /// The reprocess dialog builds its cloud rows from UsableSttEndpoints, so this is the same
+    /// list that screen renders. Three keys, three rows — and the empty cards beside them stay out
+    /// of it, because offering a service that cannot answer is worse than not listing it.
+    /// </summary>
+    [Fact]
+    public void EveryServiceWithAKeyIsOfferedForReprocessing()
+    {
+        var settings = new AppSettings
+        {
+            SttEndpoints =
+            [
+                new SttEndpoint { Kind = "ex5", ApiKey = "wsk-x" },
+                new SttEndpoint { Kind = "openai", ApiKey = "sk-x" },
+                new SttEndpoint { Kind = "groq", ApiKey = "gsk-x" },
+                new SttEndpoint { Kind = "deepgram" },                       // seeded, no key yet
+                new SttEndpoint { Kind = "together", ApiKey = "tg-x", Enabled = false },
+            ],
+        };
+
+        var offered = settings.UsableSttEndpoints.Select(e => e.Kind).ToList();
+
+        Assert.Equal(["ex5", "openai", "groq"], offered);
+    }
+
     [Fact]
     public void AnEmptyCardIsNotTried()
     {

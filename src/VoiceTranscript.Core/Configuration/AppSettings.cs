@@ -284,10 +284,19 @@ public sealed record AppSettings
         get
         {
             var configured = SttEndpoints.Where(e => e.IsUsable).ToList();
-            if (configured.Count > 0) return configured;
 
-            if (string.IsNullOrWhiteSpace(AsrApiKey)) return [];
+            if (string.IsNullOrWhiteSpace(AsrApiKey)) return configured;
 
+            // The older single-key field, added to the list rather than used instead of it.
+            //
+            // This used to be an "if nothing else is configured" fallback, and that quietly cost
+            // somebody their OpenAI key: it lived in this field, and the moment they added a second
+            // service through the new screen the list stopped being empty and the key was never
+            // looked at again. It did not fail, it disappeared — the reprocess dialog offered one
+            // service on a machine that had two.
+            //
+            // Appended, so somebody's own order still decides what is tried first, and skipped when
+            // a card already carries the same key so it is not offered twice under two names.
             var legacy = new SttEndpoint
             {
                 Kind = "openai",
@@ -297,7 +306,10 @@ public sealed record AppSettings
                 Model = AsrCatalog.TryGet(CloudAsrModelId, out var cloud) ? cloud.ModelRef : "whisper-1",
             };
 
-            return legacy.IsUsable ? [legacy] : [];
+            if (!legacy.IsUsable) return configured;
+            if (configured.Any(e => e.ApiKey == legacy.ApiKey)) return configured;
+
+            return [.. configured, legacy];
         }
     }
 
