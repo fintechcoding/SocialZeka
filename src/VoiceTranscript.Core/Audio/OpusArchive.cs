@@ -19,15 +19,35 @@ namespace VoiceTranscript.Core.Audio;
 /// is about 10 MB an hour. The container is Ogg, and the extension is .ogg rather than .opus
 /// so that Obsidian and the Windows shell play it without being told what it is.
 ///
-/// Only ever applied after the words are out of the audio and in the archive: transcription
-/// reads the PCM original, and nothing here runs before it has.
+/// Only ever applied after the words are out of the audio and in the archive: the first
+/// transcription reads the PCM original, and nothing here runs before it has.
+///
+/// A later one does not. "Yeniden yazıya dök" decodes this archive back to PCM and transcribes
+/// that, so whatever this throws away is thrown away for every transcript after the first — which
+/// is why the bitrate below is a transcription decision and not only a storage one.
 /// </summary>
 public static class OpusArchive
 {
     public const string Extension = ".ogg";
 
-    /// <summary>Bits per second. VBR, so quiet stretches cost almost nothing.</summary>
-    private const int Bitrate = 24_000;
+    /// <summary>
+    /// Bits per second. VBR, so quiet stretches cost almost nothing.
+    ///
+    /// Was 24 kbps, chosen when the archive was only ever going to be listened to. It is not: the
+    /// "Yeniden yazıya dök" path decodes this back to PCM and transcribes it again, so the number
+    /// decides how good a second transcript can be — and 24 kbps is measurably on the wrong side
+    /// of a cliff. One recording, four bitrates: 21.5 kbps gave 1624 words, 18.2 gave 330. Opus
+    /// undershoots its target on speech with pauses in it, so 24 produces 18-21 in practice.
+    ///
+    /// It was the same mistake as the upload used to make, in a second place, and it explains what
+    /// looked like a cloud problem: the good transcript people compared against was the first run,
+    /// on the original recording, and every re-run afterwards read audio that had been through
+    /// this. 64 kbps is close to transparent for 16 kHz mono speech and still a fifth of the size.
+    ///
+    /// Recordings already compressed at 24 cannot be recovered by changing this. What was thrown
+    /// away is gone; only recordings compressed from here on are better.
+    /// </summary>
+    private const int Bitrate = 64_000;
 
     // Written into the Ogg comment header so the decoder can put the audio back on the
     // original clock.

@@ -53,7 +53,7 @@ public sealed class OpusArchiveTests : IDisposable
     }
 
     [Fact]
-    public void ARecordingShrinksTwentyFoldAndDecodesWhole()
+    public void ARecordingShrinksSubstantiallyAndDecodesWhole()
     {
         var wav = WriteSource();
         var ogg = OpusArchive.CompressedPathFor(wav);
@@ -61,7 +61,10 @@ public sealed class OpusArchiveTests : IDisposable
         var encoded = OpusArchive.Encode(wav, ogg);
 
         Assert.Equal(Rate * 3, encoded);
-        Assert.True(new FileInfo(ogg).Length * 8 < new FileInfo(wav).Length,
+        // Was "twenty fold", which the archive bought at 24 kbps — and paid for with every
+        // transcript after the first, because re-transcription decodes this file. The saving is
+        // now a fifth rather than a twentieth, deliberately.
+        Assert.True(new FileInfo(ogg).Length * 3 < new FileInfo(wav).Length,
             $"ogg {new FileInfo(ogg).Length} B is not small enough next to wav {new FileInfo(wav).Length} B");
 
         // Every frame, give or take the codec's own padding — never a second short.

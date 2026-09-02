@@ -1816,3 +1816,45 @@ başka bir dil konuşuyorsa söyledikleri Türkçe hecelere çevrilir ve anlams�
 **880 test · 875 geçti · 0 kırık · 5 atlandı** + **123 Python**.
 
 **Paket.** `v2.4.2`.
+
+---
+
+## 2026-09-03 (on birinci tur) — Asıl sebep: arşiv 24 kbps'ti
+
+Kullanıcı üç çıktıyı yan yana koydu — yerel, OpenAI, ex5 — ve "GPU'da hiçbir sorun yok, buluta
+gönderince çıkıyor" dedi. Sonra doğru soruyu sordu: **"bu özellikler bozuyor olabilir mi?"**
+
+Evet. Ve sebep bulutta değil, bizde.
+
+```
+OpusArchive.Bitrate = 24_000
+```
+
+Bugün ölçtüğümüz uçurumun kenarındaki sayının aynısı, ikinci bir yerde. Zincir şu:
+
+1. Görüşme WAV olarak kaydedilir.
+2. **İlk çeviri orijinal PCM'i okur** — karşılaştırılan iyi çıktı bu.
+3. "Sesi sıkıştır" arşivi **24 kbps Opus**'a çevirir (günlükte ölçüldü: 251,1 MB → 20,5 MB, 12:1).
+4. "Yeniden yazıya dök" `EnsurePcm` ile o Opus'u geri açar.
+5. Buluta giden ses **zaten bozulmuş** sestir.
+
+Yani bulut-yerel farkı değil, **orijinal-yeniden sıkıştırılmış** farkı. Dosyanın kendi yorumu bunu
+varsayıyordu — *"transcription reads the PCM original, and nothing here runs before it has"* — ve
+ilk çeviri için doğru; ikinci çeviri için değil. Varsayım yazıldığında "yeniden yazıya dök" yoktu.
+
+Bütün gün yüklemeyi kayıpsız yapmakla uğraştık; kaynak çoktan bozulmuştu.
+
+**Arşiv 64 kbps'e çıktı**, ve bu bir taban: *"asla 64 kbit altına inme"*. Kural teste yazıldı, çünkü
+bunu ileride düşürmenin bariz gerekçesi disk şikâyetidir ve bedeli diskte değil — ilk çeviriden
+sonraki her transkriptte, sessizce ödenir. Dosya beş kat küçük yerine yirmi kat küçük değil artık;
+aradaki fark kelimelerle ödeniyordu.
+
+**Zaten 24'te sıkıştırılmış kayıtlar geri gelmez.** Atılan atılmıştır; yalnızca bundan sonrakiler
+iyi. Elde orijinali kalan görüşme varsa yeniden çevirmeye değer.
+
+`OpusArchiveTests.ARecordingShrinksTwentyFoldAndDecodesWhole` eski takası savunuyordu; adı ve eşiği
+yeni takasa göre düzeltildi.
+
+**883 test · 878 geçti · 0 kırık · 5 atlandı** + **123 Python**.
+
+**Paket.** `v2.5.0` — davranış değişikliği.
