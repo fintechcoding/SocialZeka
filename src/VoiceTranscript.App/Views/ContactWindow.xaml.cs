@@ -160,25 +160,37 @@ public partial class ContactWindow
     /// <summary>Same dialog the Kişiler page opens, aimed by the verb that was clicked.</summary>
     private void RowReprocess(object sender, ReprocessKind kind)
     {
-        if ((sender as FrameworkElement)?.DataContext is not ContactCall row
-            || App.Orchestrator is null)
-        {
-            return;
-        }
+        if ((sender as FrameworkElement)?.DataContext is not ContactCall row) return;
 
-        var dialog = new ReprocessWindow(
-            App.Repository, App.Settings, ViewModel?.Name ?? "Görüşme", count: 1, kind)
-        {
-            Owner = this,
-        };
+        if (Services.CallActions.Reprocess(this, row.Call, ViewModel?.Name ?? "Görüşme", kind))
+            ViewModel?.Refresh();
+    }
 
-        if (dialog.ShowDialog() != true) return;
+    private void RowOpen_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ContactCall row) OpenCall(row.Id);
+    }
 
-        var choice = dialog.Choice;
+    private void RowMove_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ContactCall row) return;
 
-        App.Repository.SetCallState(row.Id, Core.Domain.ProcessingState.Queued);
-        App.Orchestrator.EnqueueWith(row.Id, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel,
-            choice.LlmRouteKind, choice.LlmRouteUrl);
+        if (Services.CallActions.Move(this, row.Call, ViewModel?.Name ?? "bilinmeyen kişi")) ViewModel?.Refresh();
+    }
+
+    private async void RowShowInFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ContactCall row) return;
+
+        await Services.CallActions.ShowInFolderAsync(this, row.Call);
+    }
+
+    private async void RowDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ContactCall row) return;
+
+        if (await Services.CallActions.DeleteAsync(this, row.Call, ViewModel?.Name ?? "Bilinmeyen kişi"))
+            ViewModel?.Refresh();
     }
 
     /// <summary>A reminder in one step: onto the pile if needed, and dated.</summary>

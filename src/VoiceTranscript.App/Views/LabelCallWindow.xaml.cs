@@ -212,28 +212,12 @@ public partial class LabelCallWindow
         Close();
     }
 
-    private void Discard_Click(object sender, RoutedEventArgs e)
+    /// <summary>The same delete as every list, with the same words and the same warning.</summary>
+    private async void Discard_Click(object sender, RoutedEventArgs e)
     {
-        var confirm = MessageBox.Show(
-            "Bu görüşmenin ses kaydı ve metni kalıcı olarak silinecek. Emin misiniz?",
-            "Kaydı sil", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (_repository.GetCall(_callId) is not { } call) return;
 
-        if (confirm != MessageBoxResult.Yes) return;
-
-        // Removed outright rather than marked "skipped" with its files deleted.
-        //
-        // Marking it left a nameless, zero-length row in every list, permanently, for a
-        // recording the user had explicitly asked to be rid of — and it left the mixed copy of
-        // the conversation on disk, which made the delete a lie as well as untidy.
-        var result = _repository.DeleteCall(_callId);
-
-        if (result.FilesLeftBehind.Count > 0)
-        {
-            MessageBox.Show(
-                "Kayıt silindi ama bazı ses dosyaları kaldırılamadı — büyük ihtimalle hâlâ " +
-                "çalınıyor:\n\n" + string.Join("\n", result.FilesLeftBehind),
-                "Silme tamamlanmadı", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
+        if (!await Services.CallActions.DeleteAsync(this, call, "İsimsiz görüşme")) return;
 
         Outcome = LabelOutcome.Discarded;
         DialogResult = true;

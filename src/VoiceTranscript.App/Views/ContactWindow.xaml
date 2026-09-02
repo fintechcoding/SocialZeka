@@ -292,16 +292,22 @@
                             <DataTemplate>
                                 <Grid Margin="4,8" Background="Transparent">
                                     <Grid.ContextMenu>
+                                        <!-- The same verbs, in the same order, as every other call row. -->
                                         <ContextMenu>
+                                            <MenuItem Header="{loc:T contactwindow.gorusmeyi-ac}" Click="RowOpen_Click" FontWeight="SemiBold" />
                                             <MenuItem Header="{loc:T contactwindow.onemlilere-ekle}" Click="RowToBoard_Click" />
+                                            <MenuItem Header="{loc:T contactwindow.hatirlat}" Click="RowRemind_Click" />
                                             <Separator />
-                                            <!-- Two different jobs, named as such — the single
-                                                 "Yeniden işle" made the dialog re-ask a question
-                                                 the click could already answer. -->
+                                            <MenuItem Header="{loc:T contactwindow.baska-kisiye-tasi}" Click="RowMove_Click" />
                                             <MenuItem Header="{loc:T contactwindow.yeniden-yaziya-cevir}" Click="RowRetranscribe_Click" />
                                             <MenuItem Header="{loc:T contactwindow.yeniden-cozumle}" Click="RowReanalyse_Click" />
+                                            <MenuItem Header="{loc:T contactwindow.ses-dosyasinin-yerini-ac}" Click="RowShowInFolder_Click" />
                                             <Separator />
-                                            <MenuItem Header="{loc:T contactwindow.hatirlat}" Click="RowRemind_Click" />
+                                            <MenuItem Header="{loc:T contactwindow.gorusmeyi-sil}" Click="RowDelete_Click">
+                                                <MenuItem.Icon>
+                                                    <ui:SymbolIcon Symbol="Delete24" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
                                         </ContextMenu>
                                     </Grid.ContextMenu>
                                     <Grid.ColumnDefinitions>
@@ -535,7 +541,7 @@
                                             <StackPanel>
                                                 <StackPanel Orientation="Horizontal">
                                                     <Border CornerRadius="4" Padding="6,1" Margin="0,0,8,0"
-                                                            Background="{StaticResource MeBrush}" VerticalAlignment="Center">
+                                                            Background="{DynamicResource MeBrush}" VerticalAlignment="Center">
                                                         <TextBlock Text="{loc:T contactwindow.sen}" FontSize="10" FontWeight="SemiBold"
                                                                    Foreground="White" />
                                                     </Border>
@@ -543,7 +549,7 @@
                                                                FontWeight="SemiBold" VerticalAlignment="Center" />
                                                 </StackPanel>
                                                 <Border Style="{StaticResource QuoteBlock}" Margin="0,8,0,0"
-                                                        BorderBrush="{StaticResource MeBrush}">
+                                                        BorderBrush="{DynamicResource MeBrush}">
                                                     <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" />
                                                 </Border>
                                             </StackPanel>

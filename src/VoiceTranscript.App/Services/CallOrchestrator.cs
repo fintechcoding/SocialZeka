@@ -788,21 +788,6 @@ public sealed class CallOrchestrator : IDisposable
             _settings());
     }
 
-    /// <summary>
-    /// Runs a recording through transcription and analysis again.
-    ///
-    /// The audio is on disk and intact, so a failure here is almost always transient — a device
-    /// that was busy, a rate limit, a model that had not finished downloading. Making somebody
-    /// re-record a conversation because of that would be absurd, and impossible anyway.
-    /// </summary>
-    public Task ReprocessAsync(long callId, CancellationToken cancellationToken = default)
-    {
-        _repository.SetCallState(callId, ProcessingState.Queued);
-        Enqueue(callId);
-
-        return Task.CompletedTask;
-    }
-
     private async Task BeginRecordingAsync(CallEvent callEvent, AppSettings settings)
     {
         try

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.App.Services;
 using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -137,17 +138,29 @@ public sealed partial class ShellViewModel : ObservableObject
         orchestrator.StateChanged += (_, state) => OnUi(() => OnStateChanged(state));
         orchestrator.Notice += (_, message) => OnUi(() => Post(message, Services.NoticeSeverity.Warning));
         orchestrator.CallFinished += (_, _) => OnUi(RefreshAll);
+        Services.CallActions.Changed += (_, _) => OnUi(RefreshAll);
 
         // Straight through to the screen, on the UI thread. The worker reports several times a
         // second while transcribing, so this must not do anything expensive — it sets four fields.
-        orchestrator.ProgressChanged += (_, p) =>
-            OnUi(() => Processing.ReportProgress(p.CallId, p.Stage, p.Percent));
+        orchestrator.ProgressChanged += (_, p) => OnUi(() =>
+        {
+            Processing.ReportProgress(p.CallId, p.Stage, p.Percent);
+
+            // Once per call, not per percent: the first screen's row moves from "Sırada" to
+            // "Yazıya dökülüyor" when the worker picks it up, and that is all it needs.
+            if (p.CallId != _lastProgressCall)
+            {
+                _lastProgressCall = p.CallId;
+                Overview.Refresh();
+            }
+        });
 
         orchestrator.CallProcessed += (_, processed) => OnUi(() =>
         {
             Processing.ClearProgress();
             Processing.Refresh();
             AiStatus.Refresh();
+            Overview.Refresh();
 
             // "Ne oldu?" — the end of processing told as one sentence, with the suggestion
             // count as a plain number. The summary itself already passed the pipeline's
@@ -177,6 +190,8 @@ public sealed partial class ShellViewModel : ObservableObject
         RefreshAll();
     }
 
+    private long _lastProgressCall = -1;
+
     public OverviewViewModel Overview { get; }
     public LedgerViewModel Ledger { get; }
     public CalendarViewModel Calendar { get; }
@@ -190,6 +205,35 @@ public sealed partial class ShellViewModel : ObservableObject
     public HealthViewModel Health { get; }
 
     [ObservableProperty] private ShellPage _page = ShellPage.Overview;
+
+    /// <summary>
+    /// What the taskbar and Alt-Tab say. "VoiceTranscript" alone told the user neither which page
+    /// they left open nor whether a call was being recorded; both are things they look for there.
+    /// </summary>
+    public string WindowTitle => IsRecording
+        ? "Kaydediliyor — VoiceTranscript"
+        : IsBusy
+            ? "İşleniyor — VoiceTranscript"
+            : $"{PageName(Page)} — VoiceTranscript";
+
+    /// <summary>The tray's hover text: the state and what it means, not just a word.</summary>
+    public string TrayText => $"{StatusText} · {StatusDetail}";
+
+    private static string PageName(ShellPage page) => page switch
+    {
+        ShellPage.Overview => Localisation.T("mainwindow.genel-bakis"),
+        ShellPage.Ledger => Localisation.T("mainwindow.defter"),
+        ShellPage.Calendar => Localisation.T("mainwindow.takvim"),
+        ShellPage.Todo => Localisation.T("mainwindow.yapilacaklar"),
+        ShellPage.Contacts => Localisation.T("mainwindow.kisiler"),
+        ShellPage.Search => Localisation.T("mainwindow.arama"),
+        ShellPage.Ask => Localisation.T("mainwindow.sor"),
+        ShellPage.Health => Localisation.T("mainwindow.durum"),
+        ShellPage.Processing => "İşlemler",
+        _ => "VoiceTranscript",
+    };
+
+    partial void OnPageChanged(ShellPage value) => OnPropertyChanged(nameof(WindowTitle));
     [ObservableProperty] private string _statusText = "İzleniyor";
     [ObservableProperty] private string _statusDetail = "Arama başlayınca otomatik kaydedilecek";
     [ObservableProperty] private bool _isRecording;
@@ -271,7 +315,12 @@ public sealed partial class ShellViewModel : ObservableObject
             _ => ("İzleniyor", "Arama başlayınca otomatik kaydedilecek"),
         };
 
-        if (state == OrchestratorState.Idle) RefreshAll();
+        OnPropertyChanged(nameof(WindowTitle));
+        OnPropertyChanged(nameof(TrayText));
+
+        // Idle and Processing both re-read: a row that says "Sırada" for hours while the queue
+        // works through it was the first screen not being told anything until the very end.
+        if (state is OrchestratorState.Idle or OrchestratorState.Processing) RefreshAll();
     }
 
     // ---- the keyboard layer -------------------------------------------------

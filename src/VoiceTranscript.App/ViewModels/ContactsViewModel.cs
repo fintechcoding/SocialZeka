@@ -396,12 +396,12 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
 
         LoadCallActions(value.Call.Id);
 
-        var contactName = SelectedContact?.Name ?? "Karşı taraf";
+        var contactName = SpeakerText.Other(SelectedContact?.Name);
 
         foreach (var segment in repository.GetSegments(value.Call.Id))
         {
             Transcript.Add(new TranscriptLine(
-                segment.IsMe ? "Ben" : contactName,
+                segment.IsMe ? SpeakerText.Self : contactName,
                 segment.Text.Trim(),
                 segment.StartMs,
                 segment.EndMs,
@@ -550,34 +550,6 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
         Refresh();
 
         return result;
-    }
-
-    /// <summary>
-    /// Puts one recording back through transcription and analysis.
-    ///
-    /// The audio is intact, so a failure is nearly always transient — a busy device, a rate
-    /// limit, a model still downloading. Asking somebody to re-record a conversation because of
-    /// that would be absurd, and impossible anyway.
-    /// </summary>
-    public async Task ReprocessSelectedCallAsync(Services.CallOrchestrator orchestrator)
-    {
-        if (SelectedCall is not { } call) return;
-
-        TranscriptMessage = "Yeniden işleniyor…";
-
-        try
-        {
-            await orchestrator.ReprocessAsync(call.Call.Id);
-            Notice?.Invoke(this, "Görüşme yeniden işlendi.");
-        }
-        catch (Exception e)
-        {
-            Notice?.Invoke(this, $"Yeniden işlenemedi: {e.Message}");
-        }
-        finally
-        {
-            Refresh();
-        }
     }
 
     /// <summary>

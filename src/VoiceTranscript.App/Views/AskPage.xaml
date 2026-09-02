@@ -4,7 +4,7 @@
              xmlns:loc="clr-namespace:VoiceTranscript.App"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
-    <Grid Margin="28,22,28,0">
+    <Grid Margin="{StaticResource PadPage}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -170,10 +170,10 @@
                                                 Margin="0,0,8,0" VerticalAlignment="Center">
                                             <Border.Style>
                                                 <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="{StaticResource ThemBrush}" />
+                                                    <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsMe}" Value="True">
-                                                            <Setter Property="Background" Value="{StaticResource MeBrush}" />
+                                                            <Setter Property="Background" Value="{DynamicResource MeBrush}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>

@@ -180,24 +180,38 @@ public partial class CallWindow
     /// enough — and on this machine the choice is consequential: a local model managed a fifth of
     /// real time and a hosted one two hundred times it, on the same recordings.
     /// </summary>
-    private void Retranscribe_Click(object sender, RoutedEventArgs e)
+    private void Retranscribe_Click(object sender, RoutedEventArgs e) => Reprocess(ReprocessKind.Transcribe);
+
+    private void Reanalyse_Click(object sender, RoutedEventArgs e) => Reprocess(ReprocessKind.Analyse);
+
+    private void Reprocess(ReprocessKind kind)
     {
-        if (ViewModel is not { } model || App.Orchestrator is null) return;
+        if (ViewModel is not { } model || App.Repository.GetCall(model.CallId) is not { } call) return;
 
-        var dialog = new ReprocessWindow(App.Repository, App.Settings, model.Title, count: 1)
-        {
-            Owner = this,
-        };
+        if (Services.CallActions.Reprocess(this, call, model.Title, kind)) model.MarkQueued();
+    }
 
-        if (dialog.ShowDialog() != true) return;
+    private void Move_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } model || App.Repository.GetCall(model.CallId) is not { } call) return;
 
-        var choice = dialog.Choice;
+        // Moved: this window's title and ledger belong to the old person; it closes and the
+        // lists behind it re-read.
+        if (Services.CallActions.Move(this, call, model.Title)) Close();
+    }
 
-        App.Repository.SetCallState(model.CallId, VoiceTranscript.Core.Domain.ProcessingState.Queued);
-        App.Orchestrator.EnqueueWith(model.CallId, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel,
-            choice.LlmRouteKind, choice.LlmRouteUrl);
+    private async void ShowInFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } model || App.Repository.GetCall(model.CallId) is not { } call) return;
 
-        model.MarkQueued();
+        await Services.CallActions.ShowInFolderAsync(this, call);
+    }
+
+    private async void Delete_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } model || App.Repository.GetCall(model.CallId) is not { } call) return;
+
+        if (await Services.CallActions.DeleteAsync(this, call, model.Title)) Close();
     }
 
     private void RemoveTag_Click(object sender, MouseButtonEventArgs e)

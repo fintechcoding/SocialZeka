@@ -10,7 +10,7 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:ContactsViewModel}">
 
-    <Grid Margin="16,4,24,16">
+    <Grid Margin="{StaticResource PadPage}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="300" />
             <ColumnDefinition Width="Auto" />
@@ -206,20 +206,6 @@
                             <!-- Two verbs, because they are two different jobs: audio → text
                                  costs hours and re-uploads, text → ledger costs a minute and
                                  never touches the audio. One "Yeniden işle" hid that choice. -->
-                            <ui:Button Content="{loc:T contactspage.yeniden-yaziya-cevir}" Margin="0,0,8,0" Click="Retranscribe_Click"
-                                       ToolTip="{loc:T contactspage.sesi-bastan-yaziya-dok}">
-                                <ui:Button.Icon>
-                                    <ui:SymbolIcon Symbol="ArrowSync24" />
-                                </ui:Button.Icon>
-                            </ui:Button>
-
-                            <ui:Button Content="{loc:T contactspage.yeniden-cozumle}" Margin="0,0,8,0" Click="Reanalyse_Click"
-                                       ToolTip="{loc:T contactspage.metinden-defteri-yeniden-uret}">
-                                <ui:Button.Icon>
-                                    <ui:SymbolIcon Symbol="Lightbulb24" />
-                                </ui:Button.Icon>
-                            </ui:Button>
-
                             <ui:Button Content="{loc:T contactspage.disa-aktar}" Margin="0,0,8,0" Click="Export_Click"
                                        ToolTip="{loc:T contactspage.bu-kisinin-gorusmelerini-obsidian-kasasina}">
                                 <ui:Button.Icon>
@@ -496,9 +482,9 @@
                                                         <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=me}" />
                                                         <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=them}" />
                                                     </Grid.ColumnDefinitions>
-                                                    <Border Grid.Column="0" Background="{StaticResource MeBrush}"
+                                                    <Border Grid.Column="0" Background="{DynamicResource MeBrush}"
                                                             CornerRadius="3,0,0,3" />
-                                                    <Border Grid.Column="1" Background="{StaticResource ThemBrush}"
+                                                    <Border Grid.Column="1" Background="{DynamicResource ThemBrush}"
                                                             CornerRadius="0,3,3,0" />
                                                 </Grid>
 
@@ -535,10 +521,10 @@
                                                 <Border Grid.Column="0" Width="3" CornerRadius="2" Margin="0,2,12,2">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="{StaticResource ThemBrush}" />
+                                                            <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsMe}" Value="True">
-                                                                    <Setter Property="Background" Value="{StaticResource MeBrush}" />
+                                                                    <Setter Property="Background" Value="{DynamicResource MeBrush}" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -718,9 +704,9 @@
                                             <Viewbox Stretch="Fill">
                                                 <Canvas Width="1000" Height="68">
                                                     <Polygon Points="{Binding Playback.MicShape}"
-                                                             Fill="{StaticResource MeBrush}" Opacity="0.85" />
+                                                             Fill="{DynamicResource MeBrush}" Opacity="0.85" />
                                                     <Polygon Points="{Binding Playback.FarShape}"
-                                                             Fill="{StaticResource ThemBrush}" Opacity="0.85" />
+                                                             Fill="{DynamicResource ThemBrush}" Opacity="0.85" />
 
                                                     <!-- Centre line, so the two bands read as one timeline. -->
                                                     <Line X1="0" Y1="34" X2="1000" Y2="34" StrokeThickness="0.6"
@@ -796,10 +782,10 @@
                                                                 <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding Playback.Channel}" Value="Me">
-                                                                        <Setter Property="Background" Value="{StaticResource MeBrush}" />
+                                                                        <Setter Property="Background" Value="{DynamicResource MeBrush}" />
                                                                     </DataTrigger>
                                                                     <DataTrigger Binding="{Binding Playback.Channel}" Value="Them">
-                                                                        <Setter Property="Background" Value="{StaticResource ThemBrush}" />
+                                                                        <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -900,7 +886,7 @@
                                                          ledger line without the words it rests on
                                                          is an accusation. -->
                                                     <Border Style="{StaticResource QuoteBlock}"
-                                                            BorderBrush="{StaticResource ThemBrush}">
+                                                            BorderBrush="{DynamicResource ThemBrush}">
                                                         <TextBlock Style="{StaticResource QuoteText}"
                                                                    Text="{Binding Quote}" />
                                                     </Border>
@@ -983,7 +969,7 @@
                                                                TextWrapping="Wrap"
                                                                FontSize="{StaticResource TextBody}" />
                                                     <Border Style="{StaticResource QuoteBlock}"
-                                                            BorderBrush="{StaticResource ThemBrush}">
+                                                            BorderBrush="{DynamicResource ThemBrush}">
                                                         <TextBlock Style="{StaticResource QuoteText}"
                                                                    Text="{Binding Quote}" />
                                                     </Border>

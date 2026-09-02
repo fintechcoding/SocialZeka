@@ -16,6 +16,47 @@ public partial class ProcessingPage
 
     private ProcessingViewModel? ViewModel => DataContext as ProcessingViewModel;
 
+    // ---- the row menu: the same verbs as every other call row, from CallActions ----------------
+
+    private static ProcessingRow? RowOf(object sender) => (sender as FrameworkElement)?.DataContext as ProcessingRow;
+
+    private void RowOpen_Click(object sender, RoutedEventArgs e)
+    {
+        if (RowOf(sender) is not { } row) return;
+
+        var window = new CallWindow(new CallWindowViewModel(App.Repository, () => App.Settings, App.HttpClient, row.Call.Id))
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        window.Show();
+    }
+
+    private void RowMove_Click(object sender, RoutedEventArgs e)
+    {
+        if (RowOf(sender) is { } row) Services.CallActions.Move(Window.GetWindow(this), row.Call, row.ContactName);
+    }
+
+    private void RowRetranscribe_Click(object sender, RoutedEventArgs e)
+    {
+        if (RowOf(sender) is { } row) Services.CallActions.Reprocess(Window.GetWindow(this), row.Call, row.ContactName, ReprocessKind.Transcribe);
+    }
+
+    private void RowReanalyse_Click(object sender, RoutedEventArgs e)
+    {
+        if (RowOf(sender) is { } row) Services.CallActions.Reprocess(Window.GetWindow(this), row.Call, row.ContactName, ReprocessKind.Analyse);
+    }
+
+    private async void RowShowInFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (RowOf(sender) is { } row) await Services.CallActions.ShowInFolderAsync(Window.GetWindow(this), row.Call);
+    }
+
+    private async void RowDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (RowOf(sender) is { } row) await Services.CallActions.DeleteAsync(Window.GetWindow(this), row.Call, row.ContactName);
+    }
+
     private void Reprocess_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: ProcessingRow row }) return;

@@ -9,7 +9,7 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:SearchViewModel}">
 
-    <Grid Margin="24,4,32,16">
+    <Grid Margin="{StaticResource PadPage}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -176,10 +176,10 @@
                                                 <Border Grid.Column="0" Width="3" CornerRadius="2" Margin="0,1,12,1">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="{StaticResource ThemBrush}" />
+                                                            <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsMe}" Value="True">
-                                                                    <Setter Property="Background" Value="{StaticResource MeBrush}" />
+                                                                    <Setter Property="Background" Value="{DynamicResource MeBrush}" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>

@@ -9,7 +9,7 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:LedgerViewModel}">
 
-    <Grid Margin="24,4,32,16">
+    <Grid Margin="{StaticResource PadPage}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -135,7 +135,7 @@
                                              the row reads as an obligation to keep, not a
                                              complaint about the person named beside it. -->
                                         <Border CornerRadius="4" Padding="6,1" Margin="8,0,0,0"
-                                                Background="{StaticResource MeBrush}" VerticalAlignment="Center"
+                                                Background="{DynamicResource MeBrush}" VerticalAlignment="Center"
                                                 Visibility="{Binding ByMe, Converter={StaticResource BoolToVisibility}}">
                                             <TextBlock Text="{loc:T ledgerpage.sen}" FontSize="10" FontWeight="SemiBold"
                                                        Foreground="White" />
@@ -160,7 +160,7 @@
                                                FontSize="{StaticResource TextBody}" />
 
                                     <!-- The quote travels with the claim, always. -->
-                                    <Border Style="{StaticResource QuoteBlock}" BorderBrush="{StaticResource ThemBrush}">
+                                    <Border Style="{StaticResource QuoteBlock}" BorderBrush="{DynamicResource ThemBrush}">
                                         <StackPanel>
                                             <TextBlock Style="{StaticResource QuoteText}" Text="{Binding Quote}" />
                                             <TextBlock Style="{StaticResource TimeLink}" Margin="0,4,0,0"

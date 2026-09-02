@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -25,6 +26,9 @@ public enum AttentionAction
     ShowUnlabelled,
     RetryFailed,
     OpenSettings,
+
+    /// <summary>Open the processing list on the failures, so each can be read and dealt with.</summary>
+    ShowProcessing,
 }
 
 public sealed record AttentionItem(
@@ -83,25 +87,20 @@ public sealed record RecentCall(
     /// States that are normal must not read like errors: a group call is deliberately not
     /// transcribed, and a queued call is waiting rather than stuck.
     /// </summary>
-    public string Status => Call.Kind == CallKind.Group
-        ? "Grup — sadece ses"
-        : Call.State switch
-        {
-            ProcessingState.Recorded or ProcessingState.Queued => "Sırada",
-            ProcessingState.Transcribing => "Yazıya dökülüyor",
+    /// <summary>One vocabulary, shared with every other screen. Null when there is nothing to say.</summary>
+    public string? Status => CallStateText.Short(Call);
 
-            // Transcribed means the words are written and the analysis did not run — because no
-            // model is configured, or because it was switched off. It is a resting state, not a
-            // busy one, and calling it "Çözümleniyor" made a finished recording sit under a
-            // spinner indefinitely.
-            ProcessingState.Transcribed => "Yazıya döküldü · çözümlenmedi",
+    public bool HasStatus => Status is not null;
 
-            ProcessingState.Analysing => "Çözümleniyor",
-            ProcessingState.Analysed => "Hazır",
-            ProcessingState.Failed => "Başarısız",
-            ProcessingState.Skipped => "Atlandı",
-            _ => "",
-        };
+    public string StatusBrushKey => CallStateText.BrushKey(Call.State);
+
+    /// <summary>Why it failed, in the row — the reason used to be three screens away.</summary>
+    public string? FailureLine => IsFailed ? Core.Asr.FailureText.Summarise(Call.FailureReason) : null;
+
+    public bool HasFailureLine => FailureLine is not null;
+
+    /// <summary>An unnamed call is not a person called "İsimsiz"; it is a question.</summary>
+    public string DisplayName => NeedsLabel ? Localisation.T("overviewpage.isimsiz-gorusme") : ContactName;
 
     /// <summary>
     /// Whether something is actually happening to this recording right now.
@@ -122,6 +121,19 @@ public sealed record RecentCall(
     public bool IsWaiting => Call.State is ProcessingState.Recorded or ProcessingState.Queued;
 
     public bool IsFailed => Call.State == ProcessingState.Failed;
+
+    /// <summary>The audio is still on disk. Without it there is nothing to re-transcribe or play.</summary>
+    public bool HasAudio => Call.MicPath is not null || Call.FarPath is not null;
+
+    /// <summary>A hand-started recording has no messenger; the badge would read "Unknown".</summary>
+    public bool HasApp => Call.App != CallApp.Unknown;
+
+    public bool CanRetranscribe => HasAudio && !IsGroup && !IsWorking;
+    public bool CanReanalyse => !IsWorking && !IsWaiting;
+    public bool CanDelete => !IsWorking;
+
+    /// <summary>Said on the row once the sweep has taken the audio and only the text is left.</summary>
+    public bool AudioGone => !HasAudio && Call.State is ProcessingState.Analysed or ProcessingState.Transcribed;
 }
 
 /// <summary>
@@ -206,7 +218,7 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
     public bool HasBirthdays => Birthdays.Count > 0;
 
     /// <summary>The Bugün tab with nothing to say — the only state that shows its empty text.</summary>
-    public bool TodayIsEmpty => !HasDue && !HasBirthdays;
+    public bool TodayIsEmpty => !HasDue && !HasBirthdays && !HasDayActions;
     [ObservableProperty] private bool _hasAnyData;
 
     public sealed record OverdueItem(Commitment Commitment, string ContactName)
@@ -319,12 +331,28 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
         var failed = repository.FailedCalls();
         if (failed.Count > 0)
         {
+            // Grouped by reason, and the verb chosen by the reason. "Tekrar dene" on a card whose
+            // failures all say "no service is configured" re-queued a hundred recordings into the
+            // same wall; that card now goes to settings. Anything else opens the list, where each
+            // row shows its own reason and its own retry.
+            var reasons = failed
+                .Select(f => Core.Asr.FailureText.Summarise(f.FailureReason))
+                .GroupBy(r => r)
+                .OrderByDescending(g => g.Count())
+                .ToList();
+
+            var allGuidance = failed.All(f => Core.Asr.FailureText.IsGuidance(f.FailureReason));
+
+            var detail = reasons.Count == 1
+                ? failed.Count == 1 ? reasons[0].Key : $"{failed.Count} görüşme aynı sebeple: {reasons[0].Key}"
+                : $"{reasons.Count} farklı sebep; en sık: {reasons[0].Key}";
+
             Attention.Add(new AttentionItem(
-                AttentionKind.Blocking,
+                allGuidance ? AttentionKind.Action : AttentionKind.Blocking,
                 $"{failed.Count} görüşme işlenemedi",
-                Core.Asr.FailureText.Summarise(failed[0].FailureReason),
-                "Tekrar dene",
-                AttentionAction.RetryFailed));
+                detail,
+                allGuidance ? "Ayarlar" : "Göster",
+                allGuidance ? AttentionAction.OpenSettings : AttentionAction.ShowProcessing));
         }
 
         // Split by who made the promise. One mixed count taught nothing: "3 sözün tarihi
@@ -598,6 +626,7 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
             DayActions.Add(new DayAction(action, contactName));
 
         OnPropertyChanged(nameof(HasDayActions));
+        OnPropertyChanged(nameof(TodayIsEmpty));
     }
 
     /// <summary>The user's verdict on a suggestion from the home screen.</summary>

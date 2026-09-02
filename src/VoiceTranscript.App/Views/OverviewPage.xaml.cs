@@ -338,6 +338,31 @@ public partial class OverviewPage
             RefreshEverywhere();
     }
 
+    /// <summary>The row's own retry: the same dialog as the menu, transcription first.</summary>
+    private void RecentRetry_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RecentCall row) return;
+
+        if (Services.CallActions.Reprocess(Window.GetWindow(this), row.Call, row.ContactName, ReprocessKind.Transcribe))
+            RefreshEverywhere();
+    }
+
+    /// <summary>Names an unnamed call from its row, with the same dialog the call's end uses.</summary>
+    private void RecentLabel_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RecentCall row) return;
+
+        var dialog = new LabelCallWindow(
+            App.Repository, row.Call.Id, row.Call.Duration, row.Call.ObservedTitle, row.Call.App,
+            audioSummary: "", hasSilentStream: false)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        dialog.ShowDialog();
+        RefreshEverywhere();
+    }
+
     /// <summary>A call changed hands or vanished: every list that shows calls re-reads.</summary>
     private void RefreshEverywhere()
     {

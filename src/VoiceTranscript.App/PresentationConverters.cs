@@ -318,7 +318,7 @@ public sealed class ModelPresenceConverter : IMultiValueConverter
 public sealed class ListeningToConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is true ? "Sen" : "Karşı taraf";
+        => value is true ? Core.Text.SpeakerText.Self : Core.Text.SpeakerText.Other(null);
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();

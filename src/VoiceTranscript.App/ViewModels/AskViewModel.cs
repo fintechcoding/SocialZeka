@@ -6,6 +6,7 @@ using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Llm;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -14,7 +15,7 @@ public sealed record CitationView(Excerpt Excerpt)
 {
     public string Text => Excerpt.Text;
 
-    public string Who => Excerpt.IsMe ? "Ben" : Excerpt.ContactName ?? "Karşı taraf";
+    public string Who => SpeakerText.For(Excerpt.IsMe, Excerpt.ContactName);
 
     public bool IsMe => Excerpt.IsMe;
 

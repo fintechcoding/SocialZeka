@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.App.Services;
 using VoiceTranscript.Core.Audio;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -90,8 +91,8 @@ public sealed partial class PlaybackViewModel : ObservableObject, IDisposable
 
     public string ChannelName => Channel switch
     {
-        PlaybackChannel.Me => "Sen",
-        PlaybackChannel.Them => "Karşı taraf",
+        PlaybackChannel.Me => SpeakerText.Self,
+        PlaybackChannel.Them => SpeakerText.Other(null),
         _ => "Tüm görüşme",
     };
 

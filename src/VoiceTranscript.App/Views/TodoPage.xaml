@@ -72,7 +72,7 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid Margin="24,4,24,24">
+    <Grid Margin="{StaticResource PadPage}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />

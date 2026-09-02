@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -90,7 +91,7 @@ public sealed record SearchResult(SearchHit Hit, string Query = "")
 
     public bool HasMatch => Match.Length > 0;
 
-    public string Who => Hit.IsMe ? "Ben" : Hit.ContactName ?? "Karşı taraf";
+    public string Who => SpeakerText.For(Hit.IsMe, Hit.ContactName);
     public string ContactName => Hit.ContactName ?? "İsimsiz görüşme";
     public string When => Hit.CallStartedAt.ToLocalTime().ToString("d MMMM yyyy");
     public string Timestamp => $"{Hit.StartMs / 60000:00}:{Hit.StartMs / 1000 % 60:00}";

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -71,9 +72,9 @@ public sealed record ProcessingRow(Call Call, string ContactName, int SegmentCou
     {
         ProcessingState.Recorded or ProcessingState.Queued => "Sırada",
         ProcessingState.Transcribing => "Yazıya dökülüyor",
-        ProcessingState.Skipped => "Atlandı",
+        ProcessingState.Skipped => CallStateText.Skipped(Call.FailureReason),
         ProcessingState.Failed when SegmentCount > 0 => $"{SegmentCount} satır (sonra hata verdi)",
-        ProcessingState.Failed => "Başarısız",
+        ProcessingState.Failed => "İşlenemedi",
         _ => SegmentCount > 0 ? $"{SegmentCount} satır" : "Metin yok",
     };
 
@@ -82,8 +83,8 @@ public sealed record ProcessingRow(Call Call, string ContactName, int SegmentCou
         ProcessingState.Analysed => "Hazır",
         ProcessingState.Analysing => "Çözümleniyor",
         ProcessingState.Transcribed => "Çözümlenmedi",
-        ProcessingState.Failed => "Yapılamadı",
-        ProcessingState.Skipped => "Atlandı",
+        ProcessingState.Failed => "İşlenemedi",
+        ProcessingState.Skipped => CallStateText.Skipped(Call.FailureReason),
         _ => "—",
     };
 

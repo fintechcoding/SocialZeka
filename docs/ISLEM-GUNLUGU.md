@@ -995,3 +995,28 @@ görünür çöp kutusu. 822 test yeşil.
 
 **Hedef makine için derleme (beta5).** `main @ d262bae`,
 `dist/VoiceTranscript-Setup-2.1.6-beta5-win-x64.exe`, SHA-256 `0b8f175b37bbd9aec1a5a18fce01e5a3ec90ef1871d2d66b7cbe9fd07fda2247`.
+
+## 2026-09-02 (altıncı tur) — Arayüz değerlendirmesi ve onaylanan düzeltmeler
+
+Kullanıcı ilk ekrandaki görüşme menüsünün ekran görüntüsüyle "başarısız görüşmeleri silme gibi
+özellikler de olmalı; UI'ı incele, önerilerini söyle" dedi. Dört gözlü ajan değerlendirmesi
+(ilk ekran, görüşme yaşam döngüsü, bilgi mimarisi, tutarlılık — 54 öneri, hakem sıralaması)
+yapıldı; öneriler sunuldu, kullanıcı "bunlar mantıklı, düzelt" dedi.
+
+**Yapılanlar.** Görüşme eylemleri tek yerde (`Services/CallActions`: sil, taşı, yeniden yazıya dök,
+yeniden çözümle, dosya) ve her listede aynı: Genel Bakış, Kişiler (satırda görünür çöp kutusu), kişi
+penceresi, görüşme penceresi ("…" menüsü + hata şeridinde "Tekrar dene…"), İşlemler, etiketleme
+penceresi. `CallActions.Changed` kabuğu yeniler. Menü maddeleri duruma göre kapanıp sebebini söyler.
+Başarısız satır kırmızı, sebepli, satır üstünde tekrar dene/sil; Dikkat kartı sebepleri gruplar ve
+kör toplu tekrar yerine listeye ya da ayarlara gider. `CallStateText` tek durum sözlüğü, `SpeakerText`
+tek konuşmacı adı, tek ses→metin fiili. İsimsiz satır "?" avatar ve satırdan "Kim olduğunu söyle…".
+Tek sayfa boşluğu, Windows 11 içerik katmanı, koyu temaya göre değişen anlam renkleri, pencere
+başlığı/tepsi ipucu durumu söylüyor, işleme sürerken ilk ekran yenileniyor, ölü fiiller ve ray
+fazlalıkları kaldırıldı.
+
+**836 test, 0 hata** (14 yeni) + 68 Python. Görsel doğrulama hedef makinede.
+
+Hakem sıralamasında kalanlar (yapılmadı, kullanıcının kararına bırakıldı): rayı 7'ye indirme
+(Takvim + Yapılacaklar + Bugün → Ajanda, Ara + Sor → tek sayfa, İşlemler'e kapı), üst kartın
+"bu sabah beni bekleyen" sayılara dönmesi, tek görüşme satırı şablonu, Kişiler sayfası ile kişi
+penceresinin birleşmesi, klavye yolu (Del/Enter/Shift+F10), İşlemler'de toplu seçim.

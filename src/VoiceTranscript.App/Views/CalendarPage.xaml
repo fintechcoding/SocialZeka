@@ -16,7 +16,7 @@
         first — which week is crowded, which is clear — and the shape needs the width. The
         agenda keeps its place so clicking through days compares them in the same spot.
     -->
-    <Grid Margin="24,4,24,24">
+    <Grid Margin="{StaticResource PadPage}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="300" />

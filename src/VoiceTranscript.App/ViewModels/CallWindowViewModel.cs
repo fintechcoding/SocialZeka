@@ -7,6 +7,7 @@ using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Llm;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -376,7 +377,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         foreach (var segment in segments)
         {
             Turns.Add(new ChatTurn(
-                segment.IsMe ? "Ben" : contact ?? "Karşı taraf",
+                SpeakerText.For(segment.IsMe, contact),
                 segment.Text,
                 segment.StartMs,
                 segment.EndMs,

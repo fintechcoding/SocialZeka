@@ -141,7 +141,23 @@
         </DataTemplate>
 
         <DataTemplate x:Key="TranscriptRowTemplate">
-            <Grid Margin="0,4">
+            <Grid Margin="0,4" Background="Transparent">
+                <Grid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="{loc:T processingpage.gorusmeyi-ac}" Click="RowOpen_Click" FontWeight="SemiBold" />
+                        <Separator />
+                        <MenuItem Header="{loc:T processingpage.baska-kisiye-tasi}" Click="RowMove_Click" />
+                        <MenuItem Header="{loc:T processingpage.yeniden-cevir}" Click="RowRetranscribe_Click" />
+                        <MenuItem Header="{loc:T processingpage.yeniden-cozumle}" Click="RowReanalyse_Click" />
+                        <MenuItem Header="{loc:T processingpage.ses-dosyasinin-yerini-ac}" Click="RowShowInFolder_Click" />
+                        <Separator />
+                        <MenuItem Header="{loc:T processingpage.gorusmeyi-sil}" Click="RowDelete_Click">
+                            <MenuItem.Icon>
+                                <ui:SymbolIcon Symbol="Delete24" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                    </ContextMenu>
+                </Grid.ContextMenu>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -159,7 +175,23 @@
         </DataTemplate>
 
         <DataTemplate x:Key="AnalysisRowTemplate">
-            <Grid Margin="0,4">
+            <Grid Margin="0,4" Background="Transparent">
+                <Grid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="{loc:T processingpage.gorusmeyi-ac}" Click="RowOpen_Click" FontWeight="SemiBold" />
+                        <Separator />
+                        <MenuItem Header="{loc:T processingpage.baska-kisiye-tasi}" Click="RowMove_Click" />
+                        <MenuItem Header="{loc:T processingpage.yeniden-cevir}" Click="RowRetranscribe_Click" />
+                        <MenuItem Header="{loc:T processingpage.yeniden-cozumle}" Click="RowReanalyse_Click" />
+                        <MenuItem Header="{loc:T processingpage.ses-dosyasinin-yerini-ac}" Click="RowShowInFolder_Click" />
+                        <Separator />
+                        <MenuItem Header="{loc:T processingpage.gorusmeyi-sil}" Click="RowDelete_Click">
+                            <MenuItem.Icon>
+                                <ui:SymbolIcon Symbol="Delete24" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                    </ContextMenu>
+                </Grid.ContextMenu>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />

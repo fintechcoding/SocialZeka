@@ -237,7 +237,7 @@ public partial class MainWindow
     private async void OnShortcutsRequested(object? sender, EventArgs e)
         => await Services.Dialogs.InfoAsync(this, "Klavye kısayolları",
             "Ctrl+K — komut paleti (komut ya da kişi ara)\n" +
-            "Ctrl+1…6 — sayfalar (Genel bakış, Defter, Kişiler, Arama, Sor, Durum)\n" +
+            "Ctrl+1…8 — sayfalar (Genel bakış, Defter, Kişiler, Arama, Sor, Durum, Takvim, Yapılacaklar)\n" +
             "Ctrl+F — arama\n" +
             "F5 — yenile\n" +
             "F2 — kişiyi yeniden adlandır (Kişiler)\n" +
@@ -371,6 +371,13 @@ public partial class MainWindow
 
             case AttentionAction.OpenSettings:
                 OpenSettings();
+                break;
+
+            case AttentionAction.ShowProcessing:
+                // The list, filtered to what has not finished: every failure with its own reason
+                // and its own retry, instead of one blind "try them all again".
+                shell.Processing.TranscriptFilter = TranscriptFilter.Unfinished;
+                shell.NavigateCommand.Execute("Processing");
                 break;
         }
     }

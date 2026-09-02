@@ -55,6 +55,28 @@
                             <ui:SymbolIcon Symbol="Board24" />
                         </ui:Button.Icon>
                     </ui:Button>
+
+                    <!-- Everything else a call can have done to it, where the call is read:
+                         this is the window in which "wrong person / rubbish / delete" is decided. -->
+                    <ui:DropDownButton Padding="8,4" Margin="6,0,0,0" ToolTip="{loc:T callwindow.diger-eylemler}">
+                        <ui:DropDownButton.Icon>
+                            <ui:SymbolIcon Symbol="MoreHorizontal24" />
+                        </ui:DropDownButton.Icon>
+                        <ui:DropDownButton.Flyout>
+                            <ContextMenu>
+                                <MenuItem Header="{loc:T callwindow.baska-kisiye-tasi}" Click="Move_Click" />
+                                <MenuItem Header="{loc:T callwindow.yeniden-yaziya-cevir}" Click="Retranscribe_Click" />
+                                <MenuItem Header="{loc:T callwindow.yeniden-cozumle}" Click="Reanalyse_Click" />
+                                <MenuItem Header="{loc:T callwindow.ses-dosyasinin-yerini-ac}" Click="ShowInFolder_Click" />
+                                <Separator />
+                                <MenuItem Header="{loc:T callwindow.gorusmeyi-sil}" Click="Delete_Click">
+                                    <MenuItem.Icon>
+                                        <ui:SymbolIcon Symbol="Delete24" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </ContextMenu>
+                        </ui:DropDownButton.Flyout>
+                    </ui:DropDownButton>
                 </StackPanel>
 
                 <!--
@@ -211,9 +233,9 @@
                                 <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=me}" />
                                 <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=them}" />
                             </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Background="{StaticResource MeBrush}"
+                            <Border Grid.Column="0" Background="{DynamicResource MeBrush}"
                                     CornerRadius="3,0,0,3" />
-                            <Border Grid.Column="1" Background="{StaticResource ThemBrush}"
+                            <Border Grid.Column="1" Background="{DynamicResource ThemBrush}"
                                     CornerRadius="0,3,3,0" />
                         </Grid>
 
@@ -444,10 +466,10 @@
                                                             VerticalAlignment="Center">
                                                         <Border.Style>
                                                             <Style TargetType="Border">
-                                                                <Setter Property="Background" Value="{StaticResource ThemBrush}" />
+                                                                <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding ByMe}" Value="True">
-                                                                        <Setter Property="Background" Value="{StaticResource MeBrush}" />
+                                                                        <Setter Property="Background" Value="{DynamicResource MeBrush}" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -1160,6 +1182,9 @@
                         <TextBlock Text="{Binding WorkFailure}" TextWrapping="Wrap"
                                    VerticalAlignment="Center"
                                    FontSize="{StaticResource TextSecondary}" />
+                        <!-- The fix, beside the failure. -->
+                        <ui:Button Content="{loc:T callwindow.tekrar-dene}" Appearance="Secondary" Padding="10,3"
+                                   Margin="12,0,0,0" VerticalAlignment="Center" Click="Retranscribe_Click" />
                     </StackPanel>
                 </Border>
 
@@ -1183,9 +1208,9 @@
                     <Viewbox Stretch="Fill">
                         <Canvas Width="1000" Height="68">
                             <Polygon Points="{Binding Playback.MicShape}"
-                                     Fill="{StaticResource MeBrush}" Opacity="0.85" />
+                                     Fill="{DynamicResource MeBrush}" Opacity="0.85" />
                             <Polygon Points="{Binding Playback.FarShape}"
-                                     Fill="{StaticResource ThemBrush}" Opacity="0.85" />
+                                     Fill="{DynamicResource ThemBrush}" Opacity="0.85" />
 
                             <!-- Centre line, so the two bands read as one timeline. -->
                             <Line X1="0" Y1="34" X2="1000" Y2="34" StrokeThickness="0.6"

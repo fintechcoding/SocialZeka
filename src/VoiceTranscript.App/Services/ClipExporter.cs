@@ -123,7 +123,7 @@ public sealed class ClipExporter(Repository repository)
                 .OrderBy(s => s.StartMs)
                 .Select(s =>
                     $"[{TimeSpan.FromMilliseconds(s.StartMs):mm\\:ss}] "
-                    + $"{(s.IsMe ? "Ben" : contactName ?? "Karşı taraf")}: {s.Text}")
+                    + $"{Core.Text.SpeakerText.For(s.IsMe, contactName)}: {s.Text}")
                 .ToList();
 
             if (lines.Count == 0) return false;

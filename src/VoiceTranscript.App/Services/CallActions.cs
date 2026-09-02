@@ -15,6 +15,18 @@ namespace VoiceTranscript.App.Services;
 /// </summary>
 public static class CallActions
 {
+    /// <summary>
+    /// Raised after a call was deleted, moved or re-queued. Every list that shows calls re-reads
+    /// on it, so no page has to know which other pages exist.
+    /// </summary>
+    public static event EventHandler? Changed;
+
+    private static void RaiseChanged() => Changed?.Invoke(null, EventArgs.Empty);
+
+    /// <summary>Whether the recording's audio is still on disk.</summary>
+    public static bool HasAudio(Call call) =>
+        (call.MicPath is { } mic && File.Exists(mic)) || (call.FarPath is { } far && File.Exists(far));
+
     private static string Describe(Call call, string contactName) =>
         $"{contactName} · {call.StartedAt.ToLocalTime():d MMMM HH:mm} · {(int)call.Duration.TotalMinutes:00}:{call.Duration.Seconds:00}";
 
@@ -39,6 +51,7 @@ public static class CallActions
         if (!confirmed) return false;
 
         var result = App.Repository.DeleteCall(call.Id);
+        RaiseChanged();
 
         if (result.FilesLeftBehind.Count > 0)
         {
@@ -85,6 +98,7 @@ public static class CallActions
         if (dialog.ForgetTitle && !string.IsNullOrWhiteSpace(call.ObservedTitle))
             App.Repository.ForgetTitleBinding(call.ObservedTitle, call.App);
 
+        RaiseChanged();
         return true;
     }
 
@@ -106,6 +120,30 @@ public static class CallActions
             return false;
         }
 
+        // The reasons a re-run cannot work, said here instead of as a new failed row a minute
+        // later: no audio left (swept, or never written), no text to analyse, a group call the
+        // settings say not to transcribe.
+        if (kind == ReprocessKind.Transcribe && !HasAudio(call))
+        {
+            _ = Dialogs.InfoAsync(owner, "Ses yok",
+                "Bu kaydın ses dosyası yok — saklama süresi dolduğu için silinmiş ya da hiç yazılmamış olabilir. Yeniden yazıya dökülemez; metin duruyorsa yeniden çözümlenebilir.");
+            return false;
+        }
+
+        if (kind == ReprocessKind.Analyse && App.Repository.CountSegments(call.Id) == 0)
+        {
+            _ = Dialogs.InfoAsync(owner, "Metin yok",
+                "Bu kaydın metni yok; önce yazıya dökülmesi gerekiyor.");
+            return false;
+        }
+
+        if (kind == ReprocessKind.Transcribe && call.Kind == CallKind.Group && !App.Settings.TranscribeGroupCalls)
+        {
+            _ = Dialogs.InfoAsync(owner, "Grup araması",
+                "Grup aramaları ayarlarda açılmadıkça yazıya dökülmez: karşı taraf tek akışta karışık gelir, kim ne dedi ayrılamaz.");
+            return false;
+        }
+
         var dialog = new ReprocessWindow(App.Repository, App.Settings, contactName, count: 1, kind)
         {
             Owner = owner,
@@ -119,6 +157,7 @@ public static class CallActions
         App.Orchestrator.EnqueueWith(
             call.Id, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel, choice.LlmRouteKind, choice.LlmRouteUrl);
 
+        RaiseChanged();
         return true;
     }
 

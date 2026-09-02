@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Analysis;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -96,7 +97,7 @@ public sealed record ContactCall(
         ProcessingState.Analysed => $"{SegmentCount} satır · çözümlendi",
         ProcessingState.Transcribed => $"{SegmentCount} satır · çözümlenmedi",
         ProcessingState.Failed => "İşlenemedi",
-        ProcessingState.Skipped => "Atlandı",
+        ProcessingState.Skipped => CallStateText.Skipped(Call.FailureReason),
         _ when SegmentCount > 0 => $"{SegmentCount} satır",
         _ => "Metin yok",
     };
@@ -112,7 +113,7 @@ public sealed record ContactHit(SearchHit Hit)
     public int StartMs => Hit.StartMs;
     public string Text => Hit.Text;
     public bool IsMe => Hit.IsMe;
-    public string Speaker => Hit.IsMe ? "Ben" : "Karşı taraf";
+    public string Speaker => SpeakerText.For(Hit.IsMe, null);
 
     public string When
     {
@@ -336,7 +337,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
     public const string SortLongest = "En uzun";
 
     public IReadOnlyList<string> StateChoices { get; } =
-        [AllStates, "Çözümlenmiş", "Çözümlenmemiş", "Başarısız"];
+        [AllStates, "Çözümlenmiş", "Çözümlenmemiş", "İşlenemedi"];
 
     public IReadOnlyList<string> SortChoices { get; } = [SortNewest, SortOldest, SortLongest];
 
@@ -510,7 +511,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
             {
                 "Çözümlenmiş" => call.State == ProcessingState.Analysed,
                 "Çözümlenmemiş" => call.State == ProcessingState.Transcribed,
-                "Başarısız" => call.State == ProcessingState.Failed,
+                "İşlenemedi" => call.State == ProcessingState.Failed,
                 _ => true,
             };
         });

@@ -169,6 +169,7 @@ public partial class App : Application
         // colour. An application that forces its own palette reads as a web page in a window
         // frame rather than as part of the desktop.
         Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
+        Services.SemanticBrushes.Follow();
 
         // Where everything is kept is settled before anything opens a file, because the log
         // itself has to go in the right place.

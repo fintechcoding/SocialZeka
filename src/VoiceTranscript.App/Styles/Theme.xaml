@@ -23,6 +23,10 @@
 
     <Thickness x:Key="PadCard">16,12</Thickness>
 
+    <!-- One inset for every page. Seven different ones meant the left edge and the title moved
+         a few pixels on every navigation, which reads as the window frame jumping. -->
+    <Thickness x:Key="PadPage">24,4,24,16</Thickness>
+
     <!--
         How wide page content is allowed to grow.
         Three different values were in use — 1000, 860, 760 — so the left edge of the text moved

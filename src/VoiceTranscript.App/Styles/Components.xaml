@@ -342,4 +342,12 @@
         </DoubleAnimation>
     </Storyboard>
 
+    <!-- The Windows 11 content surface: every page sits on the same layer with the same rounded
+         top-left corner, instead of on bare Mica on one page and a hand-drawn panel on the next. -->
+    <Style x:Key="ContentLayer" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1,1,0,0" />
+        <Setter Property="CornerRadius" Value="8,0,0,0" />
+    </Style>
 </ResourceDictionary>

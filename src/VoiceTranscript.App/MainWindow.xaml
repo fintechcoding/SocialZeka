@@ -10,7 +10,7 @@
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  mc:Ignorable="d"
                  d:DataContext="{d:DesignInstance vm:ShellViewModel}"
-                 Title="{loc:T mainwindow.voicetranscript}"
+                 Title="{Binding WindowTitle}"
                  Icon="pack://application:,,,/VoiceTranscript;component/icon.ico"
                  Width="1320" Height="880"
                  MinWidth="1200" MinHeight="680"
@@ -42,7 +42,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="{loc:T mainwindow.voicetranscript}">
+        <ui:TitleBar Grid.Row="0" Title="{Binding WindowTitle}">
             <ui:TitleBar.Icon>
                 <ui:ImageIcon Source="pack://application:,,,/VoiceTranscript;component/icon.ico" />
             </ui:TitleBar.Icon>
@@ -92,10 +92,10 @@
                                 <Ellipse x:Name="StatusDot" Width="10" Height="10">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="{StaticResource GoodBrush}" />
+                                            <Setter Property="Fill" Value="{DynamicResource GoodBrush}" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsRecording}" Value="True">
-                                                    <Setter Property="Fill" Value="#C42B1C" />
+                                                    <Setter Property="Fill" Value="{DynamicResource SystemFillColorCriticalBrush}" />
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding HasProblem}" Value="True">
                                                     <Setter Property="Fill" Value="{DynamicResource SystemFillColorCautionBrush}" />
@@ -161,7 +161,7 @@
                                 <Grid Grid.Column="1" VerticalAlignment="Center">
                                     <Border Style="{StaticResource MeterTrack}" />
                                     <Border Style="{StaticResource MeterFill}"
-                                            Background="{StaticResource MeBrush}"
+                                            Background="{DynamicResource MeBrush}"
                                             Width="{Binding MicLevel, Converter={StaticResource LevelWidth}, ConverterParameter=170}" />
                                 </Grid>
                             </Grid>
@@ -177,7 +177,7 @@
                                 <Grid Grid.Column="1" VerticalAlignment="Center">
                                     <Border Style="{StaticResource MeterTrack}" />
                                     <Border Style="{StaticResource MeterFill}"
-                                            Background="{StaticResource ThemBrush}"
+                                            Background="{DynamicResource ThemBrush}"
                                             Width="{Binding FarLevel, Converter={StaticResource LevelWidth}, ConverterParameter=170}" />
                                 </Grid>
                             </Grid>
@@ -356,34 +356,18 @@
                     </ui:Button>
 
                     <ui:Button HorizontalAlignment="Stretch" Appearance="Transparent" Margin="0,0,0,2"
-                               HorizontalContentAlignment="Left" Padding="14,9" Click="Setup_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Toolbox24" FontSize="16" Margin="0,0,12,0" />
-                            <TextBlock Text="{loc:T mainwindow.kurulum-ve-testler}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ui:Button>
-
-                    <ui:Button HorizontalAlignment="Stretch" Appearance="Transparent" Margin="0,0,0,2"
                                HorizontalContentAlignment="Left" Padding="14,9" Click="Settings_Click">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="Settings24" FontSize="16" Margin="0,0,12,0" />
                             <TextBlock Text="{loc:T mainwindow.ayarlar}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
-
-                    <ui:Button HorizontalAlignment="Stretch" Appearance="Transparent"
-                               HorizontalContentAlignment="Left" Padding="14,9"
-                               Command="{Binding RefreshAllCommand}">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="16" Margin="0,0,12,0" />
-                            <TextBlock Text="{loc:T mainwindow.yenile}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ui:Button>
                 </StackPanel>
             </Grid>
 
             <!-- Content -->
-            <Grid Grid.Column="1" Margin="8,0,0,0">
+            <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource ContentLayer}">
+            <Grid>
                 <views:OverviewPage Style="{StaticResource PageHost}" DataContext="{Binding Overview}">
                     <views:OverviewPage.Visibility>
                         <MultiBinding Converter="{StaticResource PageVisibility}">
@@ -457,6 +441,7 @@
                     </views:SearchPage.Visibility>
                 </views:SearchPage>
             </Grid>
+            </Border>
         </Grid>
 
         <!--
@@ -475,7 +460,7 @@
 
         <tb:TaskbarIcon x:Name="Tray"
                         IconSource="pack://application:,,,/VoiceTranscript;component/icon.ico"
-                        ToolTipText="{Binding StatusText}"
+                        ToolTipText="{Binding TrayText}"
                         NoLeftClickDelay="True"
                         TrayLeftMouseUp="Tray_Click">
             <tb:TaskbarIcon.ContextMenu>
