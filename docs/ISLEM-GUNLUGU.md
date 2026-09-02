@@ -1203,3 +1203,31 @@ taşıması, yoklamanın da taşıması, 1010'un `auth` değil `blocked` olması
 varsayılanı doğru çıktı. Kalan tek belirsizlik işin `result` gövdesinin `words` taşıyıp taşımadığı.
 
 **Paket.** `v2.1.7`, tam sürüm.
+
+---
+
+## 2026-09-02 (onuncu tur) — Aynı iki cümlenin duvarı
+
+v2.1.7 hedef makinede doğrulandı: uyarı artık "Ses ex5 Whisper (kendi sunucumuz) servisine
+yükleniyor" diyor ve görüşme gerçekten oraya gidiyor. Cloudflare teşhisi de kullanıcı tarafından
+doğrulandı — sunucu "bana hiç istek gelmedi" dedi, çünkü 403 kenarda veriliyordu ve istek Mac
+mini'ye hiç ulaşmıyordu. Anahtar denenmemişti bile.
+
+**Kalan kusur: aynı cümlenin duvarı.** Servisi düşük bir birikimde her kayıt bir çift üretiyor —
+"…yükleniyor", "…başarısız" — dakikada bir, ve ekran aynı iki cümlenin sütunu oluyor. Yirmi kayıt,
+kırk toast.
+
+Bariz kural — "bir öncekiyle aynıysa atla" — **hiçbirini yakalamıyor**, çünkü çift dönüşümlü
+geliyor ve arka arkaya iki uyarı hiçbir zaman eşit olmuyor. Yakalanması gereken şey her cümlenin
+en son ne zaman söylendiği. `NoticeRepeatGuard`: saf, saat enjekte edilmiş, beş dakikalık pencere,
+tam metin üzerinden anahtarlanıyor. Aynı sebeple düşen iki kayıt bir kez söylenir — satırların
+kendisi kayıt başına ayrıntıyı zaten taşıyor; başka türlü ifade edilen her şey tanımı gereği yeni
+bilgidir ve gelmeye devam eder. Pencere kısa: birikimi toplamak için var, oturumu susturmak için
+değil — hele sesin makineden çıktığını söyleyen uyarıyı hiç.
+
+Bastırılan bir hata yine de oturumu "sorunlu" işaretliyor: o bayrak işlerin durumuyla ilgili, bu
+cümlenin daha önce söylenip söylenmediğiyle değil.
+
+**851 test · 846 geçti · 0 kırık · 5 atlandı** + **92 Python**.
+
+**Paket.** `v2.1.8`, tam sürüm.

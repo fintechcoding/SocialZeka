@@ -361,9 +361,19 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public bool HasUnseenNotices => UnseenNoticeCount > 0;
 
+    private readonly Services.NoticeRepeatGuard _repeats = new();
+
     /// <summary>Raises one notice: the toast shows it, the history keeps it.</summary>
     public void Post(string message, Services.NoticeSeverity severity)
     {
+        // Said once per burst. An error still marks the session as having a problem, because that
+        // flag is about the state of things rather than about whether this sentence is new.
+        if (!_repeats.ShouldSay(message, DateTimeOffset.Now))
+        {
+            if (severity == Services.NoticeSeverity.Error) HasProblem = true;
+            return;
+        }
+
         NoticeHistory.Insert(0, new Services.Notice(severity, message, DateTimeOffset.Now));
         while (NoticeHistory.Count > 50) NoticeHistory.RemoveAt(NoticeHistory.Count - 1);
 
