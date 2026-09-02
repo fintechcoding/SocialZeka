@@ -983,3 +983,6 @@ biçimliler `data[].id`. Kutu açılınca anahtar başına bir kez sorar, durum 
 Bağlantı sınaması da aynı yordamı kullanır; "scribe_v2 listede yok" yanlış uyarısı bitti.
 
 **822 test, 0 hata** (15 yeni: sözlük madenciliği ×6, sonda ×8, depo ×1) + 68 Python.
+
+**Hedef makine için derleme (beta4).** `publish.ps1 -Version 2.1.6-beta4 -RequireInstaller`,
+`main @ c64a4e7`. `dist/VoiceTranscript-Setup-2.1.6-beta4-win-x64.exe`, SHA-256 `01776fbc7ebdee108d5f0c9df12bfec049381d5514a752f9f2d73be8ecda2882`.
