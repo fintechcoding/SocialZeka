@@ -962,3 +962,24 @@ belgeye ve canlı 404/401 sondasına göre), Telegram'ın gerçek oturum davran�
 `main @ 7adc6f7`. `dist/VoiceTranscript-Setup-2.1.6-beta3-win-x64.exe`, SHA-256 `95d206e01baecd45204ba6656e81ebdea9eacf7d5b455a8173bab90886269f14`.
 Denemede: Durum → Ayrıntılı günlük açıkken bir Telegram görüşmesi yap; günlükteki "tespit" satırları
 kaçırmanın nedenini gösterir. Ayarlar → Sözlük'e Sumsub, KYC gibi terimleri yaz.
+
+## 2026-09-02 (dördüncü tur) — Sözlük kendini büyütüyor, model kutusu dürüst
+
+Kullanıcı: *"Sözlük vs. oluşturamayız, bir sürü kelime var, bunun başka yolu olabilir"* ve
+*"ElevenLabs'ten model listesini çekemiyordu; anahtar girildiyse modele tıklanınca çekmeli,
+çekebiliyorsa doldurmalı, çekemiyorsa 'anahtar hatalı' demeli, servis desteklemiyorsa elle giriş."*
+Ayrıca sohbete bir API anahtarı yapıştırıldı; kullanılmadı, kaydedilmedi, iptal edilmesi söylendi.
+
+**Otomatik sözlük.** `VocabularyMiner`: Whisper'ın cümle ortasında büyük harfle yazdığı ve arşivde
+en az iki kez geçen sözcükler (Türkçe ek kesme işaretinden kırpılır); `Repository.VocabularyNames`
+kişi adları ve kişi bilgileri; `Vocabulary.Compose` yazılanı önde, adları, madenlenenleri sırayla
+birleştirir (300 hotword, 40 terimlik prompt — uzun prompt sessizliğe yankılanır). Orkestratör on
+dakikada bir toplar; "Sözlüğü arşivden kendiliğinden büyüt" varsayılan açık.
+
+**Model kutusu.** `SttProbe.ListModelsAsync` üç cevabı ayırır: liste geldi / anahtar reddedildi
+(401-403) / servis liste vermiyor (katalog + elle giriş). ElevenLabs `/v1/models` ses modellerini
+döndürür — 200 anahtarı kanıtlar, adlar katalogdan; Deepgram `stt[].canonical_name`; OpenAI
+biçimliler `data[].id`. Kutu açılınca anahtar başına bir kez sorar, durum satırına yazar.
+Bağlantı sınaması da aynı yordamı kullanır; "scribe_v2 listede yok" yanlış uyarısı bitti.
+
+**822 test, 0 hata** (15 yeni: sözlük madenciliği ×6, sonda ×8, depo ×1) + 68 Python.

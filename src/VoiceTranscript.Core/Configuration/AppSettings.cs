@@ -217,6 +217,14 @@ public sealed record AppSettings
     /// </summary>
     public bool MixedLanguage { get; init; }
 
+    /// <summary>
+    /// Grows the vocabulary from the archive without being asked: contact names, profile fields,
+    /// and the proper nouns the transcripts keep producing. On by default because a typed list
+    /// of hundreds of terms is a list nobody maintains; the typed list stays for the few words
+    /// the recogniser has never once got right and so cannot learn from itself.
+    /// </summary>
+    public bool AutoVocabulary { get; init; } = true;
+
     /// <summary>The vocabulary as the comma list the engines expect, or null when there is none.</summary>
     public string? VocabularyTerms()
     {

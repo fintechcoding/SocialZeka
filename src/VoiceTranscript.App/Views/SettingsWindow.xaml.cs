@@ -135,6 +135,16 @@ public partial class SettingsWindow
     /// list, since "no models" and "you have not entered your key" are different problems with
     /// very different fixes.
     /// </summary>
+    /// <summary>The hosted-transcription model box fetches the service's list when opened.</summary>
+    private void EndpointModelBox_DropDownOpened(object sender, EventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ViewModels.SttEndpointViewModel endpoint
+            && endpoint.RefreshModelsCommand.CanExecute(null))
+        {
+            endpoint.RefreshModelsCommand.Execute(null);
+        }
+    }
+
     private void BrowseModels_Click(object sender, RoutedEventArgs e)
     {
         var provider = _viewModel.SelectedProvider;

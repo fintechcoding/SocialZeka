@@ -33,6 +33,73 @@ public sealed class SttProbe(HttpClient http)
             return new SttTestResult { Message = "API anahtarı girilmemiş." };
 
         var stopwatch = Stopwatch.StartNew();
+        var listing = await ListModelsAsync(endpoint, ct);
+        stopwatch.Stop();
+
+        var latency = (int)stopwatch.ElapsedMilliseconds;
+
+        if (listing.Unreachable)
+            return new SttTestResult { Message = listing.Message };
+
+        if (listing.KeyRejected)
+            return new SttTestResult { Reachable = true, LatencyMs = latency, Message = listing.Message };
+
+        var wanted = endpoint.ResolvedModel;
+
+        // A catalogue answer cannot rule a model out: the service did not say what it has, and the
+        // model box accepts typed names for exactly that reason.
+        var hasModel = listing.FromCatalogue
+            || listing.Models.Count == 0
+            || listing.Models.Contains(wanted, StringComparer.OrdinalIgnoreCase);
+
+        var message = listing.FromCatalogue || listing.Models.Count == 0
+            ? $"Bağlantı çalışıyor ({latency} ms). {listing.Message}"
+            : hasModel
+                ? $"Bağlantı çalışıyor ({latency} ms). {wanted} kullanılabilir, {listing.Models.Count} model listelendi."
+                : $"Bağlantı çalışıyor ({latency} ms) ama {wanted} listede yok. " +
+                  $"Örnekler: {string.Join(", ", listing.Models.Take(4))}";
+
+        return new SttTestResult
+        {
+            Reachable = true,
+            Authorised = true,
+            ModelAvailable = hasModel,
+            LatencyMs = latency,
+            Models = listing.Models,
+            Message = message,
+        };
+    }
+
+    /// <summary>
+    /// Asks the service what models it has, and says plainly when it will not tell.
+    ///
+    /// This is what the model box calls when it is opened. The three outcomes are kept apart
+    /// because each needs a different move from the user: a list to pick from, a key to fix, or a
+    /// name to type. ElevenLabs answers /models with its voices and never its transcription
+    /// models, so the reply proves the key and the catalogue supplies the names; Deepgram lists
+    /// transcription models under "stt"; everybody OpenAI-shaped lists ids under "data".
+    /// </summary>
+    public async Task<SttModelList> ListModelsAsync(SttEndpoint endpoint, CancellationToken ct = default)
+    {
+        // The catalogue's known models, or at least the default: "Özel adres" lists nothing, and
+        // an empty box after a failed fetch reads as "no models exist" rather than "type one".
+        IReadOnlyList<string> catalogue = endpoint.Provider.Models.Count > 0
+            ? endpoint.Provider.Models
+            : [endpoint.ResolvedModel];
+
+        if (string.IsNullOrWhiteSpace(endpoint.ResolvedBaseUrl))
+            return new SttModelList { Models = catalogue, FromCatalogue = true, Unreachable = true, Message = "Adres boş." };
+
+        if (string.IsNullOrWhiteSpace(endpoint.ApiKey))
+        {
+            return new SttModelList
+            {
+                Models = catalogue,
+                FromCatalogue = true,
+                KeyRejected = true,
+                Message = "Önce API anahtarını gir; liste anahtarla alınır. Şimdilik bilinen modeller gösteriliyor.",
+            };
+        }
 
         try
         {
@@ -40,67 +107,110 @@ public sealed class SttProbe(HttpClient http)
             timeout.CancelAfter(Timeout);
 
             using var response = await GetAsync(endpoint, "models", timeout.Token);
-            stopwatch.Stop();
-
-            var latency = (int)stopwatch.ElapsedMilliseconds;
 
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             {
-                return new SttTestResult
+                return new SttModelList
                 {
-                    Reachable = true,
-                    LatencyMs = latency,
-                    Message = $"Sunucuya ulaşıldı ama anahtar kabul edilmedi ({(int)response.StatusCode}).",
+                    Models = catalogue,
+                    FromCatalogue = true,
+                    KeyRejected = true,
+                    Message = $"Anahtar kabul edilmedi ({(int)response.StatusCode}). Anahtarı denetle.",
                 };
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                // Some providers do not expose a model list at all. That is not a failure of the
-                // key — but it is not proof of the key either, and it used to be reported as one.
-                // A 404 from a base address missing "/v1" came back as "bağlandı", and the first
-                // real upload then failed against an endpoint the test had just blessed.
-                //
-                // Reachable, yes. Authorised is left unclaimed: nothing here established it.
-                return new SttTestResult
+                return new SttModelList
                 {
-                    Reachable = true,
-                    Authorised = false,
-                    LatencyMs = latency,
+                    Models = catalogue,
+                    FromCatalogue = true,
                     Message =
-                        $"Sunucu ulaşılabilir. Model listesi alınamadı ({(int)response.StatusCode}); " +
-                        "bu sağlayıcı liste yayınlamıyor olabilir.",
+                        $"Sağlayıcı model listesi vermedi ({(int)response.StatusCode}). " +
+                        "Bilinen modeller gösteriliyor; başka bir adı elle yazabilirsin.",
                 };
             }
 
-            var models = TranscriptionFirst(ParseModelList(await response.Content.ReadAsStringAsync(ct)));
-            var wanted = endpoint.ResolvedModel;
-            var hasModel = models.Count == 0 || models.Contains(wanted, StringComparer.OrdinalIgnoreCase);
+            var body = await response.Content.ReadAsStringAsync(ct);
 
-            var message = models.Count == 0
-                ? $"Bağlantı çalışıyor ({latency} ms). Sağlayıcı model listesi vermiyor."
-                : hasModel
-                    ? $"Bağlantı çalışıyor ({latency} ms). {wanted} kullanılabilir, {models.Count} model listelendi."
-                    : $"Bağlantı çalışıyor ({latency} ms) ama {wanted} listede yok. " +
-                      $"Örnekler: {string.Join(", ", models.Take(4))}";
-
-            return new SttTestResult
+            switch (endpoint.Kind)
             {
-                Reachable = true,
-                Authorised = true,
-                ModelAvailable = hasModel,
-                LatencyMs = latency,
-                Models = models,
-                Message = message,
-            };
+                case "elevenlabs":
+                    // The reply is the voice models. The key is proven; the names are ours.
+                    return new SttModelList
+                    {
+                        Models = catalogue,
+                        FromCatalogue = true,
+                        Message =
+                            "Anahtar kabul edildi. ElevenLabs yazıya dökme modellerini listelemez; " +
+                            "bilinen modeller gösteriliyor, başka bir adı elle yazabilirsin.",
+                    };
+
+                case "deepgram":
+                {
+                    var stt = ParseDeepgramModels(body);
+
+                    return stt.Count > 0
+                        ? new SttModelList { Models = stt, Message = $"{stt.Count} yazıya dökme modeli listelendi." }
+                        : new SttModelList
+                        {
+                            Models = catalogue,
+                            FromCatalogue = true,
+                            Message = "Anahtar kabul edildi ama liste boş geldi; bilinen modeller gösteriliyor.",
+                        };
+                }
+
+                default:
+                {
+                    var models = TranscriptionFirst(ParseModelList(body));
+
+                    return models.Count > 0
+                        ? new SttModelList { Models = models, Message = $"{models.Count} model listelendi." }
+                        : new SttModelList
+                        {
+                            Models = catalogue,
+                            FromCatalogue = true,
+                            Message = "Sağlayıcı model listesi vermiyor; bilinen modeller gösteriliyor, elle de yazabilirsin.",
+                        };
+                }
+            }
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return new SttTestResult { Message = $"Sunucu {Timeout.TotalSeconds:0} saniyede yanıt vermedi." };
+            return new SttModelList
+            {
+                Models = catalogue, FromCatalogue = true, Unreachable = true,
+                Message = $"Sunucu {Timeout.TotalSeconds:0} saniyede yanıt vermedi.",
+            };
         }
         catch (HttpRequestException e)
         {
-            return new SttTestResult { Message = $"Sunucuya ulaşılamadı: {e.Message}" };
+            return new SttModelList
+            {
+                Models = catalogue, FromCatalogue = true, Unreachable = true,
+                Message = $"Sunucuya ulaşılamadı: {e.Message}",
+            };
+        }
+    }
+
+    /// <summary>Deepgram's /v1/models: transcription models under "stt", each with a canonical name.</summary>
+    public static List<string> ParseDeepgramModels(string body)
+    {
+        try
+        {
+            var root = JsonNode.Parse(body) as JsonObject;
+            if (root?["stt"] is not JsonArray stt) return [];
+
+            return [.. stt
+                .Select(item => item?["canonical_name"]?.GetValue<string>() ?? item?["name"]?.GetValue<string>())
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)];
+        }
+        catch (JsonException)
+        {
+            return [];
         }
     }
 

@@ -108,6 +108,20 @@ public sealed class RepositoryTests : IDisposable
     }
 
     [Fact]
+    public void TheVocabularyKnowsEveryNameTheUserWroteDown()
+    {
+        var uliana = _repo.UpsertContact("Uliana", CallApp.WhatsApp);
+        _repo.UpsertContact("Gürhan Abi", CallApp.Telegram);
+        _repo.AddField(uliana, "Şirket", "Sumsub");
+
+        var names = _repo.VocabularyNames();
+
+        Assert.Contains("Uliana", names);
+        Assert.Contains("Gürhan Abi", names);
+        Assert.Contains("Sumsub", names);
+    }
+
+    [Fact]
     public void ATodoIsWrittenTickedAndForgottenInItsOwnTable()
     {
         var due = new DateOnly(2026, 9, 5);

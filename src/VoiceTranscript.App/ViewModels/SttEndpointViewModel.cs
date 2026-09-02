@@ -148,6 +148,61 @@ public sealed partial class SttEndpointViewModel : ObservableObject
         }
     }
 
+    /// <summary>The (kind, address, key) the current model list was fetched for.</summary>
+    private (string Kind, string BaseUrl, string ApiKey)? _modelsFetchedFor;
+
+    /// <summary>
+    /// Fills the model box from the service when it is opened.
+    ///
+    /// Fetched once per key rather than on every open: the reply does not change between two
+    /// clicks, and a request per click would make the box feel broken on a slow network. A
+    /// refused key is said in the status line, as is a service that does not publish a list —
+    /// in which case the known models stay and a name can still be typed.
+    /// </summary>
+    [RelayCommand]
+    private async Task RefreshModelsAsync()
+    {
+        if (IsBusy) return;
+
+        var endpoint = ToEndpoint();
+        var key = (endpoint.Kind, endpoint.ResolvedBaseUrl, endpoint.ApiKey);
+
+        if (_modelsFetchedFor == key) return;
+        if (string.IsNullOrWhiteSpace(endpoint.ApiKey)) return;
+
+        IsBusy = true;
+
+        try
+        {
+            var listing = await _probe.ListModelsAsync(endpoint);
+
+            if (listing.Unreachable)
+            {
+                Status = listing.Message;
+                StatusIsGood = false;
+                return;
+            }
+
+            _modelsFetchedFor = key;
+
+            var current = Model;
+
+            Models.Clear();
+            foreach (var model in listing.Models) Models.Add(model);
+
+            Model = current;
+
+            Status = listing.Message;
+            StatusIsGood = listing.KeyAccepted;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    partial void OnApiKeyChanged(string value) => _modelsFetchedFor = null;
+
     [RelayCommand]
     private async Task ReadBalanceAsync()
     {

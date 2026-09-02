@@ -5,6 +5,7 @@ using VoiceTranscript.Core.Analysis;
 using VoiceTranscript.Core.Asr;
 using VoiceTranscript.Core.Audio;
 using VoiceTranscript.Core.Configuration;
+using VoiceTranscript.Core.Text;
 using VoiceTranscript.Core.Detection;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Export;
@@ -281,6 +282,54 @@ public sealed class CallOrchestrator : IDisposable
 
     /// <summary>The last detector state written to the log, so each transition is written once.</summary>
     private CallState _lastLoggedState = CallState.Idle;
+
+    private Vocabulary _vocabulary = Vocabulary.Empty;
+    private DateTimeOffset _vocabularyBuiltAt = DateTimeOffset.MinValue;
+    private string _vocabularyManual = "";
+
+    /// <summary>
+    /// The words the recogniser is told to expect: the typed list, then the people the user
+    /// knows, then what the transcripts keep saying. Rebuilt at most every ten minutes — mining a
+    /// few hundred transcripts is cheap but not free, and a transcription is minutes long anyway.
+    /// </summary>
+    private Vocabulary CurrentVocabulary(AppSettings settings)
+    {
+        var manual = settings.SpeechVocabulary;
+
+        if (DateTimeOffset.Now - _vocabularyBuiltAt < TimeSpan.FromMinutes(10) && manual == _vocabularyManual)
+            return _vocabulary;
+
+        var typed = (settings.VocabularyTerms() ?? "").Split(", ", StringSplitOptions.RemoveEmptyEntries);
+
+        if (!settings.AutoVocabulary)
+        {
+            _vocabulary = Vocabulary.Compose(typed);
+        }
+        else
+        {
+            try
+            {
+                _vocabulary = Vocabulary.Compose(
+                    typed,
+                    _repository.VocabularyNames(),
+                    VocabularyMiner.Mine(_repository.RecentTranscriptTexts()));
+            }
+            catch (Exception e)
+            {
+                // The vocabulary is a courtesy to the recogniser, never a reason not to transcribe.
+                AppLog.Error("çeviri", e, "sözlük arşivden toplanamadı; yalnızca yazılan liste gönderiliyor");
+                _vocabulary = Vocabulary.Compose(typed);
+            }
+        }
+
+        _vocabularyBuiltAt = DateTimeOffset.Now;
+        _vocabularyManual = manual;
+
+        var count = _vocabulary.Terms?.Split(", ").Length ?? 0;
+        if (settings.VerboseLog && count > 0) AppLog.Write("çeviri", $"sözlük: {count} terim");
+
+        return _vocabulary;
+    }
 
     /// <summary>
     /// Calls whose audio somebody is reading or rewriting right now.
@@ -1341,8 +1390,8 @@ public sealed class CallOrchestrator : IDisposable
                     // The worker reads PCM; a compressed archive is expanded into the cache first.
                     MicPath = AudioMaterialiser.EnsurePcm(call.MicPath),
                     FarPath = AudioMaterialiser.EnsurePcm(call.FarPath),
-                    Hotwords = settings.VocabularyTerms(),
-                    InitialPrompt = settings.VocabularyPrompt(),
+                    Hotwords = CurrentVocabulary(settings).Terms,
+                    InitialPrompt = CurrentVocabulary(settings).Prompt,
                     Multilingual = settings.MixedLanguage,
                     CacheDir = _paths.Models,
                 }, progress: new Progress<Core.Asr.WorkerProgress>(p =>
@@ -1675,8 +1724,8 @@ public sealed class CallOrchestrator : IDisposable
                     // The worker reads PCM; a compressed archive is expanded into the cache first.
                     MicPath = AudioMaterialiser.EnsurePcm(call.MicPath),
                     FarPath = AudioMaterialiser.EnsurePcm(call.FarPath),
-                    Hotwords = settings.VocabularyTerms(),
-                    InitialPrompt = settings.VocabularyPrompt(),
+                    Hotwords = CurrentVocabulary(settings).Terms,
+                    InitialPrompt = CurrentVocabulary(settings).Prompt,
                     Multilingual = settings.MixedLanguage,
                     CacheDir = _paths.Models,
                 }, progress: new Progress<Core.Asr.WorkerProgress>(p =>

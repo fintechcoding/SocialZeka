@@ -282,6 +282,33 @@ public sealed record SttTestResult
     public bool IsHealthy => Reachable && Authorised;
 }
 
+/// <summary>
+/// What the model box can offer, and where it came from.
+///
+/// Three honest answers, kept apart because they need different actions: the service listed its
+/// models (pick one); the key was refused (fix the key); the service does not publish a list, or
+/// publishes one that does not include transcription models (ElevenLabs lists its voices), so the
+/// catalogue's known models are offered and anything else can be typed.
+/// </summary>
+public sealed record SttModelList
+{
+    public IReadOnlyList<string> Models { get; init; } = [];
+
+    /// <summary>True when the models came from the catalogue rather than the service.</summary>
+    public bool FromCatalogue { get; init; }
+
+    /// <summary>True when the service answered 401/403 to a request carrying the key.</summary>
+    public bool KeyRejected { get; init; }
+
+    /// <summary>True when the service could not be reached at all.</summary>
+    public bool Unreachable { get; init; }
+
+    public required string Message { get; init; }
+
+    /// <summary>Whether the key was seen and accepted by the service.</summary>
+    public bool KeyAccepted => !KeyRejected && !Unreachable;
+}
+
 /// <summary>What is left to spend, when the provider will say.</summary>
 public sealed record SttBalance
 {

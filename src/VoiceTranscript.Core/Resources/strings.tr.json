@@ -576,6 +576,8 @@
   "settingswindow.sirayla-denenir-biri-cevap-vermezse-ya-da": "Sırayla denenir. Biri cevap vermezse ya da kredisi biterse bir sonrakine geçilir — kayıt yalnızca bir kez var, kaybolmasın.",
   "settingswindow.sistemi-izle": "Sistemi izle",
   "settingswindow.sistemi-izle-windows-un-acik-koyu-ayariyla": "Sistemi izle, Windows'un açık/koyu ayarıyla birlikte değişir. Seçim kaydedince uygulanır.",
+  "settingswindow.sozlugu-arsivden-buyut": "Sözlüğü arşivden kendiliğinden büyüt",
+  "settingswindow.sozlugu-arsivden-buyut-aciklama": "Rehberdeki adlar, kişi bilgileri ve dökümlerde tekrar tekrar geçen özel adlar her çeviriden önce kendiliğinden gönderilir. Yukarıya yalnızca hiç doğru yazılamayan birkaç kelimeyi yazman yeter.",
   "settingswindow.sozluk": "Sözlük — özel adlar ve terimler",
   "settingswindow.sozluk-aciklama": "Yazıya dökmenin sürekli yanlış yazdığı sözcükler: ürün adları, kişiler, jargon. Satır ya da virgülle ayır. Yerel motora ve bulut servislerine aynen iletilir.",
   "settingswindow.sozluk-ornek": "Sumsub, KYC, onboarding, Uliana",
