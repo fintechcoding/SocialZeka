@@ -40,7 +40,6 @@ import uuid
 from pathlib import Path
 
 from vt_worker.chunking import plan_chunks, slice_wav
-from vt_worker.speech_only import SpeechSpan, to_original, write_speech_only
 from vt_worker.engines.base import (
     AsrEngine,
     EngineError,
@@ -249,24 +248,24 @@ class CloudWhisperEngine(AsrEngine):
             if not os.path.exists(source):
                 slice_wav(wav_path, source, chunk.start_seconds, chunk.end_seconds)
 
-        # Only the parts where somebody is speaking.
+        # The recording goes up as it was recorded. The silence in it is not waste.
         #
-        # The local engine runs with vad_filter=True and drops non-speech before decoding; no
-        # hosted API does the equivalent. This application records the whole call on two separate
-        # channels, so while one person talks the other channel is minutes of nothing, and Whisper
-        # given silence does not return nothing — it returns whatever its training data has most
-        # of. Doing it here rather than asking each provider for a flag means it works on all of
-        # them, OpenAI included. See speech_only for the reasoning and for the mapping back.
-        speech = os.path.join(workspace, f"speech-{chunk.index}.wav")
-        spans = write_speech_only(source, speech)
-
-        if not spans and os.path.exists(speech):
-            try:
-                os.unlink(speech)
-            except OSError:
-                pass
-
-        upload = self._compress(speech if spans else source, workspace, suffix=f"-{chunk.index}")
+        # Cutting it was tried, and the reasoning looked sound: no hosted API runs a VAD, and
+        # Whisper given a long silence writes into it. But this application records the two sides
+        # of a call on two separate channels, so a gap in one channel is the other person speaking
+        # — it is the structure of the conversation, not dead air, and one channel is *supposed*
+        # to be quiet for most of a call.
+        #
+        # Splicing those gaps out puts the end of one sentence against the start of another
+        # recorded minutes later. The service's operator measured what that costs: those jobs came
+        # back with a compression ratio of 8.35 against a threshold of 2.4 — Whisper's own measure
+        # of "this output is repeating itself" — and the decoder re-ran the same window six times
+        # up the temperature ladder to 1.0 and still produced nothing. The cure was worse.
+        #
+        # Hallucination over silence is handled where it does not require touching the audio: the
+        # service's own filter catches the repetition loops, reports what it removed, and the ones
+        # that might be real speech are put back marked uncertain. See ex5_engine._to_segments.
+        upload = self._compress(source, workspace, suffix=f"-{chunk.index}")
 
         # Said out loud, because working it out afterwards is guesswork and somebody did.
         #
@@ -288,12 +287,10 @@ class CloudWhisperEngine(AsrEngine):
             # somebody speaks Russian comes back as Turkish syllables that mean nothing.
             said = "otomatik" if options.multilingual else (options.language or "otomatik")
             terms = len((options.initial_prompt or "").split(",")) if options.initial_prompt else 0
-            cut = f" · {removed:.0f} sn sessizlik atıldı" if (removed := _silence_removed(chunk, spans)) else ""
-
             progress(
                 0.02 + 0.94 * chunk.index / total_chunks,
                 f"{chunk.index + 1}/{total_chunks} yükleniyor · {megabytes:.1f} MB · {how}"
-                f" · dil {said} · sözlük {terms} terim (ipucu){cut}",
+                f" · dil {said} · sözlük {terms} terim (ipucu)",
             )
 
         self._chunk_seconds = chunk.length_seconds
@@ -313,14 +310,14 @@ class CloudWhisperEngine(AsrEngine):
 
         # The slice and its compressed copy are large and no longer needed once the answer is
         # cached; the answer is what makes a resume cheap.
-        for path in (source, speech, upload):
+        for path in (source, upload):
             if path != wav_path and os.path.exists(path):
                 try:
                     os.unlink(path)
                 except OSError:
                     pass
 
-        segments = self._restore(self._to_segments(payload, 0.0), spans, chunk.start_seconds)
+        segments = self._to_segments(payload, chunk.start_seconds)
 
         # What came back, beside what went out. The service reports the language it decided on, and
         # that is the one number that says whether forcing ours was the right call.
@@ -333,30 +330,6 @@ class CloudWhisperEngine(AsrEngine):
                 f"{chunk.index + 1}/{total_chunks} geldi · dil {heard}"
                 f" · {len(segments)} satır · {words} kelime",
             )
-
-        return segments
-
-    @staticmethod
-    def _restore(segments: list[Segment], spans: list[SpeechSpan], chunk_start: float) -> list[Segment]:
-        """
-        Puts every time back on the recording's own clock.
-
-        Two shifts, in order. First out of the upload and back onto the chunk, undoing the silence
-        that was removed; then onto the whole call, undoing the chunk's own position. Doing it in
-        one step is what would go wrong: the spans describe the chunk, not the call, so adding the
-        chunk offset before the mapping would look up the wrong span and be wrong by minutes rather
-        than by the silence.
-
-        Every line in this product carries a moment you can click to hear, so a time that is out by
-        a second is a quote pointing at audio that does not contain it.
-        """
-        for segment in segments:
-            segment.start = to_original(segment.start, spans) + chunk_start
-            segment.end = to_original(segment.end, spans) + chunk_start
-
-            for word in segment.words:
-                word.start = to_original(word.start, spans) + chunk_start
-                word.end = to_original(word.end, spans) + chunk_start
 
         return segments
 
@@ -592,14 +565,6 @@ class _Retryable(Exception):
         self.code = code
         self.message = message
         self.retry_after = retry_after
-
-
-def _silence_removed(chunk, spans) -> float:
-    """Seconds of the chunk that never reached the model, or zero when it went up whole."""
-    if not spans:
-        return 0.0
-
-    return max(0.0, chunk.length_seconds - sum(span.length for span in spans))
 
 
 def _network_message(url: str, reason: object) -> str:

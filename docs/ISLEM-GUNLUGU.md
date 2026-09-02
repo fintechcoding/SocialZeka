@@ -1917,3 +1917,33 @@ Onaydan sonra ses, döküm, defter kayıtları ve notlar birlikte gidiyor.
 **894 test · 889 geçti · 0 kırık · 5 atlandı** + **125 Python**.
 
 **Paket.** `v2.6.0`.
+
+---
+
+## 2026-09-03 (on dördüncü tur) — Sessizlik kesme geri alındı
+
+Kullanıcı: **"benim sesim, karşının sesi ayrı ayrı gidiyor; karşı taraf konuşurken benim wav'ımda
+kesinti olacak, bu normal, bunlara dokunursan bozarsın."**
+
+Haklı, ve on ikinci turda eklediğim `speech_only` tam da buna dokunuyordu. Gerekçesi sağlam
+görünüyordu — hiçbir barındırılan servis VAD çalıştırmıyor, ve Whisper uzun sessizliğe yazıyor.
+Kaçırdığım şey **o sessizliğin ne olduğuydu**: bir kanaldaki boşluk öteki kişinin konuşmasıdır.
+Görüşmenin yapısı, ölü hava değil; bir kanalın çağrının çoğunda sessiz olması **beklenen** durum.
+
+Sunucu ekibi bedelini ölçtü: kesme yapılan işler **compression_ratio 8.35** ile döndü (eşik 2.4) —
+Whisper'ın kendi "bu çıktı kendini tekrar ediyor" ölçüsü — ve çözücü aynı pencereyi sıcaklık
+merdiveninde 1.0'a kadar altı kez yeniden çalıştırıp yine boş üretti. Kesme noktaları, bir cümlenin
+sonunu dakikalar sonra kaydedilmiş başka bir cümlenin başına yapıştırıyordu. **Çare hastalıktan
+kötüydü.**
+
+Ekleme yerlerine sessizlik koyarak yumuşatmayı denedim; ama doğru cevap yumuşatmak değil,
+dokunmamak. `speech_only` ve testleri kaldırıldı. Yerine `cloud_engine`'de sebebini anlatan bir
+yorum kaldı — bu, tekrar denenmeye çok müsait bir fikir ve neden çalışmadığının yazılı olması gerek.
+
+**Sessizlik halüsinasyonu sese dokunmayan yerde ele alınıyor:** servisin kendi filtresi tekrar
+döngülerini yakalıyor, neyi attığını bildiriyor, ve gerçek konuşma olabilecekler belirsiz
+işaretiyle geri konuyor (on ikinci tur).
+
+**904 test · 899 geçti · 0 kırık · 5 atlandı** + **115 Python**.
+
+**Paket.** `v2.6.1`.
