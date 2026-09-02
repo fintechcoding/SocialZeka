@@ -79,6 +79,10 @@ def test_the_job_request_sends_only_the_four_fields_that_endpoint_declares(engin
     assert headers["Authorization"] == "Bearer KEY"
 
     assert 'name="word_timestamps"\r\n\r\ntrue' in text
+
+    # On, not off. Off would hand us the model's repetition loops with no filter of our own;
+    # on, we get the clean transcript plus a labelled list of what was taken out.
+    assert 'name="filter_noise"\r\n\r\ntrue' in text
     assert 'name="language"\r\n\r\ntr' in text
     assert 'name="prompt"\r\n\r\nSumsub, KYC' in text
 

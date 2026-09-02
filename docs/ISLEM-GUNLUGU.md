@@ -1535,3 +1535,30 @@ duruyor, zararsız: alan gelmezse hiçbir şey değişmiyor.
 **860 test · 855 geçti · 0 kırık · 5 atlandı** + **113 Python**.
 
 **Paket.** `v2.2.5`.
+
+---
+
+## 2026-09-03 (üçüncü tur) — Filtre artık kapatılabiliyor; açık bırakıldı
+
+Sunucu ekibi boşluğu kapattı: `vad`, `normalize`, `filter_noise` artık üç ucun da gövdesinde.
+Şemadan doğrulandı.
+
+**Ama `false` göndermiyoruz, ve bu bilinçli.** İki seçenek de mevcut olduğunda hangisinin daha çok
+bilgi verdiğine bakmak gerekiyor:
+
+- `filter_noise=false` → model ne ürettiyse geliyor, **tekrar döngüleri dahil**: sessizlik üzerine
+  yirmi kez "abone ol". Bizim bunları yakalayan bir filtremiz yok, dolayısıyla deftere kanıt
+  kurallarıyla girerlerdi.
+- `filter_noise=true` → temiz transkript **artı** neyin niçin atıldığının etiketli listesi. Yani
+  filtreyi reddetmekten *daha fazla* bilgi: on ikinci turda yazılan katman, gerçek konuşma olabilecek
+  olanları belirsiz işaretiyle geri koyuyor, bilinen artefaktlar dışarıda kalıyor.
+
+İkincisi hem daha temiz hem daha dürüst. Katman gereksizleşmedi, doğru seçim olduğu anlaşıldı.
+
+Ayrıca artık **açıkça** gönderiliyor, varsayılana bırakılmıyor. Bugün varsayılan `true`; sunucuda
+bunun değişmesi kimsenin görüşmesine sessizce halüsinasyon sokardı ve ne istediğini söyleyen bir
+istek kayamaz.
+
+**860 test · 855 geçti · 0 kırık · 5 atlandı** + **113 Python**.
+
+**Paket.** `v2.2.6`.

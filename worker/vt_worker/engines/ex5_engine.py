@@ -100,8 +100,22 @@ class Ex5WhisperEngine(CloudWhisperEngine):
     # ---- the request --------------------------------------------------------
 
     def _job_request(self, path: str, options: EngineOptions) -> tuple[str, dict[str, str], bytes]:
-        """The queued endpoint. Four fields, and no model — the server hosts exactly one."""
-        fields: dict[str, str] = {"word_timestamps": "true"}
+        """
+        The queued endpoint, with the hallucination filter deliberately left on.
+
+        Turning it off is now possible and would be the wrong choice. Off, the response carries
+        everything the model produced, including its repetition loops — "abone ol" twenty times
+        over a silence — and we have no filter of our own to catch them; they would land in the
+        ledger under the same rules as evidence. On, the transcript is clean *and* the response
+        lists what was removed with a reason for each, which is strictly more than we get by
+        refusing the filter: see _to_segments, where the ones that might be real speech come back
+        marked uncertain and the known artefacts stay out.
+
+        Sent explicitly rather than left to the default. It happens to default to true today; a
+        server-side change to that default would quietly start feeding hallucinations into
+        somebody's conversation, and a request that states what it wants cannot drift.
+        """
+        fields: dict[str, str] = {"word_timestamps": "true", "filter_noise": "true"}
 
         if options.language and not options.multilingual:
             fields["language"] = options.language
