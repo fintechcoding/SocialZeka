@@ -992,3 +992,6 @@ silme gibi özellikler de olmalı." Genel Bakış'ın satır menüsü üç eylem
 hiçbirinde yoktu. `Services/CallActions` tek yer: sil (onay + kalan dosya uyarısı), taşı, yeniden
 çevir/çözümle, ses dosyasının yeri. Genel Bakış menüsü sekiz eylem; Kişiler'de menüde ve satırda
 görünür çöp kutusu. 822 test yeşil.
+
+**Hedef makine için derleme (beta5).** `main @ d262bae`,
+`dist/VoiceTranscript-Setup-2.1.6-beta5-win-x64.exe`, SHA-256 `0b8f175b37bbd9aec1a5a18fce01e5a3ec90ef1871d2d66b7cbe9fd07fda2247`.
