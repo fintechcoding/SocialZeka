@@ -24,6 +24,10 @@ public static class CallActions
     /// </summary>
     public static async Task<bool> DeleteAsync(Window? owner, Call call, string contactName)
     {
+        // Not while the worker is reading it: the files would go from under a transcription and
+        // the row would come back as a failure a minute later. Stop it first, then delete.
+        if (await IsInFlightAsync(owner, call, "silinemez")) return false;
+
         var confirmed = await Dialogs.ConfirmAsync(
             owner,
             "Görüşmeyi sil",
@@ -45,6 +49,17 @@ public static class CallActions
                 string.Join("\n", result.FilesLeftBehind.Select(Path.GetFileName)));
         }
 
+        return true;
+    }
+
+    /// <summary>True, after saying so, when the call is being transcribed or analysed right now.</summary>
+    private static async Task<bool> IsInFlightAsync(Window? owner, Call call, string verb)
+    {
+        var current = App.Repository.GetCall(call.Id)?.State;
+        if (current is not (ProcessingState.Transcribing or ProcessingState.Analysing)) return false;
+
+        await Dialogs.InfoAsync(owner, "Şu an işleniyor",
+            $"Bu görüşme şu an işleniyor ve {verb}. Durum › İşlemler'den durdurabilir, sonra yeniden deneyebilirsin.");
         return true;
     }
 
@@ -77,6 +92,19 @@ public static class CallActions
     public static bool Reprocess(Window? owner, Call call, string contactName, ReprocessKind kind)
     {
         if (App.Orchestrator is null) return false;
+
+        // Already queued or being worked on: a second request would only make the queue lie
+        // about its length. Said inline; nothing to confirm.
+        var current = App.Repository.GetCall(call.Id)?.State;
+
+        if (current is ProcessingState.Queued or ProcessingState.Transcribing or ProcessingState.Analysing)
+        {
+            _ = Dialogs.InfoAsync(owner, "Zaten sırada",
+                current == ProcessingState.Queued
+                    ? "Bu görüşme zaten işlenmek üzere sırada."
+                    : "Bu görüşme şu an işleniyor. Bitince yeniden işleyebilirsin; durdurmak için Durum › İşlemler.");
+            return false;
+        }
 
         var dialog = new ReprocessWindow(App.Repository, App.Settings, contactName, count: 1, kind)
         {
