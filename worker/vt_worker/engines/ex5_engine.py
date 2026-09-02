@@ -111,7 +111,28 @@ class Ex5WhisperEngine(CloudWhisperEngine):
         server-side change to that default would quietly start feeding hallucinations into
         somebody's conversation, and a request that states what it wants cannot drift.
         """
-        fields: dict[str, str] = {"word_timestamps": "true", "filter_noise": "true"}
+        fields: dict[str, str] = {
+            "word_timestamps": "true",
+            "filter_noise": "true",
+            # The same thing the local engine does, in the place it belongs.
+            #
+            # Local runs faster-whisper with vad_filter=True and gets this recording right — the
+            # processor model gets it right too, so the difference was never the model. Whisper
+            # given a long silence writes into it, and this application records the two sides of a
+            # call separately, so one channel is quiet for most of a conversation.
+            #
+            # Cutting that silence out of the file ourselves was tried and made things worse: the
+            # splices produced repetition loops, measured at a compression ratio of 8.35 against a
+            # threshold of 2.4. A VAD inside the decoder is not the same operation — it skips
+            # windows, it does not join unrelated audio together, and there is no seam to hallucinate
+            # at. Which is why this belongs on the request and not in our own audio.
+            #
+            # The service ships with it off, on a measurement its operator has since withdrawn: two
+            # different channels were being compared, so the "lost" words were never in the one they
+            # were counted against. If a transcript ever comes back thinner than the local engine's
+            # on the same recording, this is the first thing to try turning off.
+            "vad": "true",
+        }
 
         if options.language and not options.multilingual:
             fields["language"] = options.language

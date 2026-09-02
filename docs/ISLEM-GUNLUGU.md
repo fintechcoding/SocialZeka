@@ -1947,3 +1947,28 @@ işaretiyle geri konuyor (on ikinci tur).
 **904 test · 899 geçti · 0 kırık · 5 atlandı** + **115 Python**.
 
 **Paket.** `v2.6.1`.
+
+---
+
+## 2026-09-03 (on beşinci tur) — VAD, doğru yerde
+
+Kullanıcı: "yerel CPU modelleri de çözdü." Bu belirleyici. Aynı sesi işlemcideki küçük model de
+doğru çözüyorsa **fark model değil.** Geriye yerel motorun yaptığı ve bulutta yapılmayan tek şey
+kalıyor: `vad_filter=True`.
+
+Ve on ikinci turda düştüğüm tuzak tam buradaydı. VAD'ı ben **dosyayı keserek** taklit etmeye
+çalıştım; faster-whisper öyle yapmıyor. VAD çözücünün **içinde**, pencere pencere çalışıyor:
+konuşma olmayan pencereleri atlıyor, alakasız sesleri birbirine yapıştırmıyor, ve **hiçbir dikiş
+yeri oluşturmuyor.** Halüsinasyon edecek bir ek yeri yok. Aynı fikir, iki farklı yerde, biri
+işe yarıyor öteki bozuyor.
+
+O yüzden istekte gidiyor artık: `vad=true`. Servis bunu kapalı gönderiyordu ve gerekçesi olan
+ölçümü operatörü kendisi geri çekti — iki farklı kanal karşılaştırılmıştı, yani "kaybolan"
+kelimeler sayıldıkları kanalda zaten yoktu. Bizim yerel motorumuzda açık ve bu kaydı hem ekran
+kartında hem işlemcide doğru çözüyor.
+
+Yorumda bırakılan not: aynı kayıtta bulut çıktısı yerelinkinden ince gelirse ilk kapatılacak şey bu.
+
+**904 test · 899 geçti · 0 kırık · 5 atlandı** + **115 Python**.
+
+**Paket.** `v2.6.2`.

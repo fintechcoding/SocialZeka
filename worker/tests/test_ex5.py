@@ -83,6 +83,10 @@ def test_the_job_request_sends_only_the_four_fields_that_endpoint_declares(engin
     # On, not off. Off would hand us the model's repetition loops with no filter of our own;
     # on, we get the clean transcript plus a labelled list of what was taken out.
     assert 'name="filter_noise"\r\n\r\ntrue' in text
+
+    # The same thing the local engine does, in the decoder rather than by cutting the file:
+    # local gets this audio right with vad_filter=True, on the processor as well as the card.
+    assert 'name="vad"\r\n\r\ntrue' in text
     assert 'name="language"\r\n\r\ntr' in text
     assert 'name="prompt"\r\n\r\nSumsub, KYC' in text
 
