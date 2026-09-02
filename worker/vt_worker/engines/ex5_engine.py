@@ -41,6 +41,7 @@ from pathlib import Path
 from vt_worker.engines import cloud_engine
 from vt_worker.engines.base import EngineError, EngineOptions
 from vt_worker.engines.cloud_engine import CloudWhisperEngine, _multipart
+from vt_worker.merge import Segment, Speaker
 
 # The service refuses uploads over 95 MB with a 413. Held a little under that so the multipart
 # envelope and any header the proxy adds cannot push a body that just fits over the edge.
@@ -207,6 +208,59 @@ class Ex5WhisperEngine(CloudWhisperEngine):
         except json.JSONDecodeError:
             return None
 
+    # ---- what the server took out -------------------------------------------
+
+    def _to_segments(self, payload: dict, offset: float) -> list[Segment]:
+        """
+        The transcript, plus the short answers the server's own filter removed.
+
+        The service runs a hallucination filter and, on the endpoint it recommends and we use,
+        there is no way to turn it off: ``filter_noise`` is declared on the synchronous request and
+        not on ``/v1/jobs``. It does now report what it dropped, which is the part we can act on.
+
+        A dropped segment here is a dropped quote. Every line in the ledger is verbatim and carries
+        a moment you can play, so a sentence removed upstream leaves a gap nobody can account for —
+        and the segments most at risk are exactly the ones this filter is least sure about: "hı",
+        "tamam", "aynen", a quiet agreement scored as probably-not-speech.
+
+        So the ones it removed for not sounding like speech come back, carrying the confidence
+        score that made it doubt them. Our own rule takes over from there: above 0.6 they are marked
+        uncertain and kept out of the automatic contradiction checks, which is the treatment an
+        unreliable line should get — marked, not deleted.
+
+        The other two reasons are left where they are. An empty segment is nothing, and a repetition
+        loop ("abone ol" twenty times over silence) is a known artefact of the model rather than
+        something a person said; reinstating either would put noise in the ledger under the same
+        rules as evidence.
+        """
+        segments = super()._to_segments(payload, offset)
+
+        dropped = payload.get("filtered_out")
+        if not isinstance(dropped, list):
+            return segments
+
+        for item in dropped:
+            if not isinstance(item, dict):
+                continue
+
+            reason = str(item.get("reason") or "")
+            text = str(item.get("text") or "").strip()
+
+            if not text or not reason.startswith("konusma_degil"):
+                continue
+
+            segments.append(
+                Segment(
+                    speaker=Speaker.ME,  # overwritten by merge_streams
+                    start=float(item.get("start", 0.0)) + offset,
+                    end=float(item.get("end", 0.0)) + offset,
+                    text=text,
+                    no_speech_prob=_no_speech_in(reason),
+                )
+            )
+
+        return sorted(segments, key=lambda seg: seg.start)
+
     # ---- error wording ------------------------------------------------------
 
     def _fatal(self, status: int, url: str, detail: str) -> EngineError:
@@ -225,6 +279,20 @@ class Ex5WhisperEngine(CloudWhisperEngine):
             )
 
         return super()._fatal(status, url, detail)
+
+
+def _no_speech_in(reason: str) -> float:
+    """
+    The score the server doubted the segment on, out of "konusma_degil(no_speech=0.93)".
+
+    Falls back to a value just over our own threshold when it cannot be read: the server already
+    decided this was probably not speech, and recording that as certainty would be worse than
+    recording it as doubt.
+    """
+    try:
+        return float(reason.split("no_speech=")[1].rstrip(") "))
+    except (IndexError, ValueError):
+        return 0.9
 
 
 def _result_of(state: dict, job_id: str) -> dict:

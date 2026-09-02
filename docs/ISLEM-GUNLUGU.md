@@ -1494,3 +1494,44 @@ nişan alıyor. Doğrulandı: import geri alınınca test kırmızı oluyor —
 **860 test · 855 geçti · 0 kırık · 5 atlandı** + **109 Python** (biri modül başına, 15 modül).
 
 **Paket.** `v2.2.4`.
+
+---
+
+## 2026-09-03 (ikinci tur) — Sunucunun attığı kısa yanıtlar geri geliyor
+
+Sunucu ekibi dokümanı v3'e çıkardı ve üç şeyi düzeltti: `timestamp_granularities[]` artık kabul
+ediliyor (bizim bulduğumuz kusur — OpenAI SDK'sını kullanan herkes sessizce kelime damgasız
+gidiyormuş), `filtered_out` alanı eklendi, ve iki yanlış iddialarını geri çektiler.
+
+**Ama bizi ilgilendiren delik kapanmadı.** Şema yeniden çekildi:
+
+| Uç | `filter_noise` |
+|---|---|
+| `/v1/audio/transcriptions` | var |
+| **`/v1/jobs`** | **yok** |
+| `/v1/conversations` | yok |
+
+Yani artık kendilerinin de "önerilen yol" dediği uçta halüsinasyon filtresi **kapatılamıyor**, ve
+varsayılan açık. `filter_noise=false` göndermek işe yaramaz: FastAPI tanımsız alanı sessizce atar
+ve biz kapattığımızı sanırız — `timestamp_granularities`'te yaşananın aynısı, ters yönde.
+
+**Yapılan.** Kapatamıyorsak attığını geri koyalım. `filtered_out` üç gerekçe bildiriyor ve üçü aynı
+şey değil:
+
+- `konusma_degil(no_speech=X)` → **geri konuyor**, sunucunun kendi şüphe puanını taşıyarak. Bizim
+  kuralımız oradan devralıyor: 0.6 üstü belirsiz işaretlenir ve otomatik çelişki denetiminin
+  dışında tutulur. Risk altındaki satırlar tam da bunlar — kısık bir "hı", "tamam", "aynen".
+- `bos` → hiçbir şey yok, bırakılıyor.
+- `tekrar_dongusu` → sessizlik üzerine yirmi kez "abone ol" modelin bilinen bir artefaktı, birinin
+  söylediği bir şey değil. Geri koymak deftere kanıt kurallarıyla gürültü sokardı.
+
+Defterdeki her söz birebir alıntı ve tıklanabilir bir an taşıyor; yukarıda silinen bir cümle
+kimsenin hesabını veremeyeceği bir boşluk bırakır. Kural yine aynı: **işaretle, silme.**
+
+Onlara sorulan da açık: `filter_noise` (ve tutarlılık için `vad`, `normalize`) `/v1/jobs` gövdesine
+eklensin. Eklendiği an `false` göndeririz ve bu geri koyma katmanı gereksizleşir — o güne kadar
+duruyor, zararsız: alan gelmezse hiçbir şey değişmiyor.
+
+**860 test · 855 geçti · 0 kırık · 5 atlandı** + **113 Python**.
+
+**Paket.** `v2.2.5`.

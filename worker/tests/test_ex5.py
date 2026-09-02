@@ -401,3 +401,59 @@ def test_a_long_job_reports_how_far_it_has_got(engine, monkeypatch):
 
     assert [note for _, note in said] == ["1/1 yazıya dökülüyor · %40", "1/1 yazıya dökülüyor · %80"]
     assert said[0][0] < said[1][0]
+
+
+# ---- what the server took out ------------------------------------------------
+
+
+def test_short_answers_the_server_filtered_out_come_back_marked_uncertain(engine):
+    """
+    A dropped segment is a dropped quote, and we cannot turn the filter off.
+
+    filter_noise is declared on the synchronous request and not on /v1/jobs — the endpoint the
+    service recommends and we use. It does report what it removed, and the segments most at risk
+    are the ones it is least sure about: a quiet "hı" or "tamam" scored as probably-not-speech.
+    Those come back carrying that score, and our own rule marks them uncertain rather than deleting
+    them.
+    """
+    segments = engine._to_segments({
+        "segments": [{"start": 0.0, "end": 2.0, "text": "Peki ne zaman?"}],
+        "filtered_out": [
+            {"start": 2.5, "end": 2.9, "text": "hı", "reason": "konusma_degil(no_speech=0.93)"},
+            {"start": 3.0, "end": 3.2, "text": "", "reason": "bos"},
+            {"start": 4.0, "end": 9.0, "text": "abone ol abone ol abone ol",
+             "reason": "tekrar_dongusu"},
+        ],
+    }, offset=60.0)
+
+    assert [s.text for s in segments] == ["Peki ne zaman?", "hı"]
+
+    reinstated = segments[1]
+    assert reinstated.start == 62.5                 # the call's timeline, not the chunk's
+    assert reinstated.no_speech_prob == 0.93
+    assert reinstated.is_low_confidence             # marked, and kept out of the number checks
+
+
+def test_an_empty_or_hallucinated_segment_is_left_where_it_is(engine):
+    """A repetition loop is a known artefact of the model, not something a person said."""
+    segments = engine._to_segments({
+        "text": "bir şey",
+        "filtered_out": [
+            {"start": 0.0, "end": 8.0, "text": "abone ol " * 12, "reason": "tekrar_dongusu"},
+        ],
+    }, offset=0.0)
+
+    assert all("abone ol" not in s.text for s in segments)
+
+
+def test_a_reason_we_cannot_read_still_counts_as_doubt(engine):
+    """The server already decided it was probably not speech; recording certainty would be worse."""
+    from vt_worker.engines.ex5_engine import _no_speech_in
+
+    assert _no_speech_in("konusma_degil(no_speech=0.71)") == 0.71
+    assert _no_speech_in("konusma_degil") > 0.6
+
+
+def test_a_response_without_the_field_is_unchanged(engine):
+    """Older servers, and every run where the filter took nothing out."""
+    assert [s.text for s in engine._to_segments({"text": "sadece metin"}, 0.0)] == ["sadece metin"]
