@@ -298,6 +298,54 @@ public partial class OverviewPage
     }
 
     /// <summary>A tag pill is a question: "which other conversations did I mark with this?"</summary>
+    // ---- the rest of a call's verbs, shared with the contacts page ------------------------------
+
+    private void RecentMove_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RecentCall row) return;
+
+        if (Services.CallActions.Move(Window.GetWindow(this), row.Call, row.ContactName)) RefreshEverywhere();
+    }
+
+    private void RecentRetranscribe_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RecentCall row) return;
+
+        if (Services.CallActions.Reprocess(Window.GetWindow(this), row.Call, row.ContactName, ReprocessKind.Transcribe))
+            RefreshEverywhere();
+    }
+
+    private void RecentReanalyse_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RecentCall row) return;
+
+        if (Services.CallActions.Reprocess(Window.GetWindow(this), row.Call, row.ContactName, ReprocessKind.Analyse))
+            RefreshEverywhere();
+    }
+
+    private async void RecentShowInFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RecentCall row) return;
+
+        await Services.CallActions.ShowInFolderAsync(Window.GetWindow(this), row.Call);
+    }
+
+    private async void RecentDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RecentCall row) return;
+
+        if (await Services.CallActions.DeleteAsync(Window.GetWindow(this), row.Call, row.ContactName))
+            RefreshEverywhere();
+    }
+
+    /// <summary>A call changed hands or vanished: every list that shows calls re-reads.</summary>
+    private void RefreshEverywhere()
+    {
+        ViewModel?.Refresh();
+
+        if (Window.GetWindow(this)?.DataContext is ShellViewModel shell) shell.Contacts.Refresh();
+    }
+
     private void TagPill_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is not string tag) return;

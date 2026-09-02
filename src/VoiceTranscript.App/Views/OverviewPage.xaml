@@ -220,6 +220,20 @@
                                              asks for the reason as well as the day, so the card
                                              that comes back says why it came back. -->
                                         <MenuItem Header="{loc:T overviewpage.hatirlat}" Click="RecentRemind_Click" />
+                                        <Separator />
+                                        <!-- The same verbs as the contacts page, from CallActions,
+                                             so a failed recording can be dealt with where it is
+                                             noticed rather than hunted down elsewhere. -->
+                                        <MenuItem Header="{loc:T overviewpage.baska-kisiye-tasi}" Click="RecentMove_Click" />
+                                        <MenuItem Header="{loc:T overviewpage.yeniden-yaziya-cevir}" Click="RecentRetranscribe_Click" />
+                                        <MenuItem Header="{loc:T overviewpage.yeniden-cozumle}" Click="RecentReanalyse_Click" />
+                                        <MenuItem Header="{loc:T overviewpage.ses-dosyasinin-yerini-ac}" Click="RecentShowInFolder_Click" />
+                                        <Separator />
+                                        <MenuItem Header="{loc:T overviewpage.gorusmeyi-sil}" Click="RecentDelete_Click">
+                                            <MenuItem.Icon>
+                                                <ui:SymbolIcon Symbol="Delete24" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
                                     </ContextMenu>
                                 </Border.ContextMenu>
                                 <Grid>

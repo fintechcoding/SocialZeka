@@ -378,6 +378,12 @@
                                                 <ui:SymbolIcon Symbol="FolderOpen24" />
                                             </MenuItem.Icon>
                                         </MenuItem>
+                                        <Separator />
+                                        <MenuItem Header="{loc:T contactspage.gorusmeyi-sil}" Click="DeleteCall_Click">
+                                            <MenuItem.Icon>
+                                                <ui:SymbolIcon Symbol="Delete24" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
 
@@ -400,14 +406,22 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" FontWeight="SemiBold"
                                                            FontSize="{StaticResource TextSecondary}"
                                                            Text="{Binding StartedAt, Converter={StaticResource RelativeDate}}" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Length}"
+                                                <TextBlock Grid.Column="1" Text="{Binding Length}" VerticalAlignment="Center"
                                                            FontFamily="Consolas, Cascadia Mono, Segoe UI"
                                                            FontSize="{StaticResource TextCaption}"
                                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <!-- Visible, not hidden in the right-click menu: the
+                                                     user asked for a delete they could see. -->
+                                                <ui:Button Grid.Column="2" Appearance="Transparent" Padding="4,0" Margin="6,-4,-6,-4"
+                                                           ToolTip="{loc:T contactspage.gorusmeyi-sil}" Click="DeleteCall_Click">
+                                                    <ui:SymbolIcon Symbol="Delete24" FontSize="14"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                </ui:Button>
                                             </Grid>
                                             <TextBlock Text="{Binding Status}" Style="{StaticResource Caption}"
                                                        Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />

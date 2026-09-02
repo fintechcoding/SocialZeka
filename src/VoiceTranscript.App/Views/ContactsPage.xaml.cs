@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using VoiceTranscript.App.ViewModels;
 using VoiceTranscript.Core.Export;
 
@@ -107,28 +108,38 @@ public partial class ContactsPage
     {
         if (ViewModel?.SelectedCall is not { } row) return;
 
-        var path = row.Call.MicPath ?? row.Call.FarPath;
+        await Services.CallActions.ShowInFolderAsync(Window.GetWindow(this), row.Call);
+    }
 
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-        {
-            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Ses dosyası",
-                "Bu görüşmenin ses dosyası bulunamadı. Kayıt tamamlanmamış olabilir.");
-            return;
-        }
+    /// <summary>
+    /// Deletes the clicked call. Reached from the row's own button as well as the menu; a button
+    /// click does not select the row, so the row under the button is selected first.
+    /// </summary>
+    private async void DeleteCall_Click(object sender, RoutedEventArgs e)
+    {
+        SelectRowUnder(sender);
 
-        try
+        if (ViewModel is not { SelectedCall: { } row } model) return;
+
+        var name = model.SelectedContact?.Contact.Name ?? "Bilinmeyen kişi";
+
+        if (await Services.CallActions.DeleteAsync(Window.GetWindow(this), row.Call, name))
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe")
-            {
-                Arguments = $"/select,\"{path}\"",
-                UseShellExecute = true,
-            });
+            model.Refresh();
+            model.PlaybackMessage = "Görüşme silindi.";
+
+            if (Window.GetWindow(this)?.DataContext is ViewModels.ShellViewModel shell) shell.Overview.Refresh();
         }
-        catch (Exception ex)
-        {
-            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Ses dosyası",
-                $"Klasör açılamadı: {ex.Message}");
-        }
+    }
+
+    private static void SelectRowUnder(object sender)
+    {
+        var node = sender as DependencyObject;
+
+        while (node is not null and not ListBoxItem)
+            node = System.Windows.Media.VisualTreeHelper.GetParent(node);
+
+        if (node is ListBoxItem item) item.IsSelected = true;
     }
 
     /// <summary>
@@ -188,28 +199,13 @@ public partial class ContactsPage
     {
         if (ViewModel is not { SelectedCall: { } row } model) return;
 
-        var call = row.Call;
-
-        // Counted so the window can say it. A call is not one row — the promises and figures taken
-        // out of it are filed against the same person and travel with it — and somebody moving a
-        // call deserves to know their ledger is about to change too.
-        var ledgerEntries = App.Repository.CountLedgerEntriesForCall(call.Id);
-
-        var dialog = new MoveCallWindow(
-            App.Repository,
-            model.SelectedContact?.Contact.Name ?? "bilinmeyen kişi",
-            call.ObservedTitle,
-            call.App,
-            call.StartedAt,
-            call.Duration,
-            ledgerEntries)
+        if (Services.CallActions.Move(Window.GetWindow(this), row.Call, model.SelectedContact?.Contact.Name ?? "bilinmeyen kişi"))
         {
-            Owner = Window.GetWindow(this),
-        };
+            model.PlaybackMessage = "Görüşme taşındı.";
+            model.Refresh();
 
-        if (dialog.ShowDialog() != true || dialog.ChosenContactId is not { } target) return;
-
-        model.MoveSelectedCall(target, dialog.ForgetTitle);
+            if (Window.GetWindow(this)?.DataContext is ViewModels.ShellViewModel shell) shell.Overview.Refresh();
+        }
     }
 
     /// <summary>
@@ -247,27 +243,14 @@ public partial class ContactsPage
 
     private void Reprocess(ReprocessKind kind)
     {
-        if (ViewModel is not { SelectedCall: { } row } model || App.Orchestrator is null) return;
+        if (ViewModel is not { SelectedCall: { } row } model) return;
 
-        var dialog = new ReprocessWindow(
-            App.Repository, App.Settings, model.SelectedContact?.Name ?? "Görüşme", count: 1, kind)
+        if (Services.CallActions.Reprocess(Window.GetWindow(this), row.Call, model.SelectedContact?.Name ?? "Görüşme", kind))
         {
-            Owner = Window.GetWindow(this),
-        };
-
-        if (dialog.ShowDialog() != true) return;
-
-        var choice = dialog.Choice;
-
-        App.Repository.SetCallState(row.Call.Id, Core.Domain.ProcessingState.Queued);
-
-        App.Orchestrator.EnqueueWith(
-            row.Call.Id, choice.AsrModelId, choice.AnalyseOnly, choice.LlmModel,
-            choice.LlmRouteKind, choice.LlmRouteUrl);
-
-        model.PlaybackMessage = choice.AnalyseOnly
-            ? "Görüşme yeniden çözümlenmek üzere sıraya alındı."
-            : "Görüşme yeniden işlenmek üzere sıraya alındı.";
+            model.PlaybackMessage = kind == ReprocessKind.Analyse
+                ? "Görüşme yeniden çözümlenmek üzere sıraya alındı."
+                : "Görüşme yeniden işlenmek üzere sıraya alındı.";
+        }
     }
 
     /// <summary>

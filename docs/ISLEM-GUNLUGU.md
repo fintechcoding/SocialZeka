@@ -986,3 +986,9 @@ Bağlantı sınaması da aynı yordamı kullanır; "scribe_v2 listede yok" yanl�
 
 **Hedef makine için derleme (beta4).** `publish.ps1 -Version 2.1.6-beta4 -RequireInstaller`,
 `main @ c64a4e7`. `dist/VoiceTranscript-Setup-2.1.6-beta4-win-x64.exe`, SHA-256 `01776fbc7ebdee108d5f0c9df12bfec049381d5514a752f9f2d73be8ecda2882`.
+
+**Görüşme eylemleri her listede aynı (beşinci tur).** Kullanıcı: "Burada başarısız görüşmeleri
+silme gibi özellikler de olmalı." Genel Bakış'ın satır menüsü üç eylem, Kişiler'inki altı; silme
+hiçbirinde yoktu. `Services/CallActions` tek yer: sil (onay + kalan dosya uyarısı), taşı, yeniden
+çevir/çözümle, ses dosyasının yeri. Genel Bakış menüsü sekiz eylem; Kişiler'de menüde ve satırda
+görünür çöp kutusu. 822 test yeşil.
