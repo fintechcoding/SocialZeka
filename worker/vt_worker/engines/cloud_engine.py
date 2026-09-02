@@ -279,9 +279,21 @@ class CloudWhisperEngine(AsrEngine):
             megabytes = os.path.getsize(upload) / 1_000_000
             how = "kayıpsız" if upload == source else "Opus"
 
+            # Everything that decides the answer, in one line.
+            #
+            # Two rounds of this went on comparing a local transcript with a cloud one and guessing
+            # at what differed — the flag, the bitrate, the silence — and one of those guesses was
+            # wrong in a way nobody could check. What is actually sent is not a mystery; it just
+            # was not written down. The language matters most: forced Turkish on a channel where
+            # somebody speaks Russian comes back as Turkish syllables that mean nothing.
+            said = "otomatik" if options.multilingual else (options.language or "otomatik")
+            terms = len((options.initial_prompt or "").split(",")) if options.initial_prompt else 0
+            cut = f" · {removed:.0f} sn sessizlik atıldı" if (removed := _silence_removed(chunk, spans)) else ""
+
             progress(
                 0.02 + 0.94 * chunk.index / total_chunks,
-                f"{chunk.index + 1}/{total_chunks} yükleniyor · {megabytes:.1f} MB · {how}",
+                f"{chunk.index + 1}/{total_chunks} yükleniyor · {megabytes:.1f} MB · {how}"
+                f" · dil {said} · sözlük {terms} terim (ipucu){cut}",
             )
 
         self._chunk_seconds = chunk.length_seconds
@@ -308,7 +320,21 @@ class CloudWhisperEngine(AsrEngine):
                 except OSError:
                     pass
 
-        return self._restore(self._to_segments(payload, 0.0), spans, chunk.start_seconds)
+        segments = self._restore(self._to_segments(payload, 0.0), spans, chunk.start_seconds)
+
+        # What came back, beside what went out. The service reports the language it decided on, and
+        # that is the one number that says whether forcing ours was the right call.
+        if progress:
+            heard = str(payload.get("language") or "?")
+            words = sum(len(segment.words) for segment in segments)
+
+            progress(
+                0.02 + 0.94 * (chunk.index + 1) / total_chunks,
+                f"{chunk.index + 1}/{total_chunks} geldi · dil {heard}"
+                f" · {len(segments)} satır · {words} kelime",
+            )
+
+        return segments
 
     @staticmethod
     def _restore(segments: list[Segment], spans: list[SpeechSpan], chunk_start: float) -> list[Segment]:
@@ -566,6 +592,14 @@ class _Retryable(Exception):
         self.code = code
         self.message = message
         self.retry_after = retry_after
+
+
+def _silence_removed(chunk, spans) -> float:
+    """Seconds of the chunk that never reached the model, or zero when it went up whole."""
+    if not spans:
+        return 0.0
+
+    return max(0.0, chunk.length_seconds - sum(span.length for span in spans))
 
 
 def _network_message(url: str, reason: object) -> str:

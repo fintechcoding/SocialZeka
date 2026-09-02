@@ -1776,3 +1776,43 @@ ve sebebi içine kondu.
 **880 test · 875 geçti · 0 kırık · 5 atlandı** + **123 Python**.
 
 **Paket.** `v2.4.1`.
+
+---
+
+## 2026-09-03 (onuncu tur) — Tahmin etmeyi bırak, yazdır
+
+Kullanıcı aynı görüşmenin iki çıktısını yan yana gösterdi. Yerelde karşı tarafın Rusçası **Kiril
+harfleriyle** doğru geliyor: *"Сейчас тебя заберут, договариваюсь, Готов чемодан."* ex5'te aynı
+sözler Türkçe hecelere dönüşmüş: *"Nesil? Mide. Mide."*, *"Dacimound!"* — ve uygulama kendisi
+satırların %38'ini belirsiz işaretlemiş.
+
+**Ve ben iki turdur tahmin ediyordum.** Biri (`condition_on_previous_text`) yanlış çıktı. Sebep her
+seferinde aynı: buluta ne gönderdiğimiz hiçbir yerde yazılı değildi, dolayısıyla yerelle
+karşılaştırmanın tek yolu tahmin etmekti.
+
+Artık her bulut isteği iki satır bırakıyor:
+
+```
+1/1 yükleniyor · 1,5 MB · kayıpsız · dil tr · sözlük 40 terim (ipucu)
+1/1 geldi · dil ru · 8 satır · 41 kelime
+```
+
+İkinci satırdaki **servisin kendi bulduğu dil**, tartışmayı bitiren sayı: biz `tr` dayatırken servis
+`ru` duyuyorsa, zorlamanın kendisi kusurdur. Bu satırlar "Ayrıntılı günlük" ayarına bakmadan
+yazılıyor — worker onları orta noktayla işaretliyor, yüzde bildiren satırlar eskisi gibi ayara bağlı.
+Kayıt başına birkaç satır, o ayarın bastırmak için var olduğu gürültü değil.
+
+### Ve zaten oradaki anahtar
+
+`Karışık dil (Türkçe–İngilizce)` ayarı kapalıyken **her kayıt Türkçe kabul ediliyor**. Karşı taraf
+Rusça konuşuyorsa söyledikleri Türkçe hecelere çevrilir — ekrandaki tam olarak bu. Ayar açıkken
+bulut yoluna dil hiç gönderilmiyor ve servis kendi buluyor.
+
+Yani çare zaten vardı, adı yanlıştı: "Türkçe–İngilizce" diyen bir anahtarın Rusça konuşan biri için
+aranacağı akla gelmez. Yeniden adlandırıldı — **"Dili görüşmeden bul"** — ve açıklaması ne olduğunu
+değil, kapalıyken ne olacağını anlatıyor: *"Kapalıyken her kayıt Türkçe kabul edilir. Karşı taraf
+başka bir dil konuşuyorsa söyledikleri Türkçe hecelere çevrilir ve anlamsız çıkar."*
+
+**880 test · 875 geçti · 0 kırık · 5 atlandı** + **123 Python**.
+
+**Paket.** `v2.4.2`.

@@ -1450,7 +1450,16 @@ public sealed class CallOrchestrator : IDisposable
 
                     // How far it got before it died is the line a failed transcription is
                     // diagnosed from; the stage name is the worker's own, never a path.
-                    if (settings.VerboseLog) AppLog.Write("çeviri", $"  {p.Stage} %{p.Percent:0}");
+                    //
+                    // The worker marks the lines that carry facts rather than a percentage with a
+                    // middle dot — what was uploaded, in what format, under which language, and
+                    // what language came back. Those are written whatever the setting says. Two
+                    // rounds went on comparing a local transcript against a cloud one and guessing
+                    // at the difference, and the answer was never in the log because the one
+                    // switch that would have put it there was off. A handful of lines per
+                    // recording is not the noise that setting exists to suppress.
+                    if (settings.VerboseLog || p.Stage.Contains('·'))
+                        AppLog.Write("çeviri", $"  {p.Stage} %{p.Percent:0}");
                 }), cancellationToken);
             }
             catch (OperationCanceledException)
