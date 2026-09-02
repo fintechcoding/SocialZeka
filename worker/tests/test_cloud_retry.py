@@ -259,3 +259,27 @@ def test_a_flat_text_response_still_produces_one_segment():
 
 def test_an_empty_response_produces_nothing_rather_than_a_blank_segment():
     assert cloud_engine._to_segments({"text": "   "}, offset=0.0) == []
+
+
+def test_a_connection_closed_mid_upload_names_the_address_not_a_c_source_line():
+    """
+    "EOF occurred in violation of protocol (_ssl.c:2406)" reached a conversation row verbatim.
+
+    It is the file and line of somebody else's TLS library, and it is not the generic network
+    wobble it reads as. Reproduced against api.elevenlabs.io: a megabyte posted to a route that
+    does not exist gives exactly this, while a few bytes to the same route give a clean 404 — the
+    gateway resets rather than reading a body it has nowhere to put. That is why one wrong address
+    produced two unrelated-looking errors in a single evening, short calls 404 and long calls this.
+    """
+    said = cloud_engine._network_message(
+        "https://api.elevenlabs.io/v1/audio/transcriptions",
+        "EOF occurred in violation of protocol (_ssl.c:2406)")
+
+    assert "_ssl.c" not in said
+    assert "api.elevenlabs.io" in said
+    assert "adresin bu servise ait olmadığı" in said
+
+    # An ordinary name-resolution failure keeps its own words: it is a different problem and the
+    # reason is already readable.
+    ordinary = cloud_engine._network_message("https://example.invalid/v1", "[Errno 11001] getaddrinfo failed")
+    assert "getaddrinfo failed" in ordinary

@@ -374,7 +374,7 @@ class CloudWhisperEngine(AsrEngine):
         except urllib.error.URLError as exc:
             # A dropped connection mid-upload is ordinary on a laptop that moved between
             # networks, and is exactly the case retrying exists for.
-            raise _Retryable("network", f"Sunucuya ulaşılamadı ({url}): {exc.reason}", None) from exc
+            raise _Retryable("network", _network_message(url, exc.reason), None) from exc
         except TimeoutError as exc:
             raise _Retryable("timeout", "İstek zaman aşımına uğradı.", None) from exc
 
@@ -435,6 +435,31 @@ class _Retryable(Exception):
         self.code = code
         self.message = message
         self.retry_after = retry_after
+
+
+def _network_message(url: str, reason: object) -> str:
+    """
+    A dropped connection, said in terms of what actually happened.
+
+    "EOF occurred in violation of protocol (_ssl.c:2406)" is the C source file and line number of
+    somebody else's TLS library, and it reached the conversation row verbatim. It is also not the
+    generic network wobble it reads as: reproduced against api.elevenlabs.io, posting a megabyte to
+    a route that does not exist gives exactly this, while posting a few bytes to the same route
+    gives a clean 404. The gateway resets rather than reading a body it has nowhere to put.
+
+    That is why the same misconfiguration produced two different errors on one evening — short
+    calls 404, long calls this — and why the address is the first thing to name. It stays
+    retryable, because a laptop changing networks mid-upload looks identical and does recover.
+    """
+    text = str(reason)
+
+    if "EOF occurred" in text or "violation of protocol" in text:
+        return (
+            f"Sunucu yükleme sırasında bağlantıyı kapattı ({url}). "
+            "Çoğunlukla adresin bu servise ait olmadığı anlamına gelir; ağ kesintisi de olabilir."
+        )
+
+    return f"Sunucuya ulaşılamadı ({url}): {text}"
 
 
 def _is_cloudflare_block(detail: str) -> bool:

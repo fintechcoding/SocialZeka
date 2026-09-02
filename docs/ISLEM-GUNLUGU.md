@@ -1231,3 +1231,41 @@ cümlenin daha önce söylenip söylenmediğiyle değil.
 **851 test · 846 geçti · 0 kırık · 5 atlandı** + **92 Python**.
 
 **Paket.** `v2.1.8`, tam sürüm.
+
+---
+
+## 2026-09-02 (on birinci tur) — ElevenLabs'ın iki hatası tek hataymış
+
+Kullanıcı defterdeki eski başarısızlıkları gösterdi. İki farklı hata görünüyordu:
+
+```
+ElevenLabs Scribe: 404 (https://api.elevenlabs.io/v1/audio/transcriptions): {"detail":"Not Found"}
+ElevenLabs Scribe: Sunucuya ulaşılamadı (…/audio/transcriptions): EOF occurred in violation of protocol (_ssl.c:2406)
+```
+
+**İkisi de aynı sebep, ve sebep zaten düzelmişti.** URL `/audio/transcriptions` — ElevenLabs
+`/v1/speech-to-text` sunuyor. Lehçe yönlendirmesi (`endpoint.Provider.WorkerEngine`) `7adc6f7` ile
+geldi ve `v2.1.6`'da; `git merge-base --is-ancestor 7adc6f7 v2.1.5` **hayır** diyor. O satırlar
+2 Eylül 17:08–17:14'te, yani makine `2.1.5` koşarken oluşmuş.
+
+**Neden bazıları 404 bazıları EOF?** Canlı sunucuya karşı üretildi: olmayan rotaya **1 MB** gövde
+göndermek `EOF occurred in violation of protocol (_ssl.c:2406)` veriyor, aynı rotaya birkaç bayt
+göndermek temiz 404. Ağ geçidi, koyacak yeri olmayan bir gövdeyi okumak yerine bağlantıyı
+sıfırlıyor. Günlükteki dağılım da tam bu: kısa görüşmeler (00:15, 00:26) 404, uzunlar (02:36,
+07:57, 11:08) EOF. **Tek yanlış adres, bir akşamda alakasız görünen iki hata.**
+
+Doğru uç bugün doğrulandı: `POST /v1/speech-to-text` → `422 model_id gerekli`, yani motorumuzun
+gönderdiği şekli kabul ediyor. Geçersiz anahtar da düzgün `401` dönüyor — orada kusur yok.
+
+**Yapılan.** Kod tarafında düzeltilecek bir şey kalmamıştı; düzeltilen mesajın kendisi. Bir TLS
+kütüphanesinin dosya adı ve satır numarası (`_ssl.c:2406`) görüşme satırına olduğu gibi
+düşüyordu ve okuyan için hiçbir anlamı yok. Artık: "Sunucu yükleme sırasında bağlantıyı kapattı
+(adres). Çoğunlukla adresin bu servise ait olmadığı anlamına gelir; ağ kesintisi de olabilir."
+Yeniden denenebilir kalıyor — ağ değiştiren bir dizüstü de aynı hatayı verir ve o gerçekten
+düzelir. Sıradan çözümleme hataları kendi sözlerini koruyor.
+
+Eski satırlar için "Tekrar dene" yeterli: 2.1.8 onları `/v1/speech-to-text`'e gönderecek.
+
+**851 test · 846 geçti · 0 kırık · 5 atlandı** + **93 Python**.
+
+**Paket.** `v2.1.9`, tam sürüm.
