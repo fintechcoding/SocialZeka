@@ -1054,3 +1054,6 @@ gönderiyor. Beta6'ya girmeyen iki metin düzeltmesi de bu pakette.
 Kalanlar (kullanıcının kararına bırakıldı, yapılmadı): rayı 7'ye indirme, üst kartın sayılara
 dönmesi, tek görüşme satırı şablonu, Kişiler sayfası ile kişi penceresinin birleşmesi, klavye yolu,
 İşlemler'de toplu seçim, defter tekrarlarının birleşmesi, görüşme penceresinin 7 sekmeden 5'e inmesi.
+
+**Hedef makine için derleme (beta7).** `main @ eca3507`,
+`dist/VoiceTranscript-Setup-2.1.6-beta7-win-x64.exe`, SHA-256 `13a767076e28fd2c6895d0f97c92f630f2c61c7ecaa1591b45c4c002cbab6b38`.
