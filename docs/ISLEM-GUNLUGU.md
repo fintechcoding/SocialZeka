@@ -957,3 +957,8 @@ saniyede bir dört sinyali yazıyor: bir sonraki kaçırma günlükten okunur.
 
 Bu makinede doğrulanamayan: gerçek ElevenLabs/Deepgram yüklemesi (anahtar yok; istek biçimi
 belgeye ve canlı 404/401 sondasına göre), Telegram'ın gerçek oturum davranışı (günlük gerekli).
+
+**Hedef makine için derleme (beta3).** `publish.ps1 -Version 2.1.6-beta3 -RequireInstaller`,
+`main @ 7adc6f7`. `dist/VoiceTranscript-Setup-2.1.6-beta3-win-x64.exe`, SHA-256 `95d206e01baecd45204ba6656e81ebdea9eacf7d5b455a8173bab90886269f14`.
+Denemede: Durum → Ayrıntılı günlük açıkken bir Telegram görüşmesi yap; günlükteki "tespit" satırları
+kaçırmanın nedenini gösterir. Ayarlar → Sözlük'e Sumsub, KYC gibi terimleri yaz.
