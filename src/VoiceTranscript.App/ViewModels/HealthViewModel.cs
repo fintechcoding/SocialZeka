@@ -145,6 +145,15 @@ public sealed partial class HealthViewModel : ObservableObject
             },
             new HealthItem
             {
+                Title = "Bozuk sesli kayıtlar",
+                Icon = SymbolRegular.Broom24,
+                Purpose = "Arşivi eski, çok düşük kaliteyle sıkıştırılmış kayıtlar. Yeniden yazıya "
+                        + "dökülemezler; sesleri düzeltilemez.",
+                ActionLabel = "Tara",
+                Action = ScanDegradedAsync,
+            },
+            new HealthItem
+            {
                 Title = "Bulut servisleri",
                 Icon = SymbolRegular.Cloud24,
                 Purpose = "Yapılandırılmış yazıya dökme servisleri ve sıraları.",
@@ -365,6 +374,131 @@ public sealed partial class HealthViewModel : ObservableObject
             item.IsBusy = false;
             Announce();
         }
+    }
+
+    /// <summary>Recordings whose archive is too compressed to transcribe again, and their sizes.</summary>
+    private List<(Call Call, long Bytes)> FindDegraded()
+    {
+        var found = new List<(Call, long)>();
+
+        foreach (var call in _repository.ListCalls(limit: 10_000))
+        {
+            var bytes = 0L;
+
+            foreach (var path in new[] { call.MicPath, call.FarPath })
+            {
+                if (string.IsNullOrWhiteSpace(path)) continue;
+
+                try
+                {
+                    var file = new FileInfo(path);
+                    if (file.Exists) bytes += file.Length;
+                }
+                catch (IOException)
+                {
+                    // A path that cannot be read is not evidence of anything.
+                }
+            }
+
+            // Two streams of the same length, so half the pair measures as one stream would.
+            if (Core.Audio.DegradedAudio.IsDegraded(bytes / 2, call.Duration)) found.Add((call, bytes));
+        }
+
+        return found;
+    }
+
+    private List<Call> _pendingRemoval = [];
+
+    /// <summary>
+    /// Counts the recordings that can never be transcribed again, and offers to remove them.
+    ///
+    /// Two presses, deliberately. The first only measures and says what it found, including how
+    /// many already carry a transcript — because those are the ones where removing costs
+    /// something: the audio is beyond saving, but the words were taken out of it before it was
+    /// compressed and they are still good. Nothing is deleted until somebody has read that
+    /// sentence and pressed a second button that says what it does.
+    /// </summary>
+    private async Task ScanDegradedAsync(HealthItem item)
+    {
+        await Task.Yield();
+
+        var found = FindDegraded();
+
+        if (found.Count == 0)
+        {
+            item.State = HealthState.Good;
+            item.Detail = "Bütün kayıtların sesi yeniden yazıya dökülebilecek kalitede.";
+            item.ActionLabel = "Tara";
+            item.Action = ScanDegradedAsync;
+            return;
+        }
+
+        var withText = found.Count(f => _repository.CountSegments(f.Call.Id) > 0);
+        var megabytes = found.Sum(f => f.Bytes) / 1_000_000.0;
+
+        _pendingRemoval = [.. found.Select(f => f.Call)];
+
+        item.State = HealthState.Warning;
+        item.ActionLabel = $"{found.Count} kaydı kaldır";
+        item.Action = RemoveDegradedAsync;
+        item.Detail =
+            $"{found.Count} kaydın sesi eski, çok düşük kaliteyle sıkıştırılmış ({megabytes:0.#} MB). "
+            + "Yeniden yazıya dökülemezler. "
+            + (withText > 0
+                ? $"Bunlardan {withText} tanesinin metni var ve o metinler iyi — ses bozulmadan "
+                  + "önce çıkarıldılar. Kaldırırsan o metinler de gider."
+                : "Hiçbirinin metni yok.");
+    }
+
+    /// <summary>Removes them: the audio on disk, the rows, and everything derived from them.</summary>
+    private async Task RemoveDegradedAsync(HealthItem item)
+    {
+        var doomed = _pendingRemoval;
+
+        if (doomed.Count == 0)
+        {
+            item.Action = ScanDegradedAsync;
+            item.ActionLabel = "Tara";
+            return;
+        }
+
+        var withText = doomed.Count(c => _repository.CountSegments(c.Id) > 0);
+
+        // Said out loud before it happens, and it does not happen if the answer is no. This is the
+        // only irreversible button on the page.
+        var agreed = await Services.Dialogs.ConfirmAsync(
+            System.Windows.Application.Current?.MainWindow,
+            $"{doomed.Count} kayıt kaldırılsın mı?",
+            "Sesleri, dökümleri, defter kayıtları ve notlarıyla birlikte silinecek"
+            + (withText > 0 ? $" — {withText} tanesinin metni var" : "")
+            + ". Bu geri alınamaz.",
+            okText: "Kaldır");
+
+        if (!agreed) return;
+
+        var removed = 0;
+
+        foreach (var call in doomed)
+        {
+            try
+            {
+                _repository.DeleteCall(call.Id);
+                removed++;
+            }
+            catch (Exception e)
+            {
+                Core.CoreLog.Write("veri", $"bozuk kayıt silinemedi: {e.Message}");
+            }
+        }
+
+        _pendingRemoval = [];
+
+        item.Action = ScanDegradedAsync;
+        item.ActionLabel = "Tara";
+        item.State = HealthState.Good;
+        item.Detail = $"{removed} kayıt kaldırıldı.";
+
+        Core.CoreLog.Write("veri", $"eski sıkıştırmayla bozulmuş {removed} kayıt kaldırıldı");
     }
 
     private Task RetryFailedAsync(HealthItem item)

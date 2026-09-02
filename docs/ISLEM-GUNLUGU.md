@@ -1892,3 +1892,28 @@ duran hiç tamamlanmamış demektir. `.cloudparts` süpürülüyordu, bunlar hi�
 **883 test · 878 geçti · 0 kırık · 5 atlandı** + **125 Python**.
 
 **Paket.** `v2.5.1`.
+
+---
+
+## 2026-09-03 (on üçüncü tur) — Bozuk sesli kayıtları bulup kaldırma
+
+Kullanıcı: "eski ogg'leri silelim, eğer transcript edemeyeceksek onlara ihtiyacımız yok, Durum'a
+bir kaldır düğmesi koyalım."
+
+**Tarihe göre değil, ölçerek.** Zaman damgasıyla kesmek hangi sürümün hangi dosyayı yazdığı
+hakkında bir tahmindir, geç güncelleyen için yanlıştır ve denetlenemez. Dosyanın boyutu ile
+görüşmenin süresi işin kendisidir. Gerçek arşivde eskiler 19–24 kbps ölçüyor, yeniler 55 civarı;
+eşik 40 kbps'e konuldu, ikisine de uzak.
+
+Ölçemediğine dokunmuyor. Bu cevap kayıtları kalıcı olarak siliyor: kötü bir kaydı tutmanın bedeli
+disk, iyi bir kaydı silmenin bedeli bir görüşme.
+
+**İki basış, bilerek.** İlki yalnızca ölçüyor ve ne bulduğunu söylüyor — **kaçının metni olduğu
+dahil.** Bunlar önemli, çünkü kaldırmanın bedeli orada: ses kurtarılamaz ama kelimeler o ses
+bozulmadan **önce** çıkarıldı ve hâlâ iyiler. Metni olan bir kaydı silmek iyi bir metni silmektir.
+Hiçbir şey, bu cümle okunmadan ve ne yaptığını söyleyen ikinci bir düğmeye basılmadan silinmiyor.
+Onaydan sonra ses, döküm, defter kayıtları ve notlar birlikte gidiyor.
+
+**894 test · 889 geçti · 0 kırık · 5 atlandı** + **125 Python**.
+
+**Paket.** `v2.6.0`.
