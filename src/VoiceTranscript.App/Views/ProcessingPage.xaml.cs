@@ -24,12 +24,7 @@ public partial class ProcessingPage
     {
         if (RowOf(sender) is not { } row) return;
 
-        var window = new CallWindow(new CallWindowViewModel(App.Repository, () => App.Settings, App.HttpClient, row.Call.Id))
-        {
-            Owner = Window.GetWindow(this),
-        };
-
-        window.Show();
+        CallWindow.Show(Window.GetWindow(this), row.Call.Id);
     }
 
     private void RowMove_Click(object sender, RoutedEventArgs e)

@@ -313,8 +313,17 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
     {
         SelectedContact = Contacts.FirstOrDefault(c => c.Contact.Id == contactId);
 
-        if (callId is { } id)
+        if (callId is not { } id) return;
+
+        SelectedCall = Calls.FirstOrDefault(c => c.Call.Id == id);
+
+        // A filter left over from earlier hid the very call that was asked for, and the click
+        // landed on nothing. The filters are for browsing; a direct request wins over them.
+        if (SelectedCall is null && _allCalls.Any(c => c.Call.Id == id))
+        {
+            ClearCallFilters();
             SelectedCall = Calls.FirstOrDefault(c => c.Call.Id == id);
+        }
     }
 
     /// <summary>Who a call belongs to, or null when nobody has said yet.</summary>
@@ -328,11 +337,11 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
     /// citation that does not work undermines the only thing making the answer above it
     /// trustworthy.
     /// </summary>
-    public void SeekTo(int startMs)
+    public void SeekTo(int startMs, bool isMe = false)
     {
         if (Playback.IsLoaded)
         {
-            Playback.PlayFrom(startMs, isMe: false);
+            Playback.PlayFrom(startMs, isMe);
             return;
         }
 
@@ -341,7 +350,7 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
             if (e.PropertyName != nameof(PlaybackViewModel.IsLoaded) || !Playback.IsLoaded) return;
 
             Playback.PropertyChanged -= WhenLoaded;
-            Playback.PlayFrom(startMs, isMe: false);
+            Playback.PlayFrom(startMs, isMe);
         }
 
         Playback.PropertyChanged += WhenLoaded;

@@ -46,15 +46,7 @@ public partial class ContactsPage
     {
         if (ViewModel?.SelectedCall is not { } row) return;
 
-        var window = new CallWindow(new ViewModels.CallWindowViewModel(
-            App.Repository, () => App.Settings, App.HttpClient, row.Call.Id))
-        {
-            Owner = Window.GetWindow(this),
-        };
-
-        // Shown rather than shown modally: reading a conversation while looking something up in
-        // the archive is the ordinary way to use this, and a modal window forbids it.
-        window.Show();
+        CallWindow.Show(Window.GetWindow(this), row.Call.Id);
     }
 
     /// <summary>Same for the contact list: the menu must act on the row that was clicked.</summary>

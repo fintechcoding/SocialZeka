@@ -30,15 +30,7 @@ public partial class CalendarPage
 
     private void OpenCall(long callId)
     {
-        var window = new CallWindow(new CallWindowViewModel(
-            App.Repository, () => App.Settings, App.HttpClient, callId))
-        {
-            Owner = Window.GetWindow(this),
-        };
-
-        // Shown rather than shown modally, same as the overview: reading a conversation while
-        // looking at the month is the ordinary way to use this.
-        window.Show();
+        CallWindow.Show(Window.GetWindow(this), callId);
     }
 
     private void OpenContact(long contactId)

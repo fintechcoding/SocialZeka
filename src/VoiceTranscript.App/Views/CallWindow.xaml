@@ -490,9 +490,14 @@
                                                     <TextBlock Text="{Binding Obligation}" TextWrapping="Wrap"
                                                                VerticalAlignment="Center" />
                                                 </StackPanel>
-                                                <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
-                                                           TextWrapping="Wrap" Margin="0,2,0,0"
-                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                <!-- The quote is the evidence; it plays. -->
+                                                <Border Background="Transparent" Cursor="Hand" Margin="0,2,0,0"
+                                                        MouseLeftButtonUp="CommitmentQuote_Click"
+                                                        ToolTip="{loc:T callwindow.alintiyi-dinle}">
+                                                    <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                </Border>
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -509,8 +514,12 @@
                                         <DataTemplate>
                                             <StackPanel Margin="0,4">
                                                 <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
-                                                <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
-                                                           TextWrapping="Wrap" Margin="0,2,0,0" />
+                                                <Border Background="Transparent" Cursor="Hand" Margin="0,2,0,0"
+                                                        MouseLeftButtonUp="FlagQuote_Click"
+                                                        ToolTip="{loc:T callwindow.alintiyi-dinle}">
+                                                    <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
+                                                               TextWrapping="Wrap" />
+                                                </Border>
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>

@@ -26,6 +26,14 @@ public partial class OverviewPage
     /// and once learned they stop trying. This makes the shortest question — "what happened
     /// today" — one click from its answer.
     /// </summary>
+    /// <summary>An overdue promise opens its call at the moment it was made.</summary>
+    private void Overdue_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: OverviewViewModel.OverdueItem item }) return;
+
+        CallWindow.Show(Window.GetWindow(this), item.Commitment.CallId, item.Commitment.QuoteStartMs, item.Commitment.ByMe);
+    }
+
     private void RecentCall_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: RecentCall row }) return;
@@ -35,16 +43,7 @@ public partial class OverviewPage
 
     private void Open(long callId)
     {
-        var window = new CallWindow(new CallWindowViewModel(
-            App.Repository, () => App.Settings, App.HttpClient, callId))
-        {
-            Owner = Window.GetWindow(this),
-        };
-
-        // Shown rather than shown modally, for the same reason the contact page opens it that
-        // way: reading a conversation while looking something else up is the ordinary way to use
-        // this, and a modal window forbids it.
-        window.Show();
+        CallWindow.Show(Window.GetWindow(this), callId);
     }
 
     // ---- the panel: drag in, drag around, take off --------------------------

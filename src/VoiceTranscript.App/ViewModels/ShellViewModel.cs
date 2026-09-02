@@ -126,14 +126,14 @@ public sealed partial class ShellViewModel : ObservableObject
         Ask = new AskViewModel(App.HttpClient, repository, settings);
         Ask.OpenRequested += (_, target) => OpenCall(target.CallId, target.StartMs);
 
-        Ledger.OpenRequested += (_, target) => OnUi(() => OpenContact(target.ContactId, target.CallId));
+        Ledger.OpenRequested += (_, target) => OnUi(() => OpenAt(target.ContactId, target.CallId, target.StartMs, target.IsMe));
 
         // Severity travels WITH the message from here on. Page notices are ordinary news;
         // everything the orchestrator says out loud is a heads-up ("X yanıt vermedi, Y
         // deneniyor", "alıntıların %40'ı bulunamadı") — that is what its Notice event is FOR.
         Ledger.Notice += (_, message) => OnUi(() => Post(message, Services.NoticeSeverity.Info));
         Contacts.Notice += (_, message) => OnUi(() => Post(message, Services.NoticeSeverity.Info));
-        Search.OpenRequested += (_, target) => OnUi(() => OpenContact(target.ContactId, target.CallId));
+        Search.OpenRequested += (_, target) => OnUi(() => OpenAt(target.ContactId, target.CallId, target.StartMs, target.IsMe));
 
         orchestrator.StateChanged += (_, state) => OnUi(() => OnStateChanged(state));
         orchestrator.Notice += (_, message) => OnUi(() => Post(message, Services.NoticeSeverity.Warning));
@@ -476,6 +476,22 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         Page = ShellPage.Contacts;
         Contacts.Select(contactId, callId);
+    }
+
+    /// <summary>
+    /// Opens a quoted line where it was said: the contact page seeking to the moment, or — for a
+    /// call nobody has named yet — the call window itself, so the click is never dead.
+    /// </summary>
+    public void OpenAt(long? contactId, long callId, int startMs, bool isMe)
+    {
+        if (contactId is { } id)
+        {
+            OpenContact(id, callId);
+            Contacts.SeekTo(startMs, isMe);
+            return;
+        }
+
+        Views.CallWindow.Show(System.Windows.Application.Current?.MainWindow, callId, startMs, isMe);
     }
 
     /// <summary>

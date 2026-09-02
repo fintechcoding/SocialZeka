@@ -78,15 +78,7 @@ public partial class ContactWindow
     }
 
     private void OpenCall(long callId, int? startMs = null, bool isMe = false)
-    {
-        var model = new CallWindowViewModel(
-            App.Repository, () => App.Settings, App.HttpClient, callId);
-
-        var window = new CallWindow(model) { Owner = this };
-        window.Show();
-
-        if (startMs is { } at) model.Playback.PlayFrom(at, isMe);
-    }
+        => CallWindow.Show(this, callId, startMs, isMe);
 
     private void Query_KeyDown(object sender, KeyEventArgs e)
     {

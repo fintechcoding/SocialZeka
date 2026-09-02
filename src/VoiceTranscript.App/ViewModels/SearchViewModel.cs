@@ -188,7 +188,7 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
     [ObservableProperty] private SearchPeriod _period = SearchPeriod.Anytime;
 
     public IReadOnlyList<SearchPeriod> Periods { get; } =
-        [SearchPeriod.Anytime, SearchPeriod.LastWeek, SearchPeriod.LastMonth, SearchPeriod.LastYear];
+        [SearchPeriod.Anytime, SearchPeriod.Today, SearchPeriod.Yesterday, SearchPeriod.LastWeek, SearchPeriod.LastMonth, SearchPeriod.LastYear];
 
     /// <summary>Names of everybody who has a recording, for the contact filter.</summary>
     public ObservableCollection<ContactChoice> ContactChoices { get; } = [];
@@ -252,6 +252,14 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
                 return;
             }
 
+            // A period or a person with no words is also a question: "dünkü görüşmeler",
+            // "Uliana ile bu hafta". The list is the answer.
+            if (Period != SearchPeriod.Anytime || ContactFilter is not null)
+            {
+                BrowseCalls();
+                return;
+            }
+
             HasSearched = false;
             ResultCount = 0;
             return;
@@ -297,6 +305,32 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
     }
 
     /// <summary>The tag as a query: every conversation carrying it, grouped by person.</summary>
+    private void BrowseCalls()
+    {
+        HasSearched = true;
+
+        var calls = repository.BrowseCalls(ContactFilter, Period.Since(), Period.Until());
+        ResultCount = calls.Count;
+
+        if (calls.Count == 0)
+        {
+            Message = "Bu aralıkta görüşme yok.";
+            return;
+        }
+
+        Message = $"{calls.Count} görüşme. Bir sonuca çift tıklayınca görüşme açılır; sözcük yazarsan içinde arar.";
+
+        foreach (var group in calls
+                     .GroupBy(h => (h.ContactId, h.ContactName))
+                     .OrderByDescending(g => g.Max(h => h.CallStartedAt)))
+        {
+            Groups.Add(new SearchGroup(
+                group.Key.ContactName ?? "İsimsiz görüşme",
+                group.Key.ContactId,
+                [.. group.Select(h => new SearchResult(h))]));
+        }
+    }
+
     private void BrowseTag()
     {
         HasSearched = true;
@@ -328,7 +362,7 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
     }
 
     /// <summary>Raised when a result should be opened in the contact view, at that moment.</summary>
-    public event EventHandler<(long ContactId, long CallId)>? OpenRequested;
+    public event EventHandler<(long? ContactId, long CallId, int StartMs, bool IsMe)>? OpenRequested;
 
     /// <summary>
     /// Jumps from a search result to the conversation it came from.
@@ -339,8 +373,9 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
     [RelayCommand]
     private void Open(SearchResult result)
     {
-        if (result.Hit.ContactId is { } contactId)
-            OpenRequested?.Invoke(this, (contactId, result.Hit.CallId));
+        // The moment travels with the click. An unnamed call has no contact page; the shell opens
+        // the call window directly for it instead of doing nothing.
+        OpenRequested?.Invoke(this, (result.Hit.ContactId, result.Hit.CallId, result.Hit.StartMs, result.Hit.IsMe));
     }
 
     [RelayCommand]

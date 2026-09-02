@@ -2380,6 +2380,46 @@ public sealed class Repository(Database database)
     /// "text" of each row is the call's one-line summary when one exists, or its size when not.
     /// SegmentId 0 and StartMs 0 mean "the conversation, from the top" to everything downstream.
     /// </summary>
+    /// <summary>
+    /// Every call in a period, newest first, as search rows — "dünkü görüşmeler" without a word
+    /// to search for. The text is the summary when there is one, else the size of the transcript.
+    /// </summary>
+    public IReadOnlyList<SearchHit> BrowseCalls(
+        long? contactId = null, DateTimeOffset? since = null, DateTimeOffset? until = null, int limit = 300)
+    {
+        using var connection = Open();
+
+        return [.. connection.Query<SearchHitRow>(
+            """
+            SELECT c.id           AS CallId,
+                   0              AS SegmentId,
+                   c.contact_id   AS ContactId,
+                   ct.name        AS ContactName,
+                   c.started_at   AS CallStartedAt,
+                   0              AS IsMe,
+                   0              AS StartMs,
+                   COALESCE(
+                       (SELECT s.summary FROM call_summary s WHERE s.call_id = c.id),
+                       (SELECT COUNT(*) || ' satır konuşma' FROM segment sg WHERE sg.call_id = c.id))
+                                  AS Text
+            FROM call c
+            LEFT JOIN contact ct ON ct.id = c.contact_id
+            WHERE (@contactId IS NULL OR c.contact_id = @contactId)
+              AND (@since     IS NULL OR c.started_at >= @since)
+              AND (@until     IS NULL OR c.started_at <  @until)
+            ORDER BY c.started_at DESC
+            LIMIT @limit;
+            """,
+            new
+            {
+                contactId,
+                since = since?.UtcDateTime.ToString("o"),
+                until = until?.UtcDateTime.ToString("o"),
+                limit,
+            })
+            .Select(r => r.ToModel())];
+    }
+
     public IReadOnlyList<SearchHit> TaggedCalls(
         string tag, long? contactId = null, DateTimeOffset? since = null, int limit = 200)
     {

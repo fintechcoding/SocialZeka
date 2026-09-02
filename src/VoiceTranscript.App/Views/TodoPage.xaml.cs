@@ -19,12 +19,6 @@ public partial class TodoPage
 
     private void OnOpenCall(object? sender, long callId)
     {
-        var window = new CallWindow(new CallWindowViewModel(
-            App.Repository, () => App.Settings, App.HttpClient, callId))
-        {
-            Owner = Window.GetWindow(this),
-        };
-
-        window.Show();
+        CallWindow.Show(Window.GetWindow(this), callId);
     }
 }

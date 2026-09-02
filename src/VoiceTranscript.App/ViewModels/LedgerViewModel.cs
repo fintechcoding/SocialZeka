@@ -113,7 +113,7 @@ public sealed partial class LedgerEntry : ObservableObject
 public sealed partial class LedgerViewModel(Repository repository) : ObservableObject
 {
     /// <summary>Raised when a row wants the shell to open a contact.</summary>
-    public event EventHandler<(long ContactId, long CallId)>? OpenRequested;
+    public event EventHandler<(long? ContactId, long CallId, int StartMs, bool IsMe)>? OpenRequested;
 
     /// <summary>Raised when something needs saying to the user.</summary>
     public event EventHandler<string>? Notice;
@@ -285,7 +285,7 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     [RelayCommand]
     private void Open(LedgerEntry entry)
     {
-        if (entry.ContactId is { } id) OpenRequested?.Invoke(this, (id, entry.CallId));
+        OpenRequested?.Invoke(this, (entry.ContactId, entry.CallId, entry.QuoteStartMs, entry.ByMe));
     }
 
     /// <summary>

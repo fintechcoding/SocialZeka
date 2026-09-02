@@ -156,7 +156,11 @@
                 <ItemsControl ItemsSource="{Binding Overdue}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Style="{StaticResource SettingCard}" Padding="16,14">
+                            <!-- The most important card on the page was the only one that did
+                                 nothing when clicked. It opens the call at the quoted moment. -->
+                            <Border Style="{StaticResource SettingCard}" Padding="16,14" Cursor="Hand"
+                                    MouseLeftButtonUp="Overdue_Click"
+                                    ToolTip="{loc:T overviewpage.sozun-verildigi-ani-dinle}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using VoiceTranscript.App.ViewModels;
 using VoiceTranscript.Core.Analysis;
+using VoiceTranscript.Core.Domain;
 
 namespace VoiceTranscript.App.Views;
 
@@ -71,11 +72,61 @@ public partial class CallWindow
     }
 
     /// <summary>Clicking a quote plays the moment it came from.</summary>
+    /// <summary>The windows currently open, by call — so a second click brings one forward.</summary>
+    private static readonly Dictionary<long, CallWindow> Open = [];
+
+    /// <summary>
+    /// Shows the window for a call, creating it or bringing the existing one forward, and seeks
+    /// to a moment when one is given.
+    ///
+    /// Six places used to build their own window, and every click on a row, a to-do or a
+    /// calendar promise stacked another copy of the same conversation. One doorway, one window.
+    /// </summary>
+    public static CallWindow Show(Window? owner, long callId, int? startMs = null, bool isMe = false)
+    {
+        if (Open.TryGetValue(callId, out var existing))
+        {
+            existing.Show();
+            if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
+            existing.Activate();
+
+            if (startMs is { } at) existing.ViewModel?.Playback.PlayFrom(at, isMe);
+            return existing;
+        }
+
+        var model = new CallWindowViewModel(App.Repository, () => App.Settings, App.HttpClient, callId);
+        var window = new CallWindow(model) { Owner = owner };
+
+        Open[callId] = window;
+        window.Closed += (_, _) => Open.Remove(callId);
+
+        window.Show();
+
+        if (startMs is { } seek) model.Playback.PlayFrom(seek, isMe);
+        return window;
+    }
+
     private void Citation_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: Excerpt excerpt }) return;
 
         ViewModel?.PlayExcerptCommand.Execute(excerpt);
+    }
+
+    private void CommitmentQuote_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: Commitment c }) return;
+
+        ViewModel?.PlayExcerptCommand.Execute(new Excerpt(0, c.CallId, null, default, c.QuoteStartMs, c.ByMe, c.Quote));
+        e.Handled = true;
+    }
+
+    private void FlagQuote_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: Flag f }) return;
+
+        ViewModel?.PlayExcerptCommand.Execute(new Excerpt(0, f.CallId, null, default, f.QuoteStartMs, IsMe: false, f.Quote));
+        e.Handled = true;
     }
 
     /// <summary>Plays from the line the menu was opened on.</summary>

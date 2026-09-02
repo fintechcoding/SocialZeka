@@ -167,6 +167,8 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
@@ -693,116 +695,6 @@
                                     Outside the tabs, always in reach: evidence is never behind a
                                     click.
                                 -->
-                                <Border Grid.Row="1" Style="{StaticResource Panel}" Margin="0,10,0,0"
-                                        Visibility="{Binding Playback.IsLoaded, Converter={StaticResource BoolToVisibility}}">
-                                    <StackPanel>
-                                        <Grid x:Name="WaveformHost" Height="40" Margin="0,0,0,8"
-                                              Background="Transparent"
-                                              controls:Scrubbable.Player="{Binding Playback}"
-                                              Cursor="Hand"
-                                              ToolTip="{loc:T contactspage.tikla-oradan-dinle}">
-                                            <Viewbox Stretch="Fill">
-                                                <Canvas Width="1000" Height="68">
-                                                    <Polygon Points="{Binding Playback.MicShape}"
-                                                             Fill="{DynamicResource MeBrush}" Opacity="0.85" />
-                                                    <Polygon Points="{Binding Playback.FarShape}"
-                                                             Fill="{DynamicResource ThemBrush}" Opacity="0.85" />
-
-                                                    <!-- Centre line, so the two bands read as one timeline. -->
-                                                    <Line X1="0" Y1="34" X2="1000" Y2="34" StrokeThickness="0.6"
-                                                          Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" />
-
-                                                    <Line Y1="0" Y2="68" StrokeThickness="1.6"
-                                                          X1="{Binding Playback.PlayheadX}"
-                                                          X2="{Binding Playback.PlayheadX}"
-                                                          Stroke="{DynamicResource AccentFillColorDefaultBrush}" />
-                                                </Canvas>
-                                            </Viewbox>
-                                        </Grid>
-
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                                <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T contactspage.10-saniye-geri}"
-                                                        Command="{Binding Playback.SkipBackCommand}">
-                                                    <ui:SymbolIcon Symbol="ArrowCounterclockwise24" FontSize="16" />
-                                                </Button>
-
-                                                <Button Style="{StaticResource GhostButton}" Margin="2,0"
-                                                        Command="{Binding Playback.TogglePlayCommand}"
-                                                        ToolTip="{loc:T contactspage.cal-duraklat}">
-                                                    <Grid>
-                                                        <ui:SymbolIcon Symbol="Play24" FontSize="18"
-                                                                       Visibility="{Binding Playback.IsPlaying, Converter={StaticResource InverseBoolToVisibility}}" />
-                                                        <ui:SymbolIcon Symbol="Pause24" FontSize="18"
-                                                                       Visibility="{Binding Playback.IsPlaying, Converter={StaticResource BoolToVisibility}}" />
-                                                    </Grid>
-                                                </Button>
-
-                                                <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T contactspage.10-saniye-ileri}"
-                                                        Command="{Binding Playback.SkipForwardCommand}">
-                                                    <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="16" />
-                                                </Button>
-                                            </StackPanel>
-
-                                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
-                                                       HorizontalAlignment="Center"
-                                                       FontFamily="Consolas, Cascadia Mono, Segoe UI"
-                                                       FontSize="{StaticResource TextSecondary}"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">
-                                                <Run Text="{Binding Playback.PositionText, Mode=OneWay}" />
-                                                <Run Text=" / " />
-                                                <Run Text="{Binding Playback.DurationText, Mode=OneWay}" />
-                                            </TextBlock>
-
-                                            <!--
-                                                Which of the three recordings is being heard.
-
-                                                All three cover the same stretch of time, so this
-                                                keeps the moment and changes only the voice. It
-                                                opens on the whole conversation, because that is
-                                                what somebody means when they say they want to
-                                                hear a call; the single sides are there for
-                                                pulling one voice out of a passage where the two
-                                                talked over each other.
-                                            -->
-                                            <ui:Button Grid.Column="2" Appearance="Transparent"
-                                                       Command="{Binding Playback.SwitchSpeakerCommand}"
-                                                       ToolTip="{loc:T contactspage.tum-gorusme-sen-karsi-taraf-arasinda-gecis}">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Border Width="8" Height="8" CornerRadius="4" Margin="0,0,8,0"
-                                                            VerticalAlignment="Center">
-                                                        <Border.Style>
-                                                            <Style TargetType="Border">
-                                                                <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding Playback.Channel}" Value="Me">
-                                                                        <Setter Property="Background" Value="{DynamicResource MeBrush}" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding Playback.Channel}" Value="Them">
-                                                                        <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Border.Style>
-                                                    </Border>
-                                                    <TextBlock VerticalAlignment="Center"
-                                                               FontSize="{StaticResource TextSecondary}"
-                                                               Text="{Binding Playback.ChannelName}" />
-                                                </StackPanel>
-                                            </ui:Button>
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-
-                                <TextBlock Grid.Row="2" Text="{Binding PlaybackMessage}"
-                                           Style="{StaticResource Caption}" Margin="0,8,0,0"
-                                           Visibility="{Binding PlaybackMessage, Converter={StaticResource NullToCollapsed}}" />
                             </Grid>
                         </Grid>
                     </TabItem>
@@ -989,6 +881,120 @@
                         </Grid>
                     </TabItem>
                 </TabControl>
+
+                <!-- Outside the tabs: audio started from the ledger used to play with no
+                     pause, no scrubber and no position on screen. -->
+                <Border Grid.Row="2" Style="{StaticResource Panel}" Margin="0,10,0,0"
+                        Visibility="{Binding Playback.IsLoaded, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <Grid x:Name="WaveformHost" Height="40" Margin="0,0,0,8"
+                              Background="Transparent"
+                              controls:Scrubbable.Player="{Binding Playback}"
+                              Cursor="Hand"
+                              ToolTip="{loc:T contactspage.tikla-oradan-dinle}">
+                            <Viewbox Stretch="Fill">
+                                <Canvas Width="1000" Height="68">
+                                    <Polygon Points="{Binding Playback.MicShape}"
+                                             Fill="{DynamicResource MeBrush}" Opacity="0.85" />
+                                    <Polygon Points="{Binding Playback.FarShape}"
+                                             Fill="{DynamicResource ThemBrush}" Opacity="0.85" />
+
+                                    <!-- Centre line, so the two bands read as one timeline. -->
+                                    <Line X1="0" Y1="34" X2="1000" Y2="34" StrokeThickness="0.6"
+                                          Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                                    <Line Y1="0" Y2="68" StrokeThickness="1.6"
+                                          X1="{Binding Playback.PlayheadX}"
+                                          X2="{Binding Playback.PlayheadX}"
+                                          Stroke="{DynamicResource AccentFillColorDefaultBrush}" />
+                                </Canvas>
+                            </Viewbox>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T contactspage.10-saniye-geri}"
+                                        Command="{Binding Playback.SkipBackCommand}">
+                                    <ui:SymbolIcon Symbol="ArrowCounterclockwise24" FontSize="16" />
+                                </Button>
+
+                                <Button Style="{StaticResource GhostButton}" Margin="2,0"
+                                        Command="{Binding Playback.TogglePlayCommand}"
+                                        ToolTip="{loc:T contactspage.cal-duraklat}">
+                                    <Grid>
+                                        <ui:SymbolIcon Symbol="Play24" FontSize="18"
+                                                       Visibility="{Binding Playback.IsPlaying, Converter={StaticResource InverseBoolToVisibility}}" />
+                                        <ui:SymbolIcon Symbol="Pause24" FontSize="18"
+                                                       Visibility="{Binding Playback.IsPlaying, Converter={StaticResource BoolToVisibility}}" />
+                                    </Grid>
+                                </Button>
+
+                                <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T contactspage.10-saniye-ileri}"
+                                        Command="{Binding Playback.SkipForwardCommand}">
+                                    <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="16" />
+                                </Button>
+                            </StackPanel>
+
+                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       FontFamily="Consolas, Cascadia Mono, Segoe UI"
+                                       FontSize="{StaticResource TextSecondary}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                <Run Text="{Binding Playback.PositionText, Mode=OneWay}" />
+                                <Run Text=" / " />
+                                <Run Text="{Binding Playback.DurationText, Mode=OneWay}" />
+                            </TextBlock>
+
+                            <!--
+                                Which of the three recordings is being heard.
+
+                                All three cover the same stretch of time, so this
+                                keeps the moment and changes only the voice. It
+                                opens on the whole conversation, because that is
+                                what somebody means when they say they want to
+                                hear a call; the single sides are there for
+                                pulling one voice out of a passage where the two
+                                talked over each other.
+                            -->
+                            <ui:Button Grid.Column="2" Appearance="Transparent"
+                                       Command="{Binding Playback.SwitchSpeakerCommand}"
+                                       ToolTip="{loc:T contactspage.tum-gorusme-sen-karsi-taraf-arasinda-gecis}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Width="8" Height="8" CornerRadius="4" Margin="0,0,8,0"
+                                            VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Playback.Channel}" Value="Me">
+                                                        <Setter Property="Background" Value="{DynamicResource MeBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Playback.Channel}" Value="Them">
+                                                        <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                    </Border>
+                                    <TextBlock VerticalAlignment="Center"
+                                               FontSize="{StaticResource TextSecondary}"
+                                               Text="{Binding Playback.ChannelName}" />
+                                </StackPanel>
+                            </ui:Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Grid.Row="3" Text="{Binding PlaybackMessage}"
+                           Style="{StaticResource Caption}" Margin="0,8,0,0"
+                           Visibility="{Binding PlaybackMessage, Converter={StaticResource NullToCollapsed}}" />
+
             </Grid>
         </Grid>
     </Grid>
