@@ -35,6 +35,15 @@ class EngineOptions:
     condition_on_previous_text: bool = False
     no_speech_threshold: float = 0.6
 
+    # The user's own vocabulary: product names, people, jargon. Hotwords bias every decoding
+    # window; the initial prompt seeds the first one. Either may be None.
+    hotwords: str | None = None
+    initial_prompt: str | None = None
+
+    # Detect the language per window instead of once per file, for calls that switch between
+    # Turkish and English mid-sentence. Slower, and only the large models can do it.
+    multilingual: bool = False
+
 
 @dataclass(slots=True)
 class EngineInfo:

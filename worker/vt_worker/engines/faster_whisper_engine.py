@@ -41,6 +41,37 @@ def _wav_duration_seconds(path: str) -> float:
         return 0.0
 
 
+def transcribe_kwargs(options: EngineOptions) -> dict:
+    """The keyword arguments one transcription gets, from the options the request carried.
+
+    A function rather than a literal in the call so it can be tested without a model: what
+    reaches faster-whisper from the user's vocabulary and language choice is exactly the kind
+    of thing that silently stops working when a parameter is renamed.
+    """
+    kwargs = {
+        "language": options.language,
+        "beam_size": options.beam_size,
+        "word_timestamps": options.word_timestamps,
+        "vad_filter": options.vad_filter,
+        "condition_on_previous_text": options.condition_on_previous_text,
+        "no_speech_threshold": options.no_speech_threshold,
+    }
+
+    if options.hotwords:
+        kwargs["hotwords"] = options.hotwords
+    if options.initial_prompt:
+        kwargs["initial_prompt"] = options.initial_prompt
+
+    # Per-window language detection needs the language left open; forcing "tr" and asking for
+    # code-switching at the same time would be a contradiction faster-whisper resolves by
+    # forcing.
+    if options.multilingual:
+        kwargs["multilingual"] = True
+        kwargs["language"] = None
+
+    return kwargs
+
+
 class FasterWhisperEngine(AsrEngine):
     name = "faster-whisper"
 
@@ -99,12 +130,20 @@ class FasterWhisperEngine(AsrEngine):
                 sys.stderr.write(f"gpu: {chosen.label} (device {chosen.index})\n")
                 sys.stderr.flush()
 
+        # On the processor, leave two cores to the person using the machine. CTranslate2's default
+        # takes every core it can see, and a 40-minute call then makes the laptop unusable for the
+        # twenty minutes it takes; two cores fewer costs about a tenth of the speed.
+        cpu_threads = 0
+        if device == "cpu":
+            cpu_threads = max(1, (os.cpu_count() or 4) - 2)
+
         try:
             self._model = WhisperModel(
                 options.model_ref,
                 device=device,
                 device_index=index,
                 compute_type=compute_type,
+                cpu_threads=cpu_threads,
             )
             self._device = device
             self._compute_type = compute_type
@@ -208,15 +247,20 @@ class FasterWhisperEngine(AsrEngine):
         """
 
         def begin():
-            return self._model.transcribe(
-                wav_path,
-                language=options.language,
-                beam_size=options.beam_size,
-                word_timestamps=options.word_timestamps,
-                vad_filter=options.vad_filter,
-                condition_on_previous_text=options.condition_on_previous_text,
-                no_speech_threshold=options.no_speech_threshold,
-            )
+            kwargs = transcribe_kwargs(options)
+            try:
+                return self._model.transcribe(wav_path, **kwargs)
+            except TypeError as exc:
+                # An older faster-whisper without hotwords/multilingual. The vocabulary is
+                # dropped rather than the transcription; said in the log so it is not a mystery.
+                dropped = {k: kwargs.pop(k) for k in ("hotwords", "multilingual") if k in kwargs}
+                if not dropped:
+                    raise
+                sys.stderr.write(f"faster-whisper does not accept {sorted(dropped)} ({exc}); continuing without\n")
+                sys.stderr.flush()
+                if kwargs.get("language") is None:
+                    kwargs["language"] = options.language
+                return self._model.transcribe(wav_path, **kwargs)
 
         try:
             segments_iter, info = begin()

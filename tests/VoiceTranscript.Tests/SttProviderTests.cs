@@ -67,15 +67,28 @@ public class SttProviderTests
         Assert.Equal("OpenAI", endpoint.ResolvedName);
     }
 
-    [Fact]
-    public void AProviderWeCannotUploadToIsNeverSelectedForUpload()
+    /// <summary>
+    /// A service with its own dialect is routed to the worker engine that speaks it. Both of
+    /// these were once sent OpenAI's request and failed on the first upload while the connection
+    /// test showed green.
+    /// </summary>
+    [Theory]
+    [InlineData("elevenlabs", "cloud-elevenlabs")]
+    [InlineData("deepgram", "cloud-deepgram")]
+    [InlineData("openai", "cloud-openai")]
+    [InlineData("groq", "cloud-openai")]
+    public void EachProviderIsSentToTheEngineThatSpeaksItsDialect(string kind, string engine)
     {
-        // Deepgram is listed so its balance can be watched, but its request shape is not the one
-        // the worker speaks. Offering it as a destination would fail on a real call.
-        var deepgram = Configured("deepgram");
+        var endpoint = Configured(kind);
 
-        Assert.False(deepgram.Provider.OpenAiCompatible);
-        Assert.False(deepgram.IsUsable);
+        Assert.Equal(engine, endpoint.Provider.WorkerEngine);
+        Assert.True(endpoint.IsUsable);
+    }
+
+    [Fact]
+    public void ElevenLabsDefaultsToTheCurrentScribeModel()
+    {
+        Assert.Equal("scribe_v2", Configured("elevenlabs").ResolvedModel);
     }
 
     [Fact]

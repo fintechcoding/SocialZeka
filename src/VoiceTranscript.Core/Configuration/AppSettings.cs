@@ -112,6 +112,16 @@ public sealed record AppSettings
     public bool RecordAutomatically { get; init; } = true;
 
     /// <summary>
+    /// Whether a call is filed under a contact from its window title without asking.
+    ///
+    /// Off by default, at the user's request: WhatsApp's call window reads "Voice call" on a second
+    /// screen, and a title-to-contact binding learned once then put every later call under the
+    /// same person. When this is off the user is asked after every call; a name recognised from
+    /// the title is only offered as the prefilled answer, never written on its own.
+    /// </summary>
+    public bool AssignContactFromTitle { get; init; }
+
+    /// <summary>
     /// Whether a strip appears at the top of the screen while recording.
     ///
     /// On by default and worth defending as a default. The tray icon alone makes a running
@@ -192,6 +202,45 @@ public sealed record AppSettings
 
     public string AsrModelId { get; init; } = AsrCatalog.DefaultModelId;
     public string Language { get; init; } = "tr";
+
+    /// <summary>
+    /// The user's own words the recogniser keeps getting wrong: product names, people, jargon.
+    /// One per line or comma-separated. Fed to the local engine as hotwords and a short initial
+    /// prompt, and to cloud engines as their prompt / key-term field.
+    /// </summary>
+    public string SpeechVocabulary { get; init; } = "";
+
+    /// <summary>
+    /// Calls that switch between Turkish and English mid-sentence. Detects the language per
+    /// window instead of forcing Turkish on the whole file — so "onboarding" stays a word rather
+    /// than becoming the Turkish syllables nearest to it. Costs speed; off by default.
+    /// </summary>
+    public bool MixedLanguage { get; init; }
+
+    /// <summary>The vocabulary as the comma list the engines expect, or null when there is none.</summary>
+    public string? VocabularyTerms()
+    {
+        var terms = SpeechVocabulary
+            .Split(['\n', '\r', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        return terms.Count == 0 ? null : string.Join(", ", terms);
+    }
+
+    /// <summary>
+    /// The vocabulary as an initial prompt: at most ~40 terms, so the prompt stays under the
+    /// window Whisper actually reads and cannot become text it repeats into silence.
+    /// </summary>
+    public string? VocabularyPrompt()
+    {
+        var terms = VocabularyTerms();
+        if (terms is null) return null;
+
+        var list = terms.Split(", ").Take(40);
+        return string.Join(", ", list) + ".";
+    }
 
     /// <summary>Where transcription runs. See <see cref="TranscriptionMode"/>.</summary>
     public TranscriptionMode AsrMode { get; init; } = TranscriptionMode.LocalOnly;

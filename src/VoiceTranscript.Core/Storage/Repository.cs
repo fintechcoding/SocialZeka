@@ -147,6 +147,10 @@ public sealed class Repository(Database database)
         var pattern = TurkishText.StripFormatting(title);
         if (pattern.Length == 0) return false;
 
+        // "Voice call" identifies nobody. Bound once, it would file every later call under this
+        // contact; refused here so that the promise "I will not ask again" is never made on it.
+        if (Detection.GenericTitles.IsGeneric(pattern)) return false;
+
         using var connection = Open();
 
         var existing = connection.QueryFirstOrDefault<long?>(
@@ -183,6 +187,7 @@ public sealed class Repository(Database database)
     {
         var pattern = TurkishText.StripFormatting(title);
         if (pattern.Length == 0) return null;
+        if (Detection.GenericTitles.IsGeneric(pattern)) return null;
 
         using var connection = Open();
 
@@ -649,6 +654,94 @@ public sealed class Repository(Database database)
     /// Safe to reclaim precisely because this is only ever called at startup: the process that
     /// might have been holding them is the one that just died.
     /// </summary>
+    // ---- to-do ------------------------------------------------------------------
+
+    public long AddTodo(string text, DateOnly? due, long? contactId = null, long? callId = null)
+    {
+        using var connection = Open();
+
+        return connection.ExecuteScalar<long>(
+            """
+            INSERT INTO todo (text, due_date, contact_id, call_id, created_at)
+            VALUES (@text, @due, @contactId, @callId, @createdAt);
+            SELECT last_insert_rowid();
+            """,
+            new
+            {
+                text = text.Trim(),
+                due = due?.ToString("yyyy-MM-dd"),
+                contactId,
+                callId,
+                createdAt = DateTimeOffset.Now.ToString("o"),
+            });
+    }
+
+    /// <summary>The user's own list, open items first by due date; done ones only when asked.</summary>
+    public IReadOnlyList<Todo> ListTodos(bool includeDone = false)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection
+                .Query<(long Id, string Text, string? Due, string? DoneAt, long? ContactId, string? Name, long? CallId, string CreatedAt)>(
+                    """
+                    SELECT t.id, t.text, t.due_date, t.done_at, t.contact_id, ct.name, t.call_id, t.created_at
+                    FROM todo t
+                    LEFT JOIN contact ct ON ct.id = t.contact_id
+                    WHERE @includeDone = 1 OR t.done_at IS NULL
+                    ORDER BY t.done_at IS NOT NULL, t.due_date IS NULL, t.due_date, t.created_at;
+                    """,
+                    new { includeDone = includeDone ? 1 : 0 })
+                .Select(r => new Todo
+                {
+                    Id = r.Id,
+                    Text = r.Text,
+                    DueDate = r.Due is null ? null : DateOnly.Parse(r.Due),
+                    DoneAt = r.DoneAt is null ? null : DateTimeOffset.Parse(r.DoneAt),
+                    ContactId = r.ContactId,
+                    ContactName = r.Name,
+                    CallId = r.CallId,
+                    CreatedAt = DateTimeOffset.Parse(r.CreatedAt),
+                }),
+        ];
+    }
+
+    public void SetTodoDone(long todoId, bool done)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            "UPDATE todo SET done_at = @doneAt WHERE id = @todoId;",
+            new { todoId, doneAt = done ? DateTimeOffset.Now.ToString("o") : null });
+    }
+
+    public void DeleteTodo(long todoId)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM todo WHERE id = @todoId;", new { todoId });
+    }
+
+    /// <summary>Every suggested step still open, across all calls — the to-do page's second source.</summary>
+    public IReadOnlyList<(ActionItem Action, string ContactName)> AllOpenActions()
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<ActionRow, string?, (ActionRow, string?)>(
+            """
+            SELECT a.*, ct.name
+            FROM action_item a
+            JOIN call c          ON c.id = a.call_id
+            LEFT JOIN contact ct ON ct.id = a.contact_id
+            WHERE a.status = 0
+            ORDER BY a.deadline_date IS NULL, a.deadline_date, c.started_at DESC;
+            """,
+            (action, name) => (action, name),
+            splitOn: "name");
+
+        return [.. rows.Select(r => (r.Item1.ToModel(), r.Item2 ?? "İsimsiz"))];
+    }
+
     /// <summary>Points a call at new audio files — after compression, when the bytes moved but nothing else did.</summary>
     public void SetAudioPaths(long callId, string? micPath, string? farPath)
     {
@@ -2425,6 +2518,10 @@ public sealed class Repository(Database database)
                 WHERE c.started_at < @cutoff
                   AND (c.mic_path IS NOT NULL OR c.far_path IS NOT NULL)
                   AND c.is_pinned = 0
+
+                  -- Not while it is queued or being worked on: a re-transcription reads these
+                  -- files for minutes, and the sweep used to pull them out from under it.
+                  AND c.state NOT IN (1, 2, 4)
                   AND NOT EXISTS (SELECT 1 FROM board_card b WHERE b.call_id = c.id)
                   AND NOT EXISTS (SELECT 1 FROM call_note n WHERE n.call_id = c.id)
 

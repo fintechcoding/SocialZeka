@@ -298,6 +298,19 @@ public sealed partial class PythonWorkerHost(PythonWorkerOptions options)
         if (!process.Start())
             throw new WorkerException("start_failed", $"Could not start {options.PythonExecutable}");
 
+        // Background work, scheduled as such. On a machine without a usable GPU a transcription is
+        // minutes of every core, and at normal priority that is felt in every window the user has
+        // open. Below normal (not Idle, which can starve for ever) keeps the machine usable and
+        // costs the transcription little: it gets the whole processor whenever nothing else wants it.
+        try
+        {
+            process.PriorityClass = ProcessPriorityClass.BelowNormal;
+        }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // Already gone, or not ours to change. Priority is a courtesy, not a requirement.
+        }
+
         try
         {
             job.Assign(process.Handle);

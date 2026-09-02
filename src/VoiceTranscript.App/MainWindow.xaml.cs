@@ -205,7 +205,8 @@ public partial class MainWindow
                 finished.ObservedTitle,
                 finished.App,
                 finished.AudioSummary,
-                finished.HasSilentStream)
+                finished.HasSilentStream,
+                finished.SuggestedContactId)
             {
                 Owner = IsVisible ? this : null,
             };
@@ -420,11 +421,22 @@ public partial class MainWindow
 
     private void Tray_Click(object sender, RoutedEventArgs e) => ShowWindow_Click(sender, e);
 
-    private void ShowWindow_Click(object sender, RoutedEventArgs e)
+    private void ShowWindow_Click(object sender, RoutedEventArgs e) => BringToFront();
+
+    /// <summary>
+    /// Shows the window and puts it in front, whether it was hidden in the tray, minimised, or
+    /// buried under other windows. Windows refuses to hand focus to a process that was not the
+    /// last one the user interacted with; toggling Topmost is the accepted way around it.
+    /// </summary>
+    public void BringToFront()
     {
         Show();
-        WindowState = WindowState.Normal;
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+
+        Topmost = true;
         Activate();
+        Topmost = false;
+        Focus();
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e)

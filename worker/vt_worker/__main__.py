@@ -187,6 +187,9 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
         beam_size=int(request.get("beam_size") or 5),
         word_timestamps=bool(request.get("word_timestamps", True)),
         vad_filter=bool(request.get("vad_filter", True)),
+        hotwords=request.get("hotwords") or None,
+        initial_prompt=request.get("initial_prompt") or None,
+        multilingual=bool(request.get("multilingual", False)),
     )
 
     max_gap = float(request.get("resegment_max_gap", DEFAULT_MAX_GAP))

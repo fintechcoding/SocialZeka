@@ -77,6 +77,61 @@ public sealed class RepositoryTests : IDisposable
     /// a transcript keeps its original — the audio is its whole record — and a call the queue
     /// has or is about to have is left alone until it is done.
     /// </summary>
+    /// <summary>
+    /// "Voice call" is what WhatsApp's call window is titled on a second screen. Bound to a
+    /// contact once, it filed every later call under that person. Refused on the way in, ignored
+    /// on the way out, and never offered as a name.
+    /// </summary>
+    [Theory]
+    [InlineData("Voice call")]
+    [InlineData("WhatsApp")]
+    [InlineData("Voice call - WhatsApp")]
+    [InlineData("Sesli arama")]
+    [InlineData("Telegram")]
+    public void AGenericWindowTitleIsNeverBoundOrResolved(string title)
+    {
+        var contactId = _repo.UpsertContact("Uliana", CallApp.WhatsApp);
+
+        Assert.False(_repo.RememberTitle(title, contactId, CallApp.WhatsApp));
+        Assert.Null(_repo.ResolveTitle(title, CallApp.WhatsApp));
+        Assert.True(VoiceTranscript.Core.Detection.GenericTitles.IsGeneric(title));
+    }
+
+    [Fact]
+    public void ARealNameStillBindsAndResolves()
+    {
+        var contactId = _repo.UpsertContact("Gürhan Abi", CallApp.Telegram);
+
+        Assert.False(VoiceTranscript.Core.Detection.GenericTitles.IsGeneric("Gürhan Abi"));
+        Assert.True(_repo.RememberTitle("Gürhan Abi", contactId, CallApp.Telegram));
+        Assert.Equal(contactId, _repo.ResolveTitle("Gürhan Abi", CallApp.Telegram));
+    }
+
+    [Fact]
+    public void ATodoIsWrittenTickedAndForgottenInItsOwnTable()
+    {
+        var due = new DateOnly(2026, 9, 5);
+        var id = _repo.AddTodo("  Cuma günü evrakları gönder ", due);
+
+        var open = Assert.Single(_repo.ListTodos());
+        Assert.Equal(id, open.Id);
+        Assert.Equal("Cuma günü evrakları gönder", open.Text);
+        Assert.Equal(due, open.DueDate);
+        Assert.Null(open.DoneAt);
+
+        _repo.SetTodoDone(id, true);
+        Assert.Empty(_repo.ListTodos());
+
+        var done = Assert.Single(_repo.ListTodos(includeDone: true));
+        Assert.NotNull(done.DoneAt);
+
+        _repo.SetTodoDone(id, false);
+        Assert.Single(_repo.ListTodos());
+
+        _repo.DeleteTodo(id);
+        Assert.Empty(_repo.ListTodos(includeDone: true));
+    }
+
     [Fact]
     public void OnlyFinishedTranscribedCallsWithPcmAreCompressed()
     {

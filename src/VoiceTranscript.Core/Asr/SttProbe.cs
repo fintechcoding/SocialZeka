@@ -335,7 +335,8 @@ public sealed class SttProbe(HttpClient http)
             if (array is null) return [];
 
             return [.. array
-                .Select(item => item?["id"]?.GetValue<string>())
+                // ElevenLabs keys its models by model_id rather than id.
+                .Select(item => item?["id"]?.GetValue<string>() ?? item?["model_id"]?.GetValue<string>())
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .Select(id => id!)];
         }

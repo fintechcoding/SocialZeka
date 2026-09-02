@@ -317,6 +317,25 @@ public sealed class TranscriptionRequest
     public bool VadFilter { get; init; } = true;
 
     /// <summary>
+    /// Names and terms the recogniser should expect — "Sumsub, KYC, Uliana" — biased at every
+    /// decoding window. This is what stops a product name coming out as a Turkish word that
+    /// sounds like it.
+    /// </summary>
+    public string? Hotwords { get; init; }
+
+    /// <summary>
+    /// A short sentence of the same terms, used as the decoder's first context. Stronger than
+    /// hotwords and riskier: a long prompt gets echoed into silence. Kept short by the sender.
+    /// </summary>
+    public string? InitialPrompt { get; init; }
+
+    /// <summary>
+    /// Detect the language per window rather than once per file, for calls that switch between
+    /// Turkish and English mid-sentence. Slower, and only supported by the large models.
+    /// </summary>
+    public bool Multilingual { get; init; }
+
+    /// <summary>
     /// Pause length above which one segment is cut into two. Whisper places boundaries from its
     /// own decoding rather than the timeline, so without this a quote can be stamped seconds
     /// away from where it was spoken.

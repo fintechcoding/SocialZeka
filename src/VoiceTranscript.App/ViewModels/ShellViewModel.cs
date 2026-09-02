@@ -22,6 +22,9 @@ public enum ShellPage
     /// <summary>The month view: reminders, both sides' promise deadlines, birthdays.</summary>
     Calendar,
 
+    /// <summary>Everything the user has to do, from every source, in one list.</summary>
+    Todo,
+
     Contacts,
 
     /// <summary>
@@ -87,6 +90,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Overview = new OverviewViewModel(repository, settings, paths);
         Ledger = new LedgerViewModel(repository);
         Calendar = new CalendarViewModel(repository);
+        Todo = new TodoViewModel(repository);
         Contacts = new ContactsViewModel(repository);
         Processing = new ProcessingViewModel(repository, settings);
         // The status screen is told the route the recorder really takes, rather than assuming
@@ -176,6 +180,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public OverviewViewModel Overview { get; }
     public LedgerViewModel Ledger { get; }
     public CalendarViewModel Calendar { get; }
+    public TodoViewModel Todo { get; }
     public ContactsViewModel Contacts { get; }
     public ProcessingViewModel Processing { get; }
     public AiStatusViewModel AiStatus { get; }
@@ -392,6 +397,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
         // Re-read on arrival: a reminder set moments ago must already be on the month.
         if (Page == ShellPage.Calendar) Calendar.Refresh();
+
+        // Same: a suggestion produced a minute ago belongs on the list now.
+        if (Page == ShellPage.Todo) Todo.Refresh();
 
         // Checked on arrival rather than on a timer: the answers involve reading the disk and
         // starting a Python process, which is not something to do every minute in the background

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from vt_worker.engines.base import AsrEngine, EngineError, EngineInfo, EngineOptions
 from vt_worker.engines.cloud_engine import CloudWhisperEngine
+from vt_worker.engines.cloud_providers import DeepgramEngine, ElevenLabsEngine
 from vt_worker.engines.faster_whisper_engine import FasterWhisperEngine
 from vt_worker.engines.whispercpp_engine import WhisperCppEngine
 
@@ -15,6 +16,8 @@ _ENGINES: dict[str, type[AsrEngine]] = {
     FasterWhisperEngine.name: FasterWhisperEngine,
     WhisperCppEngine.name: WhisperCppEngine,
     CloudWhisperEngine.name: CloudWhisperEngine,
+    ElevenLabsEngine.name: ElevenLabsEngine,
+    DeepgramEngine.name: DeepgramEngine,
 }
 
 DEFAULT_ENGINE = FasterWhisperEngine.name

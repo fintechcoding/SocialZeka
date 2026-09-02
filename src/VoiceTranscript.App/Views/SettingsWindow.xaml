@@ -222,6 +222,29 @@
                             </Grid>
                         </Border>
 
+                        <!-- Off by default: WhatsApp's second-screen call window is titled
+                             "Voice call", and a binding learned on it filed every later call under
+                             one person. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="PersonQuestionMark24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.kisiyi-pencere-basligindan-kendiliginden-ata}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.kisiyi-pencere-basligindan-aciklama}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding AssignContactFromTitle}" />
+                            </Grid>
+                        </Border>
+
                         <Border Style="{StaticResource SettingCard}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -605,6 +628,41 @@
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
                             </StackPanel>
+                        </Border>
+
+                        <!-- The words the recogniser keeps getting wrong. "Sumsub" came out as
+                             "samsatta"; a term list is the cheapest fix and works for the hosted
+                             services too. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T settingswindow.sozluk}" FontSize="{StaticResource TextBody}" />
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,8" TextWrapping="Wrap"
+                                           Text="{loc:T settingswindow.sozluk-aciklama}" />
+                                <ui:TextBox Text="{Binding SpeechVocabulary, UpdateSourceTrigger=PropertyChanged}"
+                                            PlaceholderText="{loc:T settingswindow.sozluk-ornek}"
+                                            AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" MaxHeight="160"
+                                            VerticalScrollBarVisibility="Auto" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Translate24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.karisik-dil}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.karisik-dil-aciklama}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding MixedLanguage}" />
+                            </Grid>
                         </Border>
 
                         <!-- Hosted services -->

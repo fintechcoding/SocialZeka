@@ -172,12 +172,12 @@ class CloudWhisperEngine(AsrEngine):
         total_chunks: int,
     ) -> list[Segment]:
         # The model is part of the key: changing model must not reuse the old model's answers.
-        cache = os.path.join(workspace, f"{self._model}-{chunk.index}-{total_chunks}.json")
+        cache = os.path.join(workspace, f"{self.name}-{self._model}-{chunk.index}-{total_chunks}.json")
 
         if os.path.exists(cache):
             try:
                 with open(cache, encoding="utf-8") as handle:
-                    return _to_segments(json.load(handle), chunk.start_seconds)
+                    return self._to_segments(json.load(handle), chunk.start_seconds)
             except (OSError, json.JSONDecodeError):
                 os.unlink(cache)  # corrupt, fetch it again
 
@@ -206,7 +206,11 @@ class CloudWhisperEngine(AsrEngine):
                 except OSError:
                     pass
 
-        return _to_segments(payload, chunk.start_seconds)
+        return self._to_segments(payload, chunk.start_seconds)
+
+    def _to_segments(self, payload: dict, offset: float) -> list[Segment]:
+        """The provider's response, as segments on the call timeline. OpenAI's shape by default."""
+        return _to_segments(payload, offset)
 
     def _compress(self, wav_path: str, workspace: str, suffix: str = "") -> str:
         """Re-encode to Opus. Falls back to the original WAV if encoding is unavailable."""
@@ -266,6 +270,16 @@ class CloudWhisperEngine(AsrEngine):
                 "Opus kodlayıcı (PyAV) kurulu olmayabilir.",
             )
 
+        url, headers, body = self._build_request(path, options)
+        return self._send(url, headers, body)
+
+    def _build_request(self, path: str, options: EngineOptions) -> tuple[str, dict[str, str], bytes]:
+        """
+        One upload, in the OpenAI shape.
+
+        A separate step from sending so a provider with its own dialect — ElevenLabs, Deepgram —
+        only has to describe its request, and shares the retry, error and timeout handling.
+        """
         fields = {
             "model": self._model,
             "language": options.language,
@@ -275,6 +289,15 @@ class CloudWhisperEngine(AsrEngine):
             "timestamp_granularities[]": "word",
         }
 
+        # The user's vocabulary, in the field the OpenAI shape has for it. Product names and
+        # people are what a hosted model gets wrong in exactly the same way the local one does.
+        if options.initial_prompt:
+            fields["prompt"] = options.initial_prompt
+
+        # A mixed-language call: let the service detect rather than forcing Turkish on English words.
+        if options.multilingual:
+            fields.pop("language", None)
+
         body, content_type = _multipart(fields, Path(path))
 
         # Named in every error below. A real night of failures read "OpenAI: 404: Invalid URL" —
@@ -283,15 +306,10 @@ class CloudWhisperEngine(AsrEngine):
         # An error that names the endpoint answers that question the moment it appears.
         url = f"{self._base_url}/audio/transcriptions"
 
-        request = urllib.request.Request(
-            url,
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": content_type,
-            },
-        )
+        return url, {"Authorization": f"Bearer {self._api_key}", "Content-Type": content_type}, body
+
+    def _send(self, url: str, headers: dict[str, str], body: bytes) -> dict:
+        request = urllib.request.Request(url, data=body, method="POST", headers=headers)
 
         try:
             with urllib.request.urlopen(request, timeout=self._timeout) as response:
@@ -457,11 +475,13 @@ def _multipart(fields: dict[str, str], file_path: Path) -> tuple[bytes, str]:
     parts: list[bytes] = []
 
     for name, value in fields.items():
-        parts.append(
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
-            f"{value}\r\n".encode()
-        )
+        # A list is the same field repeated — how multipart carries "keyterms[]".
+        for one in (value if isinstance(value, (list, tuple)) else [value]):
+            parts.append(
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
+                f"{one}\r\n".encode()
+            )
 
     parts.append(
         f"--{boundary}\r\n"

@@ -29,6 +29,7 @@
         <KeyBinding Modifiers="Control" Key="D5" Command="{Binding NavigateCommand}" CommandParameter="Ask" />
         <KeyBinding Modifiers="Control" Key="D6" Command="{Binding NavigateCommand}" CommandParameter="Health" />
         <KeyBinding Modifiers="Control" Key="D7" Command="{Binding NavigateCommand}" CommandParameter="Calendar" />
+        <KeyBinding Modifiers="Control" Key="D8" Command="{Binding NavigateCommand}" CommandParameter="Todo" />
         <KeyBinding Modifiers="Control" Key="F" Command="{Binding NavigateCommand}" CommandParameter="Search" />
         <KeyBinding Key="F5" Command="{Binding RefreshAllCommand}" />
         <KeyBinding Modifiers="Control" Key="OemQuestion" Command="{Binding ShowShortcutsCommand}" />
@@ -228,6 +229,15 @@
                     </RadioButton>
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Todo}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="Todo">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="TaskListLtr24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T mainwindow.yapilacaklar}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
                                  IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Contacts}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Contacts">
                         <Grid>
@@ -400,6 +410,15 @@
                         </MultiBinding>
                     </views:CalendarPage.Visibility>
                 </views:CalendarPage>
+
+                <views:TodoPage Style="{StaticResource PageHost}" DataContext="{Binding Todo}">
+                    <views:TodoPage.Visibility>
+                        <MultiBinding Converter="{StaticResource PageVisibility}">
+                            <Binding Path="DataContext.Page" RelativeSource="{RelativeSource AncestorType=Window}" />
+                            <Binding Source="Todo" />
+                        </MultiBinding>
+                    </views:TodoPage.Visibility>
+                </views:TodoPage>
 
                 <views:ContactsPage Style="{StaticResource PageHost}" DataContext="{Binding Contacts}">
                     <views:ContactsPage.Visibility>

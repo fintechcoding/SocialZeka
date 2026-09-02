@@ -22,6 +22,10 @@ public partial class App : Application
     /// </summary>
     private static Mutex? _singleInstance;
 
+    /// <summary>Signalled by a second launch; the first instance answers by showing its window.</summary>
+    private static EventWaitHandle? _showSignal;
+    private const string ShowSignalName = @"Global\VoiceTranscript.Show";
+
     public static AppPaths Paths { get; private set; } = null!;
     public static Repository Repository { get; private set; } = null!;
     public static CallOrchestrator Orchestrator { get; private set; } = null!;
@@ -87,6 +91,49 @@ public partial class App : Application
         };
     }
 
+    /// <summary>
+    /// Waits, on a background thread, for a second launch to ask for the window.
+    ///
+    /// The handle is created before anything else so that a launch racing this one already finds
+    /// it. The thread is a background thread and never joined: it dies with the process.
+    /// </summary>
+    private void ListenForShowRequests()
+    {
+        try
+        {
+            _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignalName);
+        }
+        catch (Exception e) when (e is UnauthorizedAccessException or IOException)
+        {
+            // Without the handle a second launch falls back to its dialog. Not worth failing startup over.
+            Services.AppLog.Error("app", e, "ikinci açılış sinyali kurulamadı");
+            return;
+        }
+
+        var listener = new Thread(() =>
+        {
+            while (_showSignal is { } signal)
+            {
+                try
+                {
+                    signal.WaitOne();
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
+
+                Dispatcher.BeginInvoke(() => (MainWindow as MainWindow)?.BringToFront());
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "ikinci-acilis",
+        };
+
+        listener.Start();
+    }
+
     private static string VersionString() =>
         System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "?";
 
@@ -97,13 +144,26 @@ public partial class App : Application
         _singleInstance = new Mutex(initiallyOwned: true, @"Global\VoiceTranscript.SingleInstance", out var isFirst);
         if (!isFirst)
         {
-            MessageBox.Show(
-                "VoiceTranscript zaten çalışıyor. Simgesi görev çubuğunun bildirim alanında.",
-                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Information);
+            // A double-click on the desktop icon while the application sits in the tray means
+            // "show me the window", not "tell me it is running". The running instance is asked
+            // to come forward; the dialog is only for the case where it cannot be reached.
+            try
+            {
+                using var signal = EventWaitHandle.OpenExisting(ShowSignalName);
+                signal.Set();
+            }
+            catch (Exception ex) when (ex is WaitHandleCannotBeOpenedException or UnauthorizedAccessException or IOException)
+            {
+                MessageBox.Show(
+                    "VoiceTranscript zaten çalışıyor. Simgesi görev çubuğunun bildirim alanında.",
+                    "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
 
             Shutdown();
             return;
         }
+
+        ListenForShowRequests();
 
         // Follow whatever the user has chosen for Windows itself, including their accent
         // colour. An application that forces its own palette reads as a web page in a window

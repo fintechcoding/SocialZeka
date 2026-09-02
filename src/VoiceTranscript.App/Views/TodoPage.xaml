@@ -1,0 +1,144 @@
+<UserControl x:Class="VoiceTranscript.App.Views.TodoPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:TodoViewModel}">
+
+    <UserControl.Resources>
+        <!-- One row. The checkbox is the verb; the text is a way into the conversation. -->
+        <DataTemplate x:Key="TodoRow" DataType="{x:Type vm:TodoEntry}">
+            <Border Background="Transparent" CornerRadius="4" Padding="6,5" Margin="0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <CheckBox Grid.Column="0" IsChecked="{Binding IsDone, Mode=OneWay}" VerticalAlignment="Center"
+                              Margin="0,0,10,0"
+                              Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              CommandParameter="{Binding}" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TextBody}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding Text}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDone}" Value="True">
+                                            <Setter Property="TextDecorations" Value="Strikethrough" />
+                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsOverdue}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,1,0,0">
+                            <Run Text="{Binding Glyph, Mode=OneWay}" /><Run Text=" " /><Run Text="{Binding SourceText, Mode=OneWay}" /><Run Text=" " /><Run Text="{Binding ContactName, Mode=OneWay}" />
+                        </TextBlock>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="2" Text="{Binding DueText}" Style="{StaticResource Caption}"
+                               VerticalAlignment="Center" Margin="12,0,0,0" />
+
+                    <ui:Button Grid.Column="3" Appearance="Transparent" Padding="6,2" Margin="8,0,0,0"
+                               ToolTip="{loc:T todopage.gorusmeyi-ac}"
+                               Visibility="{Binding HasCall, Converter={StaticResource BoolToVisibility}}"
+                               Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                               CommandParameter="{Binding}">
+                        <ui:SymbolIcon Symbol="Open24" FontSize="14" />
+                    </ui:Button>
+
+                    <ui:Button Grid.Column="4" Appearance="Transparent" Padding="6,2" Margin="2,0,0,0"
+                               ToolTip="{loc:T todopage.sil}"
+                               Visibility="{Binding CanDelete, Converter={StaticResource BoolToVisibility}}"
+                               Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                               CommandParameter="{Binding}">
+                        <ui:SymbolIcon Symbol="Delete24" FontSize="14" />
+                    </ui:Button>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="24,4,24,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="{loc:T todopage.yapilacaklar}" Style="{StaticResource PageTitle}" />
+        <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitle}"
+                   Text="{loc:T todopage.aciklama}" />
+
+        <!-- Writing one down. Enter adds; the date is optional. -->
+        <Border Grid.Row="2" Style="{StaticResource SettingCard}" Margin="0,4,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ui:TextBox Grid.Column="0" Text="{Binding NewText, UpdateSourceTrigger=PropertyChanged}"
+                            PlaceholderText="{loc:T todopage.yeni-ornek}" VerticalAlignment="Center">
+                    <ui:TextBox.InputBindings>
+                        <KeyBinding Key="Return" Command="{Binding AddCommand}" />
+                    </ui:TextBox.InputBindings>
+                </ui:TextBox>
+
+                <DatePicker Grid.Column="1" SelectedDate="{Binding NewDue}" Margin="10,0,0,0" MinWidth="140"
+                            VerticalAlignment="Center" />
+
+                <ui:Button Grid.Column="2" Content="{loc:T todopage.ekle}" Appearance="Primary" Margin="10,0,0,0"
+                           Command="{Binding AddCommand}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="{loc:T todopage.bos}" Style="{StaticResource Caption}" Margin="4,8"
+                           Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+
+                <StackPanel Visibility="{Binding HasOverdue, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{loc:T todopage.gecikmis}" Style="{StaticResource GroupHeader}" Margin="4,0,0,4"
+                               Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                    <ItemsControl ItemsSource="{Binding Overdue}" ItemTemplate="{StaticResource TodoRow}" Margin="0,0,0,12" />
+                </StackPanel>
+
+                <StackPanel Visibility="{Binding HasToday, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{loc:T todopage.bugun}" Style="{StaticResource GroupHeader}" Margin="4,0,0,4" />
+                    <ItemsControl ItemsSource="{Binding Today}" ItemTemplate="{StaticResource TodoRow}" Margin="0,0,0,12" />
+                </StackPanel>
+
+                <StackPanel Visibility="{Binding HasUpcoming, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{loc:T todopage.yaklasan}" Style="{StaticResource GroupHeader}" Margin="4,0,0,4" />
+                    <ItemsControl ItemsSource="{Binding Upcoming}" ItemTemplate="{StaticResource TodoRow}" Margin="0,0,0,12" />
+                </StackPanel>
+
+                <StackPanel Visibility="{Binding HasUndated, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{loc:T todopage.tarihsiz}" Style="{StaticResource GroupHeader}" Margin="4,0,0,4" />
+                    <ItemsControl ItemsSource="{Binding Undated}" ItemTemplate="{StaticResource TodoRow}" Margin="0,0,0,12" />
+                </StackPanel>
+
+                <CheckBox Content="{loc:T todopage.bitenleri-goster}" IsChecked="{Binding ShowDone}" Margin="4,8,0,4" />
+
+                <ItemsControl ItemsSource="{Binding Done}" ItemTemplate="{StaticResource TodoRow}"
+                              Visibility="{Binding HasDone, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

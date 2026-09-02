@@ -30,7 +30,8 @@ public sealed record CallFinished(
     CallApp App,
     bool NeedsLabel,
     string AudioSummary,
-    bool HasSilentStream);
+    bool HasSilentStream,
+    long? SuggestedContactId = null);
 
 /// <summary>
 /// A recording has been through transcription and analysis, for better or worse.
@@ -281,6 +282,22 @@ public sealed class CallOrchestrator : IDisposable
     /// <summary>The last detector state written to the log, so each transition is written once.</summary>
     private CallState _lastLoggedState = CallState.Idle;
 
+    /// <summary>
+    /// Calls whose audio somebody is reading or rewriting right now.
+    ///
+    /// The processor holds a call's entry for the whole job; the compressor holds it while it
+    /// replaces the files. Without this, the startup backlog could delete a WAV in the seconds
+    /// between the processor reading the row and the worker opening the file — a re-transcription
+    /// that then failed with "file not found" for a recording that was, in fact, fine.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, byte> _audioBusy = new();
+
+    /// <summary>1 while the compression backlog thread is running. Two would race each other.</summary>
+    private int _backlogRunning;
+
+    /// <summary>When the last "sessions present but idle" snapshot was written.</summary>
+    private DateTimeOffset _lastIdleSnapshot = DateTimeOffset.MinValue;
+
     private void Tick()
     {
         var settings = _settings();
@@ -311,6 +328,22 @@ public sealed class CallOrchestrator : IDisposable
                 $"{_detector.State} (hoparlör={sample.Rendering}, mikrofon={sample.Capturing}, " +
                 $"uygulama={sample.AppWindowPresent}, arama penceresi={sample.CallWindowPresent}, " +
                 $"isim={(sample.WindowTitle is null ? "yok" : "var")})");
+        }
+
+        // The line a missed call is diagnosed from. A transition that never happens leaves no
+        // transition line, so while a messenger is making or taking sound and the detector still
+        // says Idle, the flags are written every fifteen seconds: which of the four signals is
+        // missing is the whole question. Never the title.
+        if (settings.VerboseLog
+            && _detector.State == CallState.Idle
+            && (sample.Rendering || sample.Capturing || sample.CallWindowPresent)
+            && DateTimeOffset.Now - _lastIdleSnapshot > TimeSpan.FromSeconds(15))
+        {
+            _lastIdleSnapshot = DateTimeOffset.Now;
+
+            AppLog.Write("tespit",
+                $"boşta, ama {sample.App} ses veriyor (hoparlör={sample.Rendering}, mikrofon={sample.Capturing}, " +
+                $"uygulama={sample.AppWindowPresent}, arama penceresi={sample.CallWindowPresent}, güven={sample.TitleTrust})");
         }
 
         var callEvent = _detector.Observe(sample);
@@ -388,6 +421,12 @@ public sealed class CallOrchestrator : IDisposable
                 _currentJob = job;
                 _currentJobCallId = callId;
 
+                // Wait for the compressor to let go of this call's files, if it has them. Rare —
+                // the backlog skips queued calls — and short, and the alternative is reading a
+                // file that is about to be deleted.
+                while (!_audioBusy.TryAdd(callId, 0))
+                    await Task.Delay(500, cancellationToken);
+
                 try
                 {
                     await ProcessAsync(callId, _settings(), job.Token);
@@ -410,6 +449,7 @@ public sealed class CallOrchestrator : IDisposable
                 finally
                 {
                     _currentJob = null;
+                    _audioBusy.TryRemove(callId, out _);
                 }
             }
         }
@@ -722,7 +762,11 @@ public sealed class CallOrchestrator : IDisposable
 
             // The contact may already be known from a title seen on an earlier call, in which
             // case the user is never asked again.
-            var contactId = _repository.ResolveTitle(callEvent.WindowTitle, callEvent.App);
+            // Only when the user has asked for it. Otherwise the title is kept on the row for the
+            // suggestion at the end, and the row starts with no contact.
+            var contactId = settings.AssignContactFromTitle
+                ? _repository.ResolveTitle(callEvent.WindowTitle, callEvent.App)
+                : null;
 
             _currentCallId = _repository.InsertCall(new Call
             {
@@ -898,14 +942,21 @@ public sealed class CallOrchestrator : IDisposable
 
             _repository.SetCallState(callId, ProcessingState.Queued);
 
+            // Asked after every call unless the user chose automatic filing. The title seen when
+            // the call started is what a binding can be looked up by; the Ended sample usually
+            // has no window left to read. A recognised name arrives as the prefilled answer.
+            var finished = _repository.GetCall(callId);
+            var observedTitle = finished?.ObservedTitle ?? callEvent.WindowTitle;
+
             RaiseCallFinished(new CallFinished(
                 callId,
                 result.Duration,
-                callEvent.WindowTitle,
+                observedTitle,
                 callEvent.App,
-                NeedsLabel: _repository.GetCall(callId)?.ContactId is null,
+                NeedsLabel: !settings.AssignContactFromTitle || finished?.ContactId is null,
                 AudioSummary: result.AudioSummary,
-                HasSilentStream: result.HasSilentStream));
+                HasSilentStream: result.HasSilentStream,
+                SuggestedContactId: finished?.ContactId ?? _repository.ResolveTitle(observedTitle, callEvent.App)));
 
             Enqueue(callId);
         }
@@ -1083,7 +1134,7 @@ public sealed class CallOrchestrator : IDisposable
             // With the words safely out of the audio and into the archive, the dead air can go —
             // and then the rest can shrink.
             if (settings.TrimSilenceAfterProcessing) TrimSilence(callId);
-            if (settings.CompressAudioAfterProcessing) CompressAudio(callId);
+            if (settings.CompressAudioAfterProcessing) CompressAudio(callId, gateHeld: true);
 
             if (settings.ExportToObsidian && !string.IsNullOrWhiteSpace(settings.ObsidianVaultPath))
                 Export(callId, settings);
@@ -1281,13 +1332,18 @@ public sealed class CallOrchestrator : IDisposable
                 return await _worker().TranscribeAsync(new TranscriptionRequest
                 {
                     Id = $"call-{call.Id}",
-                    Engine = EngineNameFor(model),
+                    // The service's own dialect, not the model's engine kind: the same cloud
+                    // model entry is served by whichever endpoint answers.
+                    Engine = endpoint.Provider.WorkerEngine,
                     ModelRef = endpoint.ToModelRef(),
                     Device = settings.AsrDevice,
                     Language = settings.Language,
                     // The worker reads PCM; a compressed archive is expanded into the cache first.
                     MicPath = AudioMaterialiser.EnsurePcm(call.MicPath),
                     FarPath = AudioMaterialiser.EnsurePcm(call.FarPath),
+                    Hotwords = settings.VocabularyTerms(),
+                    InitialPrompt = settings.VocabularyPrompt(),
+                    Multilingual = settings.MixedLanguage,
                     CacheDir = _paths.Models,
                 }, progress: new Progress<Core.Asr.WorkerProgress>(p =>
                 {
@@ -1337,12 +1393,24 @@ public sealed class CallOrchestrator : IDisposable
     /// either the original or a verified replacement, never neither. The two streams are never
     /// mixed: the separation is what makes speaker attribution a fact, and it survives.
     /// </summary>
-    private void CompressAudio(long callId)
+    private void CompressAudio(long callId, bool gateHeld = false)
     {
+        // Somebody else has the files: the processor, or another compressor. Not now.
+        if (!gateHeld && !_audioBusy.TryAdd(callId, 0)) return;
+
         try
         {
             var call = _repository.GetCall(callId);
             if (call is null) return;
+
+            // Re-read under the gate. The backlog's list was taken minutes ago; a call re-queued
+            // since then is the processor's, and it will compress it itself when it is done.
+            if (!gateHeld && (call.State is ProcessingState.Recorded or ProcessingState.Queued
+                                  or ProcessingState.Transcribing or ProcessingState.Analysing
+                              || _inQueue.ContainsKey(callId)))
+            {
+                return;
+            }
 
             long before = 0, after = 0;
             var mic = CompressStream(call.MicPath, ref before, ref after);
@@ -1369,12 +1437,21 @@ public sealed class CallOrchestrator : IDisposable
             // points at it. Worth a line, not a notice.
             AppLog.Error("veri", e, $"görüşme #{callId} sıkıştırılamadı");
         }
+        finally
+        {
+            if (!gateHeld) _audioBusy.TryRemove(callId, out _);
+        }
     }
 
     /// <summary>One stream. Returns the path the row should hold afterwards.</summary>
     private static string? CompressStream(string? wavPath, ref long before, ref long after)
     {
-        if (wavPath is null || AudioMaterialiser.IsCompressed(wavPath) || !File.Exists(wavPath)) return wavPath;
+        if (wavPath is null || AudioMaterialiser.IsCompressed(wavPath)) return wavPath;
+
+        // A PCM path with no file behind it is not something to carry on past: the row would be
+        // left pointing at nothing while the other stream was rewritten. Said as an error.
+        if (!File.Exists(wavPath))
+            throw new FileNotFoundException("Sıkıştırılacak kayıt dosyası yerinde değil.", wavPath);
 
         var oggPath = OpusArchive.CompressedPathFor(wavPath);
         var frames = OpusArchive.Encode(wavPath, oggPath);
@@ -1408,6 +1485,10 @@ public sealed class CallOrchestrator : IDisposable
     {
         if (!_settings().CompressAudioAfterProcessing) return;
 
+        // ProcessBacklogAsync is also what "retry the failed ones" calls, mid-session. A second
+        // thread over the same list would encode the same file twice and trip over the first.
+        if (Interlocked.CompareExchange(ref _backlogRunning, 1, 0) != 0) return;
+
         var thread = new Thread(() =>
         {
             try
@@ -1431,6 +1512,10 @@ public sealed class CallOrchestrator : IDisposable
             catch (Exception e)
             {
                 AppLog.Error("veri", e, "sıkıştırma birikimi yarıda kaldı");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _backlogRunning, 0);
             }
         })
         {
@@ -1590,6 +1675,9 @@ public sealed class CallOrchestrator : IDisposable
                     // The worker reads PCM; a compressed archive is expanded into the cache first.
                     MicPath = AudioMaterialiser.EnsurePcm(call.MicPath),
                     FarPath = AudioMaterialiser.EnsurePcm(call.FarPath),
+                    Hotwords = settings.VocabularyTerms(),
+                    InitialPrompt = settings.VocabularyPrompt(),
+                    Multilingual = settings.MixedLanguage,
                     CacheDir = _paths.Models,
                 }, progress: new Progress<Core.Asr.WorkerProgress>(p =>
                 {

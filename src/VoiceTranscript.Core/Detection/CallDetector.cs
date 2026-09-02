@@ -114,6 +114,17 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
 
     private int _renderStreak;
     private int _captureStreak;
+
+    /// <summary>
+    /// Samples with the speaker active since the microphone opened — counted, not consecutive.
+    ///
+    /// Telegram's ringback and some headsets make the render session flicker: active, inactive,
+    /// active, one second apart. The consecutive streak then never reaches the ring threshold,
+    /// and a call the microphone has been open for the whole time is never noticed. Counting
+    /// speaker activity across the capture streak asks the same question — "is sound going both
+    /// ways?" — without demanding that the speaker never blink.
+    /// </summary>
+    private int _renderWhileCapturing;
     private DateTimeOffset? _quietSince;
     private DateTimeOffset? _callStartedAt;
     private DateTimeOffset? _ringingSince;
@@ -143,6 +154,7 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
     {
         _renderStreak = sample.Rendering ? _renderStreak + 1 : 0;
         _captureStreak = sample.Capturing ? _captureStreak + 1 : 0;
+        _renderWhileCapturing = sample.Capturing ? _renderWhileCapturing + (sample.Rendering ? 1 : 0) : 0;
 
         // Which application is on the call is decided by audio, never by a window.
         //
@@ -219,6 +231,12 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
         // Audio is the honest signal, and it is the one this class was written around: a process
         // holding a render session is playing something, and after two consecutive samples that
         // something is a ringtone rather than a notification.
+        // Microphone open long enough to be a call, speaker heard at least as often as a ring
+        // would need — a call, whatever the ring looked like. A voice note being recorded while
+        // one notification plays does not get here: that is one speaker sample, not two.
+        if (_captureStreak >= _options.SamplesToAnswer && _renderWhileCapturing >= _options.SamplesToRing)
+            return EnterCall(sample.At, sample, CallDirection.Unknown);
+
         if (_renderStreak < _options.SamplesToRing) return null;
 
         State = CallState.Ringing;
@@ -239,8 +257,11 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
 
     private CallEvent? FromRinging(DetectionSample sample)
     {
-        if (_renderStreak >= 1 && _captureStreak >= _options.SamplesToAnswer)
+        if (_captureStreak >= _options.SamplesToAnswer
+            && (_renderStreak >= 1 || _renderWhileCapturing >= _options.SamplesToRing))
+        {
             return EnterCall(sample.At, sample, _ringDirection);
+        }
 
         // Declined, missed, or cancelled: it never became a conversation.
         //
@@ -348,6 +369,7 @@ public sealed class CallDetector(CallDetectorOptions? options = null)
         State = CallState.Idle;
         _renderStreak = 0;
         _captureStreak = 0;
+        _renderWhileCapturing = 0;
         _quietSince = null;
         _callStartedAt = null;
         _ringingSince = null;

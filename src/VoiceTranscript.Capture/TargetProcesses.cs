@@ -35,6 +35,10 @@ public sealed class TargetProcesses
     [
         ("5319275A.WhatsAppDesktop_cv1g1gvanyjgm", CallApp.WhatsApp),
         ("TelegramMessengerLLP.TelegramDesktop_t4vj0pshhgkwm", CallApp.Telegram),
+
+        // "Telegram" from the Microsoft Store is frequently Unigram — a different code base with
+        // the same calls, published under this family. Its executable has carried both names.
+        ("38833FF26BA1D.UnigramPreview_g9c9v27vpyspw", CallApp.Telegram),
     ];
 
     private static readonly string[] WhatsAppExecutables = ["WhatsApp.Root.exe", "WhatsApp.exe"];
@@ -46,7 +50,7 @@ public sealed class TargetProcesses
     /// that only knows the official binary records nothing for them without ever saying so.
     /// </summary>
     private static readonly string[] TelegramExecutables =
-        ["Telegram.exe", "AyuGram.exe", "64Gram.exe", "Kotatogram.exe"];
+        ["Telegram.exe", "AyuGram.exe", "64Gram.exe", "Kotatogram.exe", "Unigram.exe"];
 
     /// <summary>
     /// Signal Desktop.

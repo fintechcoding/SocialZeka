@@ -1,3 +1,4 @@
+using System.Globalization;
 using Concentus;
 using Concentus.Enums;
 using Concentus.Oggfile;
@@ -28,6 +29,18 @@ public static class OpusArchive
     /// <summary>Bits per second. VBR, so quiet stretches cost almost nothing.</summary>
     private const int Bitrate = 24_000;
 
+    // Written into the Ogg comment header so the decoder can put the audio back on the
+    // original clock.
+    //
+    // Measured, not assumed: Concentus.Oggfile writes pre-skip 0 into OpusHead, so a plain
+    // decode hands out the encoder's lookahead (104 samples at 16 kHz) as audio and the whole
+    // stream sits 6.5 ms late, with up to one codec frame of padding on the end. Every stored
+    // timestamp was made from the PCM original; the decoded copy has to agree with them to the
+    // sample, so the lookahead is recorded here and dropped on the way out, and the original
+    // length is recorded and honoured.
+    private const string PreSkipTag = "VT_PRESKIP";
+    private const string FramesTag = "VT_FRAMES";
+
     public static bool IsCompressed(string? path) =>
         path is not null && path.EndsWith(Extension, StringComparison.OrdinalIgnoreCase);
 
@@ -57,6 +70,8 @@ public static class OpusArchive
 
             var tags = new OpusTags();
             tags.Fields["ENCODER"] = "VoiceTranscript";
+            tags.Fields[PreSkipTag] = encoder.Lookahead.ToString(CultureInfo.InvariantCulture);
+            tags.Fields[FramesTag] = reader.Frames.ToString(CultureInfo.InvariantCulture);
 
             long frames = 0;
 
@@ -132,19 +147,73 @@ public static class OpusArchive
         var ogg = new OpusOggReadStream(decoder, input);
 
         long frames = 0;
+        long skip = 0;
+        long? limit = null;
+        var tagsRead = false;
 
         while (ogg.HasNextPacket)
         {
             var packet = ogg.DecodeNextPacket();
+
+            // The comment header is parsed with the first page; a file written before the tags
+            // existed simply decodes the way it always did.
+            if (!tagsRead)
+            {
+                tagsRead = true;
+                (skip, limit) = ReadClock(ogg.Tags);
+            }
+
             if (packet is null || packet.Length == 0) continue;
 
-            frames += packet.Length;
-            sink?.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(packet.AsSpan()));
+            var span = packet.AsSpan();
+
+            if (skip > 0)
+            {
+                var drop = (int)Math.Min(skip, span.Length);
+                span = span[drop..];
+                skip -= drop;
+            }
+
+            if (limit is { } total)
+            {
+                var room = total - frames;
+                if (room <= 0) break;
+                if (span.Length > room) span = span[..(int)room];
+            }
+
+            if (span.IsEmpty) continue;
+
+            frames += span.Length;
+            sink?.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(span));
         }
 
         if (frames == 0 && ogg.LastError is { Length: > 0 } error)
             throw new InvalidDataException($"Opus çözülemedi: {error}");
 
         return frames;
+    }
+
+    private static (long Skip, long? Frames) ReadClock(OpusTags? tags)
+    {
+        if (tags?.Fields is not { } fields) return (0, null);
+
+        long skip = 0;
+        long? frames = null;
+
+        if (fields.TryGetValue(PreSkipTag, out var rawSkip)
+            && long.TryParse(rawSkip, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSkip)
+            && parsedSkip >= 0)
+        {
+            skip = parsedSkip;
+        }
+
+        if (fields.TryGetValue(FramesTag, out var rawFrames)
+            && long.TryParse(rawFrames, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedFrames)
+            && parsedFrames > 0)
+        {
+            frames = parsedFrames;
+        }
+
+        return (skip, frames);
     }
 }

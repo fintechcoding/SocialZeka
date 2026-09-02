@@ -23,6 +23,9 @@ public static class AudioMaterialiser
     /// <summary>How much decoded audio the cache may hold before the oldest is dropped.</summary>
     public static long CacheCapBytes { get; set; } = 2L * 1024 * 1024 * 1024;
 
+    /// <summary>How long a freshly decoded copy is exempt from eviction.</summary>
+    public static TimeSpan RecentGrace { get; set; } = TimeSpan.FromHours(3);
+
     /// <summary>Whether reading this path means decoding first.</summary>
     public static bool IsCompressed(string? path) => OpusArchive.IsCompressed(path);
 
@@ -85,9 +88,22 @@ public static class AudioMaterialiser
             var files = new DirectoryInfo(directory).GetFiles("*.wav").OrderBy(f => f.LastWriteTimeUtc).ToList();
             var total = files.Sum(f => f.Length);
 
+            // A decoded copy younger than this is assumed to be in use. The worker reads the far
+            // stream only when it is done with the mic stream, which on a processor can be an
+            // hour later, and it holds no handle in between — so "not open" is not "not needed".
+            var keepSince = DateTime.UtcNow - RecentGrace;
+
+            // Workspaces a failed cloud attempt left behind go with their audio once they are old.
+            foreach (var stale in new DirectoryInfo(directory).GetDirectories("*.cloudparts"))
+            {
+                if (stale.LastWriteTimeUtc < DateTime.UtcNow - TimeSpan.FromDays(7))
+                    try { stale.Delete(recursive: true); } catch (IOException) { }
+            }
+
             foreach (var file in files)
             {
                 if (total <= CacheCapBytes) break;
+                if (file.LastWriteTimeUtc >= keepSince) continue;
 
                 try
                 {

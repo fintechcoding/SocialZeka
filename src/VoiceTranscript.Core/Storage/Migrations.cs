@@ -149,5 +149,23 @@ public static class Migrations
                        HAVING COUNT(DISTINCT contact_id) > 1);
                 """,
             ]),
+
+        // The to-do page: the user's own list, beside the suggestions and reminders the
+        // application already keeps.
+        new(9, "Yapılacaklar tablosu",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS todo (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    text       TEXT    NOT NULL,
+                    due_date   TEXT,
+                    done_at    TEXT,
+                    contact_id INTEGER REFERENCES contact(id) ON DELETE SET NULL,
+                    call_id    INTEGER REFERENCES call(id) ON DELETE SET NULL,
+                    created_at TEXT    NOT NULL
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS ix_todo_open ON todo(done_at, due_date);",
+            ]),
     ];
 }

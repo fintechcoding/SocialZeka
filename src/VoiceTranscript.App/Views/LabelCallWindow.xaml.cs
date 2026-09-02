@@ -40,7 +40,8 @@ public partial class LabelCallWindow
         string? observedTitle,
         CallApp app,
         string audioSummary,
-        bool hasSilentStream)
+        bool hasSilentStream,
+        long? suggestedContactId = null)
     {
         InitializeComponent();
         Services.EscapeCloses.Attach(this);
@@ -59,9 +60,18 @@ public partial class LabelCallWindow
         RecentList.ItemsSource = repository.RecentContacts();
 
         // Telegram gives the name for free; pre-filling it turns this into a confirmation.
-        if (!string.IsNullOrWhiteSpace(observedTitle)) NameBox.Text = observedTitle;
+        // The prefilled answer: a contact recognised from the title, else the title itself when
+        // it looks like a name. "Voice call" is offered as neither — typing over a wrong guess is
+        // work, and accepting one by reflex is how two people's histories merge.
+        var suggested = suggestedContactId is { } id ? repository.GetContact(id) : null;
+
+        if (suggested is not null)
+            NameBox.Text = suggested.Name;
+        else if (!string.IsNullOrWhiteSpace(observedTitle) && !Core.Detection.GenericTitles.IsGeneric(observedTitle))
+            NameBox.Text = observedTitle;
 
         NameBox.Focus();
+        NameBox.SelectAll();
     }
 
     public LabelOutcome Outcome { get; private set; } = LabelOutcome.Postponed;

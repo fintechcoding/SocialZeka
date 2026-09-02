@@ -153,6 +153,47 @@ public class CallPersistenceTests : IDisposable
     }
 
     /// <summary>
+    /// With automatic filing off — the default — every finished call asks who it was with, even
+    /// when nothing else is known about it. The question is the product's honesty about names.
+    /// </summary>
+    [Fact]
+    public async Task EveryFinishedCallAsksWhoItWasWith()
+    {
+        var mic = WriteWav("mic-ask.wav", 8);
+        var far = WriteWav("far-ask.wav", 8);
+
+        FileAudioSource? source = null;
+        var settings = new AppSettings
+        {
+            AnalyseAutomatically = false, ExportToObsidian = false, ExportToNotion = false,
+            GpuCooldownSeconds = 0, AssignContactFromTitle = false,
+        };
+
+        var worker = new PythonWorkerHost(new PythonWorkerOptions
+        {
+            PythonExecutable = "python", WorkerDirectory = _root,
+            ModelCacheDirectory = _paths.Models, Timeout = TimeSpan.FromSeconds(2),
+        });
+
+        using var http = new HttpClient();
+        using var orchestrator = new CallOrchestrator(
+            _paths, _repository, () => settings, () => worker, http,
+            _ => source = new FileAudioSource(mic, far));
+
+        CallFinished? finished = null;
+        orchestrator.CallFinished += (_, f) => finished = f;
+
+        await orchestrator.StartManualRecordingAsync();
+        Assert.NotNull(source);
+        source!.Replay(TimeSpan.FromSeconds(30));
+        await orchestrator.StopManualRecordingAsync();
+
+        Assert.NotNull(finished);
+        Assert.True(finished!.NeedsLabel);
+        Assert.Null(finished.SuggestedContactId);
+    }
+
+    /// <summary>
     /// A hand-started recording survives whatever the call detector thinks is happening.
     ///
     /// The detector watches WhatsApp and Telegram audio sessions and knows nothing about the

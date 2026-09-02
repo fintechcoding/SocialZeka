@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 8;
+    public const int Version = 9;
 
     public static readonly string[] Statements =
     [
@@ -508,5 +508,20 @@ public static class Schema
         """,
         "CREATE INDEX IF NOT EXISTS ix_board_lane ON board_card(lane, position);",
         "CREATE INDEX IF NOT EXISTS ix_board_remind ON board_card(remind_on);",
+
+        // What the user wrote down to do. ON DELETE SET NULL on both pointers: a note outlives
+        // the conversation or the person it was about — it is the user's, not theirs.
+        """
+        CREATE TABLE IF NOT EXISTS todo (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            text       TEXT    NOT NULL,
+            due_date   TEXT,
+            done_at    TEXT,
+            contact_id INTEGER REFERENCES contact(id) ON DELETE SET NULL,
+            call_id    INTEGER REFERENCES call(id) ON DELETE SET NULL,
+            created_at TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_todo_open ON todo(done_at, due_date);",
     ];
 }

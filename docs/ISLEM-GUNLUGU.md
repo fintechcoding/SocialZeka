@@ -917,3 +917,43 @@ tıklama gecikmesi.
 `main @ 76f1966`. `dist/VoiceTranscript-Setup-2.1.6-beta2-win-x64.exe`, SHA-256 `5ae230a272d575365880c535c15e997809cb8d1e200dd7dc8bcf223a399002a2`.
 İlk açılışta eski WAV'lar arka planda sıkıştırılmaya başlar; günlükte "sıkıştırma birikimi" satırı
 ve görüşme başına "sıkıştırıldı: … MB → … MB" görülür.
+
+## 2026-09-02 (üçüncü tur) — Notion listesi, ElevenLabs, yapılacaklar, Telegram tespiti, Opus denetimi
+
+Kullanıcı Notion'daki sorun listesini yapıştırdı; aynı sırada "Telegram'da görüşme yakalanmadı" dedi
+ve "bu yaptıkların speech-to-text'i bozmaz, değil mi?" diye sordu. Üç ajan denetimi başlatıldı;
+oturum limiti yüzünden yalnızca ElevenLabs araştırması ve Opus denetiminin bulucuları tamamlandı,
+hakemler ve Telegram bulucuları düştü. Kalan iş elle yapıldı.
+
+**Speech-to-text bozulmadı mı?** İlk yazıya dökme her zaman sıkıştırılmamış PCM'i okur; sıkıştırma
+döküm ve çözümleme bitip sessizlik kırpıldıktan sonra çalışır. Bulucuların bulduğu gerçek riskler
+yarış durumlarıydı, hepsi kapatıldı: görüşme başına ses kilidi (`_audioBusy`), tek birikim iş
+parçacığı, önbellek süpürmesinde üç saatlik taze-dosya koruması, saklama süpürmesinde durum
+koruması. Deney (OpusAlignmentTests) Concentus'un pre-skip yazmadığını ölçtü: çözülen ses 104
+örnek (6,5 ms) geçti, bir çerçeve dolguluydu. Lookahead ve örnek sayısı Ogg etiketine yazılıp
+çözerken düşülüyor; artık örnek örneğine aynı saat.
+
+**Notion maddeleri.** Başlıktan kişi atama varsayılan kapalı, her görüşmeden sonra sorulur, genel
+başlıklar ("Voice call") hiç bağlanmaz · çift tıklama tepsideki pencereyi öne getirir · Sözlük
+(hotwords + initial_prompt + bulut prompt/keyterm/keywords) ve Karışık dil anahtarı · worker
+BelowNormal, işlemcide iki çekirdek boş · Yapılacaklar sayfası (todo tablosu, göç v9; öneriler ve
+hatırlatmalarla tek liste, Ctrl+8) · Opus arşivi (önceki tur).
+
+**ElevenLabs neden hata verdi.** Katalog onu OpenAI biçimli sayıyordu; worker
+`/audio/transcriptions`'a Bearer ile gidiyor, servis 404 döndürüyordu — sınama ise model listesini
+okuyup yeşil gösteriyordu. Kendi motoru yazıldı (`cloud-elevenlabs`: `/speech-to-text`,
+`xi-api-key`, `model_id`, `language_code`, kelime listesi → segment), varsayılan `scribe_v2`.
+Deepgram için de (`cloud-deepgram`: ham gövde, `Token`, `/listen`, `keywords`/`keyterm`).
+Katalog motoru adlandırıyor (`WorkerEngine`), orkestratör soruyor.
+
+**Telegram.** Kod okumasında süreç eşleme (Telegram.exe + Store paketi) ve bütün uç noktaların
+taranması sağlam. En olası kaçırma: hoparlör oturumunun kesik kesik gelmesi — ardışık iki örnek
+hiç oluşmuyor, mikrofon açık kalıyor, dedektör boşta kalıyor. Dedektör artık mikrofon üç örnek
+açık ve hoparlör (ardışık olmasa da) iki kez duyulmuşsa aramayı başlatıyor; tek bildirimli sesli
+mesaj yine arama değil. Unigram eklendi. Ayrıntılı günlükte "boşta ama ses veriyor" satırı on beş
+saniyede bir dört sinyali yazıyor: bir sonraki kaçırma günlükten okunur.
+
+**807 test, 0 hata** (15 yeni) + 68 Python (11 yeni).
+
+Bu makinede doğrulanamayan: gerçek ElevenLabs/Deepgram yüklemesi (anahtar yok; istek biçimi
+belgeye ve canlı 404/401 sondasına göre), Telegram'ın gerçek oturum davranışı (günlük gerekli).

@@ -60,6 +60,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         _recordTelegram = settings.RecordTelegram;
         _recordSignal = settings.RecordSignal;
         _recordAutomatically = settings.RecordAutomatically;
+        _assignContactFromTitle = settings.AssignContactFromTitle;
+        _speechVocabulary = settings.SpeechVocabulary;
+        _mixedLanguage = settings.MixedLanguage;
         _uiLanguage = UiLanguages.FirstOrDefault(l => l.Code == settings.UiLanguage) ?? UiLanguages[0];
         _showRecordingBar = settings.ShowRecordingBar;
         _verboseLog = settings.VerboseLog;
@@ -375,6 +378,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// default at all, which is a different decision made at a different time.
     /// </summary>
     [ObservableProperty] private bool _recordAutomatically = true;
+    [ObservableProperty] private bool _assignContactFromTitle;
+    [ObservableProperty] private string _speechVocabulary = "";
+    [ObservableProperty] private bool _mixedLanguage;
 
     /// <summary>Whether a strip appears at the top of the screen while recording.</summary>
     [ObservableProperty] private bool _showRecordingBar = true;
@@ -666,6 +672,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         RecordTelegram = RecordTelegram,
         RecordSignal = RecordSignal,
         RecordAutomatically = RecordAutomatically,
+        AssignContactFromTitle = AssignContactFromTitle,
+        SpeechVocabulary = SpeechVocabulary.Trim(),
+        MixedLanguage = MixedLanguage,
         ShowRecordingBar = ShowRecordingBar,
         VerboseLog = VerboseLog,
         StartWithWindows = StartWithWindows,

@@ -49,6 +49,13 @@ public sealed record SttProviderInfo
     /// </summary>
     public bool OpenAiCompatible { get; init; } = true;
 
+    /// <summary>
+    /// The worker engine that speaks this service's dialect. OpenAI's shape is the default;
+    /// ElevenLabs and Deepgram have their own, and sending them the OpenAI request was a 404
+    /// on every upload while the connection test stayed green.
+    /// </summary>
+    public string WorkerEngine { get; init; } = "cloud-openai";
+
     /// <summary>Where to get a key. Shown as a link, because that is the actual next step.</summary>
     public string? SignupUrl { get; init; }
 }
@@ -129,8 +136,10 @@ public static class SttProviderCatalog
             Kind = "elevenlabs",
             DisplayName = "ElevenLabs Scribe",
             BaseUrl = "https://api.elevenlabs.io/v1",
-            DefaultModel = "scribe_v1",
-            Models = ["scribe_v1"],
+            // scribe_v1 was deprecated in June 2026; v2 is the current model.
+            DefaultModel = "scribe_v2",
+            Models = ["scribe_v2", "scribe_v1"],
+            WorkerEngine = "cloud-elevenlabs",
             Summary =
                 "Türkçede iddialı bir model. Karakter kotası üzerinden çalışır ve kalan kotayı " +
                 "API'den bildirir, böylece bitmeden görebilirsin.",
@@ -145,10 +154,10 @@ public static class SttProviderCatalog
             DefaultModel = "nova-2",
             Models = ["nova-2", "nova-3"],
             Summary =
-                "Kalan bakiyeyi para birimiyle bildiren tek sağlayıcı. İstek biçimi OpenAI'den " +
-                "farklı olduğu için yükleme bu sürümde desteklenmiyor; yalnızca bakiye izlenir.",
+                "Kalan bakiyeyi para birimiyle bildiren tek sağlayıcı. Türkçe için nova-2; " +
+                "sözlükteki terimler anahtar kelime olarak iletilir.",
             Balance = BalanceProbe.DeepgramBalance,
-            OpenAiCompatible = false,
+            WorkerEngine = "cloud-deepgram",
             SignupUrl = "https://console.deepgram.com/",
         },
         new()

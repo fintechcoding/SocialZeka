@@ -54,6 +54,47 @@ public class CallDetectorTests
     [Fact]
     public void StartsIdle() => Assert.Equal(CallState.Idle, new CallDetector().State);
 
+    /// <summary>
+    /// A Telegram call whose speaker session blinks — active, inactive, active — while the
+    /// microphone stays open. The consecutive ring streak never forms; the call is still a call.
+    /// </summary>
+    [Fact]
+    public void ACallWhoseSpeakerSessionFlickersIsStillAnswered()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+        var events = new List<CallEvent>();
+
+        for (var i = 0; i < 6; i++)
+        {
+            var e = detector.Observe(Sample(clock.Next(), render: i % 2 == 0, capture: true));
+            if (e is not null) events.Add(e);
+        }
+
+        Assert.Contains(events, e => e.Kind == CallEventKind.Started);
+        Assert.Equal(CallState.InCall, detector.State);
+    }
+
+    /// <summary>
+    /// Recording a voice note while a single notification plays is not a call: the speaker was
+    /// heard once, and a ring needs more than that.
+    /// </summary>
+    [Fact]
+    public void AVoiceNoteWithOneNotificationIsNotACall()
+    {
+        var detector = new CallDetector();
+        var clock = new Clock();
+        var events = new List<CallEvent>();
+
+        for (var i = 0; i < 8; i++)
+        {
+            var e = detector.Observe(Sample(clock.Next(), render: i == 3, capture: true));
+            if (e is not null) events.Add(e);
+        }
+
+        Assert.DoesNotContain(events, e => e.Kind == CallEventKind.Started);
+    }
+
     [Fact]
     public void AnsweredCallIsDetected()
     {
