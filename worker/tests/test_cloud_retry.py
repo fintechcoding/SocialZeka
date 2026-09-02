@@ -80,6 +80,63 @@ def test_http_statuses_are_classified_into_retry_or_give_up(engine, monkeypatch,
     assert bad.value.code == "api_error"
 
 
+def test_the_two_statuses_that_used_to_arrive_as_unreadable_html(engine, monkeypatch, tmp_path):
+    """
+    413 and 524 are ordinary and both used to surface as the same line.
+
+    Neither is retryable and neither is an authentication problem, so both fell through to
+    "api_error 524 (url): " followed by four hundred characters of Cloudflare's HTML error page —
+    which is what the conversation row then showed as the reason it had failed. Two sentences
+    naming the actual constraint replace it.
+    """
+    upload = tmp_path / "chunk.ogg"
+    upload.write_bytes(b"not really audio")
+
+    def raise_status(code):
+        def opener(request, timeout=None):
+            raise _http_error(code)
+
+        return opener
+
+    monkeypatch.setattr(cloud_engine.urllib.request, "urlopen", raise_status(413))
+
+    with pytest.raises(EngineError) as too_large:
+        engine._post(str(upload), _options())
+
+    assert too_large.value.code == "too_large"
+
+    monkeypatch.setattr(cloud_engine.urllib.request, "urlopen", raise_status(524))
+
+    with pytest.raises(EngineError) as cut_off:
+        engine._post(str(upload), _options())
+
+    # Not retried: the origin needs more time than the proxy will give it, and asking again the
+    # same way spends another hundred seconds arriving at the same place.
+    assert cut_off.value.code == "timeout"
+
+
+def test_the_shared_engine_keeps_the_strictest_upload_limit(engine, tmp_path):
+    """
+    Per-engine limits exist now, and the default must not drift up with them.
+
+    24 MB is OpenAI's ceiling and the lowest of the services in the catalogue. A provider that
+    accepts more says so on its own class; everybody else stays where the strictest one is,
+    because an upload refused locally costs a retry and an upload refused remotely costs the
+    whole request.
+    """
+    assert cloud_engine.CloudWhisperEngine.max_upload_bytes == cloud_engine.MAX_UPLOAD_BYTES
+
+    big = tmp_path / "big.wav"
+    big.write_bytes(bytes(25 * 1024 * 1024))
+
+    with pytest.raises(EngineError) as caught:
+        engine._check_size(str(big))
+
+    assert caught.value.code == "too_large"
+    # 24 MiB, reported in MB like the size beside it, so the two numbers compare.
+    assert "25 MB" in str(caught.value)
+
+
 def test_retryable_failures_are_retried_until_the_budget_runs_out(engine, monkeypatch):
     calls = {"n": 0}
 

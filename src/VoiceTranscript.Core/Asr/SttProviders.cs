@@ -160,6 +160,25 @@ public static class SttProviderCatalog
             WorkerEngine = "cloud-deepgram",
             SignupUrl = "https://console.deepgram.com/",
         },
+        // Our own hardware, so the tone is different from the rest of this list: there is no
+        // account to open and no meter running, and the audio does not reach a company that sells
+        // anything. What it does have is a queue of one, which is why it is worth listing by name
+        // rather than leaving somebody to configure it under "Özel adres" and be surprised.
+        new()
+        {
+            Kind = "ex5",
+            DisplayName = "ex5 Whisper (kendi sunucumuz)",
+            BaseUrl = "https://stt.ex5.ai/v1",
+            // The server's own published schema gives "whisper-1" as the default and hosts exactly
+            // one model; the box fills itself from /v1/models once a key is in.
+            DefaultModel = "whisper-1",
+            Models = ["whisper-1"],
+            WorkerEngine = "cloud-ex5",
+            Summary =
+                "Kendi sunucumuzdaki Whisper large-v3. Kota yok, dakika ücreti yok; ses yalnızca " +
+                "bizim makinemize gider. Aynı anda tek kayıt işlediği için sıra beklenebilir.",
+            Balance = BalanceProbe.None,
+        },
         new()
         {
             Kind = "custom",

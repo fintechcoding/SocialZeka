@@ -65,6 +65,7 @@ düşülmemesi.**
 | **Microsoft Store `python.exe`** | Sahte yorumlayıcı, çıkış kodu 9009, "Store'dan kur" mesajı. | GELISTIRME → Kurulum |
 | **`dotnet` PATH'te yok** | winget kurulumundan sonra mevcut kabuk yeni PATH'i görmez; SDK yokmuş gibi görünür. | GELISTIRME → Kurulum |
 | **cuBLAS / CUDA "hazır" yalanı** | Kurulum ekranı yeşil der, model ilk `encode()`'da ölür — hata **görüşme bittikten sonra** gelir. | ISLEM-GUNLUGU 2026-08-30 §1 |
+| **Bildirilmeyen form alanı** | Sunucu 200 ve kusursuz bir metin döner, `words` dizisi hiç gelmez. FastAPI tanımlamadığı form alanlarını sessizce atar: `timestamp_granularities[]` yerine `timestamp_granularities` bekleyen bir sunucuya OpenAI'nin yazımını göndermek, her alıntının anını kaybettirir ve hiçbir yerde hata görünmez. | ISLEM-GUNLUGU 2026-09-02 (sekizinci tur) |
 | **Öğrenilmiş yanlış başlık** | Bir kez yanlış kişiye bağlanan pencere başlığı, sonraki her görüşmeyi aynı yanlış kişiye yazar ve kayıt ekranını hiç göstermez. | YAPILACAKLAR §7 |
 
 ---

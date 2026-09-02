@@ -48,6 +48,10 @@ Sol alttaki "Ayarlar" düğmesi. Üç şeyi ayarlaman gerekiyor:
     Ses; kimin konuştuğunu, ses tonunu ve arka planı da taşır. Arayüz bunu
     kırmızıyla yazar.
 
+    Servis listesinde "ex5 Whisper (kendi sunucumuz)" da var. Ses yine bu
+    makineden çıkar, ama bir şirkete değil bizim sunucumuza gider: kota yok,
+    dakika ücreti yok. Aynı anda tek kayıt işlediği için sıra bekleyebilir.
+
   KAYIT — "Ses yakalamayı sına" düğmesine bas. Beş saniye kayıt alır ve iki
     akıştan da GERÇEKTEN ses gelip gelmediğini söyler. Sınama sırasında konuş
     ve aynı anda bir müzik/video çaldır, yoksa sessizlik mi arıza mı ayırt
@@ -107,9 +111,10 @@ kadar iyi çözmez.
 
 Uzun aramada bulut hatası
 -------------------------
-Servislerin dosya sınırı var (OpenAI 25 MB). Uygulama sesi Opus'a sıkıştırıp
-gerekirse parçalara bölerek gönderir ve sonucu tek metin hâlinde birleştirir.
-Yine de hata alıyorsan görüşme çok uzun demektir; parça sayısı otomatik artar.
+Servislerin dosya sınırı var ve her serviste farklı (OpenAI 25 MB, kendi
+sunucumuz 95 MB). Uygulama sesi Opus'a sıkıştırıp gerekirse parçalara bölerek
+gönderir ve sonucu tek metin hâlinde birleştirir. Yine de hata alıyorsan
+görüşme çok uzun demektir; parça sayısı otomatik artar.
 
 
 NELER YAPMAZ

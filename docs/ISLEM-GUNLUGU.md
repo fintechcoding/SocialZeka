@@ -1057,3 +1057,94 @@ dönmesi, tek görüşme satırı şablonu, Kişiler sayfası ile kişi penceres
 
 **Hedef makine için derleme (beta7).** `main @ eca3507`,
 `dist/VoiceTranscript-Setup-2.1.6-beta7-win-x64.exe`, SHA-256 `13a767076e28fd2c6895d0f97c92f630f2c61c7ecaa1591b45c4c002cbab6b38`.
+
+---
+
+## 2026-09-02 (sekizinci tur) — Kendi Whisper sunucumuz servis listesine
+
+Kullanıcı: "bu servisi de entegre edelim, api key alanı sadece ayarlarda doldurulsun, kullanıcı
+elle doldursun, bulut servisler listesine ekle." Elimize bir de düz metin API anahtarı geldi;
+anahtar **hiçbir yere yazılmadı** — ne koda, ne teste, ne belgeye, ne varsayılana. Kart açılır,
+kullanıcı yapıştırır, bir saniye sonra kendiliğinden sınanır. (Sohbete yapıştırıldığı için o
+anahtarın iptal edilip yenilenmesi gerekiyor.)
+
+### Sunucunun kendi şeması, kendisine anlatılandan farklı çıktı
+
+Servis `GET /openapi.json` adresini **anahtarsız** yayınlıyor. Prompt'taki tarifle iki yerde
+çelişiyor ve iki çelişki de sessiz:
+
+**1. Alan adı `timestamp_granularities` — köşeli parantezsiz, ve düz bir metin.** OpenAI'nin
+yazımı `timestamp_granularities[]`. Sunucu FastAPI ve FastAPI **tanımlamadığı form alanlarını
+sessizce atar**. Yani ortak bulut motoru bu sunucuya olduğu gibi bağlansaydı: 200, kusursuz bir
+Türkçe metin, ve `words` dizisi hiç yok. Defterdeki her alıntı söylendiği anı kaybederdi ve
+hiçbir ekranda hata görünmezdi. Bu, uygulamanın dayandığı tek şeyi — "alıntıya tıkla, o anı
+dinle" — sessizce silen bir kusur. Motorun ayrı yazılmasının asıl sebebi bu.
+
+**2. `/v1/jobs` başka bir gövde istiyor.** Yalnızca `file`, `language`, `prompt`,
+`word_timestamps`. `model` yok, `response_format` yok. Sunucunun kendi açıklaması da bu ucun ne
+için var olduğunu yazıyor: *"Cloudflare'in 100 saniyelik origin timeout'unu bu şekilde aşarız."*
+Prompt "25 dakikaya kadar senkron çalışır" diyordu; sunucunun kendi açıklaması bunu yalanlıyor.
+Kuyruk aynı anda tek iş tuttuğu için, **kaydın uzunluğu senkron isteği güvenli yapmaya yetmez** —
+üç dakikalık bir parça bile başkasının bir saatlik işinin arkasında bekleyebilir.
+
+### Yapılan
+
+**Yeni motor** `worker/vt_worker/engines/ex5_engine.py` (`cloud-ex5`). Üç sınır koda geçti:
+
+- *Boyut.* `max_upload_bytes` artık motor başına. Ortak motor OpenAI'nin 24 MiB'ında kalıyor
+  (kataloğun en dar sınırı), ex5 90 MiB'a çıkıyor. PyAV'ın kurulu olmadığı makinede bu fark
+  gerçek: ses ham WAV olarak dakikada 1.92 MB, yirmi dakikalık parça 38 MB — OpenAI sınırında
+  reddedilen görüşme, burada sadece yavaş olanı.
+- *Süre.* 180 saniyenin altındaki parçalar senkron uçtan (tek gidiş-dönüş, `model` ve
+  `response_format` destekli), üstündekiler `/v1/jobs`'tan gidiyor: gönder, beş saniyede bir sor,
+  `completed` olunca `result`. Uzunluğu bilinmeyen parça da işe gidiyor — güvenli varsayılan.
+  **Senkron istek yine de 524 alırsa parça işe düşüyor**, hata vermiyor: ses o noktada zaten
+  yüklenmiş ve kaybedilecek tek şey görüşmenin kendisi.
+- *Eşzamanlılık.* Parçalar zaten sırayla yükleniyordu; iş beklerken 502/kopuk bağlantı
+  **yeniden yüklemeye değil beklemeye** yol açıyor — iş sunucuda duruyor, ikinci kopya göndermek
+  tek GPU'lu bir kuyrukta cevaba giden en yavaş yol.
+
+**Ortak motorda iki durum artık okunabilir.** 413 ve 524 emeklilikte `api_error` idi ve mesaj,
+Cloudflare'in HTML hata sayfasının ilk 400 karakteriydi — görüşme satırında "neden başarısız
+oldu" diye görünen şey buydu. İkisi de artık cümle: hangi sınır, hangi adres. 524 yeniden
+denenmiyor (aynı istek yüz saniye sonra aynı yere varır), 413 zaten kalıcı.
+
+**Katalog** `SttProviders.cs`: `ex5`, adres `https://stt.ex5.ai/v1`, motor `cloud-ex5`, bakiye
+ucu yok, `SignupUrl` yok — anahtar elden veriliyor, olmayan bir kayıt sayfasına link koymaktansa
+kartta link hiç görünmüyor. **Listedeki yeri davranıştır:** `Find` tanımadığı bir tür için
+`All[^1]`'e düşer ve o son eleman "Özel adres" olmalı; gerçek bir sağlayıcıyı sona eklemek eski
+ayar dosyalarındaki her bilinmeyen türü bizim sunucumuza yönlendirirdi. İlk sıra da yüklü:
+düz "Servis ekle" düğmesi `All[0]`'dan kart açar.
+
+C# tarafında **hiçbir tür-özel dal gerekmedi**: Bearer, standart `/v1/models`, bakiye yok —
+`SttProbe.Authorise`'ın default dalı zaten doğru olanı yapıyor.
+
+### Testler
+
+`worker/tests/test_ex5.py` (19 test): iki isteğin alan adları birebir (`timestamp_granularities`
+var, `timestamp_granularities[]` yok; iş gövdesinde `model` yok), kısa parça senkron / uzun parça
+iş / bilinmeyen parça iş, 524'ten işe düşme, yanlış anahtarın ikinci kapıyı denememesi, iş
+yoklama döngüsü, 404/başarısız/bitmeyen iş, 90 MiB tavanı. `test_cloud_retry.py`'a 413/524
+sınıflandırması ve "ortak motor en dar sınırda kalıyor" güvencesi. C# tarafında lehçe teorisine
+`ex5 → cloud-ex5` satırı, bakiyesiz sağlayıcı listesine `ex5`, ve iki yeni koruma: katalogdaki her
+motor adının worker'ın kaydettiği bir ad olması (iki program arasında bunu bağlayan hiçbir şey
+yok — uyuşmazlık derleme hatası değil, görüşmeden *sonra* gelen "Unknown engine" hatasıdır) ve
+listenin "custom" ile bitip "openai" ile başlaması.
+
+**846 test · 841 geçti · 0 kırık · 5 atlandı** + **89 Python**. `docs/GELISTIRME.md` taban çizgisi
+454/56'da kalmıştı, gerçek sayılara güncellendi.
+
+### Bu makinede doğrulanamayan
+
+Gerçek bir anahtarla tek bir yükleme yapılmadı — anahtar sohbetten geldiği için kullanılmadı.
+Şema ile doğrulanan her şey doğrulandı (`/health` 200, `model_loaded: true`, `max_upload_mb: 95`;
+`/openapi.json` ile bütün alan adları). **Anahtar girildiğinde bakılacak iki şey:**
+`GET /v1/models` hangi model adını döndürüyor — katalogdaki `whisper-1` sunucunun kendi şema
+varsayılanı, ama liste başka bir ad veriyorsa kart "model bulunamadı" der ve açılır kutu doğru
+adı zaten gösterir; ve işin `result` gövdesinin `segments`/`words` taşıdığı (taşımazsa metin yine
+gelir, sözcük zamanları gelmez).
+
+**Paket.** `v2.1.6` tam sürüm olarak etiketlendi — beta1'den beta7'ye kadar biriken her şey ve
+ex5 servisi tek pakette. Tam sürüm olduğu için `/releases/latest` bunu döndürür ve **kurulu her
+kopya otomatik güncellemede bunu görür.** Sürüm numarası etiketten geliyor; installer'ı ve
+sağlama toplamını GitHub Actions üretiyor, iki test takımı da yayından önce orada koşuyor.

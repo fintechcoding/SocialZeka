@@ -47,8 +47,10 @@ from vt_worker.engines.base import (
 )
 from vt_worker.merge import Segment, Speaker, Word
 
-# OpenAI rejects anything larger. Others differ, but staying under the strictest limit means one
-# code path rather than a per-provider table that goes stale.
+# OpenAI rejects anything larger, and it is the strictest of the services in the catalogue, so it
+# is what every engine gets unless it says otherwise. A service that accepts more raises the
+# ceiling on its own class rather than here — one number per engine, next to the engine, instead
+# of a table in this file that nobody remembers to update when a provider is added.
 MAX_UPLOAD_BYTES = 24 * 1024 * 1024
 
 # Opus at 24 kbps mono is roughly 10 MB per hour and is designed for speech at exactly this
@@ -83,11 +85,28 @@ class CloudWhisperEngine(AsrEngine):
 
     name = "cloud-openai"
 
+    # What this engine will put in one request, and how much audio one request carries.
+    #
+    # Class attributes rather than the module constants used directly, because the limits are the
+    # one thing that genuinely differs between services: a server that accepts 95 MB should not be
+    # held to OpenAI's 25, and holding it there is what turns "PyAV is missing" into a failed
+    # conversation on a machine that would otherwise have coped.
+    max_upload_bytes = MAX_UPLOAD_BYTES
+    max_chunk_seconds = MAX_CHUNK_SECONDS
+
     def __init__(self) -> None:
         self._base_url = ""
         self._api_key = ""
         self._model = "whisper-1"
         self._timeout = 600
+
+        # How much audio the upload being built covers, in seconds.
+        #
+        # Passed on the instance rather than through _build_request, whose signature every
+        # provider dialect implements. Safe because an engine is single-use and its chunks are
+        # uploaded one after another; a provider that has to choose an endpoint by duration —
+        # ex5 picks between the synchronous and the job API — reads it, and nothing else does.
+        self._chunk_seconds = 0.0
 
     @classmethod
     def probe(cls) -> EngineInfo:
@@ -120,7 +139,7 @@ class CloudWhisperEngine(AsrEngine):
         if not self._base_url:
             raise EngineError("not_loaded", "load() must be called before transcribe()")
 
-        chunks = plan_chunks(wav_path, MAX_CHUNK_SECONDS)
+        chunks = plan_chunks(wav_path, self.max_chunk_seconds)
         workspace = self._workspace(wav_path)
 
         try:
@@ -189,6 +208,8 @@ class CloudWhisperEngine(AsrEngine):
                 slice_wav(wav_path, source, chunk.start_seconds, chunk.end_seconds)
 
         upload = self._compress(source, workspace, suffix=f"-{chunk.index}")
+
+        self._chunk_seconds = chunk.length_seconds
         payload = self._post_with_retry(upload, options)
 
         try:
@@ -262,16 +283,28 @@ class CloudWhisperEngine(AsrEngine):
         raise last or EngineError("api_error", "İstek tekrar tekrar başarısız oldu.")
 
     def _post(self, path: str, options: EngineOptions) -> dict:
-        size = os.path.getsize(path)
-        if size > MAX_UPLOAD_BYTES:
-            raise EngineError(
-                "too_large",
-                f"Ses parçası sıkıştırıldıktan sonra bile çok büyük ({size // 1_000_000} MB). "
-                "Opus kodlayıcı (PyAV) kurulu olmayabilir.",
-            )
+        self._check_size(path)
 
         url, headers, body = self._build_request(path, options)
         return self._send(url, headers, body)
+
+    def _check_size(self, path: str) -> None:
+        """
+        Refuse locally what the service would refuse anyway, and say which limit was hit.
+
+        Kept apart from _post so an engine that chooses between two endpoints still performs it
+        once, before either. Naming the limit matters: "too big" against a 25 MB service and
+        against a 95 MB one call for different answers.
+        """
+        size = os.path.getsize(path)
+
+        if size > self.max_upload_bytes:
+            raise EngineError(
+                "too_large",
+                f"Ses parçası sıkıştırıldıktan sonra bile çok büyük ({size // 1_000_000} MB, "
+                f"sınır {self.max_upload_bytes // 1_000_000} MB). "
+                "Opus kodlayıcı (PyAV) kurulu olmayabilir.",
+            )
 
     def _build_request(self, path: str, options: EngineOptions) -> tuple[str, dict[str, str], bytes]:
         """
@@ -324,19 +357,47 @@ class CloudWhisperEngine(AsrEngine):
                     _retry_after(exc),
                 ) from exc
 
-            if exc.code in (401, 403):
-                raise EngineError(
-                    "auth",
-                    f"API anahtarı kabul edilmedi ({exc.code}). Ayarlardan anahtarı denetle.",
-                ) from exc
-
-            raise EngineError("api_error", f"{exc.code} ({url}): {detail}") from exc
+            raise self._fatal(exc.code, url, detail) from exc
         except urllib.error.URLError as exc:
             # A dropped connection mid-upload is ordinary on a laptop that moved between
             # networks, and is exactly the case retrying exists for.
             raise _Retryable("network", f"Sunucuya ulaşılamadı ({url}): {exc.reason}", None) from exc
         except TimeoutError as exc:
             raise _Retryable("timeout", "İstek zaman aşımına uğradı.", None) from exc
+
+    def _fatal(self, status: int, url: str, detail: str) -> EngineError:
+        """
+        A refusal that will be refused again, said in the words the user can act on.
+
+        Three of these are ordinary and used to arrive as the same unreadable line. A 401 is a key
+        to fix. A 413 is an upload the service will never take, which is a different problem from
+        the local size check and needs the service's own ceiling named, not ours. A 524 is
+        Cloudflare hanging up on an origin that was still working — the request may well have
+        succeeded on the server, and telling somebody "api_error 524" invites them to blame the
+        recording. Everything else keeps the status and the address, because the address is what a
+        real night of "404: Invalid URL" turned out to hinge on.
+        """
+        if status in (401, 403):
+            return EngineError(
+                "auth",
+                f"API anahtarı kabul edilmedi ({status}). Ayarlardan anahtarı denetle.",
+            )
+
+        if status == 413:
+            return EngineError(
+                "too_large",
+                f"Servis bu yüklemeyi büyük buldu (413, {url}). "
+                "Sesin daha küçük parçalara bölünmesi gerekiyor.",
+            )
+
+        if status == 524:
+            return EngineError(
+                "timeout",
+                f"Servis yanıtı 100 saniyede yetiştiremedi (524, {url}). "
+                "Uzun kayıtlar için işi kuyruğa veren bir uç nokta gerekiyor.",
+            )
+
+        return EngineError("api_error", f"{status} ({url}): {detail}")
 
     def unload(self) -> None:
         self._api_key = ""

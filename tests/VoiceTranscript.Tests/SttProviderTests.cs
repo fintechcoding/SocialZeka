@@ -75,6 +75,7 @@ public class SttProviderTests
     [Theory]
     [InlineData("elevenlabs", "cloud-elevenlabs")]
     [InlineData("deepgram", "cloud-deepgram")]
+    [InlineData("ex5", "cloud-ex5")]
     [InlineData("openai", "cloud-openai")]
     [InlineData("groq", "cloud-openai")]
     public void EachProviderIsSentToTheEngineThatSpeaksItsDialect(string kind, string engine)
@@ -83,6 +84,66 @@ public class SttProviderTests
 
         Assert.Equal(engine, endpoint.Provider.WorkerEngine);
         Assert.True(endpoint.IsUsable);
+    }
+
+    /// <summary>
+    /// Every engine named in the catalogue is one the worker will actually build.
+    ///
+    /// The two sides are separate programs and nothing links them: WorkerEngine is a string here
+    /// and a dictionary key in worker/vt_worker/engines/__init__.py, and a mismatch is not a
+    /// compile error. It is a recorded conversation that reaches the worker and comes back
+    /// "Unknown engine 'cloud-ex5'" — after the call, when the audio is the only copy. This list
+    /// is that dictionary, written out so the two drift apart in a test rather than in a job.
+    /// </summary>
+    [Fact]
+    public void EveryCatalogueEntryNamesAnEngineTheWorkerRegisters()
+    {
+        string[] registered =
+        [
+            "faster-whisper", "whisper.cpp",
+            "cloud-openai", "cloud-elevenlabs", "cloud-deepgram", "cloud-ex5",
+        ];
+
+        foreach (var provider in SttProviderCatalog.All)
+            Assert.Contains(provider.WorkerEngine, registered);
+    }
+
+    /// <summary>
+    /// Where an entry sits in the list is behaviour, not formatting.
+    ///
+    /// Find falls back to the last entry for a kind it does not recognise, and that fallback is
+    /// meant to be "Özel adres" — the one entry with no address, key or model of its own, so an
+    /// unrecognised kind in an old settings file becomes a card asking to be filled in. Appending
+    /// a real provider after it would instead point every stale entry at somebody's server. The
+    /// first entry is load-bearing too: the plain "Servis ekle" button seeds a card from it.
+    /// </summary>
+    [Fact]
+    public void TheListEndsWithTheCustomEntryAndBeginsWithOpenAi()
+    {
+        Assert.Equal("custom", SttProviderCatalog.All[^1].Kind);
+        Assert.Equal("openai", SttProviderCatalog.All[0].Kind);
+    }
+
+    /// <summary>
+    /// Our own server: a Bearer key like everybody else, and no balance to read.
+    ///
+    /// The base address carries no trailing slash on purpose — ResolvedBaseUrl trims only what
+    /// the user typed, so a slash written into the catalogue survives into "…/v1//models".
+    /// </summary>
+    [Fact]
+    public void TheSelfHostedServerIsConfiguredWithoutAnAccountToOpen()
+    {
+        var provider = SttProviderCatalog.Find("ex5");
+
+        Assert.Equal("https://stt.ex5.ai/v1", provider.BaseUrl);
+        Assert.DoesNotContain("//v1", provider.BaseUrl.Replace("https://", ""));
+        Assert.EndsWith("/v1", provider.BaseUrl);
+
+        // No self-service signup page: the key is issued out of band, so the card shows no
+        // "Anahtar al" link rather than a link that goes nowhere.
+        Assert.Null(provider.SignupUrl);
+
+        Assert.True(Configured("ex5").IsUsable);
     }
 
     [Fact]
@@ -208,7 +269,7 @@ public class SttProviderTests
     {
         // The one thing a credit display must never do is tell somebody they have money left
         // when nobody asked the provider.
-        foreach (var kind in new[] { "openai", "groq", "custom" })
+        foreach (var kind in new[] { "openai", "groq", "ex5", "custom" })
             Assert.Equal(BalanceProbe.None, SttProviderCatalog.Find(kind).Balance);
     }
 

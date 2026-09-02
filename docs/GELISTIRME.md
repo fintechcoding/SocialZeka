@@ -122,19 +122,20 @@ Bu betik hem C# hem Python testlerini çalıştırır. **PowerShell'den çalış
 
 ### Bilinen taban çizgisi
 
-2026-08-31, bu makinede, temiz bir depo üzerinde:
+2026-09-02, bu makinede, temiz bir depo üzerinde:
 
 | Takım | Sonuç |
 |---|---|
-| `dotnet build VoiceTranscript.slnx -c Debug` | **0 hata**, 22 uyarı, ~1 dk 20 sn |
-| `VoiceTranscript.Tests.exe` | **454 test · 450 geçti · 0 kırık · 4 atlandı**, ~15 sn |
-| `pytest` (`worker/`) | **56 test · 56 geçti**, ~15 sn |
+| `dotnet build VoiceTranscript.slnx -c Debug` | **0 hata**, 48 uyarı, ~15 sn (artımlı) |
+| `VoiceTranscript.Tests.exe` | **846 test · 841 geçti · 0 kırık · 5 atlandı**, ~35 sn |
+| `pytest` (`worker/`) | **89 test · 89 geçti**, ~5 sn |
 
-Atlanan 4 test `PythonWorkerHostTests` içinde ve bu makinede Python worker ortamı ile Whisper
-ağırlıkları olmadığı için atlanıyor — beklenen davranış, kusur değil.
+Atlanan 5 testin dördü `OpenRouterLiveTests` içinde (`VT_OPENROUTER_KEY` tanımlı değil), biri
+`PythonWorkerHostTests` içinde (Whisper ağırlıkları indirilmeden çalışmaz). İkisi de beklenen
+davranış, kusur değil.
 
-22 uyarının hepsi zararsız: NAudio'nun kullanımdan kaldırılmış `MMDevice.AudioClient` özelliği
-(×2) ve xUnit'in `TestContext.Current.CancellationToken` önerisi (×20).
+Uyarıların hepsi zararsız: NAudio'nun kullanımdan kaldırılmış `MMDevice.AudioClient` özelliği ve
+xUnit'in `TestContext.Current.CancellationToken` önerisi.
 
 **Bir değişiklikten sonra bu sayılar düşerse sebep senin değişikliğindir.** Taban çizgisi bunun
 için yazılı.
