@@ -56,34 +56,8 @@ def test_registry_knows_the_engine():
     assert isinstance(create("cloud-ex5"), Ex5WhisperEngine)
 
 
-# ---- the synchronous request -------------------------------------------------
 
 
-def test_word_timestamps_are_asked_for_the_way_this_server_declares_them(engine, tmp_path):
-    """
-    The whole reason this engine exists.
-
-    The server is FastAPI and declares ``timestamp_granularities`` as a plain string. FastAPI
-    drops form fields it has not declared, so OpenAI's ``timestamp_granularities[]`` is discarded
-    in silence: 200, a good transcript, and no words at all.
-    """
-    url, headers, body = engine._sync_request(_upload(tmp_path), _options())
-    text = body.decode("utf-8", errors="replace")
-
-    assert url == "https://stt.ex5.ai/v1/audio/transcriptions"
-    assert headers["Authorization"] == "Bearer KEY"
-
-    assert 'name="timestamp_granularities"\r\n\r\nword' in text
-    assert 'name="timestamp_granularities[]"' not in text
-    assert 'name="response_format"\r\n\r\nverbose_json' in text
-    assert 'name="model"\r\n\r\nwhisper-1' in text
-    assert 'name="language"\r\n\r\ntr' in text
-
-
-def test_a_mixed_language_call_leaves_the_language_to_the_service(engine, tmp_path):
-    _, _, body = engine._sync_request(_upload(tmp_path), _options(multilingual=True))
-
-    assert 'name="language"' not in body.decode("utf-8", errors="replace")
 
 
 # ---- the job request ---------------------------------------------------------
@@ -130,14 +104,6 @@ def _record_urls(engine, monkeypatch, answers: dict[str, dict]):
     return seen
 
 
-def test_a_short_piece_goes_through_the_synchronous_endpoint(engine, monkeypatch, tmp_path):
-    seen = _record_urls(engine, monkeypatch, {
-        "https://stt.ex5.ai/v1/audio/transcriptions": {"text": "kısa"},
-    })
-
-    engine._chunk_seconds = 90.0
-    assert engine._post(_upload(tmp_path), _options()) == {"text": "kısa"}
-    assert seen == ["https://stt.ex5.ai/v1/audio/transcriptions"]
 
 
 def test_a_long_piece_is_submitted_as_a_job(engine, monkeypatch, tmp_path):
@@ -163,49 +129,8 @@ def test_a_piece_of_unknown_length_is_submitted_as_a_job(engine, monkeypatch, tm
     assert seen[0] == "https://stt.ex5.ai/v1/jobs"
 
 
-def test_a_synchronous_request_cut_off_by_cloudflare_falls_back_to_the_job_api(
-        engine, monkeypatch, tmp_path):
-    """
-    524 means the origin was still transcribing when the proxy gave up.
-
-    The audio is uploaded and encoded by this point, the server may even have finished the work,
-    and the recording exists once. Failing here would throw away a conversation over a proxy's
-    patience, so the piece goes round again through the endpoint built for exactly this.
-    """
-    seen: list[str] = []
-
-    def send(url, headers, body=None):
-        seen.append(url)
-
-        if url.endswith("/audio/transcriptions"):
-            raise engine._fatal(524, url, "")
-
-        return {"id": "j-3", "status": "queued"}
-
-    monkeypatch.setattr(engine, "_send", send)
-    monkeypatch.setattr(engine, "_poll", lambda url: {"status": "completed", "result": {"text": "kurtarıldı"}})
-
-    engine._chunk_seconds = 120.0
-
-    assert engine._post(_upload(tmp_path), _options()) == {"text": "kurtarıldı"}
-    assert seen == [
-        "https://stt.ex5.ai/v1/audio/transcriptions",
-        "https://stt.ex5.ai/v1/jobs",
-    ]
 
 
-def test_a_refused_key_on_the_synchronous_path_is_not_retried_as_a_job(engine, monkeypatch, tmp_path):
-    """A wrong key is wrong at both doors. Trying the second only delays saying so."""
-    def send(url, headers, body=None):
-        raise engine._fatal(401, url, "")
-
-    monkeypatch.setattr(engine, "_send", send)
-    engine._chunk_seconds = 60.0
-
-    with pytest.raises(EngineError) as caught:
-        engine._post(_upload(tmp_path), _options())
-
-    assert caught.value.code == "auth"
 
 
 # ---- waiting for a job -------------------------------------------------------
@@ -340,7 +265,7 @@ def test_every_request_carries_a_name_because_the_default_one_is_banned(engine, 
 
     class _Response:
         def read(self):
-            return b'{"text":"ok"}'
+            return b'{"id":"j-ua","status":"queued"}'
 
         def __enter__(self):
             return self
@@ -353,6 +278,7 @@ def test_every_request_carries_a_name_because_the_default_one_is_banned(engine, 
         return _Response()
 
     monkeypatch.setattr(cloud_engine.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(engine, "_poll", lambda url: {"status": "completed", "result": {"text": "ok"}})
 
     engine._chunk_seconds = 60.0
     engine._post(_upload(tmp_path), _options())
@@ -425,7 +351,7 @@ def test_the_upload_says_its_size_and_format(engine, monkeypatch, tmp_path):
     that much and nothing was actually wrong.
     """
     said: list[str] = []
-    monkeypatch.setattr(engine, "_send", lambda url, headers, body=None: {"text": "x"})
+    monkeypatch.setattr(engine, "_send", lambda url, headers, body=None: {"id": "j-size"})
     monkeypatch.setattr(engine, "_poll", lambda url: {"status": "completed", "result": {"text": "x"}})
 
     wav = tmp_path / "call.wav"
@@ -436,3 +362,42 @@ def test_the_upload_says_its_size_and_format(engine, monkeypatch, tmp_path):
         _options(), str(tmp_path), 1, lambda pct, text: said.append(text))
 
     assert any("MB" in line and "kayıpsız" in line for line in said), said
+
+
+def test_everything_goes_through_the_job_queue_whatever_its_length(engine, monkeypatch, tmp_path):
+    """
+    There is no length at which the synchronous endpoint is safe.
+
+    It was used for anything under three minutes, on the reasoning that a hundred seconds is
+    generous for a short piece. The server transcribes one job at a time, so a fifteen-second clip
+    submitted while somebody else's hour is running waits behind it — inside our own request. The
+    queue decides the timeout, not the length of what we sent.
+    """
+    seen: list[str] = []
+    monkeypatch.setattr(engine, "_send",
+                        lambda url, headers, body=None: (seen.append(url), {"id": "j"})[1])
+    monkeypatch.setattr(engine, "_poll", lambda url: {"status": "completed", "result": {"text": "x"}})
+
+    for seconds in (5.0, 90.0, 1200.0, 0.0):
+        engine._chunk_seconds = seconds
+        engine._post(_upload(tmp_path), _options())
+
+    assert seen == ["https://stt.ex5.ai/v1/jobs"] * 4
+
+
+def test_a_long_job_reports_how_far_it_has_got(engine, monkeypatch):
+    """Five minutes of a bar that does not move reads as a hang, not as work."""
+    said: list[tuple[float, str]] = []
+    engine._progress = lambda pct, note: said.append((pct, note))
+    engine._progress_base, engine._progress_span = 0.02, 0.94
+    engine._progress_label = "1/1 yazıya dökülüyor"
+
+    states = [{"status": "processing", "progress_percent": 40},
+              {"status": "processing", "progress_percent": 80},
+              {"status": "completed", "result": {"text": "bitti"}}]
+    monkeypatch.setattr(engine, "_poll", lambda url: states.pop(0))
+
+    engine._await_job({"id": "j-1"})
+
+    assert [note for _, note in said] == ["1/1 yazıya dökülüyor · %40", "1/1 yazıya dökülüyor · %80"]
+    assert said[0][0] < said[1][0]

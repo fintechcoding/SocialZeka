@@ -1397,3 +1397,43 @@ Ayrıca doğrulandı: `2.2.0` hedef makinede kurulu (23:31:52) ve o günden sonr
 **856 test · 851 geçti · 0 kırık · 5 atlandı** + **97 Python**.
 
 **Paket.** `v2.2.2`.
+
+---
+
+## 2026-09-02 (on beşinci tur) — Sunucu ekibinin soruları; senkron yol kalktı
+
+Sunucu tarafı yapılandırılmış bir soru listesi gönderdi. İkisi gerçek değişiklik gerektirdi.
+
+### Senkron uç tamamen kalktı
+
+Üç dakikanın altındaki parçalar `/v1/audio/transcriptions`'a gidiyordu; gerekçe "yüz saniye kısa
+bir parça için cömert"ti. Sunucu ekibinin verdiği tek cümle bu gerekçeyi çürüttü: **makine aynı
+anda tek iş yapıyor.** Başkasının bir saatlik kaydı işlenirken gönderilen on beş saniyelik bir
+parça onun arkasında bekler — ve bu bekleme **bizim isteğimizin içinde** geçer. Yani zaman aşımını
+parçanın uzunluğu değil kuyruk belirliyor. 524 sonrası işe düşme görüşmeyi kurtarıyordu ama
+yüklemeyi iki kez ödeyerek.
+
+Vazgeçilen bir şey yok: iş ucu gereken alanları alıyor, `word_timestamps` zaten varsayılan olarak
+açık, maliyeti bir yoklama aralığı. `_sync_request` ölü kod olarak silindi.
+
+### Uzun işte ilerleme
+
+Sunucu `progress_percent` bildiriyormuş. Yirmi dakikalık bir parça beş dakika boyunca kıpırdamayan
+bir çubuk demekti; bu çalışmak gibi değil, donmak gibi görünür. Yoklama artık geldiği yeri
+bildiriyor: `1/1 yazıya dökülüyor · %40`.
+
+### Cevaplanan, değişiklik gerektirmeyenler
+
+Kanalları **birleştirmiyoruz ve birleştirmeyeceğiz** — `merge_streams` iki akışı zaman damgasına
+göre zaten iç içe diziyor, konuşmacıyı atıyor, üst üste binmeyi ve yankıyı işaretliyor. Sunucuda
+birleştirme ucu istemiyoruz. Diarization da istemiyoruz: ayrı yakalama onu ücretsiz veriyor.
+Dört hata durumu (401 · 413 · 524 · 403+1010) ayrı ayrı ele alınıyor, sonuncusu `blocked` koduyla
+ve "anahtarla ilgili değil" cümlesiyle.
+
+Onlara iletilen iki düzeltme: `timestamp_granularities` kendi şemalarında **düz metin**, liste
+değil — önerdikleri `["segment","word"]` biçimi bugünkü uçla çalışmaz. Ve `filter_noise` bizde
+kapalı olmalı: silinen segment silinen alıntıdır, biz belirsiz satırı silmeyip işaretliyoruz.
+
+**856 test · 851 geçti · 0 kırık · 5 atlandı** + **94 Python**.
+
+**Paket.** `v2.2.3`.

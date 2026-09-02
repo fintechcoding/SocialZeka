@@ -140,6 +140,13 @@ class CloudWhisperEngine(AsrEngine):
         # ex5 picks between the synchronous and the job API — reads it, and nothing else does.
         self._chunk_seconds = 0.0
 
+        # Where this chunk sits on the overall bar, so an engine that learns mid-upload how far
+        # the server has got can say so without knowing how many chunks there are.
+        self._progress: ProgressCallback | None = None
+        self._progress_base = 0.0
+        self._progress_span = 0.0
+        self._progress_label = ""
+
     @classmethod
     def probe(cls) -> EngineInfo:
         return EngineInfo(
@@ -260,6 +267,12 @@ class CloudWhisperEngine(AsrEngine):
             )
 
         self._chunk_seconds = chunk.length_seconds
+
+        self._progress = progress
+        self._progress_base = 0.02 + 0.94 * chunk.index / total_chunks
+        self._progress_span = 0.94 / total_chunks
+        self._progress_label = f"{chunk.index + 1}/{total_chunks} yazıya dökülüyor"
+
         payload = self._post_with_retry(upload, options)
 
         try:

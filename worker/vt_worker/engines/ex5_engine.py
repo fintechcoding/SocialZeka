@@ -77,50 +77,26 @@ class Ex5WhisperEngine(CloudWhisperEngine):
 
     def _post(self, path: str, options: EngineOptions) -> dict:
         """
-        One piece of audio, through whichever door it fits.
+        Every piece goes through the job queue. There is no length at which the other door is safe.
 
-        The size check happens once, before either, so a file the service would refuse is refused
-        here — where the message can name the limit — rather than after the upload.
+        The synchronous endpoint was used for anything under three minutes, on the reasoning that
+        Cloudflare's hundred seconds is generous for a short piece. The server's operator supplied
+        the fact that breaks that reasoning: the machine transcribes one job at a time. A
+        fifteen-second clip submitted while somebody else's hour is being transcribed waits behind
+        it, and the wait is spent inside our own request — so the timeout is decided by the queue,
+        not by the length of what we sent. Falling back on 524 recovered the conversation but paid
+        for the upload twice.
+
+        Nothing is given up by dropping it. The job endpoint takes the fields that matter, defaults
+        word_timestamps to true, and costs one polling interval.
         """
         self._check_size(path)
-
-        if 0.0 < self._chunk_seconds <= SYNC_MAX_SECONDS:
-            try:
-                url, headers, body = self._sync_request(path, options)
-                return self._send(url, headers, body)
-            except EngineError as exc:
-                # 524: Cloudflare hung up while the origin was still transcribing. The job API is
-                # the service's own answer to this, and the audio is already encoded and to hand.
-                if exc.code != "timeout":
-                    raise
 
         url, headers, body = self._job_request(path, options)
 
         return self._await_job(self._send(url, headers, body))
 
-    # ---- the two requests ---------------------------------------------------
-
-    def _sync_request(self, path: str, options: EngineOptions) -> tuple[str, dict[str, str], bytes]:
-        """The OpenAI-shaped endpoint, spelled the way this server declares it."""
-        fields: dict[str, str] = {
-            "model": self._model,
-            "response_format": "verbose_json",
-            # Singular, no brackets, one value. "segment,word" would also be a reasonable guess at
-            # what the server splits on, but the schema says a plain string and the only granularity
-            # that cannot be recovered afterwards is the word one: segments are rebuilt from pauses
-            # by resegment_on_gaps, word times are not rebuildable from anything.
-            "timestamp_granularities": "word",
-        }
-
-        if options.language and not options.multilingual:
-            fields["language"] = options.language
-
-        if options.initial_prompt:
-            fields["prompt"] = options.initial_prompt
-
-        body, content_type = _multipart(fields, Path(path))
-
-        return f"{self._base_url}/audio/transcriptions", self._headers(content_type), body
+    # ---- the request --------------------------------------------------------
 
     def _job_request(self, path: str, options: EngineOptions) -> tuple[str, dict[str, str], bytes]:
         """The queued endpoint. Four fields, and no model — the server hosts exactly one."""
@@ -166,6 +142,16 @@ class Ex5WhisperEngine(CloudWhisperEngine):
             state = self._poll(url)
             if state is None:
                 continue  # a blip on the way to the server; the job is still running
+
+            # How far into the audio the server has got. Without it a twenty-minute chunk is five
+            # minutes of a bar that does not move, which reads as a hang rather than as work.
+            done = state.get("progress_percent")
+
+            if self._progress is not None and isinstance(done, (int, float)):
+                self._progress(
+                    self._progress_base + self._progress_span * min(1.0, max(0.0, float(done)) / 100),
+                    f"{self._progress_label} · %{float(done):.0f}",
+                )
 
             status = str(state.get("status") or "").strip().lower()
 
