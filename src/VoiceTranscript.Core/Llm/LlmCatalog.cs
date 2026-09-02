@@ -22,6 +22,13 @@ public enum LlmProviderKind
 
     /// <summary>Any other endpoint speaking the OpenAI chat-completions API.</summary>
     OpenAiCompatible,
+
+    /// <summary>
+    /// No service chosen. The default, so a fresh install shows "pick one" instead of a local
+    /// server the application claimed to start and never did. Appended last: the setting is
+    /// stored by name, but nothing should have to depend on the order.
+    /// </summary>
+    None,
 }
 
 /// <summary>A configured place to send analysis requests.</summary>
@@ -48,12 +55,23 @@ public sealed record LlmProvider
 
     /// <summary>True when this application starts and stops the process itself.</summary>
     public bool IsSupervisedByApp { get; init; }
+
+    /// <summary>Where to get a key. Shown as a link beside the key field, because that is the next step.</summary>
+    public string? SignupUrl { get; init; }
 }
 
 public static class LlmProviders
 {
     public static IReadOnlyList<LlmProvider> All { get; } =
     [
+        new()
+        {
+            Kind = LlmProviderKind.None,
+            DisplayName = "Seçilmedi",
+            DefaultBaseUrl = "",
+            Summary = "Özet ve defter için bir servis seç: bu makinede llama-server, Ollama ya da LM Studio; "
+                    + "bulutta OpenRouter, OpenAI ya da Anthropic. Seçilmeden görüşmeler yalnızca yazıya dökülür.",
+        },
         new()
         {
             Kind = LlmProviderKind.LlamaServer,
@@ -88,6 +106,7 @@ public static class LlmProviders
         {
             Kind = LlmProviderKind.OpenRouter,
             DisplayName = "OpenRouter (bulut)",
+            SignupUrl = "https://openrouter.ai/keys",
             DefaultBaseUrl = "https://openrouter.ai/api/v1",
             SendsDataOffMachine = true,
             RequiresApiKey = true,
@@ -98,6 +117,7 @@ public static class LlmProviders
         {
             Kind = LlmProviderKind.Anthropic,
             DisplayName = "Anthropic / Claude (bulut)",
+            SignupUrl = "https://console.anthropic.com/settings/keys",
             DefaultBaseUrl = "https://api.anthropic.com/v1",
             SendsDataOffMachine = true,
             RequiresApiKey = true,
@@ -108,6 +128,7 @@ public static class LlmProviders
         {
             Kind = LlmProviderKind.OpenAi,
             DisplayName = "OpenAI / GPT (bulut)",
+            SignupUrl = "https://platform.openai.com/api-keys",
             DefaultBaseUrl = "https://api.openai.com/v1",
             SendsDataOffMachine = true,
             RequiresApiKey = true,

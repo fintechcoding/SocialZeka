@@ -196,8 +196,17 @@
 
             <!-- The archive. -->
             <StackPanel Visibility="{Binding Recent.Count, Converter={StaticResource CountToVisibility}}">
-                <TextBlock Text="{loc:T overviewpage.son-gorusmeler}" Style="{StaticResource GroupHeader}"
-                           Margin="0,18,0,0" />
+                <Grid Margin="0,18,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{loc:T overviewpage.son-gorusmeler}" Style="{StaticResource GroupHeader}" />
+                    <!-- The list stops at twelve and used to say nothing about the rest. -->
+                    <ui:HyperlinkButton Grid.Column="1" Content="{loc:T overviewpage.tumu}" Padding="6,0" VerticalAlignment="Bottom"
+                                        Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="Calls" />
+                </Grid>
 
                 <ItemsControl ItemsSource="{Binding Recent}">
                     <ItemsControl.ItemTemplate>

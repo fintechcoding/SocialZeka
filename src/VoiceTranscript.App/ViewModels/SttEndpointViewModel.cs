@@ -13,6 +13,18 @@ namespace VoiceTranscript.App.ViewModels;
 /// and the upload fails. At that point the audio is still on disk, but the user has lost their
 /// confidence in the thing, which is harder to get back than a transcript.
 /// </summary>
+/// <summary>What the card header says about a service, in one word.</summary>
+public enum ServiceReadiness
+{
+    Unknown,
+    KeyMissing,
+    Testing,
+    Ready,
+    KeyRejected,
+    ModelMissing,
+    Unreachable,
+}
+
 public sealed partial class SttEndpointViewModel : ObservableObject
 {
     private readonly SttProbe _probe;
@@ -119,6 +131,7 @@ public sealed partial class SttEndpointViewModel : ObservableObject
         IsBusy = true;
         Status = "Sınanıyor…";
         StatusIsGood = false;
+        Readiness = ServiceReadiness.Testing;
 
         try
         {
@@ -126,6 +139,12 @@ public sealed partial class SttEndpointViewModel : ObservableObject
 
             Status = result.Message;
             StatusIsGood = result.IsHealthy && result.ModelAvailable;
+
+            Readiness = string.IsNullOrWhiteSpace(ApiKey) ? ServiceReadiness.KeyMissing
+                : !result.Reachable ? ServiceReadiness.Unreachable
+                : !result.Authorised ? ServiceReadiness.KeyRejected
+                : !result.ModelAvailable ? ServiceReadiness.ModelMissing
+                : ServiceReadiness.Ready;
 
             // Replace the built-in suggestions with what the service actually offers. A model
             // list read from the provider is the difference between choosing and guessing.
@@ -150,6 +169,39 @@ public sealed partial class SttEndpointViewModel : ObservableObject
 
     /// <summary>The (kind, address, key) the current model list was fetched for.</summary>
     private (string Kind, string BaseUrl, string ApiKey)? _modelsFetchedFor;
+
+    /// <summary>
+    /// Whether this service would work if asked right now — one word in the card header.
+    /// KeyMissing is the state a new card starts in; the others come from the last test.
+    /// </summary>
+    [ObservableProperty] private ServiceReadiness _readiness = ServiceReadiness.KeyMissing;
+
+    public string ReadinessText => Readiness switch
+    {
+        ServiceReadiness.KeyMissing => "anahtar eksik",
+        ServiceReadiness.Testing => "sınanıyor…",
+        ServiceReadiness.Ready => "hazır",
+        ServiceReadiness.KeyRejected => "anahtar reddedildi",
+        ServiceReadiness.ModelMissing => "model bulunamadı",
+        ServiceReadiness.Unreachable => "ulaşılamıyor",
+        _ => "sınanmadı",
+    };
+
+    public string ReadinessBrushKey => Readiness switch
+    {
+        ServiceReadiness.Ready => "SystemFillColorSuccessBrush",
+        ServiceReadiness.KeyRejected or ServiceReadiness.Unreachable => "SystemFillColorCriticalBrush",
+        ServiceReadiness.ModelMissing or ServiceReadiness.KeyMissing => "SystemFillColorCautionBrush",
+        _ => "TextFillColorTertiaryBrush",
+    };
+
+    partial void OnReadinessChanged(ServiceReadiness value)
+    {
+        OnPropertyChanged(nameof(ReadinessText));
+        OnPropertyChanged(nameof(ReadinessBrushKey));
+    }
+
+    private CancellationTokenSource? _autoTest;
 
     /// <summary>
     /// Fills the model box from the service when it is opened.
@@ -201,7 +253,41 @@ public sealed partial class SttEndpointViewModel : ObservableObject
         }
     }
 
-    partial void OnApiKeyChanged(string value) => _modelsFetchedFor = null;
+    /// <summary>
+    /// A pasted key is tested on its own, a moment after typing stops. Nothing used to happen
+    /// until the user found "Bağlantıyı sına"; now the header says "hazır" or why not.
+    /// </summary>
+    partial void OnApiKeyChanged(string value)
+    {
+        _modelsFetchedFor = null;
+
+        _autoTest?.Cancel();
+        _autoTest = new CancellationTokenSource();
+        var token = _autoTest.Token;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            Readiness = ServiceReadiness.KeyMissing;
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(900, token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+            {
+                if (!token.IsCancellationRequested) await TestAsync();
+            });
+        }, token);
+    }
 
     [RelayCommand]
     private async Task ReadBalanceAsync()

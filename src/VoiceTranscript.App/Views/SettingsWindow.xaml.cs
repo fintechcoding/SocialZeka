@@ -135,6 +135,12 @@ public partial class SettingsWindow
     /// list, since "no models" and "you have not entered your key" are different problems with
     /// very different fixes.
     /// </summary>
+    /// <summary>The analysis model box asks the provider when opened, like the transcription one.</summary>
+    private void LlmModelBox_DropDownOpened(object sender, EventArgs e)
+    {
+        if (_viewModel.RefreshLlmModelsCommand.CanExecute(null)) _viewModel.RefreshLlmModelsCommand.Execute(null);
+    }
+
     /// <summary>The hosted-transcription model box fetches the service's list when opened.</summary>
     private void EndpointModelBox_DropDownOpened(object sender, EventArgs e)
     {

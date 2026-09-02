@@ -30,6 +30,7 @@
         <KeyBinding Modifiers="Control" Key="D6" Command="{Binding NavigateCommand}" CommandParameter="Health" />
         <KeyBinding Modifiers="Control" Key="D7" Command="{Binding NavigateCommand}" CommandParameter="Calendar" />
         <KeyBinding Modifiers="Control" Key="D8" Command="{Binding NavigateCommand}" CommandParameter="Todo" />
+        <KeyBinding Modifiers="Control" Key="D9" Command="{Binding NavigateCommand}" CommandParameter="Calls" />
         <KeyBinding Modifiers="Control" Key="F" Command="{Binding NavigateCommand}" CommandParameter="Search" />
         <KeyBinding Key="F5" Command="{Binding RefreshAllCommand}" />
         <KeyBinding Modifiers="Control" Key="OemQuestion" Command="{Binding ShowShortcutsCommand}" />
@@ -197,6 +198,15 @@
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="Home24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
                             <TextBlock Text="{loc:T mainwindow.genel-bakis}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Calls}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="Calls">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Call24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T mainwindow.gorusmeler}" VerticalAlignment="Center" />
                         </StackPanel>
                     </RadioButton>
 
@@ -376,6 +386,15 @@
                         </MultiBinding>
                     </views:OverviewPage.Visibility>
                 </views:OverviewPage>
+
+                <views:CallsPage Style="{StaticResource PageHost}" DataContext="{Binding Calls}">
+                    <views:CallsPage.Visibility>
+                        <MultiBinding Converter="{StaticResource PageVisibility}">
+                            <Binding Path="DataContext.Page" RelativeSource="{RelativeSource AncestorType=Window}" />
+                            <Binding Source="Calls" />
+                        </MultiBinding>
+                    </views:CallsPage.Visibility>
+                </views:CallsPage>
 
                 <views:LedgerPage Style="{StaticResource PageHost}" DataContext="{Binding Ledger}">
                     <views:LedgerPage.Visibility>

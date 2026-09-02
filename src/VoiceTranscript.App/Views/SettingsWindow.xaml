@@ -680,11 +680,14 @@
                             </Grid>
                         </Border>
 
-                        <!-- Hosted services -->
-                        <StackPanel Visibility="{Binding UsesCloudAsr, Converter={StaticResource BoolToVisibility}}">
+                        <!-- Hosted services. Always shown: in the default local mode the whole
+                             block used to be invisible, and nothing said where a service could be
+                             added. Adding one now switches the mode itself. -->
+                        <StackPanel>
                             <ui:InfoBar Margin="0,8,0,4" IsOpen="True" IsClosable="False" Severity="Warning"
                                         Title="{loc:T settingswindow.ses-makineden-cikar}"
-                                        Message="{loc:T settingswindow.bu-modda-gorusme-kaydi-sectigin-servise-yu}" />
+                                        Message="{loc:T settingswindow.bu-modda-gorusme-kaydi-sectigin-servise-yu}"
+                                        Visibility="{Binding UsesCloudAsr, Converter={StaticResource BoolToVisibility}}" />
 
                             <Grid Margin="0,12,0,8">
                                 <Grid.ColumnDefinitions>
@@ -696,14 +699,32 @@
                                     <TextBlock Text="{loc:T settingswindow.servisler}" Style="{StaticResource GroupHeader}" Margin="0,0,0,4" />
                                     <TextBlock Style="{StaticResource Caption}"
                                                Text="{loc:T settingswindow.sirayla-denenir-biri-cevap-vermezse-ya-da}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                               Text="{loc:T settingswindow.su-an-kullanilmiyor-yalnizca-bu-makinede}"
+                                               Visibility="{Binding UsesCloudAsr, Converter={StaticResource InverseBoolToVisibility}}" />
                                 </StackPanel>
 
-                                <ui:Button Grid.Column="1" Content="{loc:T settingswindow.servis-ekle}" Margin="12,0,0,0"
-                                           VerticalAlignment="Bottom" Command="{Binding AddEndpointCommand}">
-                                    <ui:Button.Icon>
+                                <!-- Which service, first: the card used to open as OpenAI and be
+                                     re-pointed afterwards, rewriting its address and model. -->
+                                <ui:DropDownButton Grid.Column="1" Content="{loc:T settingswindow.servis-ekle}" Margin="12,0,0,0"
+                                                   VerticalAlignment="Bottom">
+                                    <ui:DropDownButton.Icon>
                                         <ui:SymbolIcon Symbol="AddCircle24" />
-                                    </ui:Button.Icon>
-                                </ui:Button>
+                                    </ui:DropDownButton.Icon>
+                                    <ui:DropDownButton.Flyout>
+                                        <ContextMenu ItemsSource="{Binding AvailableSttProviders}">
+                                            <ContextMenu.ItemContainerStyle>
+                                                <Style TargetType="MenuItem">
+                                                    <Setter Property="Header" Value="{Binding DisplayName}" />
+                                                    <Setter Property="ToolTip" Value="{Binding Summary}" />
+                                                    <Setter Property="Command" Value="{Binding DataContext.AddEndpointForCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                    <Setter Property="CommandParameter" Value="{Binding}" />
+                                                </Style>
+                                            </ContextMenu.ItemContainerStyle>
+                                        </ContextMenu>
+                                    </ui:DropDownButton.Flyout>
+                                </ui:DropDownButton>
                             </Grid>
 
                             <ItemsControl ItemsSource="{Binding SttEndpoints}">
@@ -726,6 +747,15 @@
                                                               MinWidth="220" HorizontalAlignment="Left" />
 
                                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                        <!-- The one word that answers "does this service work":
+                                                             a card with an empty key used to look exactly like a
+                                                             working one. -->
+                                                        <Border Style="{StaticResource Pill}" Margin="0,0,12,0" VerticalAlignment="Center"
+                                                                Background="{Binding ReadinessBrushKey, Converter={StaticResource BrushFromKey}}">
+                                                            <TextBlock Style="{StaticResource PillText}" Foreground="White"
+                                                                       Text="{Binding ReadinessText}" />
+                                                        </Border>
+
                                                         <ui:ToggleSwitch IsChecked="{Binding Enabled}"
                                                                          VerticalAlignment="Center" Margin="0,0,10,0"
                                                                          ToolTip="{loc:T settingswindow.kapaliyken-yapilandirma-korunur-ama-bu-ser}" />
@@ -761,22 +791,21 @@
                                                             Message="{loc:T settingswindow.istek-bicimi-openai-ninkinden-farkli-kayit}"
                                                             IsOpen="{Binding CanUpload, Converter={StaticResource InverseBool}}" />
 
-                                                <Grid Margin="0,0,0,10">
+                                                <!-- What a new user needs first, first: get a key, paste it, pick the
+                                                     model. The address is the one field they must not touch; it lives
+                                                     under "Gelişmiş". -->
+                                                <Grid Margin="0,0,0,4">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
-                                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                                        <TextBlock Text="{loc:T settingswindow.adres}" Style="{StaticResource Caption}" Margin="0,0,0,4" />
-                                                        <ui:TextBox Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
-                                                    </StackPanel>
-                                                    <ui:Button Grid.Column="1" Content="{loc:T settingswindow.varsayilana-don}"
-                                                               VerticalAlignment="Bottom" Appearance="Transparent"
-                                                               Command="{Binding ResetAddressCommand}" />
+                                                    <TextBlock Grid.Column="0" Text="{loc:T settingswindow.api-anahtari}" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                                    <ui:HyperlinkButton Grid.Column="1" Content="{loc:T settingswindow.anahtar-al}" Padding="4,0"
+                                                                        NavigateUri="{Binding SignupUrl}"
+                                                                        Visibility="{Binding HasSignupUrl, Converter={StaticResource BoolToVisibility}}" />
                                                 </Grid>
-
-                                                <TextBlock Text="{loc:T settingswindow.api-anahtari}" Style="{StaticResource Caption}" Margin="0,0,0,4" />
-                                                <ui:PasswordBox Password="{Binding ApiKey, Mode=TwoWay}" Margin="0,0,0,10" />
+                                                <ui:PasswordBox Password="{Binding ApiKey, Mode=TwoWay}" Margin="0,0,0,10"
+                                                                PlaceholderText="{loc:T settingswindow.anahtari-yapistir-kendiliginden-sinanir}" />
 
                                                 <TextBlock Text="{loc:T settingswindow.model}" Style="{StaticResource Caption}" Margin="0,0,0,4" />
                                                 <!-- Opening the box asks the service; a refused key
@@ -786,6 +815,23 @@
                                                           Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
                                                           DropDownOpened="EndpointModelBox_DropDownOpened"
                                                           Margin="0,0,0,12" />
+
+                                                <ui:CardExpander Margin="0,0,0,12" Icon="{ui:SymbolIcon Settings24}"
+                                                                 Header="{loc:T settingswindow.gelismis-adres}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                                            <TextBlock Text="{loc:T settingswindow.adres}" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                                                            <ui:TextBox Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                        <ui:Button Grid.Column="1" Content="{loc:T settingswindow.varsayilana-don}"
+                                                                   VerticalAlignment="Bottom" Appearance="Transparent"
+                                                                   Command="{Binding ResetAddressCommand}" />
+                                                    </Grid>
+                                                </ui:CardExpander>
 
                                                 <!--
                                                     The two buttons that make this trustworthy.
@@ -809,10 +855,6 @@
                                                             <ui:SymbolIcon Symbol="Wallet24" />
                                                         </ui:Button.Icon>
                                                     </ui:Button>
-
-                                                    <ui:HyperlinkButton Content="{loc:T settingswindow.anahtar-al}" Margin="8,0,0,0"
-                                                                        NavigateUri="{Binding SignupUrl}"
-                                                                        Visibility="{Binding HasSignupUrl, Converter={StaticResource BoolToVisibility}}" />
 
                                                     <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16"
                                                                      Margin="10,0,0,0" VerticalAlignment="Center"
@@ -1062,15 +1104,30 @@
                                     Message="{loc:T settingswindow.bu-saglayici-bulutta-calisir-gorusmenin-ya}"
                                     IsOpen="{Binding SelectedProvider.SendsDataOffMachine}" />
 
+                        <ui:InfoBar Margin="0,4,0,4" IsClosable="False" Severity="Informational"
+                                    Title="{loc:T settingswindow.cozumleme-servisi-secilmedi}"
+                                    Message="{loc:T settingswindow.cozumleme-servisi-secilmedi-aciklama}"
+                                    IsOpen="{Binding NoLlmChosen}" />
+
                         <Border Style="{StaticResource SettingCard}"
                                 Visibility="{Binding SelectedProvider.RequiresApiKey, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>
-                                <TextBlock Text="{loc:T settingswindow.api-anahtari}" FontSize="{StaticResource TextBody}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{loc:T settingswindow.api-anahtari}" FontSize="{StaticResource TextBody}" VerticalAlignment="Center" />
+                                    <ui:HyperlinkButton Grid.Column="1" Content="{loc:T settingswindow.anahtar-al}" Padding="4,0"
+                                                        NavigateUri="{Binding SelectedProvider.SignupUrl}"
+                                                        Visibility="{Binding SelectedProvider.SignupUrl, Converter={StaticResource NullToCollapsed}}" />
+                                </Grid>
                                 <ui:PasswordBox Password="{Binding LlmApiKey, Mode=TwoWay}" Margin="0,8,0,0" />
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource SettingCard}">
+                        <Border Style="{StaticResource SettingCard}"
+                                Visibility="{Binding NoLlmChosen, Converter={StaticResource InverseBoolToVisibility}}">
                             <StackPanel>
                                 <TextBlock Text="{loc:T settingswindow.adres}" FontSize="{StaticResource TextBody}" />
                                 <ui:TextBox Text="{Binding LlmBaseUrl, UpdateSourceTrigger=PropertyChanged}"
@@ -1129,7 +1186,8 @@
 
                                     <ComboBox Grid.Column="0" IsEditable="True"
                                               Text="{Binding LlmRemoteModel, UpdateSourceTrigger=PropertyChanged}"
-                                              ItemsSource="{Binding DiscoveredLlmModels}" />
+                                              ItemsSource="{Binding DiscoveredLlmModels}"
+                                              DropDownOpened="LlmModelBox_DropDownOpened" />
 
                                     <!--
                                         Asks the provider what it actually has, rather than trusting

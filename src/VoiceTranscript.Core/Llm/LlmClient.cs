@@ -47,6 +47,22 @@ public sealed record LlmResponse(string Content, string? FinishReason, int? Prom
     public bool CompletedNormally => FinishReason is null or "stop" or "eos";
 }
 
+/// <summary>What a connection test found out, in a form the settings page can word.</summary>
+public sealed record LlmProbe(bool Reachable, bool Authorised, int StatusCode, string Message)
+{
+    public static LlmProbe Ok(int status) => new(true, true, status, "Bağlantı kuruldu.");
+
+    public static LlmProbe FromStatus(int status) => status switch
+    {
+        401 or 403 => new LlmProbe(true, false, status, $"Anahtar kabul edilmedi ({status}). Anahtarı denetle."),
+        404 => new LlmProbe(true, true, status, "Adres yanlış görünüyor (404): sunucu var ama bu yolu tanımıyor."),
+        >= 500 => new LlmProbe(true, true, status, $"Sunucu hata verdi ({status}). Biraz sonra yeniden dene."),
+        _ => new LlmProbe(true, true, status, $"Beklenmeyen yanıt ({status})."),
+    };
+
+    public static LlmProbe Unreachable(string why) => new(false, false, 0, $"Sunucuya ulaşılamadı: {why}");
+}
+
 public interface ILlmClient
 {
     LlmProviderKind Kind { get; }
@@ -55,6 +71,14 @@ public interface ILlmClient
 
     /// <summary>Whether the endpoint is reachable and has the model. Used by the settings page.</summary>
     Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The same request, with the answer kept: a refused key, a wrong address and a dead
+    /// network used to collapse into one "yanıt vermedi", and the user could not tell which
+    /// of the three to fix.
+    /// </summary>
+    async Task<LlmProbe> ProbeAsync(CancellationToken cancellationToken = default) =>
+        await IsAvailableAsync(cancellationToken) ? LlmProbe.Ok(0) : new LlmProbe(false, false, 0, "Sunucu yanıt vermedi.");
 
     /// <summary>Releases GPU memory if the backend supports it. Best effort.</summary>
     Task UnloadAsync(string model, CancellationToken cancellationToken = default);
@@ -380,6 +404,12 @@ public sealed class OpenAiCompatibleClient(
     /// </summary>
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
+        var probe = await ProbeAsync(cancellationToken);
+        return probe.Reachable && probe.Authorised && probe.StatusCode is >= 200 and < 300;
+    }
+
+    public async Task<LlmProbe> ProbeAsync(CancellationToken cancellationToken = default)
+    {
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, Combine(baseUrl, "models"));
@@ -392,11 +422,17 @@ public sealed class OpenAiCompatibleClient(
 
             using var response = await http.SendAsync(request, cancellationToken);
 
-            return response.IsSuccessStatusCode;
+            return response.IsSuccessStatusCode
+                ? LlmProbe.Ok((int)response.StatusCode)
+                : LlmProbe.FromStatus((int)response.StatusCode);
         }
-        catch (Exception)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return false;
+            return LlmProbe.Unreachable("zaman aşımı");
+        }
+        catch (Exception e)
+        {
+            return LlmProbe.Unreachable(e.Message);
         }
     }
 

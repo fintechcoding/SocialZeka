@@ -25,6 +25,8 @@ public static class ActionRegistry
     [
         new("Genel bakış", "Sayfaya git", Wpf.Ui.Controls.SymbolRegular.Home24,
             shell => shell.NavigateCommand.Execute("Overview")),
+        new("Görüşmeler", "Sayfaya git — bütün görüşmeler, güne göre, süzgeçli", Wpf.Ui.Controls.SymbolRegular.Call24,
+            shell => shell.NavigateCommand.Execute("Calls")),
         new("Defter", "Sayfaya git — sözler, değişen rakamlar, işaretler", Wpf.Ui.Controls.SymbolRegular.Flag24,
             shell => shell.NavigateCommand.Execute("Ledger")),
         new("Takvim", "Sayfaya git — ay görünümü, hatırlatıcılar ve vadeler", Wpf.Ui.Controls.SymbolRegular.CalendarLtr24,

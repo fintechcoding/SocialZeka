@@ -365,7 +365,7 @@ public sealed record AppSettings
     /// </summary>
     public bool DeceptionEnabled { get; init; }
 
-    public LlmProviderKind LlmProvider { get; init; } = LlmProviderKind.LlamaServer;
+    public LlmProviderKind LlmProvider { get; init; } = LlmProviderKind.None;
 
     /// <summary>Which entry of the local model catalogue to use. Ignored by remote providers.</summary>
     public string LlmModelId { get; init; } = LocalLlmCatalog.DefaultModelId;

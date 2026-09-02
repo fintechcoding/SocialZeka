@@ -129,7 +129,7 @@ public sealed class AppSettingsTests : IDisposable
     {
         var settings = new AppSettings();
 
-        Assert.Equal(LlmProviderKind.LlamaServer, settings.LlmProvider);
+        Assert.Equal(LlmProviderKind.None, settings.LlmProvider);
         Assert.False(settings.AnythingLeavesTheMachine);
         Assert.False(settings.ExportToNotion);
         Assert.False(settings.TranscribeGroupCalls);
@@ -177,7 +177,7 @@ public sealed class AppSettingsTests : IDisposable
 
         var loaded = AppSettings.Load(paths.SettingsFile);
 
-        Assert.Equal(LlmProviderKind.LlamaServer, loaded.LlmProvider);
+        Assert.Equal(LlmProviderKind.None, loaded.LlmProvider);
     }
 
     [Fact]

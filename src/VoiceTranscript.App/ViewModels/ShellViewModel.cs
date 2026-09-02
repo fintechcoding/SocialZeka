@@ -12,6 +12,9 @@ public enum ShellPage
 {
     Overview,
 
+    /// <summary>Every call, by day, with filters — the list the first screen's twelve stood in for.</summary>
+    Calls,
+
     /// <summary>
     /// What did not hold, across everybody.
     ///
@@ -89,6 +92,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Health = health;
 
         Overview = new OverviewViewModel(repository, settings, paths);
+        Calls = new CallsViewModel(repository);
         Ledger = new LedgerViewModel(repository);
         Calendar = new CalendarViewModel(repository);
         Todo = new TodoViewModel(repository);
@@ -193,6 +197,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private long _lastProgressCall = -1;
 
     public OverviewViewModel Overview { get; }
+    public CallsViewModel Calls { get; }
     public LedgerViewModel Ledger { get; }
     public CalendarViewModel Calendar { get; }
     public TodoViewModel Todo { get; }
@@ -222,6 +227,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private static string PageName(ShellPage page) => page switch
     {
         ShellPage.Overview => Localisation.T("mainwindow.genel-bakis"),
+        ShellPage.Calls => Localisation.T("mainwindow.gorusmeler"),
         ShellPage.Ledger => Localisation.T("mainwindow.defter"),
         ShellPage.Calendar => Localisation.T("mainwindow.takvim"),
         ShellPage.Todo => Localisation.T("mainwindow.yapilacaklar"),
@@ -447,6 +453,9 @@ public sealed partial class ShellViewModel : ObservableObject
         // Re-read on arrival: a reminder set moments ago must already be on the month.
         if (Page == ShellPage.Calendar) Calendar.Refresh();
 
+        // The archive re-reads on arrival too: it is the cheapest way to be current.
+        if (Page == ShellPage.Calls) Calls.Refresh();
+
         // Same: a suggestion produced a minute ago belongs on the list now.
         if (Page == ShellPage.Todo) Todo.Refresh();
 
@@ -460,6 +469,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public void RefreshAll()
     {
         Overview.Refresh();
+        Calls.Refresh();
         Ledger.Refresh();
         Calendar.Refresh();
         Contacts.Refresh();

@@ -198,6 +198,12 @@ public sealed class AnthropicClient(
     /// <summary>Whether the key works and the service answers. Used by the settings page.</summary>
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
+        var probe = await ProbeAsync(cancellationToken);
+        return probe.Reachable && probe.Authorised && probe.StatusCode is >= 200 and < 300;
+    }
+
+    public async Task<LlmProbe> ProbeAsync(CancellationToken cancellationToken = default)
+    {
         try
         {
             using var message = new HttpRequestMessage(HttpMethod.Get, Combine(baseUrl, "models"));
@@ -207,11 +213,17 @@ public sealed class AnthropicClient(
 
             using var response = await http.SendAsync(message, cancellationToken);
 
-            return response.IsSuccessStatusCode;
+            return response.IsSuccessStatusCode
+                ? LlmProbe.Ok((int)response.StatusCode)
+                : LlmProbe.FromStatus((int)response.StatusCode);
         }
-        catch (Exception)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return false;
+            return LlmProbe.Unreachable("zaman aşımı");
+        }
+        catch (Exception e)
+        {
+            return LlmProbe.Unreachable(e.Message);
         }
     }
 

@@ -20,6 +20,20 @@ public partial class SetupWindow
         // response to "no". Presenting that as a decision only makes somebody responsible for a
         // choice they have no information about, and the previous version's five buttons were
         // five chances to close the window with nothing installed.
+        // The analysis step opens the same settings window the main window does, on its
+        // Çözümleme section, and saves the same way.
+        _viewModel.SettingsRequested += (_, _) =>
+        {
+            var settings = new SettingsViewModel(App.Settings, App.Paths, App.HttpClient);
+            var dialog = new SettingsWindow(settings) { Owner = this };
+            dialog.ShowSection("Analysis");
+
+            if (dialog.ShowDialog() != true) return;
+
+            App.Settings = settings.ToSettings();
+            App.Settings.Save(App.Paths.SettingsFile);
+        };
+
         Loaded += async (_, _) => await _viewModel.RunAllAsync();
     }
 

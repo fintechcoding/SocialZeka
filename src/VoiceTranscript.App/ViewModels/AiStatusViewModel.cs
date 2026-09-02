@@ -16,6 +16,9 @@ public enum ServiceReach
     /// <summary>Not asked yet, or the answer is stale.</summary>
     Unknown,
 
+    /// <summary>No service chosen at all — nothing to reach.</summary>
+    NotChosen,
+
     /// <summary>Answered. Work sent here will be attempted.</summary>
     Reachable,
 
@@ -81,6 +84,7 @@ public sealed partial class AiServiceRow(
         ServiceReach.Unreachable => "yanıt vermiyor",
         ServiceReach.Local => "bu makinede",
         ServiceReach.Incomplete => "anahtar eksik",
+        ServiceReach.NotChosen => "seçilmedi",
         _ => "denenmedi",
     };
 
@@ -242,9 +246,11 @@ public sealed partial class AiStatusViewModel(
     {
         var provider = current.Provider;
 
-        var reach = !current.LlmReachableInPrinciple
-            ? ServiceReach.Incomplete
-            : ServiceReach.Unknown;
+        var reach = current.LlmProvider == Core.Llm.LlmProviderKind.None
+            ? ServiceReach.NotChosen
+            : !current.LlmReachableInPrinciple
+                ? ServiceReach.Incomplete
+                : ServiceReach.Unknown;
 
         Analysis.Add(new AiServiceRow(
             1,

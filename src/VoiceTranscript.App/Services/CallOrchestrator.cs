@@ -1153,13 +1153,19 @@ public sealed class CallOrchestrator : IDisposable
                 }
                 else
                 {
-                    _repository.SetCallState(callId, ProcessingState.Transcribed,
-                        "Çözümleme yapılmadı: çalışan bir yapay zekâ servisi bulunamadı. "
-                        + "Ayarlardan bir sağlayıcı seçip çalıştırdığında bu görüşme yeniden "
-                        + "çözümlenebilir — metin duruyor, yeniden yazıya dökmek gerekmiyor.");
+                    var chosen = settings.LlmProvider != Core.Llm.LlmProviderKind.None;
 
-                    Notice?.Invoke(this,
-                        "Görüşme yazıya döküldü. Özet çıkarılmadı — çalışan bir yapay zekâ servisi yok.");
+                    _repository.SetCallState(callId, ProcessingState.Transcribed,
+                        chosen
+                            ? "Çözümleme yapılmadı: çalışan bir yapay zekâ servisi bulunamadı. "
+                              + "Ayarlardan bir sağlayıcı seçip çalıştırdığında bu görüşme yeniden "
+                              + "çözümlenebilir — metin duruyor, yeniden yazıya dökmek gerekmiyor."
+                            : "Çözümleme yapılmadı: çözümleme servisi seçilmedi. Ayarlar › Çözümleme'den "
+                              + "bir servis seçtiğinde bu görüşme yeniden çözümlenebilir — metin duruyor.");
+
+                    Notice?.Invoke(this, chosen
+                        ? "Görüşme yazıya döküldü. Özet çıkarılmadı — çalışan bir yapay zekâ servisi yok."
+                        : "Görüşme yazıya döküldü. Özet için Ayarlar › Çözümleme'den bir servis seç.");
 
                     return;
                 }

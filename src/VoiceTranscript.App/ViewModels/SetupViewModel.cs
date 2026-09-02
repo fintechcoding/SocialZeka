@@ -16,6 +16,12 @@ public enum SetupStepKind
     Packages,
 
     /// <summary>
+    /// The analysis service — summaries and the ledger need a model, local or hosted. The wizard
+    /// never asked, and the first call ended with a transcript and no summary and no reason.
+    /// </summary>
+    Analysis,
+
+    /// <summary>
     /// The NVIDIA runtime the GPU path needs — in practice, one library.
     ///
     /// Its own row because it has its own answer. "Whisper packages are installed" and "the
@@ -181,6 +187,13 @@ public sealed partial class SetupViewModel : ObservableObject
                 Title = "Ses yakalama",
                 Icon = SymbolRegular.Mic24,
                 Purpose = "İki akıştan da gerçekten ses geliyor mu — sessiz kayıt başarıya benziyor.",
+            },
+            new SetupStep
+            {
+                Kind = SetupStepKind.Analysis,
+                Title = "Çözümleme servisi",
+                Icon = SymbolRegular.Sparkle24,
+                Purpose = "Özet ve defter için bir model gerekir: bu makinede ya da bulutta. Seçilmezse görüşmeler yalnızca yazıya dökülür.",
             },
         ];
 
@@ -358,6 +371,15 @@ public sealed partial class SetupViewModel : ObservableObject
     [RelayCommand]
     public Task RefreshAsync() => RefreshAsync(alreadyBusy: false);
 
+    /// <summary>Raised when the analysis step wants the settings window; the window opens it.</summary>
+    public event EventHandler? SettingsRequested;
+
+    private bool OpenSettingsForAnalysis()
+    {
+        SettingsRequested?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
     private async Task RefreshAsync(bool alreadyBusy)
     {
         if (IsBusy && !alreadyBusy) return;
@@ -396,6 +418,25 @@ public sealed partial class SetupViewModel : ObservableObject
                 audio.Detail = audio.Purpose;
                 audio.ActionLabel = "Sına";
             }
+
+            var analysis = Step(SetupStepKind.Analysis);
+            var current = _settings();
+            if (current.LlmProvider == Core.Llm.LlmProviderKind.None)
+            {
+                analysis.State = PrerequisiteState.Missing;
+                analysis.Detail = "Henüz bir servis seçilmedi. Ayarlar › Çözümleme'den seç.";
+            }
+            else if (!current.LlmReachableInPrinciple)
+            {
+                analysis.State = PrerequisiteState.Missing;
+                analysis.Detail = $"{current.Provider.DisplayName} seçili ama eksik: anahtar ya da adres yok.";
+            }
+            else
+            {
+                analysis.State = PrerequisiteState.Present;
+                analysis.Detail = $"{current.Provider.DisplayName} · {current.ResolvedModelName}";
+            }
+            analysis.ActionLabel = "Seç";
 
             IsReady = report.CanTranscribeLocally || _settings().AsrMode != TranscriptionMode.LocalOnly;
         }
@@ -461,6 +502,7 @@ public sealed partial class SetupViewModel : ObservableObject
                 SetupStepKind.Model => await DownloadModelAsync(progress),
                 SetupStepKind.Hardware => await MeasureHardwareAsync(progress),
                 SetupStepKind.Audio => await TestAudioAsync(),
+                SetupStepKind.Analysis => OpenSettingsForAnalysis(),
                 _ => true,
             };
 

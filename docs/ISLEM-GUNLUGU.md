@@ -1025,3 +1025,32 @@ penceresinin birleşmesi, klavye yolu (Del/Enter/Shift+F10), İşlemler'de toplu
 `dist/VoiceTranscript-Setup-2.1.6-beta6-win-x64.exe`, SHA-256 `e347015d475c11b3cec257f8dce6e0a9559a4b4af55114c4c06047e75ef8d9b5`. İki metin düzeltmesi
 (Krediyi sor → Bakiyeyi göster; llama-server özetindeki "uygulama başlatır" iddiası) pakete girmedi,
 bir sonraki derlemede.
+
+## 2026-09-02 (yedinci tur) — Servis ekleme akışı ve Görüşmeler arşivi
+
+Kullanıcı: "kullanım kolaylığı açısından da AI servisleri ekleme/denemeyi ve görüşmeler ekranını
+değerlendir." İki gözlü ajan değerlendirmesi (30 öneri, kuşkucu doğrulama) sunuldu; "tamam bitir"
+üzerine önerilen sırayla uygulandı: (A) görüşme ekranı hızlı kazanımlar `9b0e4a8`, (B) servis
+akışı, (C) Görüşmeler sayfası.
+
+**Servis ekleme ve sınama.** Servisler bloğu her zaman görünür — varsayılan "yalnızca bu makinede"
+modunda gizli olduğu için servis eklenecek yer bulunamıyordu; servis eklemek modu Otomatik'e
+çevirir. "Servis ekle" önce sağlayıcıyı sorar (özetiyle). Kart sırası ihtiyaca göre: "Anahtar al ↗"
++ anahtar → model → sına/bakiye; adres "Gelişmiş" altında. Anahtar yapıştırılınca bir saniye sonra
+kendiliğinden sınanır; kart başlığında hazır / anahtar reddedildi / ulaşılamıyor / model bulunamadı /
+anahtar eksik rozeti. LLM tarafında "Anahtar al" bağlantısı, `ILlmClient.ProbeAsync` ile 401 ve DNS
+hatası ayrı sebeplerle, model kutusu açılınca liste çekiliyor. Çözümleme varsayılanı "Seçilmedi":
+eski varsayılan llama-server hiç başlatılmayan bir sunucuydu ve ilk kullanıcı sessizce özetsiz
+kalıyordu; ayarlar, görüşme satırı ("çözümleme servisi seçilmedi") ve Durum bunu söylüyor. Kurulum
+sihirbazına yedinci adım "Çözümleme servisi".
+
+**Görüşmeler.** Yeni sayfa (rayda Genel Bakış'ın altında, Ctrl+9, palette): bütün görüşmeler güne
+göre; kişi / dönem / uygulama / durum / etiket süzgeçleri ve ad kutusu (`CallsViewModel.Filter`
+saf, testli); ilk ekrandaki satır ve sekiz fiillik menüyle aynı; ilk ekran "Tümü →" ile buraya
+gönderiyor. Beta6'ya girmeyen iki metin düzeltmesi de bu pakette.
+
+**842 test, 0 hata** (5 atlanan: ASR ağırlığı ister) + 68 Python. Görsel doğrulama hedef makinede.
+
+Kalanlar (kullanıcının kararına bırakıldı, yapılmadı): rayı 7'ye indirme, üst kartın sayılara
+dönmesi, tek görüşme satırı şablonu, Kişiler sayfası ile kişi penceresinin birleşmesi, klavye yolu,
+İşlemler'de toplu seçim, defter tekrarlarının birleşmesi, görüşme penceresinin 7 sekmeden 5'e inmesi.

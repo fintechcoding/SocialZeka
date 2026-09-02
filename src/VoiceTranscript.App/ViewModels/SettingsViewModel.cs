@@ -351,8 +351,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _trimSilence;
     [ObservableProperty] private bool _compressAudio = true;
 
+    /// <summary>Nothing chosen for analysis: the page shows what to do instead of an empty address.</summary>
+    public bool NoLlmChosen => SelectedProvider.Kind == LlmProviderKind.None;
+
     partial void OnSelectedProviderChanged(LlmProvider value)
     {
+        OnPropertyChanged(nameof(NoLlmChosen));
+
         // A real value in the box, not a placeholder. A grey hint reads as an empty required
         // field and sends people hunting for an address the application already knows.
         LlmBaseUrl = value.DefaultBaseUrl;
@@ -433,10 +438,20 @@ public sealed partial class SettingsViewModel : ObservableObject
     // ---- hosted services ----------------------------------------------------
 
     [RelayCommand]
-    private void AddEndpoint()
+    private void AddEndpoint() => AddEndpointFor(SttProviderCatalog.All[0]);
+
+    /// <summary>
+    /// Adds a card for the chosen service and, in the local-only mode, switches to automatic —
+    /// a service added and never used is the state the old hidden block produced.
+    /// </summary>
+    [RelayCommand]
+    private void AddEndpointFor(SttProviderInfo provider)
     {
-        var endpoint = SttEndpoint.FromProvider(SttProviderCatalog.All[0]);
+        var endpoint = SttEndpoint.FromProvider(provider);
         SttEndpoints.Add(new SttEndpointViewModel(endpoint, _probe));
+
+        if (AsrMode == TranscriptionMode.LocalOnly) AsrMode = TranscriptionMode.Automatic;
+
         Revalidate();
     }
 
@@ -478,13 +493,52 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// GGUF file name ends up being sent to a hosted API that has never heard of it, and the
     /// rejection that comes back does not obviously point at the cause.
     /// </summary>
+    private (LlmProviderKind Kind, string BaseUrl, string? Key)? _llmModelsFetchedFor;
+
+    /// <summary>
+    /// Fills the analysis model box from the provider when it is opened, once per key — the
+    /// transcription box already did; this one waited for "Bağlantıyı sına".
+    /// </summary>
+    [RelayCommand]
+    private async Task RefreshLlmModelsAsync()
+    {
+        if (IsTestingLlm || !ModelDirectory.CanFetch(SelectedProvider.Kind)) return;
+
+        var baseUrl = string.IsNullOrWhiteSpace(LlmBaseUrl) ? SelectedProvider.DefaultBaseUrl : LlmBaseUrl.Trim();
+        var key = string.IsNullOrWhiteSpace(LlmApiKey) ? null : LlmApiKey;
+        var fetchKey = (SelectedProvider.Kind, baseUrl, key);
+
+        if (_llmModelsFetchedFor == fetchKey || string.IsNullOrWhiteSpace(baseUrl)) return;
+        if (SelectedProvider.RequiresApiKey && key is null) return;
+
+        try
+        {
+            var models = await ModelDirectory.FetchAsync(_http, SelectedProvider.Kind, baseUrl, key);
+
+            var current = LlmRemoteModel;
+            DiscoveredLlmModels.Clear();
+            foreach (var model in models.Select(m => m.Id).OrderBy(m => m, StringComparer.OrdinalIgnoreCase))
+                DiscoveredLlmModels.Add(model);
+            LlmRemoteModel = current;
+
+            _llmModelsFetchedFor = fetchKey;
+            LlmStatus = $"{DiscoveredLlmModels.Count} model listelendi.";
+            LlmStatusIsGood = true;
+        }
+        catch (LlmException e)
+        {
+            LlmStatus = $"Model listesi alınamadı: {e.Message}";
+            LlmStatusIsGood = false;
+        }
+    }
+
     [RelayCommand]
     private async Task TestLlmAsync()
     {
         if (IsTestingLlm) return;
 
         IsTestingLlm = true;
-        LlmStatus = "Sinaniyor...";
+        LlmStatus = "Sınanıyor…";
         LlmStatusIsGood = false;
 
         var baseUrl = string.IsNullOrWhiteSpace(LlmBaseUrl)
@@ -508,18 +562,23 @@ public sealed partial class SettingsViewModel : ObservableObject
             // and the probe counts anything that is not a 401 or 403 as authorised. The result was
             // the worst kind of broken: a green tick over a key that could not work, shown by the
             // one control whose entire job is to catch that before a conversation is wasted on it.
+            if (SelectedProvider.RequiresApiKey && key is null)
+            {
+                LlmStatus = "Önce API anahtarını gir.";
+                return;
+            }
+
             var client = LlmClientFactory.Create(_http, SelectedProvider.Kind, baseUrl, key);
 
-            var reachable = await client.IsAvailableAsync();
+            // The answer, not a boolean: a refused key, a wrong address and a dead network need
+            // three different fixes and used to read as one sentence.
+            var probe = await client.ProbeAsync();
 
             DiscoveredLlmModels.Clear();
 
-            if (!reachable)
+            if (!probe.Reachable || !probe.Authorised || probe.StatusCode is < 200 or >= 300)
             {
-                LlmStatus = SelectedProvider.RequiresApiKey && key is null
-                    ? $"{SelectedProvider.DisplayName} yanıt vermedi. API anahtarı girilmemiş."
-                    : $"{SelectedProvider.DisplayName} yanıt vermedi. Adresi ve anahtarı kontrol et.";
-
+                LlmStatus = $"{SelectedProvider.DisplayName}: {probe.Message}";
                 return;
             }
 
