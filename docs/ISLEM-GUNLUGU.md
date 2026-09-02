@@ -1562,3 +1562,40 @@ istek kayamaz.
 **860 test · 855 geçti · 0 kırık · 5 atlandı** + **113 Python**.
 
 **Paket.** `v2.2.6`.
+
+---
+
+## 2026-09-03 (dördüncü tur) — Satıra tıklamak görüşmeyi çalsın; üst üste konuşma görünsün
+
+Kullanıcı: "bir konuşmayı tıkladım, çalma devam ediyor ama sadece o tarafın sesleri geliyor,
+öyle olmaz."
+
+**Haklı, ve bu bilinçli bir karardı — yanlış olduğu kullanınca anlaşıldı.** `PlayFrom` tıklanan
+satırın tarafına geçiyordu; gerekçe "tam o kelimeleri denetlemek için tek ses en nettir" idi.
+Kullanımda tersi çıkıyor: çalma tıklanan satırdan sonra devam ediyor ve tek kanalda karşı tarafın
+söylediği her şey **sessizlik**. Bir görüşmenin yarısını dinliyorsun, metin ise altında ses olmayan
+cümleler boyunca kayıyor. On üçüncü turda eklenen takip özelliğinin bozuk görünmesinin sebebi de
+buydu: işaret, seçili kanalın hiç konuşmadığı satırlara gidiyordu.
+
+Artık karışım varsa tıklama **tüm görüşmeyi** o andan çalıyor. Tek tarafı yalıtmak hoparlör
+düğmesinde duruyor — orada bilinçli bir eylem. Karışımı olmayan eski kayıtta o tarafın kanalına
+düşülüyor; sessizlik çalmaktan iyidir.
+
+### Üst üste konuşma ve yankı artık baloncukta
+
+Veri en baştan beri vardı (`merge_streams` işaretliyor, veritabanı saklıyor, Kişiler ekranı
+kullanıyor) ama görüşme penceresine hiç çıkmıyordu. İki küçük rozet eklendi:
+
+- **`üst üste`** — bu satır başlarken karşı taraf zaten konuşuyordu. Görünmesi gerekiyor çünkü
+  satırın **anlamını** değiştiriyor: boşluğa söylenen "tamam" onaydır, birinin üstüne söylenen aynı
+  kelime sözünü kesmektir. Defterde bunu ayırt etmeden alıntılamak yarım bir olguyu alıntılamaktır.
+- **`yankı`** — aynı sözler aynı anda iki kanalda. İki kişinin aynı cümleyi kurması değil,
+  hoparlörden mikrofona sızan tek ses. Yankı üst üste gelmeyi bastırıyor: "bu gerçekten burada
+  söylendi mi" sorusu, "nasıl söylendi"den önce gelir.
+
+İkisi de işaretleniyor, hiçbiri gizlenmiyor — aynı anda söylenmiş gerçek bir "aynen" ile sızıntı
+metin düzeyinde ayırt edilemez ve silmek gerçekten söylenmiş bir sözü yok etme riski taşır.
+
+**869 test · 864 geçti · 0 kırık · 5 atlandı** + **113 Python**.
+
+**Paket.** `v2.3.0`.

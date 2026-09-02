@@ -248,13 +248,21 @@ public sealed partial class PlaybackViewModel : ObservableObject, IDisposable
 
     // ---- transport ----------------------------------------------------------
 
-    /// <summary>Plays from a given moment, choosing the stream that carries that speaker.</summary>
+    /// <summary>Plays the conversation from a given moment.</summary>
     public void PlayFrom(int startMs, bool isMe)
     {
-        // Clicking a transcript line switches to that speaker's own recording on purpose: the
-        // reason to click a line is to check those exact words, and the single voice is the
-        // clearest way to hear them. Pressing play afterwards returns to the whole conversation.
-        Channel = isMe ? PlaybackChannel.Me : PlaybackChannel.Them;
+        // The whole conversation, not the speaker's own channel.
+        //
+        // It used to switch to whichever side that line belonged to, reasoning that a single voice
+        // is the clearest way to check exact words. In use it is the opposite: playback carries on
+        // past the line you clicked, and on one channel everything the other person says is
+        // silence — you hear one half of a conversation and the transcript scrolls through
+        // sentences with no sound under them. Clicking a line is a request to hear that moment of
+        // the call, and a call has two people in it.
+        //
+        // Isolating one side stays available on the speaker button, where it is a deliberate act.
+        if (HasMixed) Channel = PlaybackChannel.Both;
+        else Channel = isMe ? PlaybackChannel.Me : PlaybackChannel.Them;
 
         var path = CurrentPath;
         if (path is null || !File.Exists(path)) return;

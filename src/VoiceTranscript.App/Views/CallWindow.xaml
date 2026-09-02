@@ -364,6 +364,20 @@
                                                                FontSize="{StaticResource TextCaption}"
                                                                Foreground="{DynamicResource SystemFillColorCautionBrush}"
                                                                Visibility="{Binding LowConfidence, Converter={StaticResource BoolToVisibility}}" />
+
+                                                    <!-- Üst üste konuşma ve yankı. Aynı sebeple
+                                                         işaretleniyor: ikisi de satırın nasıl
+                                                         okunacağını değiştiriyor. Boşluğa söylenen
+                                                         "tamam" onaydır, birinin üstüne söylenen
+                                                         aynı kelime sözünü kesmektir. -->
+                                                    <Border Margin="6,0,0,0" Padding="5,0" CornerRadius="3"
+                                                            VerticalAlignment="Center"
+                                                            Background="{DynamicResource ControlAltFillColorSecondaryBrush}"
+                                                            Visibility="{Binding HasNote, Converter={StaticResource BoolToVisibility}}">
+                                                        <TextBlock Text="{Binding Note}"
+                                                                   FontSize="{StaticResource TextCaption}"
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    </Border>
                                                 </StackPanel>
 
                                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />

@@ -13,7 +13,8 @@ namespace VoiceTranscript.App.ViewModels;
 
 /// <summary>One turn in the conversation, laid out as a message.</summary>
 public sealed partial class ChatTurn(
-    string speaker, string text, int startMs, int endMs, bool isMe, bool lowConfidence) : ObservableObject
+    string speaker, string text, int startMs, int endMs, bool isMe, bool lowConfidence,
+    bool overlapsOther = false, bool suspectedEcho = false) : ObservableObject
 {
     public string Speaker { get; } = speaker;
     public string Text { get; } = text;
@@ -26,6 +27,29 @@ public sealed partial class ChatTurn(
 
     /// <summary>Whisper was unsure. Marked rather than hidden — an uncertain line is still evidence.</summary>
     public bool LowConfidence { get; } = lowConfidence;
+
+    /// <summary>
+    /// Somebody was already speaking when this line started.
+    ///
+    /// Worth showing because it changes how the line reads. "Tamam" said into a pause is agreement;
+    /// the same word over the top of someone else is an interruption, and a ledger entry that
+    /// quotes it without saying which is quoting half a fact. Both sides of an overlap are kept —
+    /// separate capture is what makes that possible at all.
+    /// </summary>
+    public bool OverlapsOther { get; } = overlapsOther;
+
+    /// <summary>
+    /// The same words on both channels at the same moment: one voice reaching the microphone
+    /// through the speakers, not two people agreeing verbatim. Marked, never deleted — a genuine
+    /// simultaneous "aynen" is indistinguishable from bleed, and deleting would erase real speech.
+    /// </summary>
+    public bool SuspectedEcho { get; } = suspectedEcho;
+
+    /// <summary>The one-word note the bubble carries, or nothing. Echo first: it questions whether
+    /// the line was said at all, which outranks how it was said.</summary>
+    public string? Note => SuspectedEcho ? "yankı" : OverlapsOther ? "üst üste" : null;
+
+    public bool HasNote => Note is not null;
 
     /// <summary>
     /// Hour-aware on purpose: "mm\:ss" silently drops the hour, so on the long calls this
@@ -382,7 +406,9 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
                 segment.StartMs,
                 segment.EndMs,
                 segment.IsMe,
-                segment.LowConfidence));
+                segment.LowConfidence,
+                segment.OverlapsOtherSpeaker,
+                segment.SuspectedEcho));
         }
 
         TranscriptMessage = segments.Count == 0
