@@ -1,0 +1,2 @@
+DIRECT 400 -> Servis ses dosyasını çözemedi (400, https://stt.ex5.ai/v1/jobs/abc). Kayıt bozuk olabilir.
+POLL 400 -> code=bad_audio msg=Servis ses dosyasını çözemedi (400, https://stt.ex5.ai/v1/jobs/abc). Kayıt bozuk olabilir.

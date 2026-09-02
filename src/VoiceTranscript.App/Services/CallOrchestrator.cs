@@ -1688,8 +1688,21 @@ public sealed class CallOrchestrator : IDisposable
         {
             // Said every time rather than once at setup: the automatic mode can start uploading
             // because a driver broke, and that must never happen quietly.
+            //
+            // The endpoint, not the model entry. AsrCatalog's cloud rows are "somewhere off this
+            // machine" and their name is decoration — the upload goes to whichever configured
+            // service answers first. A real log read
+            //
+            //     Bu görüşme ... OpenAI Whisper API servisine yükleniyor.
+            //     deneniyor: ex5 Whisper (kendi sunucumuz) @ https://stt.ex5.ai/v1
+            //
+            // two milliseconds apart. A warning about audio leaving the machine that names the
+            // wrong company is worse than no warning: it is the one line the user is entitled to
+            // trust, and it was telling them their call went to OpenAI when it did not.
+            var first = settings.UsableSttEndpoints.FirstOrDefault();
+
             Notice?.Invoke(this,
-                $"Bu görüşme yazıya dökülmek üzere {model.DisplayName} servisine yükleniyor.");
+                $"Bu görüşme yazıya dökülmek üzere {first?.ResolvedName ?? model.DisplayName} servisine yükleniyor.");
         }
 
         // Wall clock rather than the worker's own reported figure, and for both routes. What

@@ -1148,3 +1148,58 @@ gelir, sözcük zamanları gelmez).
 ex5 servisi tek pakette. Tam sürüm olduğu için `/releases/latest` bunu döndürür ve **kurulu her
 kopya otomatik güncellemede bunu görür.** Sürüm numarası etiketten geliyor; installer'ı ve
 sağlama toplamını GitHub Actions üretiyor, iki test takımı da yayından önce orada koşuyor.
+
+---
+
+## 2026-09-02 (dokuzuncu tur) — 403'ün anahtarla ilgisi yoktu
+
+v2.1.6 hedef makinede denendi. Günlük üç ayrı kusuru aynı anda gösterdi.
+
+### 1. Worker'ın adı yok, Cloudflare de adsızları banlıyor
+
+```
+22:32:36.694  deneniyor: ex5 Whisper (kendi sunucumuz) @ https://stt.ex5.ai/v1 · model whisper-1
+22:33:00.571  İşleme başarısız: ... API anahtarı kabul edilmedi (403). Ayarlardan anahtarı denetle.
+```
+
+**Anahtar doğruydu.** Ayarlar ekranı aynı anahtarla "hazır · 1 model listelendi" diyordu — C#
+tarafı `HttpClient` kullanıyor, worker `urllib`. `urllib` kendini `Python-urllib/3.12` diye
+tanıtıyor ve Cloudflare bunu doğrudan reddediyor: **403, gövde "error code: 1010"** ("site sahibi
+tarayıcını engelledi"). Anahtar gerektirmeyen `/health` ucuyla doğrulandı — varsayılan başlıkla
+403, herhangi bir gerçek isimle 200.
+
+Yani mesaj kullanıcıyı çalışan bir anahtarı denetlemeye gönderiyordu. **Yanlış talimat, ham hata
+kodundan kötüdür** — çünkü uygulanır, sonra anahtar yeniden girilir, sonra yine başarısız olur.
+
+**Yapılan.** `USER_AGENT` sabiti; `_send` her isteğe ekliyor (bir lehçenin unutması görünür bir
+hata değil, iki hafta sonra başkasının 403'ü olarak dönerdi), ex5'in yoklama GET'i de taşıyor.
+Ayrıca 403 artık ikiye ayrılıyor: gövdede Cloudflare'in numaralı reddi varsa kod `blocked` ve
+mesaj "anahtarla ilgili değil" diyor; servisin kendi JSON reddi ise `auth` olarak kalıyor.
+
+### 2. Uyarı yanlış şirketi söylüyordu
+
+```
+22:32:36.692  Bu görüşme yazıya dökülmek üzere OpenAI Whisper API servisine yükleniyor.
+22:32:36.694  deneniyor: ex5 Whisper (kendi sunucumuz) @ https://stt.ex5.ai/v1
+```
+
+İki milisaniye arayla. Yönlendirme doğruydu, etiket yanlış: uyarı `AsrCatalog`'un model satırının
+adını yazıyordu, oysa yükleme sırayla denenen **uç noktaya** gider ve model satırının adı orada
+sadece süs. Sesin makineden çıktığını söyleyen uyarı, kullanıcının güvenmek zorunda olduğu tek
+satır; yanlış şirketi söylemesi uyarı olmamasından kötü. `CallOrchestrator` ve Genel Bakış artık
+`UsableSttEndpoints.FirstOrDefault()?.ResolvedName` yazıyor.
+
+### 3. Kayıtlı anahtar "anahtar eksik" görünüyordu
+
+`SttEndpointViewModel` kurucusunda `_apiKey` alanı doğrudan atanıyor, bu da `OnApiKeyChanged`'i
+çalıştırmıyor; rozetin alan başlangıcı ise `KeyMissing`. Sonuç: yapılandırılmış her servis, anahtar
+yeniden yazılana kadar turuncu "anahtar eksik" rozetiyle açılıyordu. Artık kayıtlı anahtarı olan
+kart "sınanmadı" ile açılıyor — dürüst olan bu: anahtar var, henüz kimse servise sormadı.
+
+**846 test · 841 geçti · 0 kırık · 5 atlandı** + **92 Python** (üçü de testli: her isteğin ad
+taşıması, yoklamanın da taşıması, 1010'un `auth` değil `blocked` olması).
+
+**Doğrulanan.** Anahtar geçerli, `/v1/models` tek model listeliyor ve adı `whisper-1` — kataloğun
+varsayılanı doğru çıktı. Kalan tek belirsizlik işin `result` gövdesinin `words` taşıyıp taşımadığı.
+
+**Paket.** `v2.1.7`, tam sürüm.

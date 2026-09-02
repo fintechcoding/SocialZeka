@@ -322,3 +322,83 @@ def test_the_documented_refusals_are_said_in_words_rather_than_status_codes(engi
     # HTTP and mean the same thing at every provider.
     assert engine._fatal(401, "u", "").code == "auth"
     assert engine._fatal(524, "u", "").code == "timeout"
+
+
+# ---- who the worker says it is ----------------------------------------------
+
+
+def test_every_request_carries_a_name_because_the_default_one_is_banned(engine, monkeypatch, tmp_path):
+    """
+    The 403 that cost a real conversation, and had nothing to do with the key.
+
+    urllib announces "Python-urllib/3.12" unless told otherwise. Cloudflare refuses that outright
+    with HTTP 403 and a body of "error code: 1010" — verified against stt.ex5.ai, where the same
+    request returns 200 under any real name. It reached the user as "API anahtarı kabul edilmedi
+    (403). Ayarlardan anahtarı denetle." and sent them to check a key that was correct.
+    """
+    sent: dict[str, str] = {}
+
+    class _Response:
+        def read(self):
+            return b'{"text":"ok"}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def urlopen(request, timeout=None):
+        sent.update(request.headers)
+        return _Response()
+
+    monkeypatch.setattr(cloud_engine.urllib.request, "urlopen", urlopen)
+
+    engine._chunk_seconds = 60.0
+    engine._post(_upload(tmp_path), _options())
+
+    # urllib title-cases header names on the way in.
+    assert sent["User-agent"].startswith("VoiceTranscript/")
+    assert "Python-urllib" not in sent["User-agent"]
+    assert sent["Authorization"] == "Bearer KEY"
+
+
+def test_the_polling_request_carries_it_too(engine, monkeypatch):
+    """The job is polled through a separate urllib call, and a ban there loses the same call."""
+    sent: dict[str, str] = {}
+
+    class _Response:
+        def read(self):
+            return b'{"status":"completed","result":{"text":"ok"}}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(
+        cloud_engine.urllib.request, "urlopen",
+        lambda request, timeout=None: (sent.update(request.headers), _Response())[1])
+
+    engine._poll("https://stt.ex5.ai/v1/jobs/j-1")
+
+    assert sent["User-agent"].startswith("VoiceTranscript/")
+
+
+def test_a_proxy_refusing_the_client_is_not_reported_as_a_bad_key(engine):
+    """
+    403 means two different things and only one of them is the user's to fix.
+
+    Cloudflare's numbered refusals — 1010 for a banned client signature — carry no opinion about
+    the key. Telling somebody to check a working key is worse than showing them the raw status,
+    because they will do it, and then they will re-enter it, and it will fail again.
+    """
+    blocked = engine._fatal(403, "https://stt.ex5.ai/v1/jobs", "error code: 1010")
+
+    assert blocked.code == "blocked"
+    assert "Anahtarla ilgili değil" in str(blocked)
+
+    # A service that really does refuse the key still says so.
+    refused = engine._fatal(403, "https://stt.ex5.ai/v1/jobs", '{"detail":"Invalid API key"}')
+    assert refused.code == "auth"

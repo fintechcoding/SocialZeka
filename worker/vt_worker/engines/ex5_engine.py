@@ -196,6 +196,8 @@ class Ex5WhisperEngine(CloudWhisperEngine):
         """One status read. None means "ask again"; an exception means the job is not coming back."""
         request = urllib.request.Request(url, method="GET", headers={
             "Authorization": f"Bearer {self._api_key}",
+            # Same reason as the upload: the default urllib header is a 403 from Cloudflare.
+            "User-Agent": cloud_engine.USER_AGENT,
         })
 
         try:

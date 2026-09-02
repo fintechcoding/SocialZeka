@@ -387,8 +387,11 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
                 current.AsrMode == TranscriptionMode.CloudOnly
                     ? "Yazıya dökme buluta gönderiliyor"
                     : "Yerel çalışmazsa buluta gönderilecek",
-                $"Ses {current.CloudAsrModel.DisplayName} servisine yükleniyor. " +
-                "Bu, görüşme sesinin makineden çıkması demek."));
+                // The endpoint that will actually be tried, not the model catalogue's label —
+                // the same mismatch that had a real log announcing OpenAI two milliseconds
+                // before it uploaded to somebody else's server.
+                $"Ses {current.UsableSttEndpoints.FirstOrDefault()?.ResolvedName ?? current.CloudAsrModel.DisplayName} " +
+                "servisine yükleniyor. Bu, görüşme sesinin makineden çıkması demek."));
         }
 
         if (current.ExportToObsidian && string.IsNullOrWhiteSpace(current.ObsidianVaultPath))

@@ -41,6 +41,16 @@ public sealed partial class SttEndpointViewModel : ObservableObject
         _model = endpoint.ResolvedModel;
         _enabled = endpoint.Enabled;
 
+        // A card built from saved settings has a key already; only a new one does not.
+        //
+        // The field initialiser below says KeyMissing, and assigning _apiKey directly does not
+        // run OnApiKeyChanged, so every configured service opened its card wearing an orange
+        // "anahtar eksik" badge until the key was retyped. "Sınanmadı" is the honest word: the
+        // key is there and nothing has asked the service about it yet.
+        _readiness = string.IsNullOrWhiteSpace(_apiKey)
+            ? ServiceReadiness.KeyMissing
+            : ServiceReadiness.Unknown;
+
         Models = [.. endpoint.Provider.Models];
     }
 

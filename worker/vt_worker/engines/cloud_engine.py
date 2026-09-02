@@ -75,6 +75,15 @@ MAX_BACKOFF_SECONDS = 60.0
 # request — will fail identically forever, and retrying only delays telling the user why.
 RETRYABLE_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
 
+# Who we say we are.
+#
+# urllib announces "Python-urllib/3.12" unless told otherwise, and a service behind Cloudflare
+# refuses that outright: HTTP 403 with a body of "error code: 1010", which is Cloudflare for "the
+# owner has banned your browser". Verified against stt.ex5.ai — the same request that returns 403
+# under the default header returns 200 under any real name. It arrived as "API anahtarı kabul
+# edilmedi (403)" after a real call, sending the user to check a key that was never the problem.
+USER_AGENT = "VoiceTranscript/1.0 (+https://github.com/fintechcoding/VoiceTranscript)"
+
 
 def _sleep(seconds: float) -> None:
     time.sleep(seconds)
@@ -342,6 +351,10 @@ class CloudWhisperEngine(AsrEngine):
         return url, {"Authorization": f"Bearer {self._api_key}", "Content-Type": content_type}, body
 
     def _send(self, url: str, headers: dict[str, str], body: bytes) -> dict:
+        # Set here rather than in each _build_request: a dialect that forgets it does not fail
+        # visibly, it fails as somebody else's 403 a fortnight later.
+        headers = {"User-Agent": USER_AGENT, **headers}
+
         request = urllib.request.Request(url, data=body, method="POST", headers=headers)
 
         try:
@@ -377,6 +390,17 @@ class CloudWhisperEngine(AsrEngine):
         recording. Everything else keeps the status and the address, because the address is what a
         real night of "404: Invalid URL" turned out to hinge on.
         """
+        if status == 403 and _is_cloudflare_block(detail):
+            # Cloudflare's own numbered refusals: 1010 is a banned client signature, 1020 a
+            # firewall rule. Neither says anything about the key, and both used to be reported as
+            # "check your API key" — a wrong instruction is worse than a raw status code, because
+            # the user follows it.
+            return EngineError(
+                "blocked",
+                f"Servisin önündeki güvenlik katmanı isteği engelledi ({status}, {url}). "
+                "Anahtarla ilgili değil; sunucunun bu istemciyi tanıması gerekiyor.",
+            )
+
         if status in (401, 403):
             return EngineError(
                 "auth",
@@ -411,6 +435,18 @@ class _Retryable(Exception):
         self.code = code
         self.message = message
         self.retry_after = retry_after
+
+
+def _is_cloudflare_block(detail: str) -> bool:
+    """
+    Whether a refusal body is Cloudflare's rather than the service's.
+
+    Cloudflare answers with an HTML page whose only machine-readable part is the line
+    "error code: 1010". A real API refusing a key answers with its own JSON. Matching on the
+    phrase is crude, but the alternative — treating every 403 as a key problem — is what produced
+    the instruction to check a key that was correct.
+    """
+    return "error code:" in detail.lower() or "cloudflare" in detail.lower()
 
 
 def _retry_after(exc: urllib.error.HTTPError) -> float | None:
