@@ -10,7 +10,9 @@ between "works on a two-minute test" and "works on a real conversation":
   **A hard file-size limit**, 25 MB on OpenAI. Our format is 16 kHz mono 16-bit WAV, which is
   1.92 MB per minute, so a call longer than about thirteen minutes simply will not upload. That
   is not an edge case for phone conversations, it is the normal case. Audio is re-encoded to
-  Opus before upload, which brings an hour down to roughly ten megabytes.
+  Opus before upload, which brings an hour down to roughly thirty megabytes — and, because the
+  unit that has to fit is one twenty-minute chunk rather than the call, leaves the bitrate free to
+  be chosen for accuracy rather than for size.
 
   **Long requests fail in the middle.** Even under the size limit, a single request carrying an
   hour of audio is a long-lived connection against a rate-limited service, and when it fails it
@@ -53,9 +55,30 @@ from vt_worker.merge import Segment, Speaker, Word
 # of a table in this file that nobody remembers to update when a provider is added.
 MAX_UPLOAD_BYTES = 24 * 1024 * 1024
 
-# Opus at 24 kbps mono is roughly 10 MB per hour and is designed for speech at exactly this
-# bandwidth, so the accuracy cost is small compared to what the size saving buys.
-OPUS_BITRATE = 24_000
+# What the recording actually carries: 16 kHz mono 16-bit PCM.
+#
+# Nothing above this is quality, it is padding — the information in the file stops here, and an
+# encoder asked for more simply writes bigger frames around the same sound.
+SOURCE_BITRATE = 16_000 * 2 * 8
+
+# The ceiling worth paying for, and the floor below which the model stops hearing.
+#
+# The floor is measured, not assumed. One real recording, transcribed four times: at 21.5 kbps it
+# came back with 1624 words; at 18.2 kbps, the same audio, 330. Eighty per cent of the conversation
+# gone — and not hallucinated, not garbled, simply not heard: no speech found in 520 of its 659
+# seconds. Opus at that bitrate is still perfectly clear to a person and has already thrown away
+# what the model listens for. The old target was 24 kbps, which Opus undershoots to 18-21 on speech
+# with pauses in it, so every upload sat on the wrong side of that cliff by a kbps or two.
+#
+# The ceiling is where a 16 kHz mono encoder becomes transparent. Above it the bytes buy nothing.
+MAX_OPUS_BITRATE = 128_000
+MIN_OPUS_BITRATE = 32_000
+
+# How much of a service's limit one upload may use.
+#
+# The rest is for the multipart envelope and for the next conversation being a little longer than
+# this one. A chunk that only just fits is a 413 waiting to happen.
+UPLOAD_MARGIN = 0.6
 
 # Ceiling on one upload, in seconds of audio.
 #
@@ -243,7 +266,29 @@ class CloudWhisperEngine(AsrEngine):
         return _to_segments(payload, offset)
 
     def _compress(self, wav_path: str, workspace: str, suffix: str = "") -> str:
-        """Re-encode to Opus. Falls back to the original WAV if encoding is unavailable."""
+        """
+        Send the best thing that fits: the recording itself where it will go, Opus where it will not.
+
+        Compression here has one purpose, which is to get under somebody else's ceiling. It was
+        being applied as though it had a second — saving space that nobody needed saved — at a
+        fixed 24 kbps, and that turned out to cost most of a conversation. See MIN_OPUS_BITRATE:
+        the same audio gave 1624 words at 21.5 kbps and 330 at 18.2.
+
+        So the question is asked the other way round now. A twenty-minute chunk is 38 MB as
+        recorded; against our own server's 95 MB that goes up untouched, and the encoder never
+        enters the picture. Against OpenAI's 25 MB it does not fit, and the bitrate is then whatever
+        the remaining room allows — about 100 kbps, four times the old figure and still less than
+        half of what that limit would bear.
+
+        The original file is returned unchanged when it fits, which the caller already handles: it
+        deletes nothing that is the recording itself.
+        """
+        size = os.path.getsize(wav_path)
+        allowed = self.max_upload_bytes * UPLOAD_MARGIN
+
+        if size <= allowed:
+            return wav_path
+
         target = os.path.join(workspace, f"upload{suffix}.ogg")
 
         try:
@@ -254,7 +299,7 @@ class CloudWhisperEngine(AsrEngine):
         try:
             with av.open(wav_path) as source, av.open(target, mode="w", format="ogg") as output:
                 stream = output.add_stream("libopus", rate=16_000)
-                stream.bit_rate = OPUS_BITRATE
+                stream.bit_rate = self._bitrate_for(size, allowed)
 
                 for frame in source.decode(audio=0):
                     frame.pts = None
@@ -269,6 +314,19 @@ class CloudWhisperEngine(AsrEngine):
             # An encoder that is missing or unhappy is not worth failing the job over; the
             # uncompressed file may still be small enough, and the size check catches it if not.
             return wav_path
+
+    @staticmethod
+    def _bitrate_for(size: float, allowed: float) -> int:
+        """
+        The highest bitrate that fits, bounded at both ends.
+
+        Scaled from what the source carries rather than picked from a table, so it follows the
+        service's limit without anyone maintaining a per-provider number. Clamped at the top
+        because a 16 kHz mono encoder has nothing left to say above MAX_OPUS_BITRATE, and at the
+        bottom because a limit tight enough to demand less than MIN_OPUS_BITRATE should be refused
+        by the size check with a sentence, not met quietly by an upload the model cannot hear.
+        """
+        return int(min(MAX_OPUS_BITRATE, max(MIN_OPUS_BITRATE, SOURCE_BITRATE * allowed / size)))
 
     def _post_with_retry(self, path: str, options: EngineOptions) -> dict:
         last: EngineError | None = None

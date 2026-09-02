@@ -283,3 +283,43 @@ def test_a_connection_closed_mid_upload_names_the_address_not_a_c_source_line():
     # reason is already readable.
     ordinary = cloud_engine._network_message("https://example.invalid/v1", "[Errno 11001] getaddrinfo failed")
     assert "getaddrinfo failed" in ordinary
+
+
+def test_quality_follows_the_service_s_limit_rather_than_a_fixed_number():
+    """
+    The bitrate that cost a conversation, and the rule that replaced it.
+
+    One real recording, transcribed four times: 1624 words at 21.5 kbps, 330 at 18.2. The same
+    audio — not hallucinated, not garbled, simply not heard, with no speech found in 520 of its 659
+    seconds. The old fixed 24 kbps target undershoots to 18-21 on speech with pauses in it, so
+    every upload sat on the wrong side of that cliff.
+
+    Nothing here is a table of per-provider numbers. The room left by the service's own limit
+    decides, which is why a service that takes 95 MB gets the recording untouched and one that
+    takes 25 MB gets four times the old bitrate.
+    """
+    chunk = cloud_engine.MAX_CHUNK_SECONDS
+    raw = cloud_engine.SOURCE_BITRATE * chunk / 8          # 38.4 MB as recorded
+
+    # The strictest limit in the catalogue still leaves room for far more than the cliff.
+    allowed = cloud_engine.MAX_UPLOAD_BYTES * cloud_engine.UPLOAD_MARGIN
+    chosen = cloud_engine.CloudWhisperEngine._bitrate_for(raw, allowed)
+
+    assert chosen > 64_000, f"{chosen} bps is closer to the cliff than it should be"
+    assert chosen <= cloud_engine.MAX_OPUS_BITRATE
+    assert chosen * chunk / 8 <= allowed
+
+    # A limit tight enough to demand less than the model can hear is refused by the size check
+    # with a sentence, not met quietly by an upload nobody can transcribe.
+    assert cloud_engine.CloudWhisperEngine._bitrate_for(raw, 1_000) == cloud_engine.MIN_OPUS_BITRATE
+
+    # And there is no point asking for more than the recording carries.
+    assert cloud_engine.CloudWhisperEngine._bitrate_for(raw, raw) == cloud_engine.MAX_OPUS_BITRATE
+
+
+def test_a_recording_that_already_fits_is_not_re_encoded_at_all(engine, tmp_path):
+    """Compression exists to get under a ceiling. Where there is room, it is pure loss."""
+    small = tmp_path / "part0.wav"
+    small.write_bytes(bytes(1024))
+
+    assert engine._compress(str(small), str(tmp_path)) == str(small)

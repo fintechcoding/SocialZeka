@@ -112,9 +112,9 @@ kadar iyi çözmez.
 Uzun aramada bulut hatası
 -------------------------
 Servislerin dosya sınırı var ve her serviste farklı (OpenAI 25 MB, kendi
-sunucumuz 95 MB). Uygulama sesi Opus'a sıkıştırıp gerekirse parçalara bölerek
-gönderir ve sonucu tek metin hâlinde birleştirir. Yine de hata alıyorsan
-görüşme çok uzun demektir; parça sayısı otomatik artar.
+sunucumuz 95 MB). Uygulama kaydı sessiz anlardan parçalara böler ve her parçayı
+o servisin sınırına sığan en yüksek kalitede gönderir: kendi sunucumuza kayıt
+hiç sıkıştırılmadan, olduğu gibi gider. Sonuç tek metin hâlinde birleştirilir.
 
 
 NELER YAPMAZ

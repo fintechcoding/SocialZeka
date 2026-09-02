@@ -1269,3 +1269,50 @@ Eski satırlar için "Tekrar dene" yeterli: 2.1.8 onları `/v1/speech-to-text`'e
 **851 test · 846 geçti · 0 kırık · 5 atlandı** + **93 Python**.
 
 **Paket.** `v2.1.9`, tam sürüm.
+
+---
+
+## 2026-09-02 (on ikinci tur) — 24 kbps bir görüşmenin dörtte üçünü yedi
+
+Sunucu tarafındaki ölçüm, sıkıştırmanın maliyetini sayıyla gösterdi. **Aynı kayıt, dört kez:**
+
+| bitrate | çıkan kelime |
+|---|---|
+| 21.5 kbps | **1624** |
+| 20.6 kbps | iyi |
+| 19.1 kbps | felaket |
+| 18.2 kbps | **330** |
+
+Eşik ~20 kbps ve `OPUS_BITRATE = 24_000` tam o uçurumun kenarındaydı — Opus, aralıklı konuşmada
+hedefinin altına düştüğü için gerçekte 18-21 kbps çıkıyordu. Kayıp **%80**. Üstelik çöp segment 0,
+zaman tutarsızlığı 0: model **uydurmuyor, duymuyor** — 659 saniyenin 520'sinde konuşma bulamamış.
+Bir insan için 18 kbps hâlâ gayet anlaşılır; modelin dinlediği ince ayrıntı çoktan atılmış.
+
+### Sayı yanlış değildi, soru yanlıştı
+
+Sıkıştırmanın tek işi başkasının tavanının altına inmek. İkinci bir işi varmış gibi — kimsenin
+istemediği yerden yer kazanmak — sabit bir sayıyla uygulanıyordu. Oysa sınıra sığması gereken birim
+görüşme değil, **20 dakikalık parça**:
+
+| | ham (kayıtta olduğu gibi) | sınırın payı |
+|---|---|---|
+| 20 dk parça | 38.4 MB | — |
+| OpenAI / Groq 24 MiB | sığmaz | → Opus **100 kbps** (15.1 MB) |
+| ex5 90 MiB | **sığar** | → **kayıpsız**, olduğu gibi |
+
+Artık soru ters soruluyor: *bu sınıra sığan en iyisi ne?* Kayıt zaten 16 kHz mono 16-bit, yani
+256 kbps; üstünde "kalite" diye bir şey yok, o yüzden kendi sunucumuza dosya hiç kodlanmadan
+gidiyor ve kodlayıcı denklemden tamamen çıkıyor. Sığmadığı yerde bitrate kaynaktan ölçekleniyor —
+sağlayıcı başına elle tutulan bir tablo yok, sınır kendisi karar veriyor. İki uçtan sınırlı:
+üstte 128 kbps (16 kHz mono kodlayıcının söyleyecek bir şeyi kalmıyor), altta 32 kbps — bu kadar
+dar bir sınır, sessizce duyulmayan bir yükleme yapmak yerine boyut denetiminden bir cümleyle
+dönmeli.
+
+`Ex5WhisperEngine`'e yazdığım özel kural kaldırıldı: temel kural onu zaten kapsıyor ve aynı kazancı
+sınırı geniş olan her sağlayıcıya veriyor.
+
+**851 test · 846 geçti · 0 kırık · 5 atlandı** + **96 Python** (bitrate'in uçurumun üstünde
+kalması, tavan/taban sınırlaması, sığan kaydın hiç kodlanmaması testli).
+
+**Paket.** `v2.2.0` — davranış değişikliği: aynı görüşme artık ölçülebilir biçimde daha çok kelime
+çıkarmalı.

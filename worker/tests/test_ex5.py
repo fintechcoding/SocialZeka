@@ -402,3 +402,14 @@ def test_a_proxy_refusing_the_client_is_not_reported_as_a_bad_key(engine):
     # A service that really does refuse the key still says so.
     refused = engine._fatal(403, "https://stt.ex5.ai/v1/jobs", '{"detail":"Invalid API key"}')
     assert refused.code == "auth"
+
+
+# ---- what actually gets uploaded ---------------------------------------------
+
+
+def test_a_chunk_that_fits_goes_up_as_recorded(engine, tmp_path):
+    """Against our own 95 MB there is nothing to get under, so the encoder never runs."""
+    wav = tmp_path / "part0.wav"
+    wav.write_bytes(b"RIFF" + bytes(38 * 1024 * 1024))  # twenty minutes of 16 kHz mono PCM
+
+    assert engine._compress(str(wav), str(tmp_path)) == str(wav)
