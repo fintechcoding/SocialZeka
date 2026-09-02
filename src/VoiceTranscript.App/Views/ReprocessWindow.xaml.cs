@@ -134,30 +134,42 @@ public partial class ReprocessWindow
                 ReprocessMethod.FromSettings),
         ];
 
-        // Everything in the catalogue that could actually start here. The catalogue already knows
-        // which need a card and which do not, so nothing impossible is offered.
-        //
-        // Machine first, then cloud, because the headings follow the order rows appear in — and on
-        // a list of ways to handle a recorded phone call, the one that keeps the audio here is the
-        // right one to meet first.
-        foreach (var model in AsrCatalog.All
-                     .Where(m => m.RunsOnCpu || m.VramGb > 0)
-                     .OrderBy(m => m.SendsAudioOffMachine))
+        // The models that run here. Machine first, because on a list of ways to handle a recorded
+        // phone call the one that keeps the audio here is the right one to meet first.
+        foreach (var model in AsrCatalog.All.Where(m => !m.SendsAudioOffMachine && (m.RunsOnCpu || m.VramGb > 0)))
         {
             methods.Add(new ReprocessMethod(
                 model.Id,
                 model.DisplayName,
-                model.SendsAudioOffMachine
-                    ? "Ses bu servise yüklenir."
-                    : model.VramGb > 0
-                        ? $"Bu makinede · ekran kartı gerekir ({model.VramGb:0.#} GB)"
-                        : "Bu makinede · işlemcide çalışır",
-                model.SendsAudioOffMachine ? "Cloud24" : "Desktop24",
-                model.SendsAudioOffMachine,
+                model.VramGb > 0
+                    ? $"Bu makinede · ekran kartı gerekir ({model.VramGb:0.#} GB)"
+                    : "Bu makinede · işlemcide çalışır",
+                "Desktop24",
+                false,
                 SpeedOf(model),
-                model.SendsAudioOffMachine
-                    ? ReprocessMethod.InTheCloud
-                    : ReprocessMethod.OnThisMachine));
+                ReprocessMethod.OnThisMachine));
+        }
+
+        // The services actually configured, not the catalogue's idea of them.
+        //
+        // This list used to be AsrCatalog's cloud rows — "OpenAI Whisper API", "Groq" — and
+        // choosing one of them did nothing at all: the upload went to whichever configured service
+        // answered first. Somebody picked OpenAI here and watched the toast say it was uploading to
+        // our own server. The choice had never been connected to anything; naming the real endpoint
+        // in the notice is what made that visible.
+        //
+        // So the rows are now the cards from settings. Picking one means it, and only it, is used
+        // for this recording — which is the whole point of choosing a service by hand.
+        foreach (var endpoint in _settings.UsableSttEndpoints)
+        {
+            methods.Add(new ReprocessMethod(
+                Services.CallOrchestrator.EndpointChoicePrefix + endpoint.Id,
+                endpoint.ResolvedName,
+                $"Ses bu servise yüklenir · {endpoint.ResolvedModel}",
+                "Cloud24",
+                true,
+                "",
+                ReprocessMethod.InTheCloud));
         }
 
         Bind(methods);

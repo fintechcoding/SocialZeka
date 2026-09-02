@@ -1436,4 +1436,31 @@ kapalı olmalı: silinen segment silinen alıntıdır, biz belirsiz satırı sil
 
 **856 test · 851 geçti · 0 kırık · 5 atlandı** + **94 Python**.
 
+### Yeniden yazıya dökmede servis seçimi hiçbir şeye bağlı değilmiş
+
+Kullanıcı "Yeniden yazıya dök → buluttan OpenAI" seçti, toast "ex5 Whisper servisine yükleniyor"
+dedi. **Yönlendirme hatası değil: seçim hiçbir zaman bir yere bağlanmamıştı.**
+
+İki katalog bir bulut transkripsiyonunu tarif ediyor ve yalnızca biri karar veriyor.
+`AsrCatalog`'un satırları ("OpenAI Whisper API", "Groq") sesin makineden *çıktığını* söyler;
+*nereye gittiğini* `SttEndpoints` söyler. Diyalog birinci türü sunuyordu, `TranscribeInCloudAsync`
+ise her zaman yapılandırılmış ilk servise gidiyordu. Bu, uyarı model adını tekrarlamayı bırakıp
+gerçek uç noktayı söyleyene kadar **görünmezdi** — on üçüncü turdaki düzeltme kusuru yaratmadı,
+ortaya çıkardı.
+
+Artık liste ayarlardaki kartlardan geliyor ve seçilen servis **yalnız başına** kullanılıyor.
+Yedekleme zinciri kendiliğinden gelen bir kayıt için doğru — bir sağlayıcının kesintisi yüzünden
+akşamın görüşmesi kaybolmasın diye var. "Bu servisle dök" için yanlış: iki servisi aynı sesle
+karşılaştıran ya da bir anahtarın çalışıp çalışmadığına bakan biri, ötekinin cevabını berikinin
+adı altında almamalı. Ses zaten diskte, yeniden denenebilir.
+
+### Her gece bir saat düşen test
+
+`CallsFilterTests.ByPeriodUsesTheCallsOwnClock` bu turda kırmızı geldi ve sebebi değişiklik
+değildi: örnek satır "bir saat önce" diye kuruluyordu, ki gece yarısı ile bir arası **dün** olur.
+Yani test her gece 00:00–01:00 arasında düşüyordu ve kimse o saatte bakmıyordu. Sürüm beklerken
+saat 00:0x'te yakalandı. Satır artık "bugünün içinde kalan bir an".
+
+**860 test · 855 geçti · 0 kırık · 5 atlandı** + **94 Python**.
+
 **Paket.** `v2.2.3`.

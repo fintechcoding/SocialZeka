@@ -17,11 +17,21 @@ public sealed class CallsFilterTests
 
     private static IReadOnlyList<RecentCall> Sample() =>
     [
-        Row(1, 10, "Uliana", Now.AddHours(-1), CallApp.WhatsApp, ProcessingState.Analysed, "önemli"),
+        Row(1, 10, "Uliana", EarlierToday, CallApp.WhatsApp, ProcessingState.Analysed, "önemli"),
         Row(2, 11, "Gürhan Abi", Now.AddDays(-1), CallApp.Telegram, ProcessingState.Failed),
         Row(3, null, "İsimsiz", Now.AddDays(-3), CallApp.WhatsApp, ProcessingState.Transcribed),
         Row(4, 10, "Uliana", Now.AddDays(-40), CallApp.WhatsApp, ProcessingState.Queued, "tehdit"),
     ];
+
+    /// <summary>
+    /// A moment that is today whatever time the suite runs.
+    ///
+    /// This row used to be "an hour ago", which is yesterday between midnight and one — so the
+    /// "Today" assertion below found nothing and the test failed for one hour every night, on a
+    /// clock nobody was looking at. Caught at 00:0x on 3 September while a release was waiting.
+    /// </summary>
+    private static readonly DateTimeOffset EarlierToday =
+        Now.TimeOfDay >= TimeSpan.FromHours(1) ? Now.AddHours(-1) : Now;
 
     private static IReadOnlyList<RecentCall> Apply(long? contact = null, SearchPeriod period = SearchPeriod.Anytime,
         string app = CallsViewModel.Any, string state = CallsViewModel.Any, string tag = CallsViewModel.Any, string query = "")

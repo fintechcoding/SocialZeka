@@ -575,6 +575,22 @@ public sealed class CallOrchestrator : IDisposable
     private readonly System.Collections.Concurrent.ConcurrentDictionary<long, string> _engineOverride = new();
 
     /// <summary>
+    /// Marks an override that names a configured service rather than a catalogue model.
+    ///
+    /// Two catalogues describe a cloud transcription and only one of them decides anything.
+    /// AsrCatalog's rows ("OpenAI Whisper API", "Groq") say *that* the audio leaves the machine;
+    /// SttProviderCatalog's configured endpoints say *where it goes*. The reprocess dialog offered
+    /// the first kind, so choosing "OpenAI Whisper API" there and watching the upload go to our own
+    /// server was not a routing bug — the choice had never been connected to anything. It only
+    /// became visible when the notice stopped repeating the model's name and started naming the
+    /// endpoint.
+    ///
+    /// The prefix keeps one dictionary rather than two parallel ones, and the id after it is the
+    /// endpoint's own, so renaming or reordering a service does not lose the choice.
+    /// </summary>
+    public const string EndpointChoicePrefix = "stt:";
+
+    /// <summary>
     /// Recordings to analyse again without transcribing them again.
     ///
     /// The expensive half is transcription — hours on a machine without a usable GPU — and it is
@@ -1342,9 +1358,17 @@ public sealed class CallOrchestrator : IDisposable
         Call call,
         Core.Asr.AsrModel model,
         AppSettings settings,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Core.Asr.SttEndpoint? pinned = null)
     {
-        var endpoints = settings.UsableSttEndpoints;
+        // A service the user named for this one recording is used on its own.
+        //
+        // The fallback chain below exists so an evening's conversation is not lost to one
+        // provider's outage, and that is right for a recording arriving on its own. It is wrong
+        // for "yazıya dök, ama bu servisle": somebody comparing two services against the same
+        // audio, or checking whether a key works, must not be handed the other one's answer under
+        // the first one's name. The audio is on disk here and can be tried again.
+        var endpoints = pinned is not null ? [pinned] : settings.UsableSttEndpoints;
 
         if (endpoints.Count == 0)
         {
@@ -1662,10 +1686,11 @@ public sealed class CallOrchestrator : IDisposable
     /// </summary>
     private bool MightUseGpu(long callId, AppSettings settings)
     {
-        if (_engineOverride.TryGetValue(callId, out var chosen)
-            && AsrCatalog.TryGet(chosen, out var picked))
+        if (_engineOverride.TryGetValue(callId, out var chosen))
         {
-            return !picked.SendsAudioOffMachine;
+            if (chosen.StartsWith(EndpointChoicePrefix, StringComparison.Ordinal)) return false;
+
+            if (AsrCatalog.TryGet(chosen, out var picked)) return !picked.SendsAudioOffMachine;
         }
 
         return settings.AsrMode != TranscriptionMode.CloudOnly;
@@ -1678,11 +1703,19 @@ public sealed class CallOrchestrator : IDisposable
         // An engine chosen for this one recording wins over the setting, and is consumed as it is
         // read: a retry that picked the cloud must not silently become the standing choice for
         // everything queued behind it.
+        _engineOverride.TryRemove(call.Id, out var chosen);
+
+        // A named service. Resolved against the current settings so a card deleted since the
+        // dialog was opened falls back to the ordinary route rather than to nothing.
+        var pinned = chosen is not null && chosen.StartsWith(EndpointChoicePrefix, StringComparison.Ordinal)
+            ? settings.UsableSttEndpoints.FirstOrDefault(
+                e => e.Id == chosen[EndpointChoicePrefix.Length..])
+            : null;
+
         var model =
-            _engineOverride.TryRemove(call.Id, out var chosen)
-            && AsrCatalog.TryGet(chosen, out var picked)
-                ? picked
-                : settings.ResolveAsrModel(await LocalTranscriptionUsableAsync(cancellationToken));
+            pinned is not null ? AsrCatalog.Get("cloud-openai-whisper")
+            : chosen is not null && AsrCatalog.TryGet(chosen, out var picked) ? picked
+            : settings.ResolveAsrModel(await LocalTranscriptionUsableAsync(cancellationToken));
 
         if (model.SendsAudioOffMachine)
         {
@@ -1699,7 +1732,7 @@ public sealed class CallOrchestrator : IDisposable
             // two milliseconds apart. A warning about audio leaving the machine that names the
             // wrong company is worse than no warning: it is the one line the user is entitled to
             // trust, and it was telling them their call went to OpenAI when it did not.
-            var first = settings.UsableSttEndpoints.FirstOrDefault();
+            var first = pinned ?? settings.UsableSttEndpoints.FirstOrDefault();
 
             Notice?.Invoke(this,
                 $"Bu görüşme yazıya dökülmek üzere {first?.ResolvedName ?? model.DisplayName} servisine yükleniyor.");
@@ -1717,7 +1750,7 @@ public sealed class CallOrchestrator : IDisposable
         try
         {
             result = model.SendsAudioOffMachine
-                ? await TranscribeInCloudAsync(call, model, settings, cancellationToken)
+                ? await TranscribeInCloudAsync(call, model, settings, cancellationToken, pinned)
                 : await _worker().TranscribeAsync(new TranscriptionRequest
                 {
                     Id = $"call-{call.Id}",
