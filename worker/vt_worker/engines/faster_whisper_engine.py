@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import os
 import sys
 import wave
 from contextlib import closing

@@ -1464,3 +1464,33 @@ saat 00:0x'te yakalandı. Satır artık "bugünün içinde kalan bir an".
 **860 test · 855 geçti · 0 kırık · 5 atlandı** + **94 Python**.
 
 **Paket.** `v2.2.3`.
+
+---
+
+## 2026-09-03 — `import os` yok: işlemcide yazıya dökme hiç çalışmıyormuş
+
+Kullanıcı işlemciyi seçti ve worker çöktü:
+
+```
+faster_whisper_engine.py, line 138, in load
+    cpu_threads = max(1, (os.cpu_count() or 4) - 2)
+NameError: name 'os' is not defined
+```
+
+`os` kullanılıyor, hiç import edilmemiş. `7adc6f7` ile geldi, yani **v2.1.6'dan beri işlemcide
+yerel yazıya dökme hiç çalışmıyor** — ve kimse fark etmedi.
+
+**Neden hiçbir şey yakalamadı.** Üç şey üst üste geldi: satır yalnızca cihaz `cpu`'ya çözümlenince
+çalışıyor, çalışan bir ekran kartı olan makine oraya hiç varmıyor; motorun kendi testleri Whisper
+ağırlıkları olmadan atlanıyor; ve projede linter yok. Bir linter'ın anında bulacağı bir kusur,
+kaydı alındıktan **sonra** kullanıcının ekranına düştü.
+
+**Yapılan.** İmport eklendi. Ama asıl mesele sınıfın kendisi, o yüzden `worker/tests/test_imports.py`
+yazıldı: her modülün AST'sini gezip `ad.özellik` biçiminde kullanılan standart kütüphane adlarının
+gerçekten import edildiğini doğruluyor. Bağımlılık yok, yirmi satır, ve tam olarak olan hataya
+nişan alıyor. Doğrulandı: import geri alınınca test kırmızı oluyor —
+*"faster_whisper_engine.py uses os without importing it"*.
+
+**860 test · 855 geçti · 0 kırık · 5 atlandı** + **109 Python** (biri modül başına, 15 modül).
+
+**Paket.** `v2.2.4`.
