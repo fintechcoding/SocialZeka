@@ -1656,3 +1656,40 @@ eskidi, kart artık adıyla bulunuyor.
 **873 test · 868 geçti · 0 kırık · 5 atlandı** + **113 Python**.
 
 **Paket.** `v2.3.2`.
+
+---
+
+## 2026-09-03 (yedinci tur) — Bulut çevirisi neden yerelden kötü: tek bir bayrak
+
+Kullanıcı: "yerelde GPU'da güzel çeviriyor, bulutta saçma sapan çıkıyor, hem kayıyor hem sıralama
+bozuk." Ve haklı olarak sordu: dosyaları başka türlü mü göndersek, kendi sunucumuza upload arayüzü
+mü yazsak?
+
+**Gerek yok — fark aktarımda değil, çözümleme ayarında.** Aynı ağırlıklar, farklı bayraklar.
+
+Yerel motorun kodunda tam bu kusura karşı yazılmış bir yorum duruyor:
+
+> *"Whisper invents text when fed silence. Both of these suppress that, and the recorder produces
+> a lot of silence because it captures the whole call rather than just speech."*
+> `vad_filter = True` · `condition_on_previous_text = False`
+
+Sunucunun kütüphanesinin kaynağından doğrulandı (`mlx_whisper/transcribe.py:71`):
+`condition_on_previous_text: bool = True`. Yani sunucu bu bayrağı **açık** çalıştırıyor ve uçlarında
+kapatacak bir alan yok.
+
+Açıkken model kendi ürettiği metni bağlam olarak geri besliyor. Bir yanlış tahmin bir sonrakini
+bozuyor, ve kaydedici görüşmenin tamamını yakaladığı için tek kanalda dakikalarca süren sessizlik
+uydurma metinle doluyor. Üç şikâyetin üçü de bundan çıkıyor: uydurma cümleler, sürüklenen zaman
+damgaları (bağlam penceresi modelin kendi çıktısına göre kayıyor), ve kayan damgalar birleştirmede
+yanlış sıraya oturduğu için bozulan konuşma sırası.
+
+**Kalan parametreler zaten aynı.** `no_speech_threshold=0.6`, `logprob_threshold=-1.0`,
+`compression_ratio_threshold=2.4` — mlx varsayılanları bizim yerelde kullandığımızla birebir. Fark
+tek bir bool.
+
+`hotwords` istenmedi: mlx-whisper'da yok, o CTranslate2'ye özgü. Yerelde 209 terim her pencereyi
+yönlendiriyor, bulutta yalnızca `prompt`'un ilk 40 terimi var ve Whisper prompt'u bir kez okuyup
+çoğu zaman göz ardı ediyor. Bu fark kapatılamaz ama bayrak düzeltilince etkisi çok azalır.
+
+Sunucudan `condition_on_previous_text` alanı istendi. Kod değişikliği yok — **yerel motora
+dokunulmadı**, zaten doğru olan taraf o.
