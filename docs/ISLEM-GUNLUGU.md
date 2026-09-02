@@ -1020,3 +1020,8 @@ Hakem sıralamasında kalanlar (yapılmadı, kullanıcının kararına bırakıl
 (Takvim + Yapılacaklar + Bugün → Ajanda, Ara + Sor → tek sayfa, İşlemler'e kapı), üst kartın
 "bu sabah beni bekleyen" sayılara dönmesi, tek görüşme satırı şablonu, Kişiler sayfası ile kişi
 penceresinin birleşmesi, klavye yolu (Del/Enter/Shift+F10), İşlemler'de toplu seçim.
+
+**Hedef makine için derleme (beta6).** `main @ bd6da3d`,
+`dist/VoiceTranscript-Setup-2.1.6-beta6-win-x64.exe`, SHA-256 `e347015d475c11b3cec257f8dce6e0a9559a4b4af55114c4c06047e75ef8d9b5`. İki metin düzeltmesi
+(Krediyi sor → Bakiyeyi göster; llama-server özetindeki "uygulama başlatır" iddiası) pakete girmedi,
+bir sonraki derlemede.

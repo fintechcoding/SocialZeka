@@ -61,8 +61,11 @@ public static class LlmProviders
             DefaultBaseUrl = "http://127.0.0.1:8080/v1",
             IsSupervisedByApp = true,
             SupportsExplicitUnload = true,
-            Summary = "Varsayılan. Uygulama kendi başlatıp kapatır, model dosyasını doğrudan sen "
-                    + "seçersin, KV cache sıkıştırması kontrol edilebilir. Hiçbir veri dışarı çıkmaz.",
+            // Said plainly: nothing in the application launches llama-server. The earlier text
+            // promised "uygulama kendi başlatıp kapatır", and a user who believed it waited for a
+            // server that never came.
+            Summary = "Ayrıca kurulup elle başlatılması gerekir (127.0.0.1:8080); uygulama başlatmaz. "
+                    + "Model dosyasını sen seçersin. Hiçbir veri dışarı çıkmaz.",
         },
         new()
         {
