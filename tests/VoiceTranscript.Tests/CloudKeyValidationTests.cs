@@ -29,6 +29,16 @@ public sealed class CloudKeyValidationTests : IDisposable
 
     private AppPaths Paths() => new(_root);
 
+    /// <summary>
+    /// The card for one service.
+    ///
+    /// These tests used to say <c>SttEndpoints.Single()</c>, which held while the list contained
+    /// only what somebody had added by hand. Every service in the catalogue now gets a card, empty
+    /// until a key is typed into it, so the one under test has to be named.
+    /// </summary>
+    private static SttEndpointViewModel Card(SettingsViewModel model, string kind) =>
+        model.SttEndpoints.First(e => e.Kind == kind);
+
     private static SttEndpoint OpenAi(string? key = "sk-test") => new()
     {
         Kind = "openai",
@@ -144,7 +154,8 @@ public sealed class CloudKeyValidationTests : IDisposable
 
         Assert.True(ComplainsAboutTheKey(model.Problems));
 
-        model.SttEndpoints.Single().ApiKey = "sk-test";
+        // Named, not "the only one": every known service now has a card, most of them empty.
+        Card(model, "openai").ApiKey = "sk-test";
 
         Assert.False(ComplainsAboutTheKey(model.Problems));
     }
@@ -166,7 +177,7 @@ public sealed class CloudKeyValidationTests : IDisposable
 
         Assert.False(ComplainsAboutTheKey(model.Problems));
 
-        model.SttEndpoints.Single().Enabled = false;
+        Card(model, "openai").Enabled = false;
 
         Assert.True(ComplainsAboutTheKey(model.Problems));
     }

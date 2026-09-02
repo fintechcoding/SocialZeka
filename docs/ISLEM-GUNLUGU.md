@@ -1625,3 +1625,34 @@ belgedir; yanlış anlatan yorum, yanlış kod kadar zararlıdır.
 **869 test · 864 geçti · 0 kırık · 5 atlandı** + **113 Python**.
 
 **Paket.** `v2.3.1`.
+
+---
+
+## 2026-09-03 (altıncı tur) — Her servis ekranda, anahtarı olsun olmasın
+
+Kullanıcı: "yeniden çevirde bulutta tek sağlayıcı çıkıyor, anahtarı girilmiş ve aktif olanların
+hepsi görünmeli."
+
+Kod zaten öyle çalışıyordu — `UsableSttEndpoints` anahtarı olan **her** kartı döndürüyor. Tek
+çıkmasının sebebi listede gerçekten tek kart olmasıydı, ve asıl istek cümlenin ikinci yarısındaydı:
+*"ayarlanmamış sağlayıcıların api keyleri boş olsun by default."* Yani kartların **var olması**
+bekleniyor.
+
+**Doğru beklenti.** Liste yalnızca elle "Servis ekle"den eklenenleri tutuyordu; o ekrandan Groq'un
+ya da OpenAI'nin seçenek olduğunu öğrenmenin bir yolu yok. OpenAI anahtarı olan biri servisin
+var olduğunu **tahmin edip** Ayarlar'a gidip menüyü bulup seçmek zorundaydı.
+
+Artık katalogdaki her servis boş kartla geliyor. Boş anahtar zaten kullanılabilir değil
+(`IsUsable`), dolayısıyla yönlendirme değişmiyor ve hiçbir servise bağlanılmıyor — kart, anahtar
+bekleyen etiketli bir kutu, ve anahtarı yapıştırmak kurulumun tamamı. Sona ekleniyorlar: kişinin
+kendi sıralaması, ki denenme sırasıdır, olduğu gibi kalıyor.
+
+"Özel adres" bilerek eklenmiyor. Kendi adresi olmadığı için boş hali ne işe yaradığını
+söyleyemeyen bir karttır; o menüde kalıyor, orada seçmek bilinçli bir eylem.
+
+`CloudKeyValidationTests` iki yerde `SttEndpoints.Single()` diyordu — davranış değil erişim biçimi
+eskidi, kart artık adıyla bulunuyor.
+
+**873 test · 868 geçti · 0 kırık · 5 atlandı** + **113 Python**.
+
+**Paket.** `v2.3.2`.

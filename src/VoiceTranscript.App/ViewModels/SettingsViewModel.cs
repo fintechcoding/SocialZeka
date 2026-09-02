@@ -118,6 +118,31 @@ public sealed partial class SettingsViewModel : ObservableObject
                 _probe));
         }
 
+        // Every service the application knows how to talk to, whether or not it has been set up.
+        //
+        // The list used to hold only what somebody had added by hand through "Servis ekle", which
+        // made the reprocess dialog show one row on a machine with one key — and there is no way,
+        // from that screen, to learn that Groq or OpenAI were options at all. Somebody with an
+        // OpenAI key would have to guess that the service existed, go to Settings, find the menu,
+        // pick it, and only then be offered it.
+        //
+        // So the rest arrive as empty cards. An empty key is not usable (see SttEndpoint.IsUsable),
+        // so nothing about the routing changes and no service is contacted; the card is a labelled
+        // box waiting for a key, and pasting one is the entire setup. They are appended, so the
+        // order somebody chose for their own services — which is the order they are tried in —
+        // is untouched.
+        //
+        // "Özel adres" is deliberately not seeded. It has no address of its own, so an empty one
+        // is a card that cannot say what it is for; that entry stays on the "Servis ekle" menu
+        // where it is a deliberate choice.
+        foreach (var provider in SttProviderCatalog.All)
+        {
+            if (provider.Kind == "custom") continue;
+            if (SttEndpoints.Any(e => e.Kind == provider.Kind)) continue;
+
+            SttEndpoints.Add(new SttEndpointViewModel(SttEndpoint.FromProvider(provider), _probe));
+        }
+
         // Editing a service has to re-run the checks, and nothing was listening.
         //
         // Each service is its own view model, so typing a key into one raised PropertyChanged on
