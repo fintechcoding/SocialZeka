@@ -369,7 +369,12 @@ public sealed partial class HealthViewModel : ObservableObject
 
     private Task RetryFailedAsync(HealthItem item)
     {
-        var failed = _repository.FailedCalls(limit: 100);
+        // Only what a second attempt could change. A capture that never started has a reason and
+        // no audio; queueing it again spends a slot to arrive at the same sentence, and leaves the
+        // button reporting work it did not really do.
+        var failed = _repository.FailedCalls(limit: 100)
+            .Where(c => !string.IsNullOrWhiteSpace(c.MicPath) || !string.IsNullOrWhiteSpace(c.FarPath))
+            .ToList();
 
         foreach (var call in failed)
             _repository.SetCallState(call.Id, ProcessingState.Queued);

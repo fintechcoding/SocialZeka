@@ -287,9 +287,11 @@
                         </Grid>
                     </Border>
 
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,4,10,4"
+                    <ScrollViewer Grid.Row="2" x:Name="TranscriptScroller"
+                                  VerticalScrollBarVisibility="Auto" Padding="0,4,10,4"
+                                  ScrollChanged="OnTranscriptScrolled"
                                   Visibility="{Binding HasTurns, Converter={StaticResource BoolToVisibility}}">
-                        <ItemsControl ItemsSource="{Binding Turns}">
+                        <ItemsControl x:Name="TranscriptTurns" ItemsSource="{Binding Turns}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <!--

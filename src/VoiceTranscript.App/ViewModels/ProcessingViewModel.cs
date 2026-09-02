@@ -137,6 +137,25 @@ public sealed record ProcessingRow(Call Call, string ContactName, int SegmentCou
 
     /// <summary>True when the audio is still on disk, so retrying is possible at all.</summary>
     public bool HasAudio => !string.IsNullOrWhiteSpace(Call.MicPath) || !string.IsNullOrWhiteSpace(Call.FarPath);
+
+    /// <summary>
+    /// Whether transcription can still do anything about this row.
+    ///
+    /// A capture that never started leaves a row behind with a reason and no audio — "The audio
+    /// device has been disconnected or the audio hardware has been reconfigured", duration 00:00,
+    /// nothing on disk. It is a failed recording, not a pending transcription, and there is no
+    /// second attempt that could change it: the retry button is already disabled for these, and
+    /// requeueing already skips them ("7 görüşme yeniden kuyruğa alındı. 2 tanesi atlandı").
+    ///
+    /// Only the waiting list had not been told. So two rows from two nights ago sat at the top of
+    /// "Bekleyenler" for good, and the red counter beside it read 2 and could never reach zero —
+    /// a backlog figure that no amount of work would clear, which is the same fault the pending
+    /// count itself was written to fix. They are still in "Hepsi", and still deletable there.
+    /// </summary>
+    public bool NeedsTranscription =>
+        IsWaiting
+        || IsWorking
+        || (HasAudio && (TranscriptFailed || (!HasTranscript && Call.State != ProcessingState.Skipped)));
 }
 
 /// <summary>
@@ -293,7 +312,7 @@ public sealed partial class ProcessingViewModel(
             .ToList();
 
         WaitingCount = rows.Count(r => r.IsWaiting || r.IsWorking);
-        TranscriptFailedCount = rows.Count(r => r.TranscriptFailed);
+        TranscriptFailedCount = rows.Count(r => r.TranscriptFailed && r.HasAudio);
         UnanalysedCount = rows.Count(r =>
             r.HasTranscript && (r.Call.State == ProcessingState.Transcribed || r.AnalysisFailed));
         ReadyCount = rows.Count(r => r.Call.State == ProcessingState.Analysed);
@@ -303,9 +322,7 @@ public sealed partial class ProcessingViewModel(
         var transcript = TranscriptFilter switch
         {
             ViewModels.TranscriptFilter.Done => rows.Where(r => r.HasTranscript),
-            ViewModels.TranscriptFilter.Unfinished => rows.Where(r =>
-                r.IsWaiting || r.IsWorking || r.TranscriptFailed
-                || (!r.HasTranscript && r.Call.State != ProcessingState.Skipped)),
+            ViewModels.TranscriptFilter.Unfinished => rows.Where(r => r.NeedsTranscription),
             _ => rows,
         };
 

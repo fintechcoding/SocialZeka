@@ -23,6 +23,14 @@ public partial class CallWindow
 
         DataContext = model;
 
+        model.CurrentTurnChanged += (_, turn) => Dispatcher.Invoke(() => FollowPlayhead(turn));
+        model.Playback.PropertyChanged += (_, e) =>
+        {
+            // Pressing play is the other half of "take me to the audio".
+            if (e.PropertyName == nameof(model.Playback.IsPlaying) && model.Playback.IsPlaying)
+                Dispatcher.Invoke(ResumeFollowing);
+        };
+
         // The pipeline reports progress and completion for whichever recording it is working on;
         // this window forwards the ones about its own. Both events arrive on worker threads, so
         // they hop to the dispatcher here — and both are let go when the window closes, because a
@@ -63,10 +71,62 @@ public partial class CallWindow
 
     private CallWindowViewModel? ViewModel => DataContext as CallWindowViewModel;
 
+    // ---- following the playhead --------------------------------------------
+    //
+    // The line being spoken was already marked; nothing moved to it. On a ten-minute call that
+    // means the highlight spends almost all of its life below the fold, so the one thing the
+    // marking is for — reading along, and seeing which sentence the voice is on — only worked for
+    // the first screenful.
+
+    /// <summary>Whether the transcript still follows the player. Scrolling by hand turns it off.</summary>
+    private bool _following = true;
+
+    /// <summary>Set while we are the ones scrolling, so our own move is not read as the user's.</summary>
+    private bool _scrollingToTurn;
+
+    /// <summary>
+    /// Brings the spoken line into view, unless the reader has taken the scrollbar over.
+    ///
+    /// Following has to yield. Somebody scrolling back to check what was said a minute ago is
+    /// doing the thing this window exists for, and a view that drags them forward twice a second
+    /// makes that impossible — the feature would be actively worse than not having it. So a
+    /// scroll the user performs stops the following, and pressing play or clicking a line — both
+    /// of which say "take me to the audio" — starts it again.
+    /// </summary>
+    private void FollowPlayhead(ChatTurn? turn)
+    {
+        if (!_following || turn is null) return;
+        if (TranscriptTurns.ItemContainerGenerator.ContainerFromItem(turn) is not FrameworkElement bubble) return;
+
+        _scrollingToTurn = true;
+        bubble.BringIntoView();
+
+        // Cleared after the scroll has been laid out, otherwise the ScrollChanged it causes
+        // arrives later and is mistaken for the reader reaching for the bar.
+        Dispatcher.BeginInvoke(
+            new Action(() => _scrollingToTurn = false),
+            System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    private void OnTranscriptScrolled(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
+    {
+        // Height changes fire this too — the window being resized, the panel first laying itself
+        // out. Only a vertical move counts, and only one we did not make.
+        if (_scrollingToTurn || e.VerticalChange == 0) return;
+
+        _following = false;
+    }
+
+    /// <summary>Anything that means "take me to the audio" puts the transcript back in step.</summary>
+    private void ResumeFollowing() => _following = true;
+
     /// <summary>Clicking a line plays from it.</summary>
     private void Turn_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: ChatTurn turn }) return;
+
+        // Clicking a line is a request to hear it; the transcript should travel with it again.
+        ResumeFollowing();
 
         ViewModel?.PlayTurnCommand.Execute(turn);
     }

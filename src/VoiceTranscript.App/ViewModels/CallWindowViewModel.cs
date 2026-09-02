@@ -551,6 +551,18 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     /// The point is reading along: somebody checking a quote is looking at the text and listening
     /// at the same time, and without this they have to find their place again after every seek.
     /// </summary>
+    /// <summary>
+    /// The line the player is inside, whenever it changes.
+    ///
+    /// Raised rather than bound because following it is a view concern — it means scrolling a
+    /// container, and only the view knows where the line has ended up on screen. Raised only on a
+    /// change, not on every position tick: the player reports several times a second and a line
+    /// lasts seconds, so re-scrolling to the same bubble would be a permanent gentle twitch.
+    /// </summary>
+    public event EventHandler<ChatTurn?>? CurrentTurnChanged;
+
+    private ChatTurn? _currentTurn;
+
     private void Highlight(int positionMs)
     {
         ChatTurn? current = null;
@@ -562,6 +574,11 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         }
 
         foreach (var turn in Turns) turn.IsCurrent = ReferenceEquals(turn, current);
+
+        if (ReferenceEquals(current, _currentTurn)) return;
+
+        _currentTurn = current;
+        CurrentTurnChanged?.Invoke(this, current);
     }
 
     /// <summary>

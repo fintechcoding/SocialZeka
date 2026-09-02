@@ -1316,3 +1316,49 @@ kalması, tavan/taban sınırlaması, sığan kaydın hiç kodlanmaması testli)
 
 **Paket.** `v2.2.0` — davranış değişikliği: aynı görüşme artık ölçülebilir biçimde daha çok kelime
 çıkarmalı.
+
+---
+
+## 2026-09-02 (on üçüncü tur) — ex5 çalıştı; sessiz kayıtlar ve dinlerken takip
+
+**ex5 doğrulandı.** Görüşme penceresi: `stt.ex5.ai · whisper-1 · gerçek zamanın 1,8 katı`,
+96 satır, zaman damgaları yerinde ve konuşmacı ayrımı doğru. Son belirsizlik kapandı — işin
+`result` gövdesi `words` taşıyor, alıntılar söylendiği ana açılıyor.
+
+### Hiç ses yakalamamış kayıt "bekleyen iş" sayılıyordu
+
+İşlemler ekranının başında iki satır kalıcı olarak duruyordu: `00:00`, *"The audio device has been
+disconnected or the audio hardware has been reconfigured."* Yakalama hiç başlamamış, diskte dosya
+yok, ikinci bir denemenin değiştirebileceği bir şey de yok.
+
+Uygulama bunu **zaten biliyordu** — "Yeniden yazıya dök" düğmesi bu satırlarda kapalı ve toplu
+kuyruğa alma onları atlıyor ("7 görüşme yeniden kuyruğa alındı. **2 tanesi atlandı**"). Söylenmemiş
+tek yer bekleyenler süzgeciydi. Sonuç: iki gece önceki iki satır listenin tepesinde temelli
+oturuyor ve yanındaki kırmızı sayaç 2 diyor — hiçbir çalışmayla sıfırlanamayacak bir birikim
+rakamı. Bu, bekleyen sayacının kendisinin düzeltmek için yazıldığı kusurun başka bir yönden
+gelmiş hali.
+
+`ProcessingRow.NeedsTranscription` eklendi ve süzgeç ile kırmızı sayaç ona soruyor. Satırlar
+"Hepsi"nde duruyor ve oradan silinebiliyor — veri silinmedi, yalnızca iş listesi dürüstleşti.
+Durum sayfasının "hepsini tekrar dene" düğmesi de artık sesi olmayanı kuyruğa geri koymuyor;
+eskiden bir yuvayı aynı cümleye varmak için harcıyor ve yapmadığı işi bildiriyordu.
+
+### Dinlerken metin artık kendisi kayıyor
+
+Konuşulan satır işaretleniyordu ama hiçbir şey ona gitmiyordu. On dakikalık bir görüşmede bu,
+işaretin ömrünün neredeyse tamamını ekranın altında geçirmesi demek — yani işaretlemenin tek
+amacı (sesin hangi cümlede olduğunu görerek okumak) sadece ilk ekran boyu çalışıyordu.
+
+`CurrentTurnChanged` yalnızca satır **değiştiğinde** haber veriyor; oynatıcı saniyede birkaç kez
+konum bildiriyor ve bir satır saniyelerce sürüyor, her tikte kaydırmak sürekli hafif bir titreme
+olurdu. Kaydırma görünüm tarafında, çünkü baloncuğun ekranda nereye düştüğünü yalnızca o bilir.
+
+**Takip geri çekilmeyi biliyor.** Bir dakika önce ne söylendiğine bakmak için geri kaydıran kişi
+bu pencerenin var oluş sebebini yapıyor; saniyede iki kez onu ileri sürükleyen bir görünüm bunu
+imkânsız kılar ve özellik olmamasından kötü olur. Elle kaydırma takibi durduruyor; oynata basmak
+ya da bir satıra tıklamak — ikisi de "beni sese götür" demek — yeniden başlatıyor. Kendi
+kaydırmamız bayrakla işaretli, yoksa kendi hareketimizi kullanıcının hareketi sanardık.
+
+**856 test · 851 geçti · 0 kırık · 5 atlandı** + **96 Python**.
+
+**Paket.** `v2.2.1`.
