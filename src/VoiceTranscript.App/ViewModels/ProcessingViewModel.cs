@@ -205,6 +205,9 @@ public sealed partial class ProcessingViewModel(
         }
     }
 
+    /// <summary>Whether anything is waiting behind the job in flight.</summary>
+    [ObservableProperty] private bool _hasQueue;
+
     [ObservableProperty] private TranscriptFilter _transcriptFilter = TranscriptFilter.Unfinished;
     [ObservableProperty] private AnalyseFilter _analyseFilter = AnalyseFilter.Unanalysed;
 
@@ -312,6 +315,9 @@ public sealed partial class ProcessingViewModel(
             .ToList();
 
         WaitingCount = rows.Count(r => r.IsWaiting || r.IsWorking);
+
+        // "Hepsini durdur" only means anything when there is something behind the running job.
+        HasQueue = rows.Count(r => r.IsWaiting) > 0;
         TranscriptFailedCount = rows.Count(r => r.TranscriptFailed && r.HasAudio);
         UnanalysedCount = rows.Count(r =>
             r.HasTranscript && (r.Call.State == ProcessingState.Transcribed || r.AnalysisFailed));

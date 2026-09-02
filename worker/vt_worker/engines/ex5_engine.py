@@ -19,15 +19,18 @@ conversation survives, and both are invisible until a real call has already been
   of any length can sit behind somebody else's hour. Duration alone cannot make a synchronous
   request safe.
 
-So: short pieces go through the synchronous endpoint, which is one round trip and supports the
-model and format fields; everything else is submitted as a job and polled. A synchronous request
-that is cut off anyway falls back to the job API rather than failing, because by then the audio has
-been uploaded and the only thing left to lose is the conversation.
+So everything goes through ``POST /v1/jobs``. Short pieces were sent synchronously for a while, on
+the reasoning that a hundred seconds is generous for a short piece; the server's operator supplied
+the fact that ends that argument, which is that the machine transcribes **one job at a time**. A
+fifteen-second clip submitted while somebody else's hour is running waits behind it, and the wait
+is spent inside our own request — so the timeout is decided by the queue and not by what we sent.
+No duration is safe, and the first difference above stops mattering as well: the job endpoint asks
+for word timestamps by its own name and defaults them to true.
 
-The job endpoint takes a different, smaller set of fields — ``file``, ``language``, ``prompt`` and
-``word_timestamps`` — with no model and no response format. That is not a limitation worth working
-around: it is a single-model server, ``word_timestamps`` already defaults to true, and asking for a
-field the endpoint does not declare is what this whole file is a warning about.
+That endpoint takes a smaller set of fields — ``file``, ``language``, ``prompt``,
+``word_timestamps``, ``filter_noise`` — with no model and no response format. Not a limitation
+worth working around: it is a single-model server, and asking for a field the endpoint does not
+declare is what this whole file is a warning about.
 """
 
 from __future__ import annotations
@@ -47,13 +50,6 @@ from vt_worker.merge import Segment, Speaker
 # envelope and any header the proxy adds cannot push a body that just fits over the edge.
 MAX_UPLOAD_BYTES = 90 * 1024 * 1024
 
-# How much audio may go through the synchronous endpoint.
-#
-# Three minutes needs about fifty seconds of transcription at the machine's measured 3.8x, which
-# leaves half of Cloudflare's hundred for the upload, the model being cold, and a short wait behind
-# another job. Anything longer is not worth the gamble when the job API costs one extra round trip.
-SYNC_MAX_SECONDS = 180.0
-
 # How often to ask whether a submitted job has finished, and how long to keep asking.
 #
 # Five seconds is the interval the service documents. The ceiling is an hour because the queue
@@ -70,7 +66,7 @@ FAILED_STATUSES = frozenset({"failed", "error", "cancelled", "canceled", "expire
 
 
 class Ex5WhisperEngine(CloudWhisperEngine):
-    """Whisper large-v3 on our own hardware: OpenAI's shape for short pieces, jobs for the rest."""
+    """Whisper large-v3 on our own hardware, always through the job queue."""
 
     name = "cloud-ex5"
 

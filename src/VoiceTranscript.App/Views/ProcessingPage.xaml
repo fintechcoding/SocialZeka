@@ -300,10 +300,21 @@
                         <TextBlock Text="{Binding ActiveLine}" VerticalAlignment="Center" FontWeight="SemiBold" />
                     </StackPanel>
 
-                    <!-- Ends this one job; the queue behind it is untouched. The recording is
-                         parked, not lost — "Yeniden işle" stays one click away. -->
-                    <ui:Button Grid.Column="1" Content="{loc:T processingpage.durdur}" Appearance="Secondary" Padding="10,4"
-                               Click="StopCurrent_Click" ToolTip="{loc:T processingpage.bu-kaydin-islenmesini-durdur}" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <!-- Ends this one job; the queue behind it carries on. The recording is
+                             parked, not lost — "Yeniden işle" stays one click away. -->
+                        <ui:Button Content="{loc:T processingpage.durdur}" Appearance="Secondary" Padding="10,4"
+                                   Click="StopCurrent_Click" ToolTip="{loc:T processingpage.bu-kaydin-islenmesini-durdur}" />
+
+                        <!-- And the one that actually stops. Durdur on its own only interrupted:
+                             the next of the five waiting started a second later, so on a screen
+                             reading "5 sırada" there was no way to stop uploading short of closing
+                             the application. Everything it takes out of the queue is parked. -->
+                        <ui:Button Content="Hepsini durdur" Appearance="Secondary" Padding="10,4" Margin="8,0,0,0"
+                                   Click="StopEverything_Click"
+                                   ToolTip="Sıradaki bütün kayıtları da durdurur; hiçbiri silinmez."
+                                   Visibility="{Binding HasQueue, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
                 </Grid>
 
                 <!-- Determinate when the worker gives a fraction, and a moving bar when it does

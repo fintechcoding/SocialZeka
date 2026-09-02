@@ -1599,3 +1599,29 @@ metin düzeyinde ayırt edilemez ve silmek gerçekten söylenmiş bir sözü yok
 **869 test · 864 geçti · 0 kırık · 5 atlandı** + **113 Python**.
 
 **Paket.** `v2.3.0`.
+
+---
+
+## 2026-09-03 (beşinci tur) — "Durdur" durdurmuyordu
+
+Ekranda "5 sırada / işleniyor" yazarken kullanıcı: **"durdurma yok."** Düğme oradaydı ama
+yalnızca **o anki işi** kesiyordu; bir saniye sonra beştekinin ikincisi başlıyordu. Yani durdurma
+değil, araya girmeydi. Makinenin yüklemeyi bırakmasını isteyen ya da yanlış kırk görüşmeyi kuyruğa
+almış biri için tek çıkış uygulamayı kapatmaktı.
+
+`StopEverything()` eklendi: önce kuyruk boşaltılıyor, **sonra** çalışan iş kesiliyor — ters sırada
+yapılırsa döngü bir sonraki numarayı hemen alır ve bir tane daha başlar. Kuyruktan çıkanlar tek tek
+durdurmanın yaptığının aynısıyla park ediliyor: `Skipped` ve üstünde sebebi. Hiçbiri silinmiyor,
+her biri bir "Yeniden işle" uzağında.
+
+Düğme yalnızca arkada bekleyen varken görünüyor, ve sonucu sayıyla söylüyor — *"sıradaki 39 kayıt
+da beklemeye alındı, hiçbiri silinmedi"*. Bir listeden otuz dokuz kaydı sessizce çıkaran düğme,
+onları silen düğmeden ayırt edilemez; buradaki güvencenin tamamı hiçbir şeyin kaybolmadığı.
+
+**Ölü kod temizliği.** Senkron yol kalkarken `SYNC_MAX_SECONDS` ve modül açıklamasının yarısı
+geride kalmıştı — dosya hâlâ "kısa parçalar senkron uca gider" diye anlatıyordu. Bu projede yorum
+belgedir; yanlış anlatan yorum, yanlış kod kadar zararlıdır.
+
+**869 test · 864 geçti · 0 kırık · 5 atlandı** + **113 Python**.
+
+**Paket.** `v2.3.1`.

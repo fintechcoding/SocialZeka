@@ -540,6 +540,41 @@ public sealed class CallOrchestrator : IDisposable
         }
     }
 
+    /// <summary>
+    /// Stops the running job and empties the queue behind it.
+    ///
+    /// "Durdur" only ever stopped the one recording being worked on, and the next of the five
+    /// waiting started a second later — so on a screen reading "5 sırada / işleniyor" there was no
+    /// way to stop, only to interrupt. Somebody who wants the machine to stop uploading, or who
+    /// queued the wrong forty conversations, had to close the application.
+    ///
+    /// The waiting ones are parked as Skipped with the reason on them, exactly as a single stop
+    /// does: nothing is lost, every one of them is one "Yeniden işle" from being picked up again.
+    /// </summary>
+    /// <returns>How many recordings were taken out of the queue, not counting the running one.</returns>
+    public int StopEverything()
+    {
+        var dropped = 0;
+
+        // Drained before the running job is cancelled. The loop takes the next id the moment the
+        // current one ends, so emptying afterwards would let one more start.
+        while (_processing.Reader.TryRead(out var waiting))
+        {
+            _inQueue.TryRemove(waiting, out _);
+            _engineOverride.TryRemove(waiting, out _);
+            _analyseOnly.TryRemove(waiting, out _);
+
+            _repository.SetCallState(waiting, ProcessingState.Skipped,
+                "Kullanıcı durdurdu. Yeniden işle ile istediğin zaman tekrar denenebilir.");
+
+            dropped++;
+        }
+
+        StopCurrent();
+
+        return dropped;
+    }
+
     /// <summary>Recordings already waiting, so pressing retry twice does not queue a copy.</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<long, byte> _inQueue = new();
 

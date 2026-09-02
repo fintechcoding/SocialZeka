@@ -125,6 +125,25 @@ public partial class ProcessingPage
     private void StopCurrent_Click(object sender, RoutedEventArgs e)
         => App.Orchestrator?.StopCurrent();
 
+    /// <summary>
+    /// Stops the running job and empties the queue behind it.
+    ///
+    /// Said out loud afterwards, with the count: a button that silently removes thirty-nine
+    /// recordings from a list is indistinguishable from one that deleted them, and the whole
+    /// reassurance here is that nothing was lost.
+    /// </summary>
+    private void StopEverything_Click(object sender, RoutedEventArgs e)
+    {
+        var dropped = App.Orchestrator?.StopEverything() ?? 0;
+
+        if (ViewModel is { } model)
+        {
+            model.Notice = dropped == 0
+                ? "İşlem durduruldu. Kayıt duruyor, yeniden işlenebilir."
+                : $"İşlem durduruldu, sıradaki {dropped} kayıt da beklemeye alındı. Hiçbiri silinmedi.";
+        }
+    }
+
     /// <summary>Re-analyses one row straight from its text — the analysis tab's whole point.</summary>
     private void ReanalyseRow_Click(object sender, RoutedEventArgs e)
     {
