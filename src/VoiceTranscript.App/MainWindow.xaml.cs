@@ -121,8 +121,15 @@ public partial class MainWindow
             {
                 if (App.Orchestrator is { } running) await running.StopManualRecordingAsync();
             };
+
+            // Closing the strip closes the pair: they are one thing to look at, so they are one
+            // thing to be rid of.
+            _strip.Dismissed += (_, _) => _caller?.End();
+
+            _strip.Moved += (_, _) => RememberOverlayAnchor();
         }
 
+        _strip.Anchor = SavedOverlayAnchor();
         _strip.Begin(App.Orchestrator?.RecordingStartedAt ?? DateTimeOffset.Now);
     }
 
@@ -143,14 +150,28 @@ public partial class MainWindow
         if (!App.Settings.IdentifySpeakers || hypothesis.Contact is not { } contact) return;
         if (App.Repository is not { } repository) return;
 
-        _caller ??= new CallerOverlay();
+        if (_caller is null)
+        {
+            _caller = new CallerOverlay();
+            _caller.Moved += (_, _) => RememberOverlayAnchor();
+        }
+
+        _caller.Anchor = SavedOverlayAnchor();
+
+        // The strip's real height rather than a guess at it, so the two stack exactly however the
+        // strip's font and scaling have laid it out.
+        if (_strip is { IsVisible: true, ActualHeight: > 0 }) _caller.AnchorOffset = _strip.ActualHeight;
 
         // Commitments are read here rather than in the identifier so the panel shows what the
         // ledger holds at this moment, and so nothing about contacts has to travel through the
         // audio path.
+        // Entries with no obligation text are dropped rather than counted: a ledger row that
+        // cannot say what was promised came out here as a bullet reading "o:" with nothing after
+        // it, and three of those is the panel claiming to know something it does not.
         var commitments = repository.GetOpenCommitments(contact.Id)
-            .Take(3)
             .Select(CallerOverlay.Line)
+            .OfType<CallerOverlay.CommitmentLine>()
+            .Take(3)
             .ToList();
 
         _caller.Begin(
@@ -159,6 +180,40 @@ public partial class MainWindow
             contact.LastCallAt,
             contact.Notes,
             commitments);
+    }
+
+    /// <summary>Where the overlays were last dragged to, or null while they have never been moved.</summary>
+    private static Point? SavedOverlayAnchor() =>
+        App.Settings is { OverlayLeft: { } left, OverlayTop: { } top } ? new Point(left, top) : null;
+
+    /// <summary>
+    /// Writes the anchor down and moves the other overlay to match.
+    ///
+    /// Saved on every drop rather than on exit: this application lives in the tray for weeks and
+    /// is usually ended by the machine shutting down, so a position kept in memory until a clean
+    /// exit is a position that is never kept.
+    /// </summary>
+    private void RememberOverlayAnchor()
+    {
+        var anchor = _strip?.Anchor ?? _caller?.Anchor;
+        if (anchor is not { } at) return;
+
+        App.Settings = App.Settings with { OverlayLeft = at.X, OverlayTop = at.Y };
+        App.Settings.Save(App.Paths.SettingsFile);
+
+        if (_strip is { IsVisible: true })
+        {
+            _strip.Anchor = at;
+            _strip.Reposition();
+        }
+
+        if (_caller is { IsVisible: true })
+        {
+            if (_strip is { IsVisible: true, ActualHeight: > 0 }) _caller.AnchorOffset = _strip.ActualHeight;
+
+            _caller.Anchor = at;
+            _caller.Reposition();
+        }
     }
 
     /// <summary>

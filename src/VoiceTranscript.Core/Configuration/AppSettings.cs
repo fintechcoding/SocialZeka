@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using VoiceTranscript.Core.Asr;
 using VoiceTranscript.Core.Llm;
@@ -144,6 +144,19 @@ public sealed record AppSettings
     /// would be right to.
     /// </summary>
     public bool ShowRecordingBar { get; init; } = true;
+
+    /// <summary>
+    /// Where the call overlays were last dragged to, or null while they have never been moved.
+    ///
+    /// Kept because the default cannot be right for everybody: the strip sits at the top centre
+    /// of the screen, which is exactly where WhatsApp and Telegram put their own call windows,
+    /// so on the machine this is for it lands on top of the thing being recorded. Somewhere else
+    /// would only move the collision. The answer is that it goes where its owner puts it, and
+    /// stays there.
+    /// </summary>
+    public double? OverlayLeft { get; init; }
+
+    public double? OverlayTop { get; init; }
 
     /// <summary>
     /// Whether the far end of a call is recognised by voice — shown on screen while the call runs,

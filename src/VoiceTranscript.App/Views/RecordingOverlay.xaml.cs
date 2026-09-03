@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -56,10 +56,26 @@ public partial class RecordingOverlay
         // Positioned once the real size is known. SizeToContent means the width is not settled
         // until the content has been measured, and centring against zero puts it off-screen.
         SizeChanged += (_, _) => Reposition();
+
+        Services.WindowDrag.Attach(this, Body, () =>
+        {
+            Anchor = new Point(Left, Top);
+            Moved?.Invoke(this, EventArgs.Empty);
+        });
     }
 
     /// <summary>Raised when the user presses Durdur on the strip itself.</summary>
     public event EventHandler? StopRequested;
+
+    /// <summary>Raised after the user has dragged the strip somewhere else.</summary>
+    public event EventHandler? Moved;
+
+    /// <summary>Where it was left last time, or null while it has never been moved.</summary>
+    public Point? Anchor { get; set; }
+
+    // Dragged by its body: it has no title bar, because it is a strip and not a window. The
+    // buttons on it swallow their own clicks, so Durdur and ✕ still work; only the space between
+    // them starts a drag.
 
     /// <summary>Starts the strip's clock and shows it.</summary>
     public void Begin(DateTimeOffset startedAt, string? headline = null)
@@ -85,12 +101,13 @@ public partial class RecordingOverlay
     }
 
     /// <summary>
-    /// Centres the strip on the top edge of the screen holding the main window.
+    /// Puts the strip where its owner left it, or on the top edge of the screen holding the main
+    /// window while it has never been moved.
     ///
     /// The main window's screen rather than the primary one: on a two-monitor desk the call is
     /// where the person is looking, and a warning on the other monitor is not a warning.
     /// </summary>
-    private void Reposition()
+    public void Reposition()
     {
         var area = SystemParameters.WorkArea;
 
@@ -105,8 +122,11 @@ public partial class RecordingOverlay
                 area = new Rect(area.Left + area.Width, area.Top, area.Width, area.Height);
         }
 
-        Left = area.Left + (area.Width - ActualWidth) / 2;
-        Top = area.Top;
+        var at = Services.OverlayPlacement.Resolve(
+            ActualWidth, ActualHeight, area, Anchor?.X, Anchor?.Y);
+
+        Left = at.X;
+        Top = at.Y;
     }
 
     private static string Format(TimeSpan elapsed) =>
@@ -123,5 +143,16 @@ public partial class RecordingOverlay
     /// recording to be rid of it, or turns the strip off permanently in settings. Both cost more
     /// than letting them dismiss it for one call — it comes back on the next one.
     /// </summary>
-    private void HideForCall_Click(object sender, RoutedEventArgs e) => End();
+    private void HideForCall_Click(object sender, RoutedEventArgs e)
+    {
+        End();
+
+        // The caller card goes with it. They are one thing to look at and one thing to be rid
+        // of; dismissing the strip and leaving a panel floating over the call would be a close
+        // button that did not close what the user was pointing at.
+        Dismissed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Raised when the user closes the strip, so whatever is stacked under it can go too.</summary>
+    public event EventHandler? Dismissed;
 }
