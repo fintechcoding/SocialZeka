@@ -211,7 +211,14 @@ public sealed class RemoteProviderTests : IDisposable
             () => client.CompleteAsync(Request(), TestContext.Current.CancellationToken));
 
         Assert.Single(handler.Bodies);
-        Assert.Contains("insufficient credits", error.Message);
+
+        // The sentence names the actual problem rather than repeating the provider's English:
+        // a spent balance and a wrong key look identical on the wire and take opposite actions.
+        Assert.Contains("bakiyesi", error.Message);
+
+        // And the provider's own words survive on the exception, where the retry logic reads
+        // them and where the log records them.
+        Assert.Contains("insufficient credits", error.Body);
     }
 
     /// <summary>Models wrap JSON in a markdown fence despite being told not to.</summary>

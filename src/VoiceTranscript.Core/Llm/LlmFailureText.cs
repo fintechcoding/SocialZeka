@@ -38,8 +38,25 @@ public static class LlmFailureText
         var detail = MessageFrom(body);
         var lowered = (detail ?? "").ToLowerInvariant();
 
-        // Busy is the common one and the only one where the right answer is to do nothing. Said
-        // first because a 503 that also mentions a key would still, in practice, be a busy server.
+        // Money and quota, which look like an authentication problem and are not: the key is fine
+        // and changing it would waste an evening.
+        //
+        // Asked BEFORE the busy check, and the order is the whole point. OpenAI reports an
+        // exhausted balance as 429 insufficient_quota — the same status a busy server returns.
+        // Read as busy it becomes "leave it, it will retry itself", which is an instruction to
+        // wait for something that will not happen: a quota does not refill on its own. The busy
+        // branch below stays a guess about an unmarked failure; this one is what the provider
+        // said in as many words.
+        if (status == 402 || lowered.Contains("quota") || lowered.Contains("insufficient_quota")
+            || lowered.Contains("billing") || lowered.Contains("credit"))
+        {
+            return "Çözümleme servisinin bakiyesi ya da kotası bitmiş görünüyor. Anahtar doğru; "
+                   + "sağlayıcının hesabına bakman gerekiyor.";
+        }
+
+        // Busy is the common one and the only one where the right answer is to do nothing. It
+        // comes after the explicit money check above and before everything else: a 503 that also
+        // mentions a key is, in practice, still a busy server.
         if (status is 429 or 503 || lowered.Contains("overload") || lowered.Contains("rate limit")
             || lowered.Contains("try again") || lowered.Contains("capacity"))
         {
@@ -51,15 +68,6 @@ public static class LlmFailureText
         {
             return "Çözümleme servisi anahtarı kabul etmedi. Ayarlar → Çözümleme bölümünden "
                    + "API anahtarını denetle.";
-        }
-
-        // Money and quota, which look like an authentication problem and are not: the key is fine
-        // and changing it would waste an evening.
-        if (status == 402 || lowered.Contains("quota") || lowered.Contains("insufficient_quota")
-            || lowered.Contains("billing") || lowered.Contains("credit"))
-        {
-            return "Çözümleme servisinin bakiyesi ya da kotası bitmiş görünüyor. Anahtar doğru; "
-                   + "sağlayıcının hesabına bakman gerekiyor.";
         }
 
         // A model name that no longer exists is refused with a message that usually does not

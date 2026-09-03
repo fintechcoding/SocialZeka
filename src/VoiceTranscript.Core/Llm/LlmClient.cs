@@ -84,7 +84,19 @@ public interface ILlmClient
     Task UnloadAsync(string model, CancellationToken cancellationToken = default);
 }
 
-public sealed class LlmException(string message, Exception? inner = null) : Exception(message, inner);
+public sealed class LlmException(string message, Exception? inner = null) : Exception(message, inner)
+{
+    /// <summary>
+    /// The provider's own response body, when the failure came with one.
+    ///
+    /// Separate from <see cref="Exception.Message"/> because the two have different readers. The
+    /// message is a sentence for a person deciding whether to wait or to change a setting; this
+    /// is what the retry logic reads to tell "this model wants max_completion_tokens" from a real
+    /// failure. Putting a human sentence where the machine was looking silently disabled both
+    /// corrective retries — every model needing the newer field simply stopped working.
+    /// </summary>
+    public string? Body { get; init; }
+}
 
 /// <summary>
 /// Talks to anything exposing the OpenAI chat-completions API.
@@ -245,13 +257,15 @@ public sealed class OpenAiCompatibleClient(
             {
                 var other = tokenField == "max_tokens" ? "max_completion_tokens" : "max_tokens";
 
-                if (WantsOtherTokenField(e.Message, other))
+                var body = e.Body ?? e.Message;
+
+                if (WantsOtherTokenField(body, other))
                 {
                     CoreLog.Write("llm",
                         $"{kind}/{request.Model}: {tokenField} reddedildi, {other} ile yeniden deneniyor");
                     tokenField = other;
                 }
-                else if (sendTemperature && RefusesTemperature(e.Message))
+                else if (sendTemperature && RefusesTemperature(body))
                 {
                     CoreLog.Write("llm",
                         $"{kind}/{request.Model}: temperature desteklenmiyor, alan atlanarak yeniden deneniyor");
@@ -345,8 +359,24 @@ public sealed class OpenAiCompatibleClient(
         {
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
+            // The status turned into something the reader can act on.
+            //
+            // What stood here was the number and the first 400 characters of whatever JSON the
+            // provider chose to send — accurate, and useless to the person reading it, who has to
+            // decide one thing: wait, or fix something. "model overloaded" and "insufficient
+            // quota" are the same shape on the wire and opposite answers in practice.
+            //
+            // The raw body still goes to the log, where a number is the right thing to have.
             if (!response.IsSuccessStatusCode)
-                throw new LlmException($"{kind} {(int)response.StatusCode} döndürdü: {Truncate(body)}");
+            {
+                CoreLog.Write("llm",
+                    $"{kind}/{request.Model}: HTTP {(int)response.StatusCode} — {Truncate(body)}");
+
+                throw new LlmException(LlmFailureText.Describe(kind, (int)response.StatusCode, body))
+                {
+                    Body = body,
+                };
+            }
 
             var parsed = Parse(body);
 
