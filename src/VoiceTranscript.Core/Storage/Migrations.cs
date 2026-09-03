@@ -1,4 +1,4 @@
-namespace VoiceTranscript.Core.Storage;
+﻿namespace VoiceTranscript.Core.Storage;
 
 /// <summary>
 /// Ordered changes for databases created before the current schema.
@@ -228,5 +228,26 @@ public static class Migrations
         // word-level detail" rather than as an empty transcript. Re-transcribing fills it in.
         new(12, "Kelime zaman damgaları",
             ["ALTER TABLE segment ADD COLUMN words TEXT;"]),
+
+        // v13 — every transcript a call has had, with the engine that produced it, so two
+        // engines can be compared on the same conversation instead of on a memory of one.
+        new(13, "Yazıya dökme geçmişi",
+            [
+                """
+        CREATE TABLE IF NOT EXISTS transcript_version (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id         INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+            engine          TEXT    NOT NULL,
+            created_at      TEXT    NOT NULL,
+            speech_coverage REAL,
+            segment_count   INTEGER NOT NULL,
+            word_count      INTEGER NOT NULL,
+            low_confidence  INTEGER NOT NULL,
+            spoken_ms       INTEGER NOT NULL,
+            segments        TEXT    NOT NULL
+        );
+        """,
+                "CREATE INDEX IF NOT EXISTS ix_transcript_call ON transcript_version(call_id, created_at DESC);",
+            ]),
     ];
 }

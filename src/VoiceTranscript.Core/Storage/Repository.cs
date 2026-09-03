@@ -1263,6 +1263,7 @@ public sealed class Repository(Database database)
                      {
                          "call_summary", "call_note", "call_tag", "consistency_note",
                          "reading_note", "deception_note", "board_card", "processing_run",
+                         "transcript_version",
                      })
             {
                 Copy(connection, transaction, table, toCall, ofNewCalls);
@@ -1417,6 +1418,209 @@ public sealed class Repository(Database database)
         [.. connection
             .Query<ColumnRow>($"PRAGMA {schema}.table_info(\"{table}\");", transaction: transaction)
             .Select(r => r.name)];
+
+    // ---- what this call has been transcribed as -----------------------------
+
+    /// <summary>How many transcripts one call keeps before the oldest is let go.</summary>
+    private const int KeptTranscripts = 10;
+
+    /// <summary>
+    /// Files a transcript under the engine that produced it, beside the ones before it.
+    ///
+    /// Every run used to overwrite the last, which made the one question worth asking about two
+    /// engines — which of them heard this conversation better — answerable only by re-running one
+    /// of them by hand and hoping the audio had not changed underneath. It had: a step that
+    /// rewrote the recording between two runs made the comparison meaningless without anybody
+    /// being able to see that from the transcripts.
+    ///
+    /// The figures are computed here and stored, because a list of engine names with nothing
+    /// beside them is not a comparison.
+    /// </summary>
+    public long SaveTranscriptVersion(
+        long callId, string engine, double? speechCoverage, IReadOnlyList<Segment> segments)
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        var payload = JsonSerializer.Serialize(segments.Select(s => new StoredLine
+        {
+            IsMe = s.IsMe,
+            StartMs = s.StartMs,
+            EndMs = s.EndMs,
+            Text = s.Text,
+            AvgLogprob = s.AvgLogprob,
+            NoSpeechProb = s.NoSpeechProb,
+            LowConfidence = s.LowConfidence,
+            OverlapsOtherSpeaker = s.OverlapsOtherSpeaker,
+            SuspectedEcho = s.SuspectedEcho,
+            Words = SegmentWords.Write(s.Words),
+        }));
+
+        var id = connection.ExecuteScalar<long>(
+            """
+            INSERT INTO transcript_version
+                (call_id, engine, created_at, speech_coverage,
+                 segment_count, word_count, low_confidence, spoken_ms, segments)
+            VALUES
+                (@callId, @engine, @createdAt, @speechCoverage,
+                 @segmentCount, @wordCount, @lowConfidence, @spokenMs, @segments)
+            RETURNING id;
+            """,
+            new
+            {
+                callId,
+                engine,
+                createdAt = Iso(DateTimeOffset.UtcNow),
+                speechCoverage,
+                segmentCount = segments.Count,
+                wordCount = segments.Sum(s => s.Words.Count > 0
+                    ? s.Words.Count
+                    : s.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length),
+                lowConfidence = segments.Count(s => s.LowConfidence),
+                spokenMs = segments.Sum(s => Math.Max(0, s.EndMs - s.StartMs)),
+                segments = payload,
+            },
+            transaction);
+
+        // Bounded, because these are kept for comparison and not as an archive of their own: the
+        // recording is the archive. Ten is more engines than anybody will try on one call.
+        connection.Execute(
+            """
+            DELETE FROM transcript_version
+             WHERE call_id = @callId
+               AND id NOT IN (SELECT id FROM transcript_version
+                               WHERE call_id = @callId
+                               ORDER BY id DESC LIMIT @keep);
+            """,
+            new { callId, keep = KeptTranscripts }, transaction);
+
+        transaction.Commit();
+        return id;
+    }
+
+    /// <summary>
+    /// Every transcript this call has had, newest first, without the lines themselves.
+    ///
+    /// The newest is marked as the current one, which is true by construction: a transcript is
+    /// filed at the moment it is written over the call's lines, and restoring an older one files
+    /// it again as the newest.
+    /// </summary>
+    public IReadOnlyList<TranscriptVersion> ListTranscriptVersions(long callId)
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<TranscriptRow>(
+            """
+            SELECT id, call_id, engine, created_at, speech_coverage,
+                   segment_count, word_count, low_confidence, spoken_ms
+              FROM transcript_version
+             WHERE call_id = @callId
+             ORDER BY id DESC;
+            """,
+            new { callId }).ToList();
+
+        return [.. rows.Select((r, i) => r.ToModel(current: i == 0))];
+    }
+
+    /// <summary>The lines of one stored transcript, or an empty list when it is gone.</summary>
+    public IReadOnlyList<Segment> GetTranscriptVersion(long versionId)
+    {
+        using var connection = Open();
+
+        var row = connection.QueryFirstOrDefault<(long CallId, string Segments)>(
+            "SELECT call_id, segments FROM transcript_version WHERE id = @versionId;",
+            new { versionId });
+
+        if (row.Segments is null) return [];
+
+        var stored = JsonSerializer.Deserialize<List<StoredLine>>(row.Segments) ?? [];
+
+        return [.. stored.Select(s => new Segment
+        {
+            CallId = row.CallId,
+            IsMe = s.IsMe,
+            StartMs = s.StartMs,
+            EndMs = s.EndMs,
+            Text = s.Text,
+            AvgLogprob = s.AvgLogprob,
+            NoSpeechProb = s.NoSpeechProb,
+            LowConfidence = s.LowConfidence,
+            OverlapsOtherSpeaker = s.OverlapsOtherSpeaker,
+            SuspectedEcho = s.SuspectedEcho,
+            Words = SegmentWords.Read(s.Words),
+        })];
+    }
+
+    /// <summary>
+    /// Puts a stored transcript back as the call's own, and files it again as the newest.
+    ///
+    /// Filed again rather than moved, because the list is a history: "I went back to the local
+    /// one at four o'clock" is part of what happened, and a list that quietly reordered itself
+    /// would lose it. The ledger is NOT rebuilt — it quotes the transcript it was made from, and
+    /// silently repointing quotes at different words is the one thing this product must not do.
+    /// The caller says so; see the window that offers this.
+    /// </summary>
+    public bool RestoreTranscriptVersion(long versionId)
+    {
+        var lines = GetTranscriptVersion(versionId);
+        if (lines.Count == 0) return false;
+
+        using (var connection = Open())
+        {
+            var row = connection.QueryFirstOrDefault<(long CallId, string Engine, double? Coverage)>(
+                "SELECT call_id, engine, speech_coverage FROM transcript_version WHERE id = @versionId;",
+                new { versionId });
+
+            if (row.Engine is null) return false;
+
+            ReplaceSegments(row.CallId, lines);
+            SaveTranscriptVersion(row.CallId, row.Engine, row.Coverage, lines);
+        }
+
+        return true;
+    }
+
+    /// <summary>One line as it is stored inside a version. Short names: this is written per line.</summary>
+    private sealed class StoredLine
+    {
+        public bool IsMe { get; set; }
+        public int StartMs { get; set; }
+        public int EndMs { get; set; }
+        public string Text { get; set; } = "";
+        public double? AvgLogprob { get; set; }
+        public double? NoSpeechProb { get; set; }
+        public bool LowConfidence { get; set; }
+        public bool OverlapsOtherSpeaker { get; set; }
+        public bool SuspectedEcho { get; set; }
+        public string? Words { get; set; }
+    }
+
+    private sealed class TranscriptRow
+    {
+        public long id { get; set; }
+        public long call_id { get; set; }
+        public string engine { get; set; } = "";
+        public string created_at { get; set; } = "";
+        public double? speech_coverage { get; set; }
+        public long segment_count { get; set; }
+        public long word_count { get; set; }
+        public long low_confidence { get; set; }
+        public long spoken_ms { get; set; }
+
+        public TranscriptVersion ToModel(bool current) => new()
+        {
+            Id = id,
+            CallId = call_id,
+            Engine = engine,
+            CreatedAt = ParseIso(created_at),
+            SpeechCoverage = speech_coverage,
+            SegmentCount = (int)segment_count,
+            WordCount = (int)word_count,
+            LowConfidenceCount = (int)low_confidence,
+            SpokenMs = (int)spoken_ms,
+            IsCurrent = current,
+        };
+    }
 
     // ---- segments -----------------------------------------------------------
 
@@ -3073,6 +3277,65 @@ public sealed class Repository(Database database)
     }
 
     // ---- silence trimming ---------------------------------------------------
+
+    /// <summary>What a ledger sweep removed.</summary>
+    public sealed record LedgerSweep(int Hollow, int Duplicates)
+    {
+        public int Total => Hollow + Duplicates;
+    }
+
+    /// <summary>
+    /// Removes ledger entries that say nothing, and collapses the ones that say it twice.
+    ///
+    /// Both populations exist because of faults that are now fixed at their source, and neither
+    /// can be repaired in place — they are rows carrying no information. A commitment with no
+    /// obligation text is a promise the archive cannot state: on screen it is a quote under a
+    /// person's name with nothing above it, it counts toward "66 açık söz", and it can never be
+    /// closed because there is nothing to close. Seventy-nine of eighty in a real archive.
+    ///
+    /// A ruling the user made is never touched, which is the same rule
+    /// <see cref="ClearAnalysis"/> follows: status 0 and not dismissed is the untouched default,
+    /// and anything else is somebody's decision about a row they read.
+    /// </summary>
+    public LedgerSweep SweepLedger()
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        var hollow = connection.Execute(
+            """
+            DELETE FROM commitment
+             WHERE status = 0 AND dismissed_by_user = 0
+               AND (obligation IS NULL OR TRIM(obligation) = '');
+            """,
+            transaction: transaction);
+
+        // The lowest id in each group survives, so the entry keeps the identity anything else
+        // may already point at.
+        var duplicates = connection.Execute(
+            """
+            DELETE FROM commitment
+             WHERE status = 0 AND dismissed_by_user = 0
+               AND id NOT IN (
+                   SELECT MIN(id) FROM commitment
+                    GROUP BY call_id, by_me, TRIM(LOWER(obligation)), TRIM(LOWER(quote)));
+            """,
+            transaction: transaction);
+
+        duplicates += connection.Execute(
+            """
+            DELETE FROM claim
+             WHERE id NOT IN (
+                   SELECT MIN(id) FROM claim
+                    GROUP BY call_id, TRIM(LOWER(entity)), TRIM(LOWER(attribute)),
+                             TRIM(LOWER(value)), TRIM(LOWER(quote)));
+            """,
+            transaction: transaction);
+
+        transaction.Commit();
+
+        return new LedgerSweep(hollow, duplicates);
+    }
 
     // ---- retention ----------------------------------------------------------
 

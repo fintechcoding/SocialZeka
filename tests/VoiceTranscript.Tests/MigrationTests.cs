@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using VoiceTranscript.Core.Storage;
 
 namespace VoiceTranscript.Tests;
@@ -261,6 +261,18 @@ public sealed class MigrationTests : IDisposable
                 "SELECT \"notnull\" FROM pragma_table_info('segment') WHERE name = 'words';";
             Assert.Equal(0L, nullable.ExecuteScalar());
         }
+
+        // v13: every transcript a call has had, so two engines can be compared on the same
+        // conversation rather than on a memory of one.
+        using (var connection = new Database(_path).Open())
+        {
+            using var versions = connection.CreateCommand();
+            versions.CommandText = "SELECT COUNT(*) FROM transcript_version;";
+            Assert.Equal(0L, versions.ExecuteScalar());
+        }
+
+        Assert.True(ColumnExistsIn("transcript_version", "engine"));
+        Assert.True(ColumnExistsIn("transcript_version", "speech_coverage"));
     }
 
     private bool ColumnExistsIn(string table, string column)

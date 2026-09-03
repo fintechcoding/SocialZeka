@@ -486,7 +486,12 @@ public partial class MainWindow
                 // The card said "4 gorusme islenemedi", the button said "Goster", and the page it
                 // opened said there was nothing wrong.
                 shell.Processing.TranscriptFilter = TranscriptFilter.Failed;
-                shell.NavigateCommand.Execute("Processing");
+
+                // To the page that actually holds the list. "Processing" is in the shell's page
+                // enum and nothing in the window is bound to it, so navigating there blanked the
+                // content area — which is what "Göster" did, for as long as it existed.
+                shell.NavigateCommand.Execute("Health");
+                HealthView.ShowProcessing();
                 break;
         }
     }

@@ -1,4 +1,4 @@
-namespace VoiceTranscript.Core.Storage;
+﻿namespace VoiceTranscript.Core.Storage;
 
 /// <summary>
 /// The SQLite schema, applied by <see cref="Database"/> on open.
@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 12;
+    public const int Version = 13;
 
     public static readonly string[] Statements =
     [
@@ -557,5 +557,32 @@ public static class Schema
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_todo_open ON todo(done_at, due_date);",
+
+        // Every transcript this call has ever had, with the engine that produced it.
+        //
+        // The current transcript lives in "segment" and always has; this is what came before it
+        // and what came instead of it. It exists because the question "which engine is better on
+        // my calls" was unanswerable: each run overwrote the last, so comparing two of them meant
+        // reading a log, re-running one by hand, and hoping the audio had not changed underneath.
+        //
+        // The lines are kept as JSON rather than as rows in "segment". A version is read whole or
+        // not at all — to be compared, or to be put back — and nothing queries across versions;
+        // giving "segment" a version column instead would put a filter into every query in the
+        // application to serve a screen that asks for one call at a time.
+        """
+        CREATE TABLE IF NOT EXISTS transcript_version (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id         INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+            engine          TEXT    NOT NULL,
+            created_at      TEXT    NOT NULL,
+            speech_coverage REAL,
+            segment_count   INTEGER NOT NULL,
+            word_count      INTEGER NOT NULL,
+            low_confidence  INTEGER NOT NULL,
+            spoken_ms       INTEGER NOT NULL,
+            segments        TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_transcript_call ON transcript_version(call_id, created_at DESC);",
     ];
 }

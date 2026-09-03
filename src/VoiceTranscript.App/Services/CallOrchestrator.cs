@@ -1963,6 +1963,23 @@ public sealed class CallOrchestrator : IDisposable
                 (int)(w.Start * 1000), (int)(w.End * 1000), w.Text))],
         }));
 
+        // Filed under the engine that produced it, beside whatever this call was transcribed
+        // as before. Written after the lines rather than instead of them: "segment" stays the
+        // one place the rest of the application reads a transcript from.
+        try
+        {
+            _repository.SaveTranscriptVersion(
+                call.Id,
+                Core.Asr.SttEndpoint.ScrubRef(result.ModelRef ?? result.Engine ?? model.DisplayName),
+                result.WorstSpeechCoverage,
+                _repository.GetSegments(call.Id));
+        }
+        catch (Exception e)
+        {
+            // A history that could not be written is not a reason to lose a transcript that was.
+            AppLog.Error("veri", e, $"görüşme #{call.Id} dökümü geçmişe yazılamadı");
+        }
+
         if (result.Stats?.LikelyNoHeadphones == true)
         {
             Notice?.Invoke(this,

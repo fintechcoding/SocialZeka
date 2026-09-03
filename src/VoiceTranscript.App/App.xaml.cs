@@ -394,6 +394,28 @@ public partial class App : Application
             }
         });
 
+        // Ledger rows that cannot say anything are removed, once.
+        //
+        // They were written by a schema the server rejected on every call, so the model answered
+        // in prose and left the obligation empty — seventy-nine of eighty in this archive. On
+        // screen they are a quote with nothing above it, they inflate the open-promise count, and
+        // they can never be closed because there is nothing to close. The fault is fixed at its
+        // source; these are what it left behind. Rulings the user made are not touched.
+        try
+        {
+            var swept = Repository.SweepLedger();
+
+            if (swept.Total > 0)
+            {
+                AppLog.Write("veri",
+                    $"defter temizlendi: {swept.Hollow} boş kayıt, {swept.Duplicates} tekrar kaldırıldı");
+            }
+        }
+        catch (Exception repair)
+        {
+            AppLog.Error("veri", repair, "defter temizlenemedi");
+        }
+
         // Counters that could already be wrong are corrected once, here.
         //
         // Moving a call between contacts used to recalculate only the destination, so the contact

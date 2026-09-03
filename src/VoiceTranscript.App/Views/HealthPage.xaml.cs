@@ -54,6 +54,18 @@ public partial class HealthPage
                 "healthpage.gunluk-" + level.ToString().ToLowerInvariant() + "-secildi");
     }
 
+    /// <summary>
+    /// Brings the processing list forward.
+    ///
+    /// It lives here rather than in the shell, and that is the whole of the fault this exists to
+    /// fix. The first screen's "N görüşme işlenemedi · Göster" navigated to a shell page called
+    /// Processing — an entry in the enum that no view is bound to, because the list is a tab on
+    /// this page. Every visibility binding said "not me", the content area emptied, and the
+    /// button that promised to show four failures showed nothing at all. Twice: the first repair
+    /// corrected which rows the list would hold and never checked that anybody could reach it.
+    /// </summary>
+    public void ShowProcessing() => Tabs.SelectedItem = ProcessingTab;
+
     private async void OnDataAction(object? sender, HealthViewModel.DataRequest request)
     {
         if (DataContext is not HealthViewModel model) return;

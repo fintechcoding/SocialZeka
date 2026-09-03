@@ -18,7 +18,7 @@
         same question at two levels — is the machinery set up, and is it getting through the work —
         so they belong on one screen with a tab between them.
     -->
-    <TabControl Margin="24,10,24,16" Padding="0,14,0,0" Style="{StaticResource SegmentedTabs}">
+    <TabControl x:Name="Tabs" Margin="24,10,24,16" Padding="0,14,0,0" Style="{StaticResource SegmentedTabs}">
 
         <TabItem Header="{loc:T healthpage.sistem}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,8,24">
@@ -521,7 +521,7 @@
                 DataContext="{Binding DataContext.AiStatus, RelativeSource={RelativeSource AncestorType=Window}}" />
         </TabItem>
 
-        <TabItem Header="{loc:T healthpage.islemler}">
+        <TabItem x:Name="ProcessingTab" Header="{loc:T healthpage.islemler}">
             <views:ProcessingPage
                 DataContext="{Binding DataContext.Processing, RelativeSource={RelativeSource AncestorType=Window}}" />
         </TabItem>

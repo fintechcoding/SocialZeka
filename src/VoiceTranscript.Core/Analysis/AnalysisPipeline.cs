@@ -1,9 +1,10 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Llm;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.Core.Analysis;
 
@@ -189,6 +190,29 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
             return new AnalysisReport(0, 0, rejected, [], null, warnings);
         }
+
+        // One conversation, one entry per thing said.
+        //
+        // The model repeats itself, especially when the schema was refused and it is answering
+        // in prose: a real call produced the same promise four times, identical quote, identical
+        // text, four rows in the ledger and four lines on screen. Nothing downstream could tell
+        // them apart, and the deterministic checks then compared a statement against its own
+        // copy. Deduplicated here rather than at the screen, because a ledger that holds a thing
+        // twice is wrong even when nobody is looking at it.
+        var duplicates = commitments.Count + claims.Count;
+
+        commitments = [.. commitments
+            .GroupBy(c => (c.ByMe, Text: c.Obligation.Trim(), c.Quote), TupleComparer)
+            .Select(g => g.First())];
+
+        claims = [.. claims
+            .GroupBy(c => (c.Entity, c.Attribute, c.Value, c.Quote), ClaimComparer)
+            .Select(g => g.First())];
+
+        duplicates -= commitments.Count + claims.Count;
+
+        if (duplicates > 0)
+            CoreLog.Write("cozumleme", $"gorusme #{callId}: {duplicates} tekrar eden defter satiri elendi");
 
         repository.ClearAnalysis(callId);
 
@@ -637,6 +661,44 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
     private static IEnumerable<JsonNode> Array(JsonNode? root, string name)
         => root?[name]?.AsArray().Where(n => n is not null).Select(n => n!) ?? [];
+
+    /// <summary>
+    /// Case-insensitive in Turkish, because "Tamam ayarlarım" and "tamam ayarlarım" are the same
+    /// sentence and the model does not reliably pick one of them.
+    /// </summary>
+    private static readonly IEqualityComparer<(bool ByMe, string Text, string Quote)> TupleComparer =
+        new CommitmentKeyComparer();
+
+    private static readonly IEqualityComparer<(string Entity, string Attribute, string Value, string Quote)>
+        ClaimComparer = new ClaimKeyComparer();
+
+    private sealed class CommitmentKeyComparer : IEqualityComparer<(bool ByMe, string Text, string Quote)>
+    {
+        public bool Equals((bool ByMe, string Text, string Quote) a, (bool ByMe, string Text, string Quote) b) =>
+            a.ByMe == b.ByMe
+            && TurkishText.NormalizeForSearch(a.Text) == TurkishText.NormalizeForSearch(b.Text)
+            && TurkishText.NormalizeForSearch(a.Quote) == TurkishText.NormalizeForSearch(b.Quote);
+
+        public int GetHashCode((bool ByMe, string Text, string Quote) key) =>
+            HashCode.Combine(key.ByMe, TurkishText.NormalizeForSearch(key.Text));
+    }
+
+    private sealed class ClaimKeyComparer
+        : IEqualityComparer<(string Entity, string Attribute, string Value, string Quote)>
+    {
+        public bool Equals(
+            (string Entity, string Attribute, string Value, string Quote) a,
+            (string Entity, string Attribute, string Value, string Quote) b) =>
+            TurkishText.NormalizeForSearch(a.Entity) == TurkishText.NormalizeForSearch(b.Entity)
+            && TurkishText.NormalizeForSearch(a.Attribute) == TurkishText.NormalizeForSearch(b.Attribute)
+            && TurkishText.NormalizeForSearch(a.Value) == TurkishText.NormalizeForSearch(b.Value)
+            && TurkishText.NormalizeForSearch(a.Quote) == TurkishText.NormalizeForSearch(b.Quote);
+
+        public int GetHashCode((string Entity, string Attribute, string Value, string Quote) key) =>
+            HashCode.Combine(
+                TurkishText.NormalizeForSearch(key.Entity),
+                TurkishText.NormalizeForSearch(key.Attribute));
+    }
 
     private static string? Str(JsonNode? node, string name)
     {

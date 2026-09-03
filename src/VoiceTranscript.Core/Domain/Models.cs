@@ -1,4 +1,4 @@
-namespace VoiceTranscript.Core.Domain;
+﻿namespace VoiceTranscript.Core.Domain;
 
 public enum CallApp
 {
@@ -146,6 +146,39 @@ public sealed record Call
 /// <param name="EndMs">Where it ends.</param>
 /// <param name="Text">The word itself, with whatever spacing the engine gave it.</param>
 public readonly record struct SpokenWord(int StartMs, int EndMs, string Text);
+
+/// <summary>
+/// One transcript a call has had, and what it cost to look at it.
+///
+/// The numbers are stored rather than recomputed because they are the whole point: a list of
+/// engines with no figures beside them is a list of names, and the question being asked is which
+/// of them heard the conversation better.
+/// </summary>
+public sealed record TranscriptVersion
+{
+    public long Id { get; init; }
+    public long CallId { get; init; }
+
+    /// <summary>The engine as the run recorded it, credentials already scrubbed.</summary>
+    public required string Engine { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>How much of the audible speech came back with words on it, when it was measured.</summary>
+    public double? SpeechCoverage { get; init; }
+
+    public int SegmentCount { get; init; }
+    public int WordCount { get; init; }
+
+    /// <summary>Lines the engine itself was unsure about.</summary>
+    public int LowConfidenceCount { get; init; }
+
+    /// <summary>How much of the call these lines actually cover.</summary>
+    public int SpokenMs { get; init; }
+
+    /// <summary>True while this is the transcript the call is showing.</summary>
+    public bool IsCurrent { get; init; }
+}
 
 public sealed record Segment
 {
