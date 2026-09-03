@@ -199,6 +199,20 @@ public partial class LabelCallWindow
             }
         }
 
+        // Now that this call belongs to somebody, it is also an example of what they sound like.
+        //
+        // Fire and forget, and deliberately not awaited: the user has answered the question and
+        // wants the window gone, and learning a voice means expanding an Opus archive and running
+        // a model over it. It also refuses to learn from anything the voice recogniser filed
+        // itself — only the answers a person gave, which is what has just happened here.
+        if (App.Settings?.IdentifySpeakers == true && App.Paths is { } paths)
+        {
+            _ = Task.Run(() => new Services.VoiceEnrolment(
+                    _repository, () => App.Worker, paths.Models,
+                    line => Services.AppLog.Write("ses", line))
+                .LearnAsync(contactId));
+        }
+
         Outcome = LabelOutcome.Saved;
         DialogResult = true;
         Close();
