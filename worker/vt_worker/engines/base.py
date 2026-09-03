@@ -50,6 +50,17 @@ class EngineOptions:
     # Turkish and English mid-sentence. Slower, and only the large models can do it.
     multilingual: bool = False
 
+    # Whether the hosted service should apply its loudness normalisation to this channel.
+    #
+    # Per channel and not per call, because the two sides of a conversation are different kinds
+    # of signal: the loopback stream is written by the audio stack and is digitally silent
+    # between words, while a microphone is a live input that always hears the room.
+    #
+    # None means "do not send the field", leaving the service on its own default. Engines that
+    # have no such control ignore it. See chunking.prefers_gain for how the value is arrived at
+    # and what it was measured against.
+    normalize: bool | None = None
+
 
 @dataclass(slots=True)
 class EngineInfo:

@@ -156,15 +156,35 @@ class Ex5WhisperEngine(CloudWhisperEngine):
             # the flag changes nothing at all, byte for byte, same timestamps. It was very nearly
             # written off on that basis. Silence is not the case it acts on.
             "vad": "true",
-            # normalize is deliberately NOT sent, and the server's default (on) is what we want.
-            #
-            # It was sent as false for a few hours on the strength of the room-tone clip, where
-            # turning it off halved the hallucinated lines — the reasoning being that gain applied
-            # to a window with no speech in it only lifts the room tone to where a decoder will
-            # transcribe it. That reasoning is sound and the conclusion was still wrong: on real
-            # speech, normalize=false costs 23 of those 157 seconds (151 -> 128) and adds back a
-            # hallucinated line. Whatever it does to silence, it helps the model hear.
         }
+
+        # Loudness normalisation, decided per channel rather than left to the service's default.
+        #
+        # The service runs ffmpeg loudnorm=I=-16:TP=-1.5:LRA=11 in a single pass, which ffmpeg
+        # itself reports as "normalization_type": "dynamic" — not one gain for the file but a
+        # gain that follows the level. On a channel with a real noise floor that is destructive
+        # in a specific, measurable way: the quiet blocks are pushed towards the target harder
+        # than the loud ones, so the floor rises FURTHER than the speech does and the contrast
+        # the decoder needs is narrowed by the very step meant to help it. Measured on the
+        # service's own command: floor +32.4 dB against speech +27.7 dB.
+        #
+        # What that costs, on this archive, against the service:
+        #
+        #     channel        floor   speech   normalize=on   normalize=off
+        #     call-58-mic   -67 dB     21%       4 words        62 words
+        #     call-57-mic   -72 dB     12%       0 words         9 words
+        #     call-56-mic   -72 dB     29%      15 words        15 words
+        #     call-58-far   -95 dB     22%      31 words        32 words
+        #     a busy call        -      87%     151 sec         128 sec
+        #
+        # Both directions are real, which is why this is a decision and not a constant. Turning
+        # it off outright was tried first and cost 23 seconds of that last, dense recording; the
+        # difference between the rows is the recording, not the flag.
+        #
+        # Omitted rather than guessed when there is nothing to go on, so the service keeps its
+        # own default in the case this cannot speak to.
+        if options.normalize is not None:
+            fields["normalize"] = "true" if options.normalize else "false"
 
         if options.language and not options.multilingual:
             fields["language"] = options.language

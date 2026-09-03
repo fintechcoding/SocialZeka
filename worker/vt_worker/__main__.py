@@ -40,6 +40,13 @@ from vt_worker.segmentation import DEFAULT_MAX_GAP, resegment_on_gaps
 # under four fifths is a transcript with conversation missing from it, not a quiet call.
 LOW_COVERAGE = 0.8
 
+#: Below this a channel is transcribed a second time with the service's gain setting flipped.
+#:
+#: Lower than LOW_COVERAGE, which only writes a line in the log: this one spends a request, so it
+#: waits for an answer that is poor rather than merely imperfect. A channel where half the audible
+#: speech came back with no words on it is not a conversation with pauses in it.
+RETRY_COVERAGE = 0.5
+
 
 def _configure_streams() -> None:
     """Force UTF-8.
@@ -205,9 +212,22 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
     emit({"type": "progress", "id": job_id, "stage": "loading", "percent": 0.0})
     engine.load(options)
 
-    def transcribe_stream(path: str | None, stage: str, weight_from: float, weight_to: float) -> list[Segment]:
+    def transcribe_stream(
+        path: str | None,
+        stage: str,
+        weight_from: float,
+        weight_to: float,
+        normalize: bool | None = None,
+    ) -> list[Segment]:
         if not path:
             return []
+
+        # Each channel is asked for on its own terms. The two sides of a call are different kinds
+        # of signal — one is a live microphone with a room behind it, the other is written by the
+        # audio stack and is digitally silent between words — and the hosted service's loudness
+        # normalisation helps one and ruins the other.
+        stream_options = dataclasses.replace(
+            options, normalize=chunking.prefers_gain(path) if normalize is None else normalize)
 
         # What the engine says, not only how far it has got.
         #
@@ -233,7 +253,7 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
 
             emit(event)
 
-        raw = engine.transcribe(path, options, on_progress)
+        raw = engine.transcribe(path, stream_options, on_progress)
 
         # Whisper merges utterances across silence when the VAD filter removes it, producing
         # segments whose timestamps are minutes away from where the words were actually said.
@@ -252,8 +272,6 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
     emit({"type": "progress", "id": job_id, "stage": "merge", "percent": 97.0})
     merged = merge_streams(mic_segments, far_segments)
 
-    engine.unload()
-
     # How much of the speech that is audibly there came back with words on it.
     #
     # An engine that invents is obvious; one that goes quiet is not, and for a record of what
@@ -267,9 +285,55 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
         if path
     }
 
+    # A poor answer is checked against the other setting rather than accepted.
+    #
+    # Which way the service's normalisation falls for a given channel cannot be worked out from
+    # the file: it is a single-pass loudnorm, so its gain follows the level rather than being one
+    # number, and the two-pass linear mode falls back to dynamic on exactly the recordings where
+    # it would have mattered. prefers_gain is a guess measured against this archive, and a guess
+    # is all it can be.
+    #
+    # So the guess is checked. Coverage is the one number that says a transcript went quiet
+    # without saying so, and at this level the alternative costs one request and settles the
+    # question with a measurement instead of a threshold. The better of the two is kept — never
+    # simply the newer one, because the second attempt can be worse.
+    for stage in list(coverage):
+        value = coverage[stage]
+        if value is None or value >= RETRY_COVERAGE:
+            continue
+
+        path = mic_path if stage == "mic" else far_path
+        first_choice = chunking.prefers_gain(path)
+
+        log(f"{stage}: konuşmanın yalnızca %{value * 100:.0f}'i döküldü, "
+            f"ses seviyeleme {'kapalı' if first_choice else 'açık'} olarak tekrar deneniyor")
+
+        try:
+            retried = transcribe_stream(path, stage, 95.0, 96.0, normalize=not first_choice)
+        except EngineError as e:
+            log(f"{stage}: ikinci deneme yapılamadı ({e.code})")
+            continue
+
+        again = chunking.speech_coverage(path, retried)
+
+        if again is not None and again > value:
+            log(f"{stage}: ikinci deneme daha iyi, %{value * 100:.0f} → %{again * 100:.0f}")
+            coverage[stage] = again
+
+            if stage == "mic":
+                mic_segments = retried
+            else:
+                far_segments = retried
+
+            merged = merge_streams(mic_segments, far_segments)
+        else:
+            log(f"{stage}: ikinci deneme iyileştirmedi, ilk sonuç korundu")
+
     for stage, value in coverage.items():
         if value is not None and value < LOW_COVERAGE:
-            log(f"{stage}: konuşmanın yalnızca %{value * 100:.0f}'i yazıya döküldü")
+            log(f"{stage}: konuşmanın %{value * 100:.0f}'i yazıya döküldü")
+
+    engine.unload()
 
     emit(
         _transcript_to_json(

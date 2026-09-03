@@ -18,6 +18,7 @@ contains a real silence.
 from __future__ import annotations
 
 import array
+import math
 import wave
 from contextlib import closing
 from dataclasses import dataclass
@@ -176,6 +177,89 @@ def speech_coverage(path: str, segments) -> float | None:
         covered.update(range(max(0, first), min(len(levels), last + 1)))
 
     return len(speech & covered) / len(speech)
+
+
+#: Below this the quiet parts of a channel are digital silence rather than a room.
+#:
+#: The loopback stream is written by the audio stack and reads about -95 dBFS between words; a
+#: live microphone never does, because a microphone is always hearing something. Measured across
+#: this archive the two populations do not overlap or come close: far channels sat at -94 to -95,
+#: microphone channels at -67 to -72. The line is drawn in the empty middle.
+SILENT_FLOOR_DBFS = -85.0
+
+#: Above this share of speech there is no window without a voice in it, and gain is safe.
+#:
+#: See :func:`prefers_gain` for what the number decides and what it was measured against.
+DENSE_SPEECH_RATIO = 0.5
+
+
+def noise_profile(path: str) -> tuple[float, float] | None:
+    """
+    A channel's noise floor in dBFS and the share of it that carries speech.
+
+    Two numbers rather than one average, because the average of a sparse channel is its silence
+    and the average of a busy one is its voice — the same figure meaning opposite things. Returns
+    None when the file cannot be scanned or holds no speech at all.
+    """
+    try:
+        levels, _rate, duration = _frame_levels(path)
+    except (OSError, wave.Error):
+        return None
+
+    if not levels or duration <= 0:
+        return None
+
+    ordered = sorted(levels)
+    loud = ordered[int(len(ordered) * 0.9)]
+    threshold = max(120.0, loud * 0.1)
+
+    quiet = [level for level in levels if level <= threshold]
+    speech = [level for level in levels if level > threshold]
+
+    if not speech:
+        return None
+
+    quiet.sort()
+    floor = quiet[len(quiet) // 2] if quiet else 0.0
+
+    return 20 * math.log10(max(floor, 1e-6) / 32768.0), len(speech) / len(levels)
+
+
+def prefers_gain(path: str) -> bool:
+    """
+    Whether this channel should be handed to the service with its normalisation on.
+
+    The service applies gain by default and it is not a neutral choice. On a channel with a real
+    noise floor and long gaps, a window holding only room tone is lifted to where a decoder will
+    write words into it, and the words are invented. On a channel that is mostly speech there is
+    no such window, and the same gain makes quiet talking audible.
+
+    Both halves are measured, on this archive, against the service:
+
+        channel        floor   speech   normalize=on   normalize=off
+        call-58-mic   -67 dB     21%       4 words        62 words
+        call-57-mic   -72 dB     12%       0 words         9 words
+        call-56-mic   -72 dB     29%      15 words        15 words
+        call-58-far   -95 dB     22%      31 words        32 words
+        a busy call        -      87%     151 sec         128 sec
+
+    That last row is why this is a question and not a constant. Turning normalisation off outright
+    was tried first, on the strength of a room-tone clip, and it cost 23 seconds of a dense call.
+    Both results are real; they are about different recordings, and this function is the
+    difference between them.
+    """
+    profile = noise_profile(path)
+    if profile is None:
+        return True  # nothing to go on, and the service's own default is gain on
+
+    floor_dbfs, speech_ratio = profile
+
+    # Digital silence takes no harm from gain: multiplying nothing leaves nothing, and the far
+    # channel measured neutral on every file tried.
+    if floor_dbfs <= SILENT_FLOOR_DBFS:
+        return True
+
+    return speech_ratio >= DENSE_SPEECH_RATIO
 
 
 def plan_chunks(path: str, max_seconds: float) -> list[Chunk]:
