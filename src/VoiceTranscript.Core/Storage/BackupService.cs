@@ -50,22 +50,33 @@ public sealed class BackupService(AppPaths paths, Repository repository)
     /// backup nobody will ever actually take. Without it the file is a few megabytes and still
     /// carries every word, every ledger entry and every setting.
     /// </summary>
+    /// <summary>Whether this file needs a password before it can be restored.</summary>
+    public static bool NeedsPassword(string archivePath) =>
+        Export.EncryptedArchive.LooksLikeOne(archivePath);
+
     public async Task<ArchiveResult> BackupAsync(
         string destination,
         bool includeAudio = false,
         IProgress<string>? progress = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? password = null)
     {
         progress?.Report("Yedek hazırlanıyor…");
 
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         if (File.Exists(destination)) File.Delete(destination);
 
+        // A password turns the file into something only this application can open, so the archive
+        // is built plainly first and sealed at the end. Built beside the destination rather than
+        // in the temp folder: a backup with audio is gigabytes, and the disk somebody chose to put
+        // it on is the one with room for it.
+        var plainPath = password is null ? destination : destination + ".hazirlaniyor";
+
         var files = 0;
 
         await Task.Run(() =>
         {
-            using var archive = ZipFile.Open(destination, ZipArchiveMode.Create);
+            using var archive = ZipFile.Open(plainPath, ZipArchiveMode.Create);
 
             // The database first, and with its journal: SQLite in WAL mode keeps recent writes
             // in a side file, so copying only the main file can silently lose the last minutes.
@@ -100,8 +111,29 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             }
         }, ct);
 
+        if (password is not null)
+        {
+            progress?.Report("Yedek şifreleniyor…");
+
+            await Task.Run(() =>
+            {
+                using (var plain = File.OpenRead(plainPath))
+                using (var sealedFile = File.Create(destination))
+                {
+                    Export.EncryptedArchive.Write(sealedFile, plain, password);
+                }
+
+                // The unencrypted copy must not outlive the encrypted one, or the password was
+                // decoration: somebody who asked for this expects the readable version gone.
+                File.Delete(plainPath);
+            }, ct);
+        }
+
         var size = new FileInfo(destination).Length;
-        progress?.Report($"Yedek hazır: {files} dosya.");
+
+        progress?.Report(password is null
+            ? $"Yedek hazır: {files} dosya."
+            : $"Yedek hazır ve şifrelendi: {files} dosya.");
 
         return new ArchiveResult(destination, files, size);
     }
@@ -183,10 +215,40 @@ public sealed class BackupService(AppPaths paths, Repository repository)
     public async Task<int> StageRestoreAsync(
         string archivePath,
         IProgress<string>? progress = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? password = null)
     {
         if (!File.Exists(archivePath))
             throw new FileNotFoundException("Yedek dosyası bulunamadı.", archivePath);
+
+        // An encrypted backup is opened into a plain copy first, and that copy is removed however
+        // this ends. It is written beside the staging area rather than in the temp folder for the
+        // same reason the backup was: with audio it is gigabytes.
+        var opened = archivePath;
+
+        if (NeedsPassword(archivePath))
+        {
+            if (string.IsNullOrEmpty(password))
+                throw new InvalidOperationException("Bu yedek parolalı. Parola olmadan açılamaz.");
+
+            progress?.Report("Yedek çözülüyor…");
+
+            opened = Path.Combine(paths.Root, "geri-yukleme.acilan");
+
+            var fault = await Task.Run(() =>
+            {
+                using var input = File.OpenRead(archivePath);
+                using var output = File.Create(opened);
+
+                return Export.EncryptedArchive.TryRead(input, output, password);
+            }, ct);
+
+            if (fault != Export.ArchiveFault.None)
+            {
+                TryDelete(opened);
+                throw new InvalidOperationException(Export.EncryptedArchive.Explain(fault));
+            }
+        }
 
         var staging = Path.Combine(paths.Root, StagingFolder);
 
@@ -197,9 +259,11 @@ public sealed class BackupService(AppPaths paths, Repository repository)
 
         var extracted = 0;
 
+        try
+        {
         await Task.Run(() =>
         {
-            using var archive = ZipFile.OpenRead(archivePath);
+            using var archive = ZipFile.OpenRead(opened);
 
             foreach (var entry in archive.Entries)
             {
@@ -224,6 +288,13 @@ public sealed class BackupService(AppPaths paths, Repository repository)
                 extracted++;
             }
         }, ct);
+        }
+        finally
+        {
+            // However this ended. A decrypted copy of somebody's archive left on disk beside the
+            // encrypted one would make the password pointless.
+            if (!ReferenceEquals(opened, archivePath) && opened != archivePath) TryDelete(opened);
+        }
 
         if (extracted == 0)
         {
@@ -233,6 +304,18 @@ public sealed class BackupService(AppPaths paths, Repository repository)
 
         progress?.Report($"{extracted} dosya hazırlandı. Uygulama yeniden başlatıldığında yerine konacak.");
         return extracted;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch (IOException)
+        {
+            // Left behind rather than throwing over a temporary file; the sweep will get it.
+        }
     }
 
     /// <summary>Whether a restore is waiting to be applied.</summary>

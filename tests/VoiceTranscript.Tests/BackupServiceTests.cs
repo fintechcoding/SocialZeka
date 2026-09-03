@@ -195,4 +195,75 @@ public class BackupServiceTests : IDisposable
         Assert.False(BackupService.HasPendingRestore(_paths));
         Assert.Single(_repository.ListContacts());
     }
+
+    // ---- password ----------------------------------------------------------
+
+    /// <summary>
+    /// The round trip that matters: written with a password, restored with it, nothing lost.
+    ///
+    /// A backup holds every word of every conversation and often the audio too, and it is going to
+    /// sit on a disk or in a cloud folder somewhere. Encryption that produced a file the
+    /// application could not read back would be worse than none.
+    /// </summary>
+    [Fact]
+    public async Task ABackupWrittenWithAPasswordIsRestoredWithIt()
+    {
+        var backup = await _backup.BackupAsync(Destination("kilitli.zip"), password: "parolam");
+
+        Assert.True(Core.Storage.BackupService.NeedsPassword(backup.Path));
+
+        var staged = await _backup.StageRestoreAsync(backup.Path, password: "parolam");
+
+        Assert.True(staged > 0);
+    }
+
+    /// <summary>
+    /// The wrong password restores nothing. It has to fail before anything is staged: a restore
+    /// that half-applies is the worst outcome for an operation somebody reached for because they
+    /// had already lost something.
+    /// </summary>
+    [Fact]
+    public async Task TheWrongPasswordRestoresNothing()
+    {
+        var backup = await _backup.BackupAsync(Destination("kilitli.zip"), password: "dogru");
+
+        var failed = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _backup.StageRestoreAsync(backup.Path, password: "yanlis"));
+
+        Assert.Contains("Parola", failed.Message);
+    }
+
+    [Fact]
+    public async Task AndSoDoesNoPasswordAtAll()
+    {
+        var backup = await _backup.BackupAsync(Destination("kilitli.zip"), password: "parolam");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _backup.StageRestoreAsync(backup.Path));
+    }
+
+    /// <summary>
+    /// The readable copy must not outlive the encrypted one. Somebody who asked for a password
+    /// expects the plain version gone, not sitting beside it with a different extension.
+    /// </summary>
+    [Fact]
+    public async Task NoReadableCopyIsLeftBeside()
+    {
+        var backup = await _backup.BackupAsync(Destination("kilitli.zip"), password: "parolam");
+
+        var beside = Directory.GetFiles(Path.GetDirectoryName(backup.Path)!);
+
+        Assert.Equal(backup.Path, Assert.Single(beside));
+    }
+
+    /// <summary>An ordinary backup stays ordinary: one click, no password, opens in any tool.</summary>
+    [Fact]
+    public async Task WithoutAPasswordNothingChanges()
+    {
+        var backup = await _backup.BackupAsync(Destination("acik.zip"));
+
+        Assert.False(Core.Storage.BackupService.NeedsPassword(backup.Path));
+
+        Assert.True(await _backup.StageRestoreAsync(backup.Path) > 0);
+    }
 }

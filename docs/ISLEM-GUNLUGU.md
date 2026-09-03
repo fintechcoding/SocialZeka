@@ -1972,3 +1972,45 @@ Yorumda bırakılan not: aynı kayıtta bulut çıktısı yerelinkinden ince gel
 **904 test · 899 geçti · 0 kırık · 5 atlandı** + **115 Python**.
 
 **Paket.** `v2.6.2`.
+
+---
+
+## 2026-09-03 (on altıncı tur) — Yedekler parolayla korunabiliyor
+
+Kullanıcı: "yedekle sistemi var ama şifreleme sistemi yok."
+
+Ayrı bir dışa aktarma yazmak yanlış olurdu — yedekleme zaten var, eksik olan tek şey kilidiydi.
+
+**Şifreli ZIP değil, bilerek.** ZIP'in otuz yıldır taşıdığı şifreleme ZipCrypto ve süs
+sayılacak kadar kırık; AES uzantısı ise araçlar arasında o kadar tutarsız destekleniyor ki
+"benim programımda açıldı" bir güvence sayılmaz. Bu dosyada bütün görüşmelerin metni ve
+isteğe bağlı olarak sesleri var. Bu yüzden kap sade: **AES-256-GCM**, anahtar paroladan
+PBKDF2 ile (600 bin tur). 7-Zip açamaz. Takas bu, ve doğru yönde.
+
+**Çerçeveli, tek blok değil.** Sesle birlikte yedek gigabaytlarca; tek bir AES-GCM işlemi
+hepsini birden bellekte ister. Yük 1 MB'lık çerçevelere bölünüyor, her biri kendi etiketiyle.
+Üç ayrıntı, "şifreli görünen" ile şifreli olan arasındaki farkı yapan:
+
+- **Her çerçevenin nonce'ı sayaçtan türüyor**, hiç tekrarlamıyor. Aynı anahtarla aynı nonce iki
+  çerçevenin içeriğini birbirine sızdırır.
+- **Her çerçeve kendi sırasına ve başlığa bağlı**, yani çerçeveler yer değiştiremez,
+  çoğaltılamaz, atılamaz.
+- **Son çerçeve son olduğunu söylüyor.** Bu olmasaydı dosyayı ortadan kesmek, kusursuz doğrulanan
+  **daha kısa bir yedek** üretirdi — arşivin yarısını sessizce kaybettiren bir geri yükleme.
+
+Dört hata ayrı ayrı söyleniyor, çünkü her birinin cevabı farklı: bizim dosyamız değil, daha yeni
+sürümle yazılmış, parola yanlış ya da bozulmuş, yarım kalmış. Parola yanlış mı dosya mı bozuk
+ayırt **edilmiyor** — edilebiliyormuş gibi yapmak, hiçbir şeyin denetlemediği bir parolayı
+"doğru" ilan etmek olurdu.
+
+**Parola isteğe bağlı.** Verisini kaybetmiş ve bir çubuğa kopya almak isteyen birinin önüne parola
+kutusu koymak yardım değil engel. Boş bırakmak şifrelemiyor, ve mesaj hangisinin olduğunu söylüyor.
+Geri yüklemede parola **yalnızca gerekince** soruluyor: dosya ilk sekiz baytında kendisi söylüyor,
+kimsenin nasıl yazdığını hatırlaması gerekmiyor.
+
+Çözülmüş kopya nasıl biterse bitsin siliniyor — şifrelinin yanında duran okunabilir bir kopya
+parolayı anlamsız kılardı.
+
+**913 test · 908 geçti · 0 kırık · 5 atlandı** + **115 Python**.
+
+**Paket.** `v2.7.0`.

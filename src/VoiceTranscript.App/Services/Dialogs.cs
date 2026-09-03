@@ -40,6 +40,76 @@ public static class Dialogs
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
+    /// <summary>
+    /// Asks for a password, without echoing it.
+    ///
+    /// Returns null when the dialog was dismissed, and the empty string when somebody deliberately
+    /// left it blank — the two mean different things where a password is optional, and collapsing
+    /// them would turn "no thanks, leave it unencrypted" and "I changed my mind" into one answer.
+    ///
+    /// There is no confirm-the-password box on purpose. It is offered where the file is about to
+    /// be written, so a typo is discovered by opening the file rather than years later; and when a
+    /// backup is being restored, asking twice for something the user is reading off a note would
+    /// be nothing but friction. A "show" toggle does the same job as a second box, honestly.
+    /// </summary>
+    public static async Task<string?> AskPasswordAsync(
+        Window? owner, string title, string message, string okText = "Tamam")
+    {
+        var box = new Wpf.Ui.Controls.PasswordBox { Margin = new Thickness(0, 12, 0, 0), MinWidth = 280 };
+
+        var reveal = new System.Windows.Controls.CheckBox
+        {
+            Content = "Parolayı göster",
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+
+        var shown = new Wpf.Ui.Controls.TextBox
+        {
+            Margin = new Thickness(0, 12, 0, 0),
+            MinWidth = 280,
+            Visibility = Visibility.Collapsed,
+        };
+
+        reveal.Checked += (_, _) =>
+        {
+            shown.Text = box.Password;
+            box.Visibility = Visibility.Collapsed;
+            shown.Visibility = Visibility.Visible;
+            shown.Focus();
+        };
+
+        reveal.Unchecked += (_, _) =>
+        {
+            box.Password = shown.Text;
+            shown.Visibility = Visibility.Collapsed;
+            box.Visibility = Visibility.Visible;
+            box.Focus();
+        };
+
+        var panel = new StackPanel();
+        panel.Children.Add(Wrapped(message));
+        panel.Children.Add(box);
+        panel.Children.Add(shown);
+        panel.Children.Add(reveal);
+
+        if (HostOf(owner) is not { } host) return null;
+
+        var dialog = new ContentDialog(host)
+        {
+            Title = title,
+            Content = panel,
+            PrimaryButtonText = okText,
+            CloseButtonText = "Vazgeç",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+
+        dialog.Loaded += (_, _) => box.Focus();
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return null;
+
+        return reveal.IsChecked == true ? shown.Text : box.Password;
+    }
+
     /// <summary>Tells the user one thing, with a single button.</summary>
     public static async Task InfoAsync(Window? owner, string title, string message)
     {

@@ -619,10 +619,30 @@ public sealed partial class HealthViewModel : ObservableObject
                 case DataRequest.BackupWithoutAudio:
                 case DataRequest.BackupWithAudio:
                 {
-                    var result = await service.BackupAsync(
-                        path, includeAudio: request == DataRequest.BackupWithAudio, progress);
+                    // Offered, not demanded. A backup holds every word of every conversation and
+                    // often the audio as well, and it is going to sit on a disk or in a cloud
+                    // folder somewhere — but somebody who has just lost their data and wants a
+                    // copy on a stick should not be blocked by a password box. Empty means no
+                    // encryption, and the message afterwards says which of the two happened.
+                    var password = await Services.Dialogs.AskPasswordAsync(
+                        System.Windows.Application.Current?.MainWindow,
+                        "Yedeği parolayla koru",
+                        "Yedekte bütün görüşmelerin metni var" +
+                        (request == DataRequest.BackupWithAudio ? " ve ses kayıtları da" : "") +
+                        ". Parola verirsen dosya yalnızca bu uygulamayla ve bu parolayla açılır — "
+                        + "parolayı kaybedersen yedek de kaybolur, kurtarma yolu yok. "
+                        + "Boş bırakırsan şifrelenmez.",
+                        okText: "Devam");
 
-                    DataMessage = $"Yedek yazıldı: {result.Files} dosya, {result.SizeText}.";
+                    if (password is null) { DataMessage = "Yedekleme iptal edildi."; break; }
+
+                    var result = await service.BackupAsync(
+                        path, includeAudio: request == DataRequest.BackupWithAudio, progress,
+                        password: string.IsNullOrEmpty(password) ? null : password);
+
+                    DataMessage = string.IsNullOrEmpty(password)
+                        ? $"Yedek yazıldı: {result.Files} dosya, {result.SizeText}."
+                        : $"Yedek yazıldı ve parolayla korundu: {result.Files} dosya, {result.SizeText}.";
                     break;
                 }
 
@@ -635,7 +655,28 @@ public sealed partial class HealthViewModel : ObservableObject
 
                 case DataRequest.RestoreFromBackup:
                 {
-                    var staged = await service.StageRestoreAsync(path, progress);
+                    // Asked for only when the file actually needs one, so an ordinary backup is
+                    // still one click. The file says so itself in its first eight bytes; nothing
+                    // has to be remembered about how it was written.
+                    string? password = null;
+
+                    if (Core.Storage.BackupService.NeedsPassword(path))
+                    {
+                        password = await Services.Dialogs.AskPasswordAsync(
+                            System.Windows.Application.Current?.MainWindow,
+                            "Bu yedek parolalı",
+                            "Yazıldığı sıradaki parolayı gir. Yanlış parolayla hiçbir şey geri "
+                            + "yüklenmez — mevcut verilerine dokunulmaz.",
+                            okText: "Aç");
+
+                        if (string.IsNullOrEmpty(password))
+                        {
+                            DataMessage = "Geri yükleme iptal edildi.";
+                            break;
+                        }
+                    }
+
+                    var staged = await service.StageRestoreAsync(path, progress, password: password);
                     DataMessage =
                         $"{staged} dosya hazırlandı. Uygulamayı kapatıp açtığında geri yüklenecek. " +
                         "Şu anki verilerin silinmeyecek, kenara alınacak.";
