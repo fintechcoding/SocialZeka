@@ -383,6 +383,19 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
             var located = QuoteVerifier.Locate(Str(node, "alinti"), segments);
             if (located is null) { rejected++; continue; }
 
+            // A promise nobody can state is not a promise.
+            //
+            // The schema requires "yukumluluk", but the schema is not always applied: a model that
+            // refuses response_format sends the pipeline down an unconstrained path, and there the
+            // field can simply be absent. It was, on every call — seventy-nine commitments reached
+            // the ledger holding a quote and an empty obligation, which reads on screen as a
+            // bullet with a person's name and nothing after it.
+            //
+            // Counted as rejected rather than dropped silently, because "1 alıntı reddedildi" in
+            // the log is how anybody would find out this is happening again.
+            var obligation = Str(node, "yukumluluk")?.Trim();
+            if (string.IsNullOrEmpty(obligation)) { rejected++; continue; }
+
             commitments.Add(new Commitment
             {
                 CallId = callId,
@@ -398,7 +411,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
                 ByMe = located.IsMe,
                 Quote = located.Text,
                 QuoteStartMs = located.StartMs,
-                Obligation = Str(node, "yukumluluk") ?? "",
+                Obligation = obligation,
                 DeadlineRaw = Str(node, "tarih_ham"),
                 DeadlineDate = TurkishDates.TryResolve(Str(node, "tarih_ham")),
                 Amount = Num(node, "tutar"),

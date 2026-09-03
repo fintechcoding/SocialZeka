@@ -43,6 +43,21 @@ public static class ExtractionPrompt
     /// express, so anything clever here would quietly stop being enforced rather than fail
     /// loudly. Enumerations are used wherever a field is categorical, because the grammar can
     /// enforce those and a free string invites the model to invent a new category.
+    ///
+    /// <b>Every property is in "required", and the optional ones are nullable instead.</b> That
+    /// is not a style choice: the request is sent with "strict": true, and strict structured
+    /// output refuses a schema where "properties" holds a key that "required" does not. Three
+    /// keys were missing — tarih_ham, tutar, para_birimi on a commitment, and sayisal_deger,
+    /// birim on a claim — so the schema was rejected on every single call.
+    ///
+    /// The rejection was survivable and therefore invisible: LlmClient catches it and retries
+    /// with the same instruction and no schema, which is the right fallback for a model that
+    /// genuinely cannot do constrained decoding, and was here hiding a schema this application
+    /// wrote wrongly. Unconstrained, the model returned "konusmaci" where the parser reads
+    /// "konusan" and omitted "yukumluluk" entirely — so every commitment in the archive, all
+    /// seventy-nine of them, was stored with an empty obligation and nothing but a quote.
+    ///
+    /// A ledger entry that cannot say what was promised is not a ledger entry.
     /// </summary>
     public static JsonNode Schema { get; } = JsonNode.Parse(
         """
@@ -56,14 +71,14 @@ public static class ExtractionPrompt
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["konusan", "alinti", "yukumluluk", "kosullu"],
+                "required": ["konusan", "alinti", "yukumluluk", "tarih_ham", "tutar", "para_birimi", "kosullu"],
                 "properties": {
                   "konusan": { "type": "string", "enum": ["BEN", "KARSI"] },
                   "alinti": { "type": "string" },
                   "yukumluluk": { "type": "string" },
-                  "tarih_ham": { "type": "string" },
-                  "tutar": { "type": "number" },
-                  "para_birimi": { "type": "string", "enum": ["TL", "USD", "EUR", "GBP", "BILINMIYOR"] },
+                  "tarih_ham": { "type": ["string", "null"] },
+                  "tutar": { "type": ["number", "null"] },
+                  "para_birimi": { "type": ["string", "null"], "enum": ["TL", "USD", "EUR", "GBP", "BILINMIYOR", null] },
                   "kosullu": { "type": "boolean" }
                 }
               }
@@ -73,15 +88,15 @@ public static class ExtractionPrompt
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["konusan", "alinti", "varlik", "nitelik", "deger"],
+                "required": ["konusan", "alinti", "varlik", "nitelik", "deger", "sayisal_deger", "birim"],
                 "properties": {
                   "konusan": { "type": "string", "enum": ["BEN", "KARSI"] },
                   "alinti": { "type": "string" },
                   "varlik": { "type": "string" },
                   "nitelik": { "type": "string" },
                   "deger": { "type": "string" },
-                  "sayisal_deger": { "type": "number" },
-                  "birim": { "type": "string" }
+                  "sayisal_deger": { "type": ["number", "null"] },
+                  "birim": { "type": ["string", "null"] }
                 }
               }
             },
