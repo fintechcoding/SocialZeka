@@ -61,8 +61,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         _recordSignal = settings.RecordSignal;
         _recordAutomatically = settings.RecordAutomatically;
         _assignContactFromTitle = settings.AssignContactFromTitle;
+        _transcribeGroupCalls = settings.TranscribeGroupCalls;
         _speechVocabulary = settings.SpeechVocabulary;
         _mixedLanguage = settings.MixedLanguage;
+        _spokenLanguage = SpokenLanguages.FirstOrDefault(l => l.Code == settings.Language)
+                          ?? SpokenLanguages[0];
         _uiLanguage = UiLanguages.FirstOrDefault(l => l.Code == settings.UiLanguage) ?? UiLanguages[0];
         _showRecordingBar = settings.ShowRecordingBar;
         _identifySpeakers = settings.IdentifySpeakers;
@@ -161,7 +164,20 @@ public sealed partial class SettingsViewModel : ObservableObject
                 SttEndpoints.Add(home);
             }
 
-            if (home is not null) home.ApiKey = settings.AsrApiKey;
+            if (home is not null)
+            {
+                home.ApiKey = settings.AsrApiKey;
+
+                // And the old fields are emptied, because carrying them costs more than it saves.
+                //
+                // They have no control anywhere, but they were written back on every save — and
+                // UsableSttEndpoints appends a hidden endpoint for whatever they hold, deduping
+                // only on exact key equality. So changing the OpenAI card's key left the previous
+                // one live as an invisible fallback that nothing on screen could show or remove.
+                // Once the key is on a card, the card is where it lives.
+                _asrApiKey = "";
+                _asrApiBaseUrl = "";
+            }
         }
 
         // Editing a service has to re-run the checks, and nothing was listening.
@@ -351,6 +367,41 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Whether the provider publishes a catalogue that can be browsed and searched.</summary>
     public bool CanBrowseModels => ModelDirectory.CanFetch(SelectedProvider.Kind);
 
+    /// <summary>
+    /// True when the local engine can still be reached under the current mode.
+    ///
+    /// The local half of the transcription page — the model table, the download and self-test
+    /// buttons, the compute device, the GPU cool-down — stayed fully editable in CloudOnly, where
+    /// none of it does anything. Downloading two gigabytes of weights that will never be loaded is
+    /// not a preference somebody expressed, it is a screen that failed to say the choice above had
+    /// already answered the question.
+    /// </summary>
+    public bool UsesLocalAsr => AsrMode != TranscriptionMode.CloudOnly;
+
+    /// <summary>
+    /// Whether "yerel sunucu bul" makes sense for the chosen provider.
+    ///
+    /// It writes http://127.0.0.1:11434/v1 into the address box unconditionally, so with Anthropic
+    /// or OpenAI selected it overwrote a fixed, correct address with one that cannot work.
+    /// </summary>
+    public bool CanDiscoverLocalServers =>
+        SelectedProvider.Kind is LlmProviderKind.Ollama or LlmProviderKind.OpenAiCompatible;
+
+    /// <summary>
+    /// The model identifiers this provider is likely to accept, for the box that had no examples.
+    ///
+    /// AppSettings has carried these all along and nothing ever showed them: the identifier is
+    /// provider-specific, spelled differently by each, and the only place the user ever saw one
+    /// was in a validation message after getting it wrong.
+    /// </summary>
+    public IReadOnlyList<string> RemoteModelExamples =>
+        AppSettings.SuggestionsFor(SelectedProvider.Kind);
+
+    /// <summary>Those examples on one line, for the caption under the box.</summary>
+    public string ModelExamplesLine => string.Join(", ", RemoteModelExamples.Take(3));
+
+    public bool HasModelExamples => RemoteModelExamples.Count > 0;
+
     [ObservableProperty] private AsrModel _selectedAsrModel;
     [ObservableProperty] private LocalLlmModel _selectedLlmModel;
     [ObservableProperty] private LlmProvider _selectedProvider;
@@ -412,6 +463,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         OnPropertyChanged(nameof(UsesRemoteModelName));
         OnPropertyChanged(nameof(CanBrowseModels));
+        OnPropertyChanged(nameof(CanDiscoverLocalServers));
+        OnPropertyChanged(nameof(CanDiscoverNow));
+        OnPropertyChanged(nameof(RemoteModelExamples));
+        OnPropertyChanged(nameof(ModelExamplesLine));
+        OnPropertyChanged(nameof(HasModelExamples));
         Revalidate();
     }
     partial void OnSelectedAsrModelChanged(AsrModel value)
@@ -431,8 +487,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// </summary>
     [ObservableProperty] private bool _recordAutomatically = true;
     [ObservableProperty] private bool _assignContactFromTitle;
+
+    /// <summary>
+    /// Transcribe group calls too, accepting that everyone at the far end is one mixed stream.
+    ///
+    /// Read by the orchestrator since it was written, and bound to nothing — so it could only ever
+    /// hold its default unless somebody edited settings.json by hand.
+    /// </summary>
+    [ObservableProperty] private bool _transcribeGroupCalls;
     [ObservableProperty] private string _speechVocabulary = "";
     [ObservableProperty] private bool _mixedLanguage;
+
+    /// <summary>The language the recogniser is told to expect. Withheld entirely when MixedLanguage is on.</summary>
+    [ObservableProperty] private LanguageChoice _spokenLanguage = new("tr", "Türkçe");
 
     /// <summary>Whether a strip appears at the top of the screen while recording.</summary>
     [ObservableProperty] private bool _showRecordingBar = true;
@@ -463,6 +530,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<LanguageChoice> UiLanguages { get; } =
         [.. Localisation.Available.Select(l => new LanguageChoice(l.Code, l.Name))];
 
+    /// <summary>
+    /// What is spoken on calls — a different question from what the screen is written in, and one
+    /// the screen had been claiming to answer without offering anywhere to answer it.
+    /// </summary>
+    public IReadOnlyList<LanguageChoice> SpokenLanguages { get; } =
+        [.. AppSettings.SpokenLanguages.Select(l => new LanguageChoice(l.Code, l.Name))];
+
     /// <summary>True once a different language has been picked, so the note about restarting shows.</summary>
     public bool LanguageChanged => UiLanguage.Code != Localisation.Language;
 
@@ -473,11 +547,20 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnRecordTelegramChanged(bool value) => Revalidate();
     partial void OnRecordSignalChanged(bool value) => Revalidate();
     partial void OnLlmApiKeyChanged(string value) => Revalidate();
+
+    // Notion's two fields were the last pair that did not re-check themselves. Validate() looks at
+    // both, so switching the export on raised "anahtar ve veritabanı kimliği gerekli" — and then
+    // typing them changed nothing on screen until some unrelated field moved or Kaydet was
+    // pressed. The same failure the STT cards had, in the one place it had not been fixed.
+    partial void OnNotionApiKeyChanged(string value) => Revalidate();
+
+    partial void OnNotionDatabaseIdChanged(string value) => Revalidate();
     partial void OnAsrApiKeyChanged(string value) => Revalidate();
 
     partial void OnAsrModeChanged(TranscriptionMode value)
     {
         OnPropertyChanged(nameof(UsesCloudAsr));
+        OnPropertyChanged(nameof(UsesLocalAsr));
         Revalidate();
     }
     partial void OnLlmRemoteModelChanged(string value) => Revalidate();
@@ -528,6 +611,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     // ---- analysis provider --------------------------------------------------
 
     [ObservableProperty] private bool _isTestingLlm;
+
+    /// <summary>
+    /// Whether looking for a local server is worth offering right now.
+    ///
+    /// Two conditions, combined here because a control takes one IsEnabled: not already busy, and
+    /// a provider that could plausibly be running on this machine. The second half is the fix —
+    /// the button wrote 127.0.0.1 into the address box whatever was selected, so pressing it with
+    /// Anthropic chosen replaced a fixed, correct address with one that cannot work.
+    /// </summary>
+    public bool CanDiscoverNow => CanDiscoverLocalServers && !IsTestingLlm;
+
+    partial void OnIsTestingLlmChanged(bool value) => OnPropertyChanged(nameof(CanDiscoverNow));
     [ObservableProperty] private string? _llmStatus;
     [ObservableProperty] private bool _llmStatusIsGood;
 
@@ -782,8 +877,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         RecordSignal = RecordSignal,
         RecordAutomatically = RecordAutomatically,
         AssignContactFromTitle = AssignContactFromTitle,
+        TranscribeGroupCalls = TranscribeGroupCalls,
         SpeechVocabulary = SpeechVocabulary.Trim(),
         MixedLanguage = MixedLanguage,
+        Language = SpokenLanguage.Code,
         ShowRecordingBar = ShowRecordingBar,
         IdentifySpeakers = IdentifySpeakers,
         VerboseLog = VerboseLog,

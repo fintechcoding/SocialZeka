@@ -221,7 +221,47 @@ public sealed record AppSettings
     // ---- transcription ------------------------------------------------------
 
     public string AsrModelId { get; init; } = AsrCatalog.DefaultModelId;
+
+    /// <summary>
+    /// The language spoken on calls, told to the recogniser before it starts.
+    ///
+    /// Deliberately not the interface language: switching the screen to English must not quietly
+    /// tell Whisper to stop expecting Turkish. The two were separate from the start, and the
+    /// General page says so — but for a long time this one had no control at all, so the sentence
+    /// promising it could be set "from the transcription section" pointed at nothing. It is set
+    /// there now.
+    ///
+    /// Forcing a language is usually right and occasionally wrong: on a call that switches between
+    /// two languages mid-sentence it makes the recogniser render the other one as the nearest
+    /// syllables in this one. <see cref="MixedLanguage"/> is the escape from that, and it works by
+    /// withholding this value rather than by changing it.
+    /// </summary>
     public string Language { get; init; } = "tr";
+
+    /// <summary>
+    /// The languages the recogniser can be told to expect.
+    ///
+    /// Whisper knows about a hundred; listing all of them would be a scrolling wall in which the
+    /// one somebody wants is harder to find than in a short list. These are the ones this
+    /// application's conversations actually happen in, plus the neighbours somebody is most
+    /// likely to need. Anything missing can still be reached by editing settings.json, and a code
+    /// this list does not contain is passed through untouched.
+    /// </summary>
+    public static IReadOnlyList<(string Code, string Name)> SpokenLanguages { get; } =
+    [
+        ("tr", "Türkçe"),
+        ("en", "English"),
+        ("ru", "Русский"),
+        ("de", "Deutsch"),
+        ("fr", "Français"),
+        ("es", "Español"),
+        ("ar", "العربية"),
+        ("az", "Azərbaycanca"),
+        ("uk", "Українська"),
+        ("nl", "Nederlands"),
+        ("it", "Italiano"),
+        ("fa", "فارسی"),
+    ];
 
     /// <summary>
     /// The user's own words the recogniser keeps getting wrong: product names, people, jargon.

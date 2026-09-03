@@ -174,6 +174,7 @@ public class SettingsSurviveSavingTests
         nameof(AppSettings.AudioRetentionDays), nameof(AppSettings.SttEndpoints),
         nameof(AppSettings.RecordSignal), nameof(AppSettings.StartWithWindows),
         nameof(AppSettings.TrimSilenceAfterProcessing), nameof(AppSettings.IdentifySpeakers),
+        nameof(AppSettings.Language), nameof(AppSettings.TranscribeGroupCalls),
     ];
 
     private static AppSettings RoundTrip(AppSettings original)
