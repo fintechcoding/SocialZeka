@@ -353,6 +353,49 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<string> RemoteModelSuggestions => AppSettings.RemoteModelSuggestions;
 
     /// <summary>True when a call could end up being uploaded under the current selection.</summary>
+    /// <summary>
+    /// One sentence naming what will actually transcribe the next call.
+    ///
+    /// It exists because this screen let somebody believe the opposite of what it was set to. The
+    /// mode is a combo at the top; the local model has its own large card far below with a model
+    /// name on it, and choosing a model there is the thing a person remembers doing. So "yerel
+    /// seçili" was a true memory of an action that had no effect, while every call went to a
+    /// hosted service — and the only place that disagreed was a status line halfway across the
+    /// application, which the user then reported as a bug in the status line.
+    ///
+    /// Said at the point of choice, from the same two values the orchestrator resolves against.
+    /// </summary>
+    public string EffectiveEngineLine
+    {
+        get
+        {
+            var service = SttEndpoints
+                .FirstOrDefault(e => e.Enabled && !string.IsNullOrWhiteSpace(e.ApiKey))?
+                .ToEndpoint().ResolvedName;
+
+            return AsrMode switch
+            {
+                TranscriptionMode.LocalOnly =>
+                    $"Şu an kullanılacak: {SelectedAsrModel.DisplayName} — ses bu makineden çıkmaz.",
+
+                TranscriptionMode.CloudOnly when service is null =>
+                    "Şu an kullanılabilecek bir servis yok: aşağıya anahtarı olan bir servis ekle, "
+                    + "ya da bu ayarı \"Yalnızca bu makinede\" yap.",
+
+                TranscriptionMode.CloudOnly =>
+                    $"Şu an kullanılacak: {service} — ses bu makineden ÇIKAR. "
+                    + "Yerel model seçimi bu ayarda kullanılmaz.",
+
+                _ when service is null =>
+                    $"Şu an kullanılacak: {SelectedAsrModel.DisplayName} — yedek servis tanımlı değil.",
+
+                _ =>
+                    $"Ekran kartı çalışıyorsa {SelectedAsrModel.DisplayName}, çalışmıyorsa {service} — "
+                    + "ikincisinde ses bu makineden çıkar.",
+            };
+        }
+    }
+
     public bool UsesCloudAsr => AsrMode != TranscriptionMode.LocalOnly;
 
     public IReadOnlyList<TranscriptionMode> AsrModes { get; } =
@@ -469,6 +512,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
     partial void OnSelectedAsrModelChanged(AsrModel value)
     {
+        OnPropertyChanged(nameof(EffectiveEngineLine));
         AnnounceSelection();
         Revalidate();
     }
@@ -564,6 +608,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(UsesCloudAsr));
         OnPropertyChanged(nameof(UsesLocalAsr));
+        OnPropertyChanged(nameof(EffectiveEngineLine));
         Revalidate();
     }
     partial void OnLlmRemoteModelChanged(string value) => Revalidate();

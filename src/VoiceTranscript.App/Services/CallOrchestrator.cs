@@ -59,7 +59,18 @@ public sealed record CallProcessed(
 /// <param name="CallId">Which recording, so a screen can put the bar on the right row.</param>
 /// <param name="Stage">What is happening, in Turkish, ready to show.</param>
 /// <param name="Percent">0 to 1 when it is known. Null for work that cannot report a fraction.</param>
-public sealed record CallProgress(long CallId, string Stage, double? Percent);
+/// <param name="Engine">
+/// What is doing the work, as the job itself resolved it — not as the settings imply.
+///
+/// These are different answers and the screen was giving the second one. An engine can be
+/// chosen for one recording in the reprocess dialog, so a job queued five minutes ago carries
+/// the engine picked then; the settings can have been changed since, and in the automatic mode
+/// the route is decided per call against whether the graphics card is usable at that moment.
+/// The strip read the settings and announced "ex5 Whisper (kendi sunucumuz)" over a run the user
+/// had pointed at their own machine — the one line on that screen whose whole job is saying
+/// where somebody's conversation is going.
+/// </param>
+public sealed record CallProgress(long CallId, string Stage, double? Percent, string? Engine = null);
 
 /// <summary>
 /// The background loop that ties everything together.
@@ -203,11 +214,16 @@ public sealed class CallOrchestrator : IDisposable
         _ => "Yazıya dökülüyor",
     };
 
+    /// <summary>What each running job resolved as its engine, so progress can name it truthfully.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, string> _engineInFlight = new();
+
     private void Report(long callId, string stage, double? percent = null)
     {
         try
         {
-            ProgressChanged?.Invoke(this, new CallProgress(callId, stage, percent));
+            _engineInFlight.TryGetValue(callId, out var engine);
+
+            ProgressChanged?.Invoke(this, new CallProgress(callId, stage, percent, engine));
         }
         catch (Exception e)
         {
@@ -1837,6 +1853,14 @@ public sealed class CallOrchestrator : IDisposable
                 $"Bu görüşme yazıya dökülmek üzere {first?.ResolvedName ?? model.DisplayName} servisine yükleniyor.");
         }
 
+        // Recorded here, where the question is finally settled, so every progress line about
+        // this call names what is actually doing the work. For the cloud that is the endpoint and
+        // not the catalogue entry: the upload goes to whichever configured service answers, and a
+        // line naming the wrong company is worse than no line at all.
+        _engineInFlight[call.Id] = model.SendsAudioOffMachine
+            ? (pinned ?? settings.UsableSttEndpoints.FirstOrDefault())?.ResolvedName ?? model.DisplayName
+            : model.DisplayName;
+
         // Wall clock rather than the worker's own reported figure, and for both routes. What
         // somebody wants to know is how long their machine takes to turn a call into text, which
         // includes loading the model and reading the files — the parts that dominate on a machine
@@ -1986,6 +2010,8 @@ public sealed class CallOrchestrator : IDisposable
                 "Karşı tarafın sesi mikrofona da karışmış. Kulaklık kullanmak konuşmacı ayrımını belirgin " +
                 "şekilde iyileştirir.");
         }
+
+        _engineInFlight.TryRemove(call.Id, out _);
 
         _repository.SetCallState(call.Id, ProcessingState.Transcribed);
     }

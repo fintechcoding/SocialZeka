@@ -671,6 +671,21 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
+
+                                <!--
+                                    What this actually means, in one sentence, here.
+
+                                    The mode is a combo at the top of a long page and the local
+                                    model has its own large card far below it. Choosing a model
+                                    there is the act somebody remembers, so "yerel seçili" can be
+                                    a true memory of something that had no effect while every call
+                                    went to a hosted service.
+                                -->
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,7" Margin="0,10,0,0">
+                                    <TextBlock Text="{Binding EffectiveEngineLine}" TextWrapping="Wrap"
+                                               Style="{StaticResource Caption}" />
+                                </Border>
                             </StackPanel>
                         </Border>
 

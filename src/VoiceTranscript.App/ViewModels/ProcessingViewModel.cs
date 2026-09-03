@@ -216,6 +216,16 @@ public sealed partial class ProcessingViewModel(
     {
         get
         {
+            // The running job's own answer wins over anything the settings imply.
+            //
+            // They disagree routinely and the settings are the one that can be wrong: an engine
+            // picked in the reprocess dialog belongs to that recording alone, the automatic mode
+            // decides per call against the graphics card as it is right now, and the setting can
+            // be changed while a job is already in flight. Reading the setting, this line told a
+            // user their call was going to a hosted service while it was being transcribed on
+            // their own machine.
+            if (_reportedEngine is { Length: > 0 } reported) return reported;
+
             if (settings?.Invoke() is not { } current) return null;
 
             // Answered the way the orchestrator answers it, minus the hardware probe: it resolves
@@ -261,10 +271,14 @@ public sealed partial class ProcessingViewModel(
     /// it on every progress tick would rebuild the list several times a second — which flickers,
     /// loses the selection, and costs far more than it shows.
     /// </summary>
-    public void ReportProgress(long callId, string stage, double? percent)
+    public void ReportProgress(long callId, string stage, double? percent, string? engine = null)
     {
         ActiveCallId = callId;
         ActiveStage = stage;
+
+        // What the job says it is using, which is the only answer that cannot be wrong. Held
+        // rather than overwritten with null, because not every progress tick carries it.
+        if (engine is { Length: > 0 }) _reportedEngine = engine;
         HasActivePercent = percent is not null;
         ActivePercent = percent ?? 0;
 
@@ -272,11 +286,15 @@ public sealed partial class ProcessingViewModel(
         OnPropertyChanged(nameof(ActiveLine));
     }
 
+    /// <summary>The engine the running job reported, or null before one has said.</summary>
+    private string? _reportedEngine;
+
     /// <summary>Clears the live line once nothing is being worked on.</summary>
     public void ClearProgress()
     {
         ActiveCallId = null;
         ActiveStage = null;
+        _reportedEngine = null;
         HasActivePercent = false;
 
         OnPropertyChanged(nameof(IsWorkingOnSomething));

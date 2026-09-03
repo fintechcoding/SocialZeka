@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.App.Services;
@@ -148,7 +148,7 @@ public sealed partial class ShellViewModel : ObservableObject
         // second while transcribing, so this must not do anything expensive — it sets four fields.
         orchestrator.ProgressChanged += (_, p) => OnUi(() =>
         {
-            Processing.ReportProgress(p.CallId, p.Stage, p.Percent);
+            Processing.ReportProgress(p.CallId, p.Stage, p.Percent, p.Engine);
 
             // Once per call, not per percent: the first screen's row moves from "Sırada" to
             // "Yazıya dökülüyor" when the worker picks it up, and that is all it needs.
