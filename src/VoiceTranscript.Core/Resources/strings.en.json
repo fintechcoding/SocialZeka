@@ -1,4 +1,4 @@
-{
+﻿{
   "aistatuspage.30-gun": "30 days",
   "aistatuspage.7-gun": "7 days",
   "aistatuspage.ayarla": "Configure",
@@ -459,6 +459,9 @@
   "processingpage.hatanin-tamami": "Full error",
   "processingpage.hazir": "ready",
   "processingpage.hepsi": "All",
+  "processingpage.islenemedi": "could not be processed",
+  "processingpage.islenemeyen-gorusmeleri-gosterir": "Shows the calls that could not be processed",
+  "processingpage.islenemeyenler": "Failed",
   "processingpage.kopyala": "Copy",
   "processingpage.listedekileri-yeniden-cozumle": "Analyse everything listed again",
   "processingpage.listedekileri-yeniden-yaziya-dok": "Transcribe everything listed again",
@@ -466,9 +469,7 @@
   "processingpage.sesi-sececegin-bir-motorla-yeniden-yaziya": "Transcribes the audio again with an engine you choose.",
   "processingpage.sirada-isleniyor": "queued / in progress",
   "processingpage.yaziya-dokme": "Transcription",
-  "processingpage.yaziya-dokme-sekmesinde-basarisizlari-gost": "Shows the failures on the Transcription tab",
   "processingpage.yaziya-dokme-sekmesinde-bekleyenleri-goste": "Shows what is waiting on the Transcription tab",
-  "processingpage.yaziya-dokulemedi": "could not be transcribed",
   "processingpage.yeniden-cevir": "Transcribe again",
   "processingpage.yeniden-cozumle": "Analyse again",
   "processingpage.yenile": "Refresh",

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Configuration;
@@ -26,6 +26,18 @@ public enum TranscriptFilter
 
     /// <summary>The text exists.</summary>
     Done,
+
+    /// <summary>
+    /// Every call the pipeline gave up on, whichever stage gave up and whether or not anything
+    /// can still be done about it.
+    ///
+    /// It is its own filter because "islenemedi" is one idea to the person reading it and three
+    /// to the code: a transcription that failed, a transcription that failed after producing
+    /// text, and a recording that captured nothing at all. Sorted into the two tabs by which
+    /// stage was at fault, the first screen's "4 gorusme islenemedi - Goster" landed on a list
+    /// that could not contain a single one of them.
+    /// </summary>
+    Failed,
 
     All,
 }
@@ -289,6 +301,7 @@ public sealed partial class ProcessingViewModel(
     {
         TranscriptFilter.Done => "Yazıya dökülmüş görüşme yok.",
         TranscriptFilter.Unfinished => "Bekleyen iş yok — her kayıt yazıya dökülmüş.",
+        TranscriptFilter.Failed => "İşlenemeyen görüşme yok.",
         _ => "Henüz kayıt yok.",
     };
 
@@ -298,6 +311,10 @@ public sealed partial class ProcessingViewModel(
         AnalyseFilter.Unanalysed => "Çözümlenmeyi bekleyen görüşme yok.",
         _ => "Metni olan görüşme yok — çözümleme metinden çalışır.",
     };
+    // Both filters re-read. Only the analysis one did, so "Bitenler" and "Hepsi" on the
+    // transcription tab moved the highlight and left the list exactly as it was - and the first
+    // screen's "Goster", which sets this property on its way to the page, changed nothing at all.
+    partial void OnTranscriptFilterChanged(TranscriptFilter value) => Refresh();
     partial void OnAnalyseFilterChanged(AnalyseFilter value) => Refresh();
 
     [RelayCommand]
@@ -318,7 +335,11 @@ public sealed partial class ProcessingViewModel(
 
         // "Hepsini durdur" only means anything when there is something behind the running job.
         HasQueue = rows.Count(r => r.IsWaiting) > 0;
-        TranscriptFailedCount = rows.Count(r => r.TranscriptFailed && r.HasAudio);
+        // Every failure, the same population the first screen counts - including the ones no
+        // retry can help, because they are now reachable, and deletable, through the failures
+        // filter. Counting only the retryable ones made this read 0 directly under a first screen
+        // saying 4, which teaches the user that one of the two screens is lying.
+        TranscriptFailedCount = rows.Count(r => r.IsFailed);
         UnanalysedCount = rows.Count(r =>
             r.HasTranscript && (r.Call.State == ProcessingState.Transcribed || r.AnalysisFailed));
         ReadyCount = rows.Count(r => r.Call.State == ProcessingState.Analysed);
@@ -329,6 +350,7 @@ public sealed partial class ProcessingViewModel(
         {
             ViewModels.TranscriptFilter.Done => rows.Where(r => r.HasTranscript),
             ViewModels.TranscriptFilter.Unfinished => rows.Where(r => r.NeedsTranscription),
+            ViewModels.TranscriptFilter.Failed => rows.Where(r => r.IsFailed),
             _ => rows,
         };
 
@@ -359,6 +381,9 @@ public sealed partial class ProcessingViewModel(
 
     [RelayCommand]
     private void ShowTranscriptWaiting() => TranscriptFilter = TranscriptFilter.Unfinished;
+
+    [RelayCommand]
+    private void ShowTranscriptFailed() => TranscriptFilter = TranscriptFilter.Failed;
 
     [RelayCommand]
     private void ShowTranscriptAll() => TranscriptFilter = TranscriptFilter.All;

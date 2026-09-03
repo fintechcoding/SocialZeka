@@ -1,4 +1,4 @@
-<UserControl x:Class="VoiceTranscript.App.Views.ProcessingPage"
+﻿<UserControl x:Class="VoiceTranscript.App.Views.ProcessingPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:VoiceTranscript.App"
@@ -250,11 +250,11 @@
 
             <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="8,0"
                     Cursor="Hand" MouseLeftButtonUp="CounterTranscriptFailed_Click"
-                    ToolTip="{loc:T processingpage.yaziya-dokme-sekmesinde-basarisizlari-gost}">
+                    ToolTip="{loc:T processingpage.islenemeyen-gorusmeleri-gosterir}">
                 <StackPanel>
                     <TextBlock Text="{Binding TranscriptFailedCount}" FontSize="26" FontWeight="SemiBold"
                                Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
-                    <TextBlock Text="{loc:T processingpage.yaziya-dokulemedi}" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{loc:T processingpage.islenemedi}" Style="{StaticResource Caption}" />
                 </StackPanel>
             </Border>
 
@@ -355,6 +355,8 @@
                                        Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Unfinished}" />
                             <ui:Button Content="{loc:T processingpage.bitenler}" Margin="0,0,6,0" Command="{Binding ShowTranscriptDoneCommand}"
                                        Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Done}" />
+                            <ui:Button Content="{loc:T processingpage.islenemeyenler}" Margin="0,0,6,0" Command="{Binding ShowTranscriptFailedCommand}"
+                                       Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Failed}" />
                             <ui:Button Content="{loc:T processingpage.hepsi}" Command="{Binding ShowTranscriptAllCommand}"
                                        Appearance="{Binding TranscriptFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=All}" />
                         </StackPanel>

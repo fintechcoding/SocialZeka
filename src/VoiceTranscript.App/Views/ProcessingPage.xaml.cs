@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using VoiceTranscript.App.ViewModels;
 
 namespace VoiceTranscript.App.Views;
@@ -179,7 +179,7 @@ public partial class ProcessingPage
         => Go(0, m => m.TranscriptFilter = TranscriptFilter.Unfinished);
 
     private void CounterTranscriptFailed_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        => Go(0, m => m.TranscriptFilter = TranscriptFilter.Unfinished);
+        => Go(0, m => m.TranscriptFilter = TranscriptFilter.Failed);
 
     private void CounterUnanalysed_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
         => Go(1, m => m.AnalyseFilter = AnalyseFilter.Unanalysed);

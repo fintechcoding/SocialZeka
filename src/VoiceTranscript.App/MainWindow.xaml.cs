@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using VoiceTranscript.App.Services;
@@ -422,9 +422,15 @@ public partial class MainWindow
                 break;
 
             case AttentionAction.ShowProcessing:
-                // The list, filtered to what has not finished: every failure with its own reason
-                // and its own retry, instead of one blind "try them all again".
-                shell.Processing.TranscriptFilter = TranscriptFilter.Unfinished;
+                // The list, filtered to the failures themselves: each with its own reason and its
+                // own retry, instead of one blind "try them all again".
+                //
+                // It used to ask for "unfinished", which is a different set and, for the notice
+                // that leads here, reliably an empty one: a failure with no audio is excluded by
+                // design, and a transcription that failed after producing text counts as finished.
+                // The card said "4 gorusme islenemedi", the button said "Goster", and the page it
+                // opened said there was nothing wrong.
+                shell.Processing.TranscriptFilter = TranscriptFilter.Failed;
                 shell.NavigateCommand.Execute("Processing");
                 break;
         }

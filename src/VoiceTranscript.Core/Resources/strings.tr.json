@@ -1,4 +1,4 @@
-{
+﻿{
   "aistatuspage.30-gun": "30 gün",
   "aistatuspage.7-gun": "7 gün",
   "aistatuspage.ayarla": "Ayarla",
@@ -459,6 +459,9 @@
   "processingpage.hatanin-tamami": "Hatanın tamamı",
   "processingpage.hazir": "hazır",
   "processingpage.hepsi": "Hepsi",
+  "processingpage.islenemedi": "işlenemedi",
+  "processingpage.islenemeyen-gorusmeleri-gosterir": "İşlenemeyen görüşmeleri gösterir",
+  "processingpage.islenemeyenler": "İşlenemeyenler",
   "processingpage.kopyala": "Kopyala",
   "processingpage.listedekileri-yeniden-cozumle": "Listedekileri yeniden çözümle",
   "processingpage.listedekileri-yeniden-yaziya-dok": "Listedekileri yeniden yazıya dök",
@@ -466,9 +469,7 @@
   "processingpage.sesi-sececegin-bir-motorla-yeniden-yaziya": "Sesi seçeceğin bir motorla yeniden yazıya döker.",
   "processingpage.sirada-isleniyor": "sırada / işleniyor",
   "processingpage.yaziya-dokme": "Yazıya dökme",
-  "processingpage.yaziya-dokme-sekmesinde-basarisizlari-gost": "Yazıya dökme sekmesinde başarısızları gösterir",
   "processingpage.yaziya-dokme-sekmesinde-bekleyenleri-goste": "Yazıya dökme sekmesinde bekleyenleri gösterir",
-  "processingpage.yaziya-dokulemedi": "yazıya dökülemedi",
   "processingpage.yeniden-cevir": "Yeniden yazıya dök",
   "processingpage.yeniden-cozumle": "Yeniden çözümle",
   "processingpage.yenile": "Yenile",
