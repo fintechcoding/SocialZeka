@@ -28,7 +28,7 @@ import time
 import traceback
 from typing import Any
 
-from vt_worker import chunking, dll_paths, gpu
+from vt_worker import artifacts, chunking, dll_paths, gpu
 from vt_worker import models, speaker
 from vt_worker.engines import DEFAULT_ENGINE, EngineError, EngineOptions, create, probe_all
 from vt_worker.merge import MergedTranscript, Segment, merge_streams
@@ -238,7 +238,11 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
         # Whisper merges utterances across silence when the VAD filter removes it, producing
         # segments whose timestamps are minutes away from where the words were actually said.
         # The word timestamps stay accurate, so the turns are cut back apart from those.
-        return resegment_on_gaps(raw, max_gap=max_gap)
+        #
+        # The sign-offs go last, after the boundaries are settled: one of them stuck to the front
+        # of a real sentence has to be removed from a line whose words already line up, or the
+        # timestamps and the text stop agreeing.
+        return artifacts.clean(resegment_on_gaps(raw, max_gap=max_gap))
 
     # The two streams are transcribed independently and only then merged. Attribution comes
     # from which file a segment was in, so it is a fact rather than a model prediction.

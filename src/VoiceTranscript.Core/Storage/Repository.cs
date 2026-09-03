@@ -184,6 +184,40 @@ public sealed class Repository(Database database)
         return true;
     }
 
+    /// <summary>
+    /// Whether remembering this title could ever identify somebody — asked before the offer is
+    /// made rather than after it has been accepted.
+    ///
+    /// <see cref="RememberTitle"/> refuses a title that is generic or already claimed by a
+    /// different contact, and the labelling window used to report that refusal in a message box
+    /// after the fact: "kaydedildi, ama başlık hatırlanmadı". Correct, and the wrong shape. The
+    /// promise is made by a ticked checkbox, so the honest place to withdraw it is the checkbox —
+    /// before it is ticked, not in an apology afterwards. In an archive where one "Voice call"
+    /// title is spread across eight contacts, that apology arrives on nearly every call.
+    ///
+    /// False here means the same thing RememberTitle would have returned: this title names the
+    /// chat window that happened to be open, not the person on the other end.
+    /// </summary>
+    public bool CanRememberTitle(string? title, CallApp app, long forContactId)
+    {
+        var pattern = TurkishText.StripFormatting(title);
+        if (string.IsNullOrWhiteSpace(pattern)) return false;
+        if (Detection.GenericTitles.IsGeneric(pattern)) return false;
+
+        using var connection = Open();
+
+        var existing = connection.QueryFirstOrDefault<(long ContactId, long Unreliable)?>(
+            """
+            SELECT contact_id AS ContactId, unreliable AS Unreliable
+            FROM title_binding
+            WHERE title_pattern = @pattern AND app = @app;
+            """,
+            new { pattern, app = (int)app });
+
+        // Free, or already this person's. Anything else is a title two people answer to.
+        return existing is not { } bound || (bound.Unreliable == 0 && bound.ContactId == forContactId);
+    }
+
     public long? ResolveTitle(string? title, CallApp app)
     {
         var pattern = TurkishText.StripFormatting(title);

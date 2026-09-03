@@ -30,17 +30,78 @@ from vt_worker.merge import Segment
 # several seconds. Splitting above 1.5 s separates turns without cutting sentences in half.
 DEFAULT_MAX_GAP = 1.5
 
+# The longest a single line may run before it is cut at its own biggest pause.
+#
+# "One segment is one spoken turn" is the right rule for a single recording and the wrong one for
+# this application, and the difference only shows once the two channels are put side by side. A
+# person can talk for forty seconds without pausing a full second and a half, so the merge below
+# — which runs per channel, where every segment necessarily has the same speaker — glues the whole
+# stretch into one line. The other person's "Nasıl?" and "Evet." land at seconds 21, 28 and 34,
+# which is *inside* that line, and sorting by start time then files all three after it. The
+# conversation reads as one long speech followed by three replies to nothing.
+#
+# Measured on one real call: 43 segments, longest 12.6 s, became 9 segments, longest 39.0 s.
+# The merge was undoing exactly what the split had just achieved.
+#
+# So a ceiling, applied after merging. Fifteen seconds is longer than nearly every real turn — the
+# median line in this archive is three seconds — so ordinary speech is untouched, and it is short
+# enough that an interjection cannot be buried more than a few seconds deep.
+MAX_TURN_SECONDS = 15.0
+
 
 def resegment_on_gaps(segments: list[Segment], max_gap: float = DEFAULT_MAX_GAP) -> list[Segment]:
-    """Rebuild segment boundaries so that one segment is one spoken turn.
+    """Rebuild segment boundaries so that one segment is one spoken turn, and no turn runs long.
 
-    Split first, then merge. Doing it in that order means boundaries invented by the decoder are
-    discarded entirely and the result depends only on where the speaker actually paused.
+    Split first, then merge, then cap. The first two mean boundaries invented by the decoder are
+    discarded entirely and the result depends only on where the speaker actually paused; the third
+    means a speaker who does not pause cannot swallow the other person's replies.
     """
     if max_gap <= 0:
         return segments
 
-    return _merge_adjacent(_split_on_gaps(segments, max_gap), max_gap)
+    return _cap_long_turns(_merge_adjacent(_split_on_gaps(segments, max_gap), max_gap))
+
+
+def _cap_long_turns(segments: list[Segment], limit: float = MAX_TURN_SECONDS) -> list[Segment]:
+    """Cut any line longer than ``limit`` at its widest internal pause, repeatedly.
+
+    At its widest pause rather than in the middle: the point is still to break where the speaker
+    actually drew breath, just with a lower bar for what counts as a pause once the line has grown
+    too long to interleave with the other channel.
+
+    A line with no word timestamps is left alone. There is nothing to cut on, and guessing a
+    boundary would put a quote at a moment nobody spoke — which is the failure this whole module
+    exists to prevent.
+    """
+    out: list[Segment] = []
+    queue = list(segments)
+
+    while queue:
+        segment = queue.pop(0)
+
+        if segment.duration <= limit or len(segment.words) < 2:
+            out.append(segment)
+            continue
+
+        # The widest gap between consecutive words, and where it falls.
+        widest, at = 0.0, 0
+        for index in range(1, len(segment.words)):
+            gap = segment.words[index].start - segment.words[index - 1].end
+            if gap > widest:
+                widest, at = gap, index
+
+        if at == 0:
+            # Continuous speech with no measurable gap at all. Rather than inventing a boundary,
+            # the line stays as it is: a wrong timestamp is worse than a long line.
+            out.append(segment)
+            continue
+
+        # Both halves go back through the check, so a very long turn is cut as many times as it
+        # takes rather than only once.
+        queue.insert(0, _from_words(segment, segment.words[at:]))
+        queue.insert(0, _from_words(segment, segment.words[:at]))
+
+    return sorted(out, key=lambda s: s.start)
 
 
 def _split_on_gaps(segments: list[Segment], max_gap: float) -> list[Segment]:
