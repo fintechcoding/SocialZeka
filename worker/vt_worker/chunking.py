@@ -241,7 +241,14 @@ def prefers_gain(path: str) -> bool:
         call-57-mic   -72 dB     12%       0 words         9 words
         call-56-mic   -72 dB     29%      15 words        15 words
         call-58-far   -95 dB     22%      31 words        32 words
+        call-55-mic   -71 dB     58%     817 words       768 words
+        call-55-far   -94 dB     29%     452 words       329 words
         a busy call        -      87%     151 sec         128 sec
+
+    The call-55 rows hold :data:`DENSE_SPEECH_RATIO` up from the other side, and they are the only
+    ones that do. Every row above them argues for turning gain off; a rule built on those alone
+    would have had no reason to keep it anywhere. That channel sits at 58% speech, a hair over the
+    line, and keeping the gain there is worth 49 words on it and 123 on the side beside it.
 
     That last row is why this is a question and not a constant. Turning normalisation off outright
     was tried first, on the strength of a room-tone clip, and it cost 23 seconds of a dense call.

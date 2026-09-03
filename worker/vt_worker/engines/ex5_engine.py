@@ -179,11 +179,18 @@ class Ex5WhisperEngine(CloudWhisperEngine):
         #     call-57-mic   -72 dB     12%       0 words         9 words
         #     call-56-mic   -72 dB     29%      15 words        15 words
         #     call-58-far   -95 dB     22%      31 words        32 words
+        #     call-55-mic   -71 dB     58%     817 words       768 words
+        #     call-55-far   -94 dB     29%     452 words       329 words
         #     a busy call        -      87%     151 sec         128 sec
         #
         # Both directions are real, which is why this is a decision and not a constant. Turning
         # it off outright was tried first and cost 23 seconds of that last, dense recording; the
         # difference between the rows is the recording, not the flag.
+        #
+        # The call-55 rows are the ones that hold the threshold up from the other side. Everything
+        # above them says when to turn gain OFF, and a rule built only on those would have had no
+        # reason not to turn it off everywhere. That channel is 58% speech — a hair over the line
+        # — and keeping the gain is worth 49 words on it and 123 on the side beside it.
         #
         # Omitted rather than guessed when there is nothing to go on, so the service keeps its
         # own default in the case this cannot speak to.
