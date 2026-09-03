@@ -375,10 +375,33 @@ class CloudWhisperEngine(AsrEngine):
             heard = str(payload.get("language") or "?")
             words = sum(len(segment.words) for segment in segments)
 
+            # Two things the service volunteers that used to be dropped on the floor.
+            #
+            # `coverage` is how much of the audio produced any segment at all, measured on the
+            # side that actually ran the model. A window the model skipped emits nothing, so it
+            # leaves no trace in the segments and cannot be reconstructed from them — this is the
+            # only place a silently dropped window is visible.
+            #
+            # `filtered_out` is what the service deleted as hallucination, with its reason. Worth
+            # surfacing because this client filters too: seeing both counts is how anyone notices
+            # the two lists have drifted apart, or that one is doing all the work.
+            extra = ""
+
+            coverage = payload.get("coverage")
+            if isinstance(coverage, dict) and coverage.get("ratio") is not None:
+                gaps = coverage.get("gaps") or []
+                extra += f" · kapsama %{float(coverage['ratio']) * 100:.0f}"
+                if gaps:
+                    extra += f" ({len(gaps)} boşluk)"
+
+            dropped = payload.get("filtered_out")
+            if isinstance(dropped, list) and dropped:
+                extra += f" · serviste {len(dropped)} satır elendi"
+
             progress(
                 0.02 + 0.94 * (chunk.index + 1) / total_chunks,
                 f"{chunk.index + 1}/{total_chunks} geldi · dil {heard}"
-                f" · {len(segments)} satır · {words} kelime",
+                f" · {len(segments)} satır · {words} kelime{extra}",
             )
 
         return segments

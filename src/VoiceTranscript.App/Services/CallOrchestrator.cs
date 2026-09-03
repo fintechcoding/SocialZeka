@@ -93,6 +93,12 @@ public sealed class CallOrchestrator : IDisposable
 
     private CallRecorder? _recorder;
 
+    /// <summary>
+    /// Endpoints the current recording opened, kept so they can be written onto the row when the
+    /// call ends — by then the backend is being torn down and can no longer be asked.
+    /// </summary>
+    private (string? Microphone, string? Output) _devices;
+
     /// <summary>Listens to the far end of the current call for long enough to recognise them.</summary>
     private SpeakerIdentifier? _speaker;
     private bool? _localTranscriptionUsable;
@@ -878,7 +884,11 @@ public sealed class CallOrchestrator : IDisposable
             }
 
             _recorder = new CallRecorder(backend);
-            _recorder.Interrupted += (_, reason) => Notice?.Invoke(this, reason);
+            _recorder.Interrupted += (_, reason) =>
+            {
+                AppLog.Write("kayit", $"yakalama kesildi: {reason}");
+                Notice?.Invoke(this, reason);
+            };
             _recorder.LevelChanged += (_, levels) => LevelChanged?.Invoke(this, levels);
 
             // Per-application capture needs to be told which application.
@@ -891,6 +901,20 @@ public sealed class CallOrchestrator : IDisposable
                 directory,
                 $"call-{_currentCallId}",
                 backend.IsProcessIsolated ? TargetProcessFor(callEvent.App) : null);
+
+            // After StartAsync, not before: which endpoint Windows actually gave us is only
+            // known once it has been opened. A requested device that was missing falls back to
+            // the communications default, and the fallback is exactly the case worth logging.
+            //
+            // Written at the normal level rather than a detailed one because this is the line
+            // that answers "which headset recorded this call" — a question asked about calls
+            // that already happened, by someone who had no reason to raise the log level first.
+            _devices = backend.DevicesInUse;
+            AppLog.Write("kayit", $"cihaz — mikrofon: {_devices.Microphone ?? "?"}; " +
+                                  $"cikis: {_devices.Output ?? "?"}; " +
+                                  $"yakalama: {backend.Name}; " +
+                                  $"yanki engelleme: {(settings.UseEchoCancellation ? "acik" : "kapali")}" +
+                                  $"{(settings.UseEchoCancellation && !WasapiCaptureBackend.EchoCancellationSupported ? " (bu Windows desteklemiyor)" : "")}");
         }
         catch (Exception e)
         {
@@ -1036,7 +1060,8 @@ public sealed class CallOrchestrator : IDisposable
                 result.FarPath,
                 result.Duration,
                 callEvent.At,
-                $"mic: {result.MicStats}; far: {result.FarStats}");
+                $"mic: {result.MicStats}; far: {result.FarStats}; " +
+                $"micDev: {_devices.Microphone ?? "?"}; outDev: {_devices.Output ?? "?"}");
 
             _repository.SetCallState(callId, ProcessingState.Queued);
 

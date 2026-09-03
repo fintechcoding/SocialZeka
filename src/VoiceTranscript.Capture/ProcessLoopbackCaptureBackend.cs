@@ -38,6 +38,15 @@ public sealed class ProcessLoopbackCaptureBackend : IAudioCaptureBackend
 
     public bool IsProcessIsolated => true;
 
+    /// <summary>
+    /// Only the microphone is a named endpoint here. The far end comes from a process tree, not
+    /// from a device, so there is nothing to name — which is itself the answer worth recording:
+    /// a call captured this way did not go through the output endpoint at all.
+    /// </summary>
+    public (string? Microphone, string? Output) DevicesInUse => (_microphoneInUse, "uygulamadan (cihaz yok)");
+
+    private string? _microphoneInUse;
+
     public event PacketHandler? PacketReady;
 
     public event EventHandler<string>? Interrupted;
@@ -69,6 +78,8 @@ public sealed class ProcessLoopbackCaptureBackend : IAudioCaptureBackend
 
         var captureDevice = Endpoint(DataFlow.Capture)
             ?? throw new InvalidOperationException("No active microphone was found.");
+
+        _microphoneInUse = NameOf(captureDevice);
 
         _microphone = await new WasapiRecorderBuilder()
             .WithDevice(captureDevice)
@@ -103,6 +114,18 @@ public sealed class ProcessLoopbackCaptureBackend : IAudioCaptureBackend
     {
         if (e.Exception is not null)
             Interrupted?.Invoke(this, $"{which} akışı kesildi: {e.Exception.Message}");
+    }
+
+    private static string NameOf(MMDevice device)
+    {
+        try
+        {
+            return device.FriendlyName;
+        }
+        catch (Exception)
+        {
+            return "bilinmeyen cihaz";
+        }
     }
 
     private MMDevice? Endpoint(DataFlow flow)

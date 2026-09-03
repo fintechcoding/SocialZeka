@@ -81,6 +81,8 @@ public sealed class WasapiCaptureBackend : IAudioCaptureBackend
 
     public string? OutputInUse { get; private set; }
 
+    public (string? Microphone, string? Output) DevicesInUse => (MicrophoneInUse, OutputInUse);
+
     public string Name => "Cihaz loopback (WASAPI)";
 
     public AudioFormat Format { get; } = AudioFormat.WhisperPcm;

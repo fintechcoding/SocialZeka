@@ -456,13 +456,18 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="{loc:T healthpage.ayrintili-gunluk}" FontSize="{StaticResource TextBody}" />
+                            <TextBlock Text="{loc:T healthpage.gunluk-ayrintisi}" FontSize="{StaticResource TextBody}" />
                             <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                       Text="{loc:T healthpage.hangi-sinyalin-aramayi-baslattigini-ve-cev}" />
+                                       Text="{loc:T healthpage.gunluk-ayrintisi-aciklama}" />
                         </StackPanel>
 
-                        <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0"
-                                         IsChecked="{Binding VerboseLog, Mode=TwoWay}" />
+                        <!-- Here rather than in Ayarlar, because this is the card somebody is
+                             already looking at when they need it: the buttons beside it copy the
+                             log and open its folder. A second home for the same setting would be
+                             one more thing to find, in a screen that has too many already. -->
+                        <ComboBox Grid.Column="1" MinWidth="130" VerticalAlignment="Center" Margin="14,0,0,0"
+                                  ItemsSource="{Binding LogDetails}"
+                                  SelectedItem="{Binding LogDetail, Mode=TwoWay}" />
                     </Grid>
                 </StackPanel>
             </Border>

@@ -288,6 +288,8 @@
   "healthpage.guncellemeleri-denetle": "Güncellemeleri denetle",
   "healthpage.gunlugu-kopyala": "Günlüğü kopyala",
   "healthpage.gunluk": "Günlük",
+  "healthpage.gunluk-ayrintisi": "Günlük ayrıntısı",
+  "healthpage.gunluk-ayrintisi-aciklama": "Normal: görüşmelerine ne olduğu. Verbose: uygulamanın ne karar verdiği ve neden. Debug: ne OLMADIĞI ve hangi sayının engellediği — bir arızanın peşindeyken bunu seç. Hiçbir kademede konuşma metni, kişi adı ya da API anahtarı yazılmaz.",
   "healthpage.gunluk-dosyalarini-siler-bir-hatayi-yenide": "Günlük dosyalarını siler. Bir hatayı yeniden denemeden önce temizlemek, gönderilecek günlüğü tek konuya indirir.",
   "healthpage.hangi-sinyalin-aramayi-baslattigini-ve-cev": "Hangi sinyalin aramayı başlattığını ve çevirinin nereye kadar geldiğini de yazar. Bir sorunu bildirmeden önce açık olması işe yarar.",
   "healthpage.hazirlanir-ve-uygulama-yeniden-baslatildig": "Hazırlanır ve uygulama yeniden başlatıldığında yerine konur. Şu anki verilerin silinmez, kenara alınır — yanlış dosyayla geri yükleme, korumak istediğin arşivi yok etmemeli.",

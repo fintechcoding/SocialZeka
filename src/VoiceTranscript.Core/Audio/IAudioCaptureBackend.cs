@@ -63,6 +63,19 @@ public interface IAudioCaptureBackend : IDisposable
     /// </summary>
     bool IsProcessIsolated { get; }
 
+    /// <summary>
+    /// The endpoints this backend actually opened, once <see cref="StartAsync"/> has run.
+    ///
+    /// Named rather than identified because the user does not know their endpoints by GUID; the
+    /// point of recording this is that a person can look at two calls and tell which headset was
+    /// on. A device id would answer the same question only after a lookup against a device that
+    /// may since have been unplugged.
+    ///
+    /// Defaulted to nothing so a backend that does not open Windows endpoints — the file source,
+    /// used where the machine has no audio hardware at all — is not made to invent an answer.
+    /// </summary>
+    (string? Microphone, string? Output) DevicesInUse => (null, null);
+
     event PacketHandler? PacketReady;
 
     /// <summary>Raised when the audio device changes underneath us and capture had to restart.</summary>

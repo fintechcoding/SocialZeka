@@ -86,6 +86,9 @@
                       Margin="0,12,0,0" IsChecked="True"
                       ToolTip="{loc:T labelcallwindow.bir-dahaki-sefere-sormadan-taninir}" />
 
+            <TextBlock x:Name="RememberNote" Style="{StaticResource Caption}"
+                       Margin="26,4,0,0" TextWrapping="Wrap" Visibility="Collapsed" />
+
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
                 <ui:Button Content="{loc:T labelcallwindow.bu-kaydi-sil}" Margin="0,0,8,0" Click="Discard_Click" />
                 <ui:Button Content="{loc:T labelcallwindow.sonra-sorulsun}" Margin="0,0,8,0" Click="Later_Click" />

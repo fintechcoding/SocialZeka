@@ -342,6 +342,25 @@ public partial class ReprocessWindow
             .Count();
 
         ScopeBar.Visibility = worlds > 1 ? Visibility.Visible : Visibility.Collapsed;
+
+        // Opened on the world the application is actually set to use.
+        //
+        // "Tümü" was the opening filter whatever the settings said, so somebody who transcribes
+        // everything in the cloud met a list led by a dozen local engines they had already
+        // decided against — and the row they wanted was below the fold. The filter existed to
+        // save that scroll and started by not saving it.
+        //
+        // Automatic stays on "Tümü", and that is not a gap: it is the mode that says either world
+        // may be used, so narrowing to one of them would be the window asserting a choice the
+        // user deliberately did not make.
+        var opening = App.Settings?.AsrMode switch
+        {
+            Core.Configuration.TranscriptionMode.CloudOnly => "Cloud",
+            Core.Configuration.TranscriptionMode.LocalOnly => "Local",
+            _ => "All",
+        };
+
+        ApplyScope(opening);
     }
 
     /// <summary>
@@ -350,7 +369,13 @@ public partial class ReprocessWindow
     /// </summary>
     private void Scope_Click(object sender, RoutedEventArgs e)
     {
-        if (_view is null || sender is not FrameworkElement { Tag: string scope }) return;
+        if (sender is FrameworkElement { Tag: string scope }) ApplyScope(scope);
+    }
+
+    /// <summary>Narrows the list and moves the highlight, from a click or from the settings.</summary>
+    private void ApplyScope(string scope)
+    {
+        if (_view is null) return;
 
         _scope = scope;
 

@@ -72,6 +72,52 @@ public partial class LabelCallWindow
 
         NameBox.Focus();
         NameBox.SelectAll();
+
+        ShowWhetherTheTitleCanBeRemembered();
+    }
+
+    /// <summary>
+    /// Settles the "remember this title" offer before the user answers, rather than after.
+    ///
+    /// This used to be a message box shown once the call had already been filed: the user picked
+    /// a name, pressed save, and was told the title had not been remembered after all. Two
+    /// complaints about it, both fair. It reported a decision instead of asking for one, it
+    /// arrived when the window they wanted gone was gone, and — the part that made it feel like a
+    /// fault — it appeared under a heading that read like an error for something that had worked.
+    ///
+    /// Everything it said is known before the question is asked, so it is said there: the offer
+    /// is withdrawn, greyed, and labelled with the reason. Nothing to acknowledge, nothing to
+    /// dismiss, and the promise is never made in the first place.
+    /// </summary>
+    private void ShowWhetherTheTitleCanBeRemembered()
+    {
+        if (string.IsNullOrWhiteSpace(_observedTitle))
+        {
+            // No title was seen at all — there is nothing to offer, so the offer is not made.
+            RememberBox.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        if (Core.Detection.GenericTitles.IsGeneric(_observedTitle))
+        {
+            Withdraw($"“{_observedTitle}” kimi aradığını söylemiyor, hatırlanamaz");
+            return;
+        }
+
+        // Zero is never a contact id, so this asks the only question that can be answered yet:
+        // is the title free? A title already bound — to this person or another — cannot be
+        // claimed by whoever is about to be typed into the box.
+        if (!_repository.CanRememberTitle(_observedTitle, _app, forContactId: 0))
+            Withdraw($"“{_observedTitle}” başka bir kişiye bağlı, hatırlanamaz");
+
+        void Withdraw(string reason)
+        {
+            RememberBox.IsChecked = false;
+            RememberBox.IsEnabled = false;
+            RememberBox.ToolTip = reason;
+            RememberNote.Text = reason;
+            RememberNote.Visibility = Visibility.Visible;
+        }
     }
 
     public LabelOutcome Outcome { get; private set; } = LabelOutcome.Postponed;
@@ -178,26 +224,11 @@ public partial class LabelCallWindow
         // that followed — "her konuşmayı Uliana zannediyor" — silently, because the binding was
         // consulted before anybody was asked.
         //
-        // The repository now refuses to rebind a title that already belongs to somebody else and
-        // reports that it has stopped trusting it. Said out loud rather than swallowed: the user
-        // was promised they would not be asked again, and going quiet on that promise looks like
-        // the feature breaking rather than the application declining to guess.
+        // The box is only reachable when the title is free, so a refusal here is a race — the
+        // same title claimed by another window in between — and not something to interrupt
+        // somebody over. See ShowWhetherTheTitleCanBeRemembered.
         if (RememberBox.IsChecked == true && !string.IsNullOrWhiteSpace(_observedTitle))
-        {
-            if (!_repository.RememberTitle(_observedTitle, contactId, _app))
-            {
-                MessageBox.Show(
-                    $"Bu görüşme {name} olarak kaydedildi.\n\n" +
-                    "Ama pencere başlığı hatırlanmadı: aynı başlık daha önce başka bir kişiye " +
-                    "bağlanmıştı, yani kimi aradığını söylemiyor. Bu uygulamada başlık çoğu zaman " +
-                    "o an açık olan sohbetin adıdır.\n\n" +
-                    "Bundan sonra bu uygulamadaki görüşmeler için kim olduğu sorulacak — yanlış " +
-                    "kişiye yazmaktansa sormak daha doğru.",
-                    "Başlık kişiyi tanımlamıyor",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-        }
+            _repository.RememberTitle(_observedTitle, contactId, _app);
 
         // Now that this call belongs to somebody, it is also an example of what they sound like.
         //

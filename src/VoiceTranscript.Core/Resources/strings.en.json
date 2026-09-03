@@ -288,6 +288,8 @@
   "healthpage.guncellemeleri-denetle": "Check for updates",
   "healthpage.gunlugu-kopyala": "Copy the log",
   "healthpage.gunluk": "Log",
+  "healthpage.gunluk-ayrintisi": "Log detail",
+  "healthpage.gunluk-ayrintisi-aciklama": "Normal: what happened to your calls. Verbose: what the application decided and why. Debug: what did NOT happen and the number that stopped it — choose this while chasing a fault. No transcript text, contact name or API key is written at any level.",
   "healthpage.gunluk-dosyalarini-siler-bir-hatayi-yenide": "Deletes the log files. Clearing before retrying an error keeps the log you send down to one subject.",
   "healthpage.hangi-sinyalin-aramayi-baslattigini-ve-cev": "Also records which signal started a call and how far transcription got. Worth having on before reporting a problem.",
   "healthpage.hazirlanir-ve-uygulama-yeniden-baslatildig": "Staged, and put in place when the application restarts. Your current data is not deleted but set aside — restoring the wrong file must not destroy the archive you were trying to protect.",

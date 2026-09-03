@@ -50,7 +50,7 @@ public static class ContactPhotoStore
             var temp = final + ".tmp";
 
             using (var stream = File.Create(temp)) encoder.Save(stream);
-            File.Move(temp, final);
+            File.Move(temp, final, overwrite: true);
 
             return name;
         }
@@ -72,7 +72,24 @@ public static class ContactPhotoStore
         var frame = BitmapFrame.Create(
             new Uri(sourcePath), BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
 
-        var orientation = (frame.Metadata as BitmapMetadata)?.GetQuery("System.Photo.Orientation");
+        // Asked for separately from everything else, because an image without the tag is the
+        // normal case and not a failure.
+        //
+        // A PNG carries no EXIF block at all, and WIC answers that by throwing rather than
+        // returning null — NotSupportedException, which the caller's filter reads as "this file
+        // is not an image" and turns into a silent refusal. So every PNG chosen as a contact
+        // photo was rejected, with the one sentence the caller shows for a corrupt file. The
+        // photo was fine; the question was.
+        object? orientation = null;
+
+        try
+        {
+            orientation = (frame.Metadata as BitmapMetadata)?.GetQuery("System.Photo.Orientation");
+        }
+        catch (Exception e) when (e is NotSupportedException or ArgumentException)
+        {
+            // No metadata to ask, which means nothing says the image is sideways.
+        }
 
         var rotation = orientation switch
         {
