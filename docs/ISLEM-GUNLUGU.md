@@ -2014,3 +2014,124 @@ parolayı anlamsız kılardı.
 **913 test · 908 geçti · 0 kırık · 5 atlandı** + **115 Python**.
 
 **Paket.** `v2.7.0`.
+
+---
+
+## 2026-09-03 (on altıncı tur) — Sebep bizim gönderdiğimiz bir alandı: `initial_prompt`
+
+Kullanıcı, dördüncü kez, aynı şeyi söyledi: "yerelde CPU'daki küçük model bile
+güzel çeviriyor, bulutta saçma sapan çıkıyor." Bu turda ilk kez **aynı ses aynı
+anda iki yoldan** geçirildi, ve sebep bulutta değil bizim istekte çıktı.
+
+### Ölçüm zemini değişti, ve asıl mesele buydu
+
+Dört gündür kelime sayısı ve satır sayısı karşılaştırılıyordu. İkisi de uyduran
+motoru ödüllendiriyor. Yeni ölçüt **kapsama**: sesin duyulabilir konuşma taşıyan
+saniyelerinin kaçı metinle örtüldü. Bir görüşme kaydında susmak uydurmaktan
+tehlikelidir, çünkü hiçbir şey yanlış görünmez — duraklamalı bir konuşmadan
+ayırt edilemez.
+
+O ölçüt konunca, aranan şey bir turda çıktı.
+
+### Sebep
+
+Sözlüğün ilk 40 terimi her isteğe `prompt` olarak gidiyordu:
+
+    "Uliana, Serdal, Gurhan Abi, Sinan, (1) Bozkurt , Maydin, Avukat Polonya,
+     ... Yani, Ben, Tamam, Ama, Evet, Bir, Sen, Kadir, Bak, Şimdi, Çok, ..."
+
+Aynı kayıt, aynı 180 saniye, aynı servis, tek fark bu alan:
+
+    prompt VAR:  "Yani, Uzun, Bir, Süre, Tabii, İşin, Yücün, Rast gelsin,
+                  Yapıyor, Bunu, Ama, Sonuçta, Bu, Paraları, Senin, Ödem..."
+    prompt YOK:  "Bu paraları senin ödemen gerekiyordu. O kendisi üstleniyor.
+                  Neden? Çünkü senin sorumluluğunda."
+
+Hotwords ile prompt aynı özelliğin iki yazılışı sanılmıştı. Değil. Hotwords bir
+**ağırlıklandırma** — yanlış terim yalnızca kazanamaz. Prompt ise decoder'a
+"bunu az önce sen yazdın" demek, ve modelin devam ettirdiği şey içerik kadar
+**üslup**. Virgülle ayrılmış büyük harfli terim listesi bir üsluptur.
+
+Yerelde de oluyordu, aynı prompt `small`'a `"Ben, O, O, O, O, O..."` yazdırdı.
+Yerelin sağlam görünmesi bağışıklık değil doz: orada prompt yalnız ilk pencereyi
+tohumluyor. Sunucu `/health`'te `prompt_persists_across_windows: true` diyor.
+
+### Ve kendini besliyordu
+
+`VocabularyMiner` isimleri "cümle ortasında büyük harfli kelime" diye buluyordu.
+Kural yerel çıktıda çalışıyor (253 aday → 34 gerçek isim). Bulut çıktısı cümle
+ortasında rastgele büyük harf üretip nokta atlayınca aynı kural 2036 aday → 230
+"isim" topladı, ve en sıktakiler dilin en yaygın kelimeleriydi: "Yani", "Ben",
+"Tamam", "Ama", "Evet", "Bak", "Abi". Onlar prompt'a gidiyor, çıktıyı daha çok
+bozuyor, madenci daha çoğunu buluyordu.
+
+Tarihler birebir tutuyor. `InitialPrompt` 02-09 04:13'te (7adc6f7),
+`AutoVocabulary` 04:41'de (c64a4e7) girdi. Call 32 (01-09 18:18): 100-160
+kelime/dk, sıfır uydurma satır. Call 36 (02-09 13:37) ve sonrası: neredeyse
+hepsinde uydurma.
+
+### İkinci sebep, sunucu tarafında: `vad=false`
+
+Prompt kalktıktan sonra kalan fark VAD. 180 saniyenin 157'si konuşma:
+
+    ex5 sunucu varsayılanı (vad=false)  108/157  %69  20 satır  1 uydurma
+    ex5 + normalize=false               108/157  %69  20 satır  1 uydurma
+    ex5 + filter_noise=false            108/157  %69  20 satır  1 uydurma
+    ex5 + vad=true                      151/157  %96  43 satır  0 uydurma
+    OpenAI whisper-1                    149/157  %95            0 uydurma
+    yerel faster-whisper small (CPU)    150/157  %96   8 satır  0 uydurma
+    yerel large-v3-turbo                151/157  %96  72 satır  0 uydurma
+
+Kaybolan 42 saniye sessizlik değildi: 32 saniyesi konuşma, ve seviyesi
+kapsanan bölgelerle aynı (-20.2 dBFS). `filtered_out` boş geliyordu, yani
+sunucunun filtresi de yemiyordu — decoder o pencerelerde metin üretmiyordu.
+
+Dört çalışan yapılandırma birbirinden iki puan içinde. Tek sapan, bizim
+üretimde çalıştırdığımız ayardı.
+
+### İki kendi hatam, ölçümle düzeltildi
+
+**`normalize=false` eklendim, geri aldım.** 60 saniyelik sentetik oda tonunda
+uydurmayı ikiye bölüyordu. Gerçek konuşmada 151'i 128'e düşürüyor ve uydurmayı
+geri getiriyor. Gerekçe sağlamdı, zemin yanlıştı.
+
+**"`vad=true` hiçbir şey yapmıyor" dedim, yanlıştı.** Sentetik oda tonunda
+gerçekten hiçbir şey yapmıyor — bayraklı ve bayraksız çıktı birebir aynı, aynı
+zaman damgalarıyla. Neredeyse bu yüzden elenecekti. Sessizlik, VAD'ı ölçmek için
+yanlış zemin.
+
+> **Kural:** bir bayrağı sentetik sessizlikte ölçme. Bu uygulamanın kayıtlarında
+> sessizlik bol, ama bayrakların çoğu konuşmaya bakar.
+
+### Yapılan
+
+- `initial_prompt` istemciden, protokolden ve worker'dan tamamen kaldırıldı.
+- `AutoVocabulary`, `VocabularyMiner`, ayardaki arayüz öğesi, iki dil kaynağı ve
+  yalnız madenci için var olan iki depo sorgusu silindi. Elle yazılan liste
+  hotwords olarak kalıyor.
+- ex5 isteğine `vad=true`. `normalize` hiç gönderilmiyor; sunucunun varsayılanı
+  zaten doğru.
+- `.cloudparts` önbellek anahtarı isteğin tamamını görüyor. Önceden model ve
+  parça numarasından ibaretti: bir bayrak değiştirip yeniden çevirince
+  değişiklikten önceki yanıt birebir geri geliyordu — düzeltme işe yaramamış
+  görünür, insan başka bir düzeltme aramaya gider. Bu tur boyunca en az bir kez
+  yanılttı.
+- `Segment.compression_ratio` — Whisper'ın kendi ölçüsü, metinden hesaplanıyor.
+  Servis segment başına `avg_logprob`/`no_speech_prob` dönmüyor ve
+  `is_low_confidence` testlerinin ikisi de None-korumalı, yani skor yokluğu
+  "güvenilir" okunuyordu: 2241 segmentin 1321'i, tam olarak servisten gelenlerin
+  hepsi. Arşivde beş satır yakaladı, sıfır yanlış alarmla.
+- `chunking.speech_coverage` + `processing_run.speech_coverage` (göç 10) +
+  kalite satırı: "konuşmanın %69'u yazıya döküldü". Bu turun aradığı sayı buydu
+  ve hiçbir yerde tutulmuyordu.
+
+### Yeniden çevrilmesi gerekenler
+
+Prompt girdikten sonra çevrilen 11 görüşme: 36, 37, 38, 39, 40, 41, 42, 43, 44,
+45, 51. On birinde de gözle görülür belirti var.
+
+### Sunucudan istenenler
+
+`vad` varsayılanının `true` olması, ve segment başına `avg_logprob` /
+`no_speech_prob`. İkincisi olmadan düşük güveni yalnız tekrar döngülerinden
+tahmin edebiliyoruz.
