@@ -173,7 +173,7 @@ public class SettingsSurviveSavingTests
         nameof(AppSettings.NotionApiKey), nameof(AppSettings.NotionDatabaseId),
         nameof(AppSettings.AudioRetentionDays), nameof(AppSettings.SttEndpoints),
         nameof(AppSettings.RecordSignal), nameof(AppSettings.StartWithWindows),
-        nameof(AppSettings.TrimSilenceAfterProcessing),
+        nameof(AppSettings.TrimSilenceAfterProcessing), nameof(AppSettings.IdentifySpeakers),
     ];
 
     private static AppSettings RoundTrip(AppSettings original)

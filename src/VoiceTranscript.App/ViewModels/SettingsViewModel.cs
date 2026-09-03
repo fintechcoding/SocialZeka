@@ -65,6 +65,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _mixedLanguage = settings.MixedLanguage;
         _uiLanguage = UiLanguages.FirstOrDefault(l => l.Code == settings.UiLanguage) ?? UiLanguages[0];
         _showRecordingBar = settings.ShowRecordingBar;
+        _identifySpeakers = settings.IdentifySpeakers;
         _verboseLog = settings.VerboseLog;
         _startWithWindows = settings.StartWithWindows;
         _useEchoCancellation = settings.UseEchoCancellation;
@@ -436,6 +437,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Whether a strip appears at the top of the screen while recording.</summary>
     [ObservableProperty] private bool _showRecordingBar = true;
 
+    /// <summary>Recognise the far end by voice. Off until chosen — it stores biometric data.</summary>
+    [ObservableProperty] private bool _identifySpeakers;
+
     /// <summary>Owned by the health page; carried here so saving other settings keeps it.</summary>
     [ObservableProperty] private bool _verboseLog = true;
 
@@ -781,6 +785,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         SpeechVocabulary = SpeechVocabulary.Trim(),
         MixedLanguage = MixedLanguage,
         ShowRecordingBar = ShowRecordingBar,
+        IdentifySpeakers = IdentifySpeakers,
         VerboseLog = VerboseLog,
         StartWithWindows = StartWithWindows,
         UiLanguage = UiLanguage.Code,

@@ -29,3 +29,13 @@ onnxruntime==1.23.2
 # NEVER add torch to this environment. torch bundles its own cublas64_12.dll and cuDNN under
 # torch/lib and shadows the pip-installed cuBLAS with a different minor version. Mixing the two
 # is the single most common cause of "it worked on my machine".
+#
+# That rule is also why speaker recognition (vt_worker/speaker.py) is an ONNX model rather than
+# speechbrain, pyannote.audio or resemblyzer: all three pull torch. The embedder runs on the
+# onnxruntime pinned above, so it costs this environment nothing.
+
+# Already arrives through ctranslate2 and faster-whisper; pinned here because vt_worker.speaker
+# now imports it directly, and a dependency you rely on by name should be one you named. The
+# ceiling is deliberate: numpy 3 is not out, and an unbounded pin on a package this load-bearing
+# is how a working environment breaks on a machine set up six months later.
+numpy>=1.26,<3

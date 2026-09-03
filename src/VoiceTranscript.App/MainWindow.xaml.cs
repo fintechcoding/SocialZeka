@@ -77,6 +77,10 @@ public partial class MainWindow
             orchestrator.StateChanged += (_, state) =>
                 Dispatcher.InvokeAsync(() => ShowRecordingStrip(state));
 
+            // Raised from a worker thread, once per call, when the far end has been recognised.
+            orchestrator.SpeakerIdentified += (_, who) =>
+                Dispatcher.InvokeAsync(() => ShowCaller(who));
+
             orchestrator.CallProcessed += (_, processed) =>
                 Dispatcher.InvokeAsync(() => AnnounceProcessed(processed));
         }
@@ -84,6 +88,9 @@ public partial class MainWindow
 
     /// <summary>The strip that says the microphone is open. Built on first use, then kept.</summary>
     private RecordingOverlay? _strip;
+
+    /// <summary>The panel that says who is on the other end. Built the first time one is recognised.</summary>
+    private CallerOverlay? _caller;
 
     /// <summary>
     /// Puts the recording strip on screen while a recording is running, and takes it away after.
@@ -97,6 +104,7 @@ public partial class MainWindow
         if (state != OrchestratorState.Recording)
         {
             _strip?.End();
+            _caller?.End();
             return;
         }
 
@@ -116,6 +124,41 @@ public partial class MainWindow
         }
 
         _strip.Begin(App.Orchestrator?.RecordingStartedAt ?? DateTimeOffset.Now);
+    }
+
+    /// <summary>
+    /// Shows who the far end is, once the voice has been recognised.
+    ///
+    /// Late on purpose. Recognising somebody needs thirty seconds of them actually speaking, which
+    /// in a real call is usually a minute in — below that the measurement says the answer is
+    /// noise, and a name that might be wrong is worse than no name at all on a panel somebody
+    /// glances at mid-sentence.
+    ///
+    /// A suggestion is shown as readily as a confident match: the panel is for reading, not for
+    /// filing, and the score is on it so the reader can weigh it themselves. Filing is a separate
+    /// decision made when the call ends, under a stricter rule.
+    /// </summary>
+    private void ShowCaller(SpeakerHypothesis hypothesis)
+    {
+        if (!App.Settings.IdentifySpeakers || hypothesis.Contact is not { } contact) return;
+        if (App.Repository is not { } repository) return;
+
+        _caller ??= new CallerOverlay();
+
+        // Commitments are read here rather than in the identifier so the panel shows what the
+        // ledger holds at this moment, and so nothing about contacts has to travel through the
+        // audio path.
+        var commitments = repository.GetOpenCommitments(contact.Id)
+            .Take(3)
+            .Select(CallerOverlay.Line)
+            .ToList();
+
+        _caller.Begin(
+            contact.Name,
+            hypothesis.Match.Score,
+            contact.LastCallAt,
+            contact.Notes,
+            commitments);
     }
 
     /// <summary>

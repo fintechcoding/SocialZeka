@@ -143,6 +143,41 @@ public sealed partial class PythonWorkerHost(PythonWorkerOptions options)
         return result ?? throw new WorkerException("no_result", "Sınama sonucu alınamadı.");
     }
 
+    /// <summary>
+    /// Turns one recording into one voice — 256 numbers to compare against the people already known.
+    ///
+    /// The worker does only this. Matching against stored voiceprints, averaging several calls
+    /// into one and deciding whether a score is good enough are arithmetic over those numbers and
+    /// stay on this side, where the contacts are; nothing about the address book crosses the pipe.
+    ///
+    /// A recording with too little speech in it comes back with no vector rather than as a
+    /// failure. One side of a call being quiet is the ordinary case, not an error.
+    /// </summary>
+    public async Task<WorkerVoiceprint> EmbedSpeakerAsync(
+        SpeakerRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        WorkerVoiceprint? result = null;
+        WorkerFailure? failure = null;
+
+        await RunAsync(
+            "speaker",
+            WorkerProtocol.Serialise(request),
+            onEvent: e =>
+            {
+                switch (e)
+                {
+                    case WorkerVoiceprint v: result = v; break;
+                    case WorkerFailure f: failure = f; break;
+                }
+            },
+            cancellationToken);
+
+        if (failure is not null) throw new WorkerException(failure.Code, failure.Message);
+
+        return result ?? throw new WorkerException("no_result", "Ses izi alınamadı.");
+    }
+
     /// <summary>Transcribes one call. Progress is reported as it arrives.</summary>
     public async Task<WorkerResult> TranscribeAsync(
         TranscriptionRequest request,

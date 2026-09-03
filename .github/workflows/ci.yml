@@ -51,10 +51,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      # The worker's own tests need only the standard library and pytest. The pinned runtime
-      # dependencies — ctranslate2, faster-whisper, onnxruntime, cuBLAS — are a multi-gigabyte
+      # The worker's own tests need the standard library, pytest, and numpy. The rest of the
+      # pinned runtime — ctranslate2, faster-whisper, onnxruntime, cuBLAS — is a multi-gigabyte
       # install that no test here touches and that this runner has no GPU for anyway.
+      #
+      # numpy is the one exception because vt_worker.speaker computes its filterbank with it, and
+      # the alternative was to skip those tests on a runner without it — which is the same as not
+      # having them. It is a few megabytes and pure CPU.
       - name: Python testleri
         run: |
-          python -m pip install --quiet --upgrade pip pytest
+          python -m pip install --quiet --upgrade pip pytest numpy
           python -m pytest worker/tests -q

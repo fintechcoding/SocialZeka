@@ -182,5 +182,34 @@ public static class Migrations
         // somebody asks when a transcript looks thin.
         new(10, "Konuşmanın ne kadarının yazıya döküldüğü",
             ["ALTER TABLE processing_run ADD COLUMN speech_coverage REAL;"]),
+
+        // Recognising the other party by voice, and recording how a call came to be filed.
+        //
+        // The two belong in one step because the second only exists for the first. An assignment
+        // made from a voiceprint is a machine decision about who somebody is, and this application
+        // has already paid for one of those going unrecorded: a window title bound to a contact
+        // filed every later call under that person, and nothing said which rows had been decided
+        // that way, so the repair had to be inferred from the damage. contact_source makes the
+        // same class of mistake visible and reversible in one query.
+        new(11, "Sesten kişi tanıma: ses izleri ve atamanın kaynağı",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS contact_voice (
+                    contact_id     INTEGER PRIMARY KEY REFERENCES contact(id) ON DELETE CASCADE,
+                    vector         TEXT    NOT NULL,
+                    model          TEXT    NOT NULL,
+                    calls_used     INTEGER NOT NULL DEFAULT 0,
+                    speech_seconds REAL    NOT NULL DEFAULT 0,
+                    updated_at     TEXT    NOT NULL
+                );
+                """,
+
+                "ALTER TABLE call ADD COLUMN contact_source TEXT;",
+
+                // Everything already filed was filed by a person, one call at a time, through the
+                // labelling window. Saying so is what makes "show me what the voice decided" a
+                // question with an answer from the first day rather than the second.
+                "UPDATE call SET contact_source = 'user' WHERE contact_id IS NOT NULL;",
+            ]),
     ];
 }

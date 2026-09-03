@@ -29,7 +29,7 @@ import traceback
 from typing import Any
 
 from vt_worker import chunking, dll_paths, gpu
-from vt_worker import models
+from vt_worker import models, speaker
 from vt_worker.engines import DEFAULT_ENGINE, EngineError, EngineOptions, create, probe_all
 from vt_worker.merge import MergedTranscript, Segment, merge_streams
 from vt_worker.segmentation import DEFAULT_MAX_GAP, resegment_on_gaps
@@ -324,6 +324,50 @@ def cmd_selftest(request: dict[str, Any]) -> int:
     return 0
 
 
+def cmd_speaker(request: dict[str, Any]) -> int:
+    """
+    One recording in, one voice out — 256 numbers the caller compares against the people it knows.
+
+    Deliberately only this. Comparing the vector against stored voiceprints, averaging several
+    calls into one, and deciding whether a score is good enough are all arithmetic over 256
+    floats, and they live on the C# side where the contacts are. Keeping them out of here means
+    the worker stays stateless and no part of the address book has to cross the pipe.
+
+    A recording with too little speech in it returns ``voiceprint`` with a null vector rather than
+    an error: it is an ordinary and expected answer — one side of a call is silent while the other
+    talks — and an error would put a failure in the log for something that is not one.
+    """
+    job_id = str(request.get("id") or "speaker")
+
+    wav_path = request.get("wav_path")
+    if not wav_path:
+        raise EngineError("bad_request", "wav_path is required")
+
+    print_result = speaker.embed(wav_path, request.get("cache_dir"))
+
+    if print_result is None:
+        emit({
+            "type": "voiceprint",
+            "id": job_id,
+            "vector": None,
+            "speech_seconds": 0.0,
+            "windows": 0,
+            "model": speaker.MODEL_NAME,
+            "reason": "not_enough_speech",
+        })
+        return 0
+
+    emit({
+        "type": "voiceprint",
+        "id": job_id,
+        "vector": print_result.vector,
+        "speech_seconds": print_result.speech_seconds,
+        "windows": print_result.windows,
+        "model": print_result.model,
+    })
+    return 0
+
+
 def _read_request() -> dict[str, Any]:
     raw = sys.stdin.read()
     if not raw.strip():
@@ -341,7 +385,8 @@ def main(argv: list[str] | None = None) -> int:
     _configure_streams()
 
     parser = argparse.ArgumentParser(prog="vt_worker", description="VoiceTranscript ASR worker")
-    parser.add_argument("command", choices=["probe", "transcribe", "download", "selftest"])
+    parser.add_argument(
+        "command", choices=["probe", "transcribe", "download", "selftest", "speaker"])
     args = parser.parse_args(argv)
 
     if args.command == "probe":
@@ -359,6 +404,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_download(request)
         if args.command == "selftest":
             return cmd_selftest(request)
+        if args.command == "speaker":
+            return cmd_speaker(request)
 
         return cmd_transcribe(request)
     except EngineError as exc:

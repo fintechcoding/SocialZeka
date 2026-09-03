@@ -133,6 +133,26 @@ public sealed record AppSettings
     public bool ShowRecordingBar { get; init; } = true;
 
     /// <summary>
+    /// Whether the far end of a call is recognised by voice — shown on screen while the call runs,
+    /// and used to file the conversation under the right person when it ends.
+    ///
+    /// <b>Off by default, and it should stay that way until somebody chooses it.</b> Two reasons,
+    /// and neither is about how well it works.
+    ///
+    /// The first is what it stores. A voiceprint is derived from a person's body rather than from
+    /// anything they said, and it is the closest this application comes to the line drawn at the
+    /// top of Schema.cs — evidence, not verdicts. It cannot be turned back into audio and it says
+    /// nothing about anybody, but collecting it is a decision the user should make rather than
+    /// find already made.
+    ///
+    /// The second is that the thresholds are young. They were measured over one archive holding
+    /// four people with more than one call, and at least one of that archive's own labels is
+    /// wrong. The measurement says the recogniser is more reliable than the labels it was scored
+    /// against — which is encouraging and is not the same as proven.
+    /// </summary>
+    public bool IdentifySpeakers { get; init; }
+
+    /// <summary>
     /// Whether the log records diagnostic detail: which signal moved the call detector, and how
     /// far each transcription got before it finished or died.
     ///

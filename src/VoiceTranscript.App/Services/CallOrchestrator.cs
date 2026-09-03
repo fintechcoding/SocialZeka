@@ -11,6 +11,7 @@ using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Export;
 using VoiceTranscript.Core.Llm;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Voice;
 using VoiceTranscript.Worker;
 using CoreSegment = VoiceTranscript.Core.Domain.Segment;
 
@@ -91,6 +92,9 @@ public sealed class CallOrchestrator : IDisposable
     private readonly SemaphoreSlim _gpu = new(1, 1);
 
     private CallRecorder? _recorder;
+
+    /// <summary>Listens to the far end of the current call for long enough to recognise them.</summary>
+    private SpeakerIdentifier? _speaker;
     private bool? _localTranscriptionUsable;
 
     /// <summary>
@@ -147,6 +151,12 @@ public sealed class CallOrchestrator : IDisposable
     public OrchestratorState State { get; private set; } = OrchestratorState.Idle;
 
     public event EventHandler<OrchestratorState>? StateChanged;
+
+    /// <summary>
+    /// Raised once, mid-call, when the far end has been recognised. Mirrors LevelChanged: the
+    /// established way something learned from live audio reaches the screen.
+    /// </summary>
+    public event EventHandler<SpeakerHypothesis>? SpeakerIdentified;
 
     /// <summary>Raised when a call has been recorded, so the user can label and keep or discard it.</summary>
     public event EventHandler<CallFinished>? CallFinished;
@@ -850,6 +860,19 @@ public sealed class CallOrchestrator : IDisposable
             var directory = _paths.RecordingDirectoryFor(callEvent.At);
             var backend = CreateBackend(settings);
 
+            // Listening for who the other person is, alongside the recording rather than through
+            // it. PacketReady is a multicast event, so this is a second subscriber and the capture
+            // chain is untouched — the same shape CaptureSelfTest uses. It detaches on Dispose.
+            if (settings.IdentifySpeakers)
+            {
+                _speaker = new SpeakerIdentifier(
+                    _repository, _worker, _paths.Cache, _paths.Models,
+                    line => { if (settings.VerboseLog) AppLog.Write("ses", line); });
+
+                _speaker.Identified += (_, hypothesis) => SpeakerIdentified?.Invoke(this, hypothesis);
+                _speaker.Listen(backend);
+            }
+
             _recorder = new CallRecorder(backend);
             _recorder.Interrupted += (_, reason) => Notice?.Invoke(this, reason);
             _recorder.LevelChanged += (_, levels) => LevelChanged?.Invoke(this, levels);
@@ -874,6 +897,8 @@ public sealed class CallOrchestrator : IDisposable
 
             _recorder?.Dispose();
             _recorder = null;
+            _speaker?.Dispose();
+            _speaker = null;
             _currentCallId = null;
 
             // The status indicator is derived from _recorder, so clearing it above is what stops
@@ -1011,23 +1036,52 @@ public sealed class CallOrchestrator : IDisposable
 
             _repository.SetCallState(callId, ProcessingState.Queued);
 
+            // The listener has said everything it is going to; its buffer is the only large thing
+            // still held from a call that is over. Result survives it — the record is a value.
+
             // Asked after every call unless the user chose automatic filing. The title seen when
             // the call started is what a binding can be looked up by; the Ended sample usually
             // has no window left to read. A recognised name arrives as the prefilled answer.
             var finished = _repository.GetCall(callId);
             var observedTitle = finished?.ObservedTitle ?? callEvent.WindowTitle;
 
+            // What the voice concluded, if it got the chance to conclude anything.
+            //
+            // Assign files the call and records that the voice did it, so it can be audited and
+            // undone as a group later — the one thing missing when a window title filed every
+            // conversation under one person. Suggest only prefills the question, which is what the
+            // labelling window already does with a suggestion.
+            var heard = _speaker?.Result;
+            var filedByVoice = false;
+
+            if (heard is { Match.Verdict: VoiceVerdict.Assign } confident && finished?.ContactId is null)
+            {
+                _repository.AssignContact(callId, confident.Match.ContactId, ContactSource.Voice);
+                filedByVoice = true;
+
+                AppLog.Write("ses", $"görüşme #{callId} sesten atandı · benzerlik {confident.Match.Score:0.00}");
+            }
+
+            var suggested = heard?.Match.ContactId is > 0 ? heard.Match.ContactId : (long?)null;
+
             RaiseCallFinished(new CallFinished(
                 callId,
                 result.Duration,
                 observedTitle,
                 callEvent.App,
-                NeedsLabel: !settings.AssignContactFromTitle || finished?.ContactId is null,
+                NeedsLabel: !filedByVoice && (!settings.AssignContactFromTitle || finished?.ContactId is null),
                 AudioSummary: result.AudioSummary,
                 HasSilentStream: result.HasSilentStream,
-                SuggestedContactId: finished?.ContactId ?? _repository.ResolveTitle(observedTitle, callEvent.App)));
+                SuggestedContactId: finished?.ContactId
+                    ?? suggested
+                    ?? _repository.ResolveTitle(observedTitle, callEvent.App)));
 
             Enqueue(callId);
+
+            // The listener has said everything it is going to. Its buffer holds up to ninety
+            // seconds of audio and is the only large thing still alive from a call that is over.
+            _speaker?.Dispose();
+            _speaker = null;
         }
         catch (Exception e)
         {
@@ -2284,6 +2338,7 @@ public sealed class CallOrchestrator : IDisposable
         }
 
         _recorder?.Dispose();
+        _speaker?.Dispose();
         _sessions.Dispose();
 
         // The token source and the processing slot are deliberately NOT disposed.

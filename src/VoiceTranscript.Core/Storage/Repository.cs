@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using VoiceTranscript.Core.Domain;
@@ -322,7 +323,7 @@ public sealed class Repository(Database database)
     /// had no contact at all — that is how a newly recorded call is labelled for the first time.
     /// </summary>
     /// <returns>The contact the call was taken from, if it had one.</returns>
-    public long? AssignContact(long callId, long contactId)
+    public long? AssignContact(long callId, long contactId, ContactSource source = ContactSource.User)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
@@ -331,8 +332,8 @@ public sealed class Repository(Database database)
             "SELECT contact_id FROM call WHERE id = @callId;", new { callId }, transaction);
 
         connection.Execute(
-            "UPDATE call SET contact_id = @contactId WHERE id = @callId;",
-            new { contactId, callId }, transaction);
+            "UPDATE call SET contact_id = @contactId, contact_source = @source WHERE id = @callId;",
+            new { contactId, callId, source = source.Wire() }, transaction);
 
         // The ledger entries this call produced travel with it. Scoped by call_id rather than by
         // the old contact, so a call that had no contact yet is handled by the same statement.
@@ -654,6 +655,159 @@ public sealed class Repository(Database database)
     /// Safe to reclaim precisely because this is only ever called at startup: the process that
     /// might have been holding them is the one that just died.
     /// </summary>
+    // ---- voiceprints ------------------------------------------------------------
+
+    /// <summary>
+    /// Every voice the application knows, for matching one recording against all of them.
+    ///
+    /// Read whole rather than one at a time because that is the actual question — "who is this"
+    /// is asked against everybody at once, and a dot product over a few hundred contacts is
+    /// cheaper than a few hundred round trips to SQLite.
+    /// </summary>
+    public IReadOnlyList<(Voiceprint Print, string Name)> Voiceprints(string model)
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<VoiceRow>(
+            """
+            SELECT v.contact_id AS ContactId, v.vector AS Vector, v.model AS Model,
+                   v.calls_used AS CallsUsed, v.speech_seconds AS SpeechSeconds,
+                   v.updated_at AS UpdatedAt, c.name AS Name
+            FROM contact_voice v
+            JOIN contact c ON c.id = v.contact_id
+            WHERE v.model = @model;
+            """,
+            new { model });
+
+        return [.. rows.Select(r => (r.ToModel(), r.Name ?? ""))];
+    }
+
+    public Voiceprint? GetVoiceprint(long contactId)
+    {
+        using var connection = Open();
+
+        return connection.QueryFirstOrDefault<VoiceRow>(
+            """
+            SELECT contact_id AS ContactId, vector AS Vector, model AS Model,
+                   calls_used AS CallsUsed, speech_seconds AS SpeechSeconds, updated_at AS UpdatedAt
+            FROM contact_voice WHERE contact_id = @contactId;
+            """,
+            new { contactId })?.ToModel();
+    }
+
+    public void SaveVoiceprint(Voiceprint print)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO contact_voice (contact_id, vector, model, calls_used, speech_seconds, updated_at)
+            VALUES (@contactId, @vector, @model, @callsUsed, @speechSeconds, @updatedAt)
+            ON CONFLICT(contact_id) DO UPDATE SET
+                vector         = excluded.vector,
+                model          = excluded.model,
+                calls_used     = excluded.calls_used,
+                speech_seconds = excluded.speech_seconds,
+                updated_at     = excluded.updated_at;
+            """,
+            new
+            {
+                contactId = print.ContactId,
+                vector = JsonSerializer.Serialize(print.Vector),
+                model = print.Model,
+                callsUsed = print.CallsUsed,
+                speechSeconds = print.SpeechSeconds,
+                updatedAt = Iso(print.UpdatedAt),
+            });
+    }
+
+    /// <summary>Forgets one voice — used when a contact's calls turn out not to agree with each other.</summary>
+    public void DeleteVoiceprint(long contactId)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM contact_voice WHERE contact_id = @contactId;", new { contactId });
+    }
+
+    /// <summary>
+    /// Forgets every voice. The undo for a feature that collects biometric data, and the settings
+    /// screen offers it beside the switch that turns collection on.
+    /// </summary>
+    public int DeleteAllVoiceprints()
+    {
+        using var connection = Open();
+        return connection.Execute("DELETE FROM contact_voice;");
+    }
+
+    /// <summary>
+    /// The recordings a person's voiceprint may be built from: their own calls, filed by the user,
+    /// newest first.
+    ///
+    /// <b>Only <see cref="ContactSource.User"/>.</b> A call the voice itself filed must never
+    /// enrol a voice, or one wrong match becomes the evidence for the next one. This project has
+    /// already run that loop once — the vocabulary miner read its own bad output back in and got
+    /// worse every round — and the fix there was the same fix as here: the machine's own output is
+    /// not evidence about the machine.
+    /// </summary>
+    public IReadOnlyList<(long CallId, string FarPath)> VoiceEnrolmentCalls(long contactId, int limit = 5)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<(long, string)>(
+                """
+                SELECT id, far_path
+                FROM call
+                WHERE contact_id = @contactId
+                  AND far_path IS NOT NULL AND far_path <> ''
+                  AND COALESCE(contact_source, 'user') = 'user'
+                ORDER BY started_at DESC
+                LIMIT @limit;
+                """,
+                new { contactId, limit }),
+        ];
+    }
+
+    /// <summary>Contacts with at least one call the voice could be learned from.</summary>
+    public IReadOnlyList<long> ContactsWorthEnrolling()
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<long>(
+                """
+                SELECT DISTINCT contact_id
+                FROM call
+                WHERE contact_id IS NOT NULL
+                  AND far_path IS NOT NULL AND far_path <> ''
+                  AND COALESCE(contact_source, 'user') = 'user'
+                  AND duration_ms > 30000;
+                """),
+        ];
+    }
+
+    private sealed class VoiceRow
+    {
+        public long ContactId { get; set; }
+        public string Vector { get; set; } = "[]";
+        public string Model { get; set; } = "";
+        public int CallsUsed { get; set; }
+        public double SpeechSeconds { get; set; }
+        public string UpdatedAt { get; set; } = "";
+        public string? Name { get; set; }
+
+        public Voiceprint ToModel() => new()
+        {
+            ContactId = ContactId,
+            Vector = JsonSerializer.Deserialize<float[]>(Vector) ?? [],
+            Model = Model,
+            CallsUsed = CallsUsed,
+            SpeechSeconds = SpeechSeconds,
+            UpdatedAt = ParseIso(UpdatedAt),
+        };
+    }
+
     // ---- to-do ------------------------------------------------------------------
 
     public long AddTodo(string text, DateOnly? due, long? contactId = null, long? callId = null)

@@ -73,6 +73,8 @@ public class WindowSmokeTests
 
                 Build("Kayıt şeridi", () => new RecordingOverlay(), failures);
 
+                Build("Arayan katmanı", () => new CallerOverlay(), failures);
+
                 Build("Ayarlar", () => new SettingsWindow(
                     new VoiceTranscript.App.ViewModels.SettingsViewModel(settings, paths, http)), failures);
 

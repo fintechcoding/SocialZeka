@@ -265,6 +265,44 @@
                             </Grid>
                         </Border>
 
+                        <!-- Off by default, and the card says what it keeps rather than only what
+                             it does. A switch that starts collecting something derived from a
+                             person's body should read like a decision, not like a preference —
+                             and it should have its undo next to it. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Grid.Column="0" Symbol="Person24" FontSize="18" Margin="0,0,14,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:T settingswindow.sesten-kisi-tanima}" FontSize="{StaticResource TextBody}" />
+                                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                                   Text="{loc:T settingswindow.karsi-tarafi-sesinden-tanir-gorusme-suresi}" />
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                     IsChecked="{Binding IdentifySpeakers}" />
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal" Margin="32,10,0,0">
+                                    <ui:Button x:Name="LearnVoicesButton" Padding="10,4" Margin="0,0,8,0"
+                                               Appearance="Secondary" Click="LearnVoices_Click"
+                                               Content="{loc:T settingswindow.arsivden-ses-izlerini-kur}" />
+                                    <ui:Button x:Name="ForgetVoicesButton" Padding="10,4"
+                                               Appearance="Secondary" Click="ForgetVoices_Click"
+                                               Content="{loc:T settingswindow.butun-ses-izlerini-sil}" />
+                                </StackPanel>
+
+                                <TextBlock x:Name="VoiceStatus" Margin="32,8,0,0" TextWrapping="Wrap"
+                                           Style="{StaticResource Caption}" Visibility="Collapsed" />
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="{loc:T settingswindow.uygulamalar}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
 
                         <Border Style="{StaticResource SettingCard}">

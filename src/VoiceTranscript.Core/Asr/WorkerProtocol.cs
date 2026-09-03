@@ -47,6 +47,7 @@ public static class WorkerProtocol
                 "error" => trimmed.Deserialize<WorkerFailure>(),
                 "downloaded" => trimmed.Deserialize<WorkerDownloaded>(),
                 "selftest" => trimmed.Deserialize<WorkerSelfTest>(),
+                "voiceprint" => trimmed.Deserialize<WorkerVoiceprint>(),
                 _ => null,
             };
         }
@@ -61,6 +62,9 @@ public static class WorkerProtocol
 
     public static string SerialiseRequest(TranscriptionRequest request)
         => JsonSerializer.Serialize(request, Json);
+
+    /// <summary>Any request the worker understands, in the same snake_case shape.</summary>
+    public static string Serialise<T>(T request) => JsonSerializer.Serialize(request, Json);
 }
 
 public abstract class WorkerEvent
@@ -206,6 +210,46 @@ public sealed class WorkerSelfTest : WorkerEvent
         (HallucinatedOnSilence.Count > 0
             ? $". Sessizlikte metin uydurdu ({HallucinatedOnSilence.Count} parça) — kayıtta bu filtreleniyor."
             : ".");
+}
+
+/// <summary>
+/// One voice, as the recogniser hears it.
+///
+/// <see cref="Vector"/> is null when the recording held too little speech to answer with. That is
+/// an ordinary outcome rather than a failure — one side of a call is silent while the other person
+/// talks — and it is reported as a result so that nothing writes a failure into the log for it.
+/// Measured over this application's archive, below thirty seconds of speech the error rate is
+/// thirteen times what it is above, which is why the worker refuses rather than guessing.
+/// </summary>
+public sealed class WorkerVoiceprint : WorkerEvent
+{
+    public float[]? Vector { get; init; }
+    public double SpeechSeconds { get; init; }
+    public int Windows { get; init; }
+
+    /// <summary>
+    /// Which model produced it. Stored beside every voiceprint because vectors from two models
+    /// are not comparable, and comparing them does not fail — it quietly returns a number near
+    /// zero for two recordings of the same person.
+    /// </summary>
+    public string Model { get; init; } = "";
+
+    /// <summary>Why there is no vector, when there is none.</summary>
+    public string? Reason { get; init; }
+
+    public bool Usable => Vector is { Length: > 0 };
+}
+
+/// <summary>The job handed to `vt_worker speaker`: one recording, one voice.</summary>
+public sealed class SpeakerRequest
+{
+    public required string Id { get; init; }
+
+    /// <summary>The far-end WAV — 16 kHz mono 16-bit, which is what the recorder writes.</summary>
+    public required string WavPath { get; init; }
+
+    /// <summary>Where the ONNX weights are cached. Same directory as the Whisper models.</summary>
+    public string? CacheDir { get; init; }
 }
 
 public sealed class WorkerProgress : WorkerEvent

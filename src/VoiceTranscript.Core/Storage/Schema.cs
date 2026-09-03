@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 10;
+    public const int Version = 11;
 
     public static readonly string[] Statements =
     [
@@ -77,7 +77,8 @@ public static class Schema
             likely_no_headphones INTEGER NOT NULL DEFAULT 0,
             is_pinned            INTEGER NOT NULL DEFAULT 0,
             audio_sha256         TEXT,
-            trimmed_at           TEXT
+            trimmed_at           TEXT,
+            contact_source       TEXT
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_call_contact ON call(contact_id, started_at DESC);",
@@ -452,6 +453,37 @@ public static class Schema
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_field_contact ON contact_field(contact_id, position);",
+
+        // What a person sounds like, so the far end of a call can be recognised without asking.
+        //
+        // This is the one table holding something derived from a person's body rather than from
+        // what they said, and it earns its place by replacing something worse. Who the other party
+        // is has until now come from the call window's title, and the archive records what that
+        // costs: one generic "Voice call" title spread across eight different contacts, and a
+        // migration whose whole job is to mark such titles unreliable after the damage is done.
+        //
+        // It is not a judgement and it is not a score about anybody — the rule at the top of this
+        // file still holds. It is 256 numbers that say whether two recordings are the same voice,
+        // and nothing can be recovered from them: the audio is not reconstructible, and a vector
+        // from a different model is not even comparable, which is why the model travels with it.
+        //
+        // In the database rather than beside it, deliberately. BackupService copies the whole
+        // SQLite file, so a voiceprint here is included in the encrypted backup automatically,
+        // while a file under models/ or cache/ would be in neither. Biometric data belongs on the
+        // side of that line that gets encrypted.
+        //
+        // Off by default and only written when the user turns the feature on; deleted with the
+        // contact by the cascade, and all at once from the settings screen.
+        """
+        CREATE TABLE IF NOT EXISTS contact_voice (
+            contact_id     INTEGER PRIMARY KEY REFERENCES contact(id) ON DELETE CASCADE,
+            vector         TEXT    NOT NULL,
+            model          TEXT    NOT NULL,
+            calls_used     INTEGER NOT NULL DEFAULT 0,
+            speech_seconds REAL    NOT NULL DEFAULT 0,
+            updated_at     TEXT    NOT NULL
+        );
+        """,
 
         // What each piece of work cost.
         //

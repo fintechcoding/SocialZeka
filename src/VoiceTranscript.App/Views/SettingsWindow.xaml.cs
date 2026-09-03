@@ -5,6 +5,7 @@ using VoiceTranscript.Capture;
 using VoiceTranscript.Core.Asr;
 using VoiceTranscript.Worker;
 using VoiceTranscript.App.ViewModels;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.Views;
 
@@ -394,6 +395,78 @@ public partial class SettingsWindow
         {
             SetBusy(false);
         }
+    }
+
+    /// <summary>
+    /// Forgets every voice the application has learned.
+    ///
+    /// Beside the switch rather than buried, because a switch that starts collecting something
+    /// derived from a person's body should have its undo within reach of the hand that turned it
+    /// on. Immediate and not deferred to Save: somebody pressing this wants the data gone now,
+    /// not after they remember to confirm a dialog.
+    ///
+    /// The contacts, calls and transcripts are untouched — only the voiceprints go, and the next
+    /// call will simply ask who it was, as it did before the feature existed.
+    /// </summary>
+    private void ForgetVoices_Click(object sender, RoutedEventArgs e)
+    {
+        var removed = App.Repository?.DeleteAllVoiceprints() ?? 0;
+
+        ShowVoiceStatus(removed > 0
+            ? $"{Localisation.T("settingswindow.ses-izleri-silindi")} ({removed})"
+            : Localisation.T("settingswindow.ses-izleri-silindi"));
+    }
+
+    /// <summary>
+    /// Learns every voice the archive can teach, from calls the user has already labelled.
+    ///
+    /// The material is free — weeks of two-sided recordings, filed by hand — so the feature does
+    /// not begin by asking anybody to read a sentence into a microphone. What it reports back is
+    /// as much about the archive as about the voices: a recording that does not sound like the
+    /// person it is filed under is usually filed under the wrong person, and this is the first
+    /// time anything in this application has been able to say so.
+    /// </summary>
+    private async void LearnVoices_Click(object sender, RoutedEventArgs e)
+    {
+        if (App.Repository is not { } repository || App.Paths is not { } paths) return;
+
+        LearnVoicesButton.IsEnabled = false;
+        ShowVoiceStatus(Localisation.T("settingswindow.ses-izleri-kuruluyor"));
+
+        try
+        {
+            var enrolment = new Services.VoiceEnrolment(
+                repository,
+                () => App.Worker,
+                paths.Models,
+                line => Dispatcher.InvokeAsync(() => ShowVoiceStatus(line)));
+
+            var results = await enrolment.LearnEverybodyAsync(
+                new Progress<(int Done, int Total)>(p =>
+                    ShowVoiceStatus($"{p.Done}/{p.Total}")));
+
+            var learned = results.Count(r => r.Learned);
+            var suspect = results.Sum(r => r.Rejected.Count);
+
+            ShowVoiceStatus(suspect > 0
+                ? $"{learned} kişinin sesi öğrenildi. {suspect} görüşme, yazıldığı kişiye benzemiyor "
+                  + "— etiketleri yanlış olabilir."
+                : $"{learned} kişinin sesi öğrenildi.");
+        }
+        catch (Exception ex)
+        {
+            ShowVoiceStatus($"Ses izleri kurulamadı: {ex.Message}");
+        }
+        finally
+        {
+            LearnVoicesButton.IsEnabled = true;
+        }
+    }
+
+    private void ShowVoiceStatus(string message)
+    {
+        VoiceStatus.Text = message;
+        VoiceStatus.Visibility = Visibility.Visible;
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
