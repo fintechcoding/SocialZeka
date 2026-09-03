@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using VoiceTranscript.Core.Configuration;
 
 namespace VoiceTranscript.App.Services;
 
@@ -40,6 +41,16 @@ public static class AppLog
 
     /// <summary>Where the logs are, once started. Null before that.</summary>
     public static string? Directory => _directory;
+
+    /// <summary>
+    /// How much is written. Set from settings at startup and whenever they are saved.
+    ///
+    /// Held here rather than passed to every call because the alternative is what the codebase
+    /// already had: fifteen call sites each testing a flag before writing, so a line added without
+    /// the test is a line that cannot be turned off, and a line added with the wrong test is
+    /// invisible on the level it was written for.
+    /// </summary>
+    public static LogDetail Level { get; set; } = LogDetail.Verbose;
 
     /// <summary>Today's file. Null before <see cref="Start"/>.</summary>
     public static string? CurrentFile => _currentPath;
@@ -109,7 +120,28 @@ public static class AppLog
             }
         }
 
-        Debug.WriteLine(line);
+        System.Diagnostics.Debug.WriteLine(line);
+    }
+
+    /// <summary>
+    /// A line only worth having while somebody is chasing a specific fault.
+    ///
+    /// Everything the application decided *not* to do belongs here — the threshold that was not
+    /// met, the buffer that stayed short, the branch that was skipped. Those are silent by
+    /// construction, and silence is what makes a working feature indistinguishable from a broken
+    /// one: the first real call with speaker recognition turned on produced not a single line
+    /// about it, and there was no way to tell whether it had failed, never started, or simply
+    /// been given too little of the other person to work with.
+    /// </summary>
+    public static void Debug(string area, string message)
+    {
+        if (Level >= LogDetail.Debug) Write(area, message);
+    }
+
+    /// <summary>A line for whoever reads the log afterwards, rather than for every ordinary day.</summary>
+    public static void Detail(string area, string message)
+    {
+        if (Level >= LogDetail.Verbose) Write(area, message);
     }
 
     /// <summary>Logs an exception with its type and stack, which is what makes one diagnosable.</summary>

@@ -60,6 +60,9 @@ public sealed class SpeakerIdentifier : IDisposable
     private bool _asked;
     private bool _disposed;
 
+    /// <summary>Seconds of far-end speech seen, for the line written when a call ends short.</summary>
+    private double _heard;
+
     /// <summary>Raised once per call, on a worker thread, when the far end has been recognised.</summary>
     public event EventHandler<SpeakerHypothesis>? Identified;
 
@@ -92,6 +95,13 @@ public sealed class SpeakerIdentifier : IDisposable
         _backend = backend;
         _format = backend.Format;
         backend.PacketReady += OnPacket;
+
+        // Said at the start, because the alternative is what happened on the first real call: the
+        // feature was on, the log held not one line about it, and there was no way to tell whether
+        // it had failed, never attached, or simply not been given enough of the other person to
+        // work with. A service that only speaks when it succeeds is a service that cannot be
+        // diagnosed when it does not.
+        _log($"dinlemeye başlandı · karşı taraf {RequiredSpeechSeconds:0} sn konuşunca sorulacak");
     }
 
     private void OnPacket(StreamRole role, CapturedPacket packet)
@@ -111,6 +121,7 @@ public sealed class SpeakerIdentifier : IDisposable
             // Copied, not referenced. CapturedPacket.Data is a span over WASAPI's own buffer and
             // is valid only inside this call.
             _speech.AddRange(packet.Data);
+            _heard = (double)_speech.Count / _format.BytesPerSecond;
 
             if (_speech.Count < RequiredSpeechSeconds * _format.BytesPerSecond) return;
 
@@ -219,6 +230,19 @@ public sealed class SpeakerIdentifier : IDisposable
 
         if (_backend is not null) _backend.PacketReady -= OnPacket;
         _backend = null;
+
+        // Why nothing was recognised, when nothing was.
+        //
+        // Silence is the common outcome and it has three different causes — the call was short,
+        // the other person barely spoke, or the identification itself failed — and until this line
+        // existed the log looked identical in all three. The first real call with the feature on
+        // produced not one line about it, so there was no way to tell it from the feature being
+        // broken. This is the line that tells them apart.
+        if (!_asked)
+        {
+            _log($"tanınmadı: karşı taraf {_heard:0} sn konuştu, {RequiredSpeechSeconds:0} sn gerekiyor "
+                 + "— bu görüşme sesten tanınamayacak kadar kısa");
+        }
 
         lock (_gate) _speech.Clear();
     }

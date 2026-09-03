@@ -69,7 +69,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _uiLanguage = UiLanguages.FirstOrDefault(l => l.Code == settings.UiLanguage) ?? UiLanguages[0];
         _showRecordingBar = settings.ShowRecordingBar;
         _identifySpeakers = settings.IdentifySpeakers;
-        _verboseLog = settings.VerboseLog;
+        _logDetail = settings.LogDetail;
         _startWithWindows = settings.StartWithWindows;
         _useEchoCancellation = settings.UseEchoCancellation;
         _microphoneDeviceId = settings.MicrophoneDeviceId;
@@ -508,7 +508,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _identifySpeakers;
 
     /// <summary>Owned by the health page; carried here so saving other settings keeps it.</summary>
-    [ObservableProperty] private bool _verboseLog = true;
+    /// <summary>How much the log records. Three positions, because two were not enough.</summary>
+    [ObservableProperty] private LogDetail _logDetail = LogDetail.Verbose;
+
+    public IReadOnlyList<LogDetail> LogDetails { get; } =
+        [LogDetail.Normal, LogDetail.Verbose, LogDetail.Debug];
 
     /// <summary>Whether Windows starts this application at logon. Reconciled by AutoStart on save.</summary>
     [ObservableProperty] private bool _startWithWindows = true;
@@ -883,7 +887,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         Language = SpokenLanguage.Code,
         ShowRecordingBar = ShowRecordingBar,
         IdentifySpeakers = IdentifySpeakers,
-        VerboseLog = VerboseLog,
+        LogDetail = LogDetail,
         StartWithWindows = StartWithWindows,
         UiLanguage = UiLanguage.Code,
         UseEchoCancellation = UseEchoCancellation,

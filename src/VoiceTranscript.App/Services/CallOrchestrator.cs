@@ -863,11 +863,15 @@ public sealed class CallOrchestrator : IDisposable
             // Listening for who the other person is, alongside the recording rather than through
             // it. PacketReady is a multicast event, so this is a second subscriber and the capture
             // chain is untouched — the same shape CaptureSelfTest uses. It detaches on Dispose.
+            AppLog.Debug("ses", settings.IdentifySpeakers
+                ? "sesten tanıma açık, dinleyici takılıyor"
+                : "sesten tanıma kapalı, dinleyici takılmıyor");
+
             if (settings.IdentifySpeakers)
             {
                 _speaker = new SpeakerIdentifier(
                     _repository, _worker, _paths.Cache, _paths.Models,
-                    line => { if (settings.VerboseLog) AppLog.Write("ses", line); });
+                    line => AppLog.Detail("ses", line));
 
                 _speaker.Identified += (_, hypothesis) => SpeakerIdentified?.Invoke(this, hypothesis);
                 _speaker.Listen(backend);

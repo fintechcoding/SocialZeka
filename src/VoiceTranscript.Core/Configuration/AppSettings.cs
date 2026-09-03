@@ -27,6 +27,19 @@ public enum TranscriptionMode
     CloudOnly,
 }
 
+/// <summary>How much the log records, and who each level is written for.</summary>
+public enum LogDetail
+{
+    /// <summary>What happened to the user's calls. What somebody would want on an ordinary day.</summary>
+    Normal,
+
+    /// <summary>Also what the application decided and why — for whoever reads the log afterwards.</summary>
+    Verbose,
+
+    /// <summary>Also what did NOT happen, and the number that stopped it. For chasing one fault.</summary>
+    Debug,
+}
+
 public sealed record AppSettings
 {
     // ---- recording ----------------------------------------------------------
@@ -153,16 +166,34 @@ public sealed record AppSettings
     public bool IdentifySpeakers { get; init; }
 
     /// <summary>
-    /// Whether the log records diagnostic detail: which signal moved the call detector, and how
-    /// far each transcription got before it finished or died.
+    /// How much the log records.
     ///
-    /// Those lines were once raised as notices, so "Tespit: Idle (hoparlör=False…)" popped up
-    /// over the desktop — a sentence written for whoever reads the log, shown to the person
-    /// using the application. They belong in the file, and they are exactly the lines that turn
-    /// "it did not work" into a diagnosis. A switch because they are also what makes a log long,
-    /// and somebody who is not chasing a problem should be able to say so.
+    /// This was a switch, and two positions turned out not to be enough. The lines that turn "it
+    /// did not work" into a diagnosis are not one kind of line: some are worth having on every
+    /// machine every day, some make the file long, and some are only wanted by whoever is chasing
+    /// a specific fault right now and are noise on any other day.
+    ///
+    /// The distinction that matters is not volume, it is who the line is for. Normal is for the
+    /// person using the application: what happened to their calls. Verbose is for whoever reads
+    /// the log afterwards: which signal moved the detector, how far each transcription got.
+    /// Debug is for whoever is holding a specific question: every packet count, every threshold
+    /// that was and was not met, every decision that produced silence.
+    ///
+    /// It defaults to Verbose because that is what the switch it replaces defaulted to, and
+    /// because this application's whole diagnostic story is a log file somebody can send.
     /// </summary>
-    public bool VerboseLog { get; init; } = true;
+    public LogDetail LogDetail { get; init; } = LogDetail.Verbose;
+
+    /// <summary>
+    /// Whether diagnostic detail is recorded. Derived, so the fifteen places that ask this
+    /// question did not have to change when the switch became three positions.
+    /// </summary>
+    [JsonIgnore]
+    public bool VerboseLog => LogDetail >= LogDetail.Verbose;
+
+    /// <summary>Whether the log records everything, including what did not happen and why.</summary>
+    [JsonIgnore]
+    public bool DebugLog => LogDetail >= LogDetail.Debug;
 
     /// <summary>
     /// Whether Windows starts this application at logon.

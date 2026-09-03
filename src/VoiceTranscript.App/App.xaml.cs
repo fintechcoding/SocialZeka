@@ -229,6 +229,7 @@ public partial class App : Application
         // place capture, CUDA and real calls exist at all. Without a file on disk the entire
         // channel for reporting a fault is a screenshot of whatever happened to be on screen,
         // which is how a missing graphics library spent a day looking like a broken download.
+        AppLog.Level = Settings.LogDetail;
         AppLog.Start(Paths.Logs, VersionString());
         Core.CoreLog.Sink = AppLog.Write;
         HookCrashReporting();

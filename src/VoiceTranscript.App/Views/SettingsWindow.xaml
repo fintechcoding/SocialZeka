@@ -165,6 +165,34 @@
                             </Grid>
                         </Border>
 
+                        <!-- Three positions rather than a switch, because the lines that turn
+                             "it did not work" into a diagnosis are not one kind of line. Debug
+                             records what did NOT happen and the number that stopped it — which is
+                             the half that was missing when a feature ran, decided to stay silent,
+                             and wrote nothing at all about either. -->
+                        <TextBlock Text="{loc:T settingswindow.gunluk}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="DocumentBulletList24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.gunluk-ayrintisi}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.gunluk-ayrintisi-aciklama}" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="2" MinWidth="130" VerticalAlignment="Center"
+                                          ItemsSource="{Binding LogDetails}"
+                                          SelectedItem="{Binding LogDetail}" />
+                            </Grid>
+                        </Border>
+
                         <TextBlock Text="{loc:T settingswindow.baslangic}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
 
                         <!--

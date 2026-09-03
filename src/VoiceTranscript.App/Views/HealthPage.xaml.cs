@@ -38,10 +38,17 @@ public partial class HealthPage
     /// </summary>
     private void OnVerboseLogChanged(object? sender, bool verbose)
     {
-        App.Settings = App.Settings with { VerboseLog = verbose };
+        // The switch on this page is the coarse half of a three-position setting that lives in
+        // Ayarlar → Genel. Turning it off means Normal; turning it on means Verbose, and never
+        // Debug — dropping somebody into the loudest level from a toggle they flipped in passing
+        // would fill their log with lines written for whoever is chasing one specific fault.
+        var level = verbose ? Core.Configuration.LogDetail.Verbose : Core.Configuration.LogDetail.Normal;
+
+        App.Settings = App.Settings with { LogDetail = level };
         App.Settings.Save(App.Paths.SettingsFile);
 
-        Services.AppLog.Write("app", $"ayrıntılı günlük {(verbose ? "açıldı" : "kapatıldı")}");
+        Services.AppLog.Level = level;
+        Services.AppLog.Write("app", $"günlük ayrıntısı: {level}");
 
         if (DataContext is HealthViewModel model)
             model.DataMessage = Localisation.T(verbose

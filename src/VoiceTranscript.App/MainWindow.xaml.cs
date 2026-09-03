@@ -365,6 +365,11 @@ public partial class MainWindow
         // that were missed were quietly wiped on every save.
         App.Settings = viewModel.ToSettings();
 
+        // Applied before anything else reads it, so a level changed in the window takes effect on
+        // the very next line rather than after a restart — which is when somebody who has just
+        // turned Debug on is about to reproduce the thing they turned it on for.
+        Services.AppLog.Level = App.Settings.LogDetail;
+
         App.Settings.Save(App.Paths.SettingsFile);
 
         // Applied here rather than only at the next start, because a switch that does nothing
