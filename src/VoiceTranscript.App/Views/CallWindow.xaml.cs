@@ -162,6 +162,21 @@ public partial class CallWindow
     /// <summary>Anything that means "take me to the audio" puts the transcript back in step.</summary>
     private void ResumeFollowing() => _following = true;
 
+    /// <summary>
+    /// Opens the list of transcripts this call has had.
+    ///
+    /// Re-reads afterwards only when something was actually put back, so looking is free.
+    /// </summary>
+    private void Versions_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } model) return;
+
+        var window = new TranscriptVersionsWindow(App.Repository, model.CallId) { Owner = this };
+        window.ShowDialog();
+
+        if (window.Restored) model.Reload();
+    }
+
     /// <summary>Clicking a line plays from it.</summary>
     private void Turn_Click(object sender, MouseButtonEventArgs e)
     {

@@ -12,13 +12,22 @@
     <UserControl.Resources>
         <!-- One row. The checkbox is the verb; the text is a way into the conversation. -->
         <DataTemplate x:Key="TodoRow" DataType="{x:Type vm:TodoEntry}">
-            <Border Background="Transparent" CornerRadius="4" Padding="6,5" Margin="0,1">
+            <!--
+                The line itself opens the conversation.
+
+                The verb used to be a single small button at the far right edge of a wide row,
+                separated from the words it belonged to by the width of the window — reachable in
+                the sense that a target is reachable, not in the sense that anybody would aim for
+                it. The text is the thing being read, so the text is the thing that is clicked;
+                the buttons stay for the actions that are not "show me this".
+            -->
+            <Border Background="Transparent" CornerRadius="4" Padding="6,5" Margin="0,1"
+                    Cursor="{Binding HasCall, Converter={StaticResource HandWhenTrue}}"
+                    MouseLeftButtonUp="Row_Click">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
@@ -49,24 +58,27 @@
                         </TextBlock>
                     </StackPanel>
 
-                    <TextBlock Grid.Column="2" Text="{Binding DueText}" Style="{StaticResource Caption}"
-                               VerticalAlignment="Center" Margin="12,0,0,0" />
+                    <!-- Due date and verbs in one group, so the row ends where the row ends. -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding DueText}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center" Margin="12,0,4,0" />
 
-                    <ui:Button Grid.Column="3" Appearance="Transparent" Padding="6,2" Margin="8,0,0,0"
-                               ToolTip="{loc:T todopage.gorusmeyi-ac}"
-                               Visibility="{Binding HasCall, Converter={StaticResource BoolToVisibility}}"
-                               Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                               CommandParameter="{Binding}">
-                        <ui:SymbolIcon Symbol="Open24" FontSize="14" />
-                    </ui:Button>
+                        <ui:Button Appearance="Transparent" Padding="6,2" Margin="2,0,0,0"
+                                   ToolTip="{loc:T todopage.oneriyi-gizle}"
+                                   Visibility="{Binding CanDismiss, Converter={StaticResource BoolToVisibility}}"
+                                   Command="{Binding DataContext.DismissCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}">
+                            <ui:SymbolIcon Symbol="Dismiss24" FontSize="14" />
+                        </ui:Button>
 
-                    <ui:Button Grid.Column="4" Appearance="Transparent" Padding="6,2" Margin="2,0,0,0"
-                               ToolTip="{loc:T todopage.sil}"
-                               Visibility="{Binding CanDelete, Converter={StaticResource BoolToVisibility}}"
-                               Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                               CommandParameter="{Binding}">
-                        <ui:SymbolIcon Symbol="Delete24" FontSize="14" />
-                    </ui:Button>
+                        <ui:Button Appearance="Transparent" Padding="6,2" Margin="2,0,0,0"
+                                   ToolTip="{loc:T todopage.sil}"
+                                   Visibility="{Binding CanDelete, Converter={StaticResource BoolToVisibility}}"
+                                   Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}">
+                            <ui:SymbolIcon Symbol="Delete24" FontSize="14" />
+                        </ui:Button>
+                    </StackPanel>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -74,6 +86,7 @@
 
     <Grid Margin="{StaticResource PadPage}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -109,8 +122,36 @@
             </Grid>
         </Border>
 
+        <!--
+            What just happened, and the way back.
+
+            Refusing a suggestion is permanent: it is recorded so the same one is never proposed
+            again. That is exactly the kind of act that must not be one click away with no way
+            back, and exactly the kind that should not raise a dialog either — so it happens, it
+            is said quietly, and it can be undone for as long as this line is on screen.
+        -->
+        <Border Grid.Row="3" Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,0,0,8"
+                Visibility="{Binding Notice, Converter={StaticResource NullToCollapsed}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding Notice}" Style="{StaticResource Secondary}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+                <ui:Button Grid.Column="1" Content="{loc:T todopage.geri-al}" Appearance="Transparent"
+                           Margin="8,0,0,0" Command="{Binding UndoDismissCommand}" />
+
+                <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
+                           Command="{Binding ClearNoticeCommand}" />
+            </Grid>
+        </Border>
+
         <!-- Which source, for when the blended list is not the question being asked. -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,10">
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,10">
             <ui:Button Content="{loc:T todopage.hepsi}" Margin="0,0,6,0" Command="{Binding ShowAllSourcesCommand}"
                        Appearance="{Binding Source, Converter={StaticResource FilterAppearance}, ConverterParameter=All}" />
             <ui:Button Content="{loc:T todopage.onerilenler}" Margin="0,0,6,0" Command="{Binding ShowSuggestionsCommand}"
@@ -119,7 +160,7 @@
                        Appearance="{Binding Source, Converter={StaticResource FilterAppearance}, ConverterParameter=Mine}" />
         </StackPanel>
 
-        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="5" VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <TextBlock Text="{loc:T todopage.bos}" Style="{StaticResource Caption}" Margin="4,8"
                            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />

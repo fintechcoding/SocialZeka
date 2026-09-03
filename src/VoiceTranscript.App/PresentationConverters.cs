@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -425,6 +425,21 @@ public sealed class EqualToVisibilityConverter : IMultiValueConverter
 /// Primary when the bound filter equals the parameter — how a row of filter buttons shows which
 /// one is on. Seven identical grey buttons answered "hangisi seçili?" with silence.
 /// </summary>
+/// <summary>
+/// A hand for rows that lead somewhere, the ordinary arrow for the rest.
+///
+/// The cursor is the only thing that says a line is clickable before it is clicked, and a hand
+/// over a row that does nothing is a promise the row cannot keep.
+/// </summary>
+public sealed class BoolToCursorConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is true ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 public sealed class FilterToAppearanceConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)

@@ -1,4 +1,4 @@
-<UserControl x:Class="VoiceTranscript.App.Views.ContactsPage"
+﻿<UserControl x:Class="VoiceTranscript.App.Views.ContactsPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:VoiceTranscript.App"
@@ -12,9 +12,17 @@
 
     <Grid Margin="{StaticResource PadPage}">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="300" />
+            <!--
+                Narrower, and the reader decides how narrow.
+
+                A fixed 300 is a guess about a window somebody else is sizing: the names in it are
+                short, the conversation beside it is not, and on a laptop the guess costs a fifth
+                of the screen to show a column of first names. The bounds keep it usable at both
+                ends; the splitter below makes the rest somebody's own business.
+            -->
+            <ColumnDefinition Width="232" MinWidth="170" MaxWidth="520" />
             <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" MinWidth="360" />
         </Grid.ColumnDefinitions>
 
         <!-- Contact list -->
@@ -147,8 +155,21 @@
             </StackPanel>
         </Grid>
 
-        <Border Grid.Column="1" Width="1" Margin="16,0" VerticalAlignment="Stretch"
-                Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+        <!-- The divider IS the handle: a separate one-pixel line beside a drag target is two
+             things where the eye sees one. -->
+        <GridSplitter Grid.Column="1" Width="9" Margin="12,0" HorizontalAlignment="Center"
+                      VerticalAlignment="Stretch" Background="Transparent"
+                      ShowsPreview="False" Cursor="SizeWE"
+                      ToolTip="{loc:T contactspage.surukleyerek-genislet}">
+            <GridSplitter.Template>
+                <ControlTemplate TargetType="GridSplitter">
+                    <Border Background="Transparent">
+                        <Border Width="1" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                                Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+                    </Border>
+                </ControlTemplate>
+            </GridSplitter.Template>
+        </GridSplitter>
 
         <!-- Detail -->
         <Grid Grid.Column="2">

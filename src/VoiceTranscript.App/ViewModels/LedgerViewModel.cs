@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Domain;
@@ -341,6 +341,35 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
         OnPropertyChanged(nameof(HasEntries));
 
         Notice?.Invoke(this, "Tutuldu olarak işaretlendi.");
+    }
+
+    /// <summary>
+    /// Clears out the entries that carry nothing, on demand.
+    ///
+    /// The same sweep the application runs once at startup, offered as a button because the
+    /// person looking at a ledger full of repeated lines should not have to restart to be rid of
+    /// them — and because a cleanup that only ever happens invisibly is one nobody can trust.
+    ///
+    /// Only two populations go: an entry with no obligation text, which is a promise the archive
+    /// cannot state and can never close, and exact duplicates of another entry. A ruling the user
+    /// made is never touched.
+    /// </summary>
+    [RelayCommand]
+    private void Sweep()
+    {
+        var swept = repository.SweepLedger();
+
+        if (swept.Total == 0)
+        {
+            Notice?.Invoke(this, "Temizlenecek bir şey yok — defterde boş ya da tekrarlanan kayıt kalmamış.");
+            return;
+        }
+
+        Refresh();
+
+        Notice?.Invoke(this,
+            $"{swept.Total} kayıt kaldırıldı: {swept.Hollow} tanesi neyin söz verildiğini yazmıyordu, "
+            + $"{swept.Duplicates} tanesi tekrardı. Senin kapattığın ya da tuttuğun kayıtlara dokunulmadı.");
     }
 
     [RelayCommand]

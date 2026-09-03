@@ -166,11 +166,27 @@
                 <ContentPresenter Grid.Column="0" Content="{Binding}"
                                   ContentTemplate="{StaticResource ProcessingRowBody}" />
 
-                <ui:Button Grid.Column="1" Content="{loc:T processingpage.yeniden-cevir}" VerticalAlignment="Center"
-                           Appearance="Transparent"
-                           IsEnabled="{Binding HasAudio}"
-                           ToolTip="{loc:T processingpage.sesi-sececegin-bir-motorla-yeniden-yaziya}"
-                           Click="Reprocess_Click" Tag="{Binding}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:Button Content="{loc:T processingpage.yeniden-cevir}" VerticalAlignment="Center"
+                               Appearance="Transparent"
+                               IsEnabled="{Binding HasAudio}"
+                               ToolTip="{loc:T processingpage.sesi-sececegin-bir-motorla-yeniden-yaziya}"
+                               Click="Reprocess_Click" Tag="{Binding}" />
+
+                    <!--
+                        And a way to let it go, in the open.
+
+                        A recording that came back with no speech in it is not repaired by trying
+                        the same engine again, and the only way to remove it was a right-click
+                        menu — which is not a way anybody finds. A row whose only remaining verb
+                        is "delete" has to wear it.
+                    -->
+                    <ui:Button Appearance="Transparent" Padding="6,2" Margin="2,0,0,0"
+                               ToolTip="{loc:T processingpage.gorusmeyi-sil}"
+                               Click="RowDelete_Click" Tag="{Binding}">
+                        <ui:SymbolIcon Symbol="Delete24" FontSize="14" />
+                    </ui:Button>
+                </StackPanel>
             </Grid>
         </DataTemplate>
 

@@ -375,6 +375,9 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(AttentionLine));
     }
 
+    /// <summary>Re-reads everything about this call. Used after a stored transcript is put back.</summary>
+    public void Reload() => Load();
+
     private void Load()
     {
         var call = _repository.GetCall(CallId);

@@ -36,14 +36,22 @@ public class AudiolessRowTests
     }
 
     /// <summary>
-    /// The distinction is the audio, not the failure. A recording that exists and failed to
-    /// transcribe is exactly what the waiting list is for — it is one retry away from working, and
-    /// hiding it would lose a conversation the user still has on disk.
+    /// A failure is not pending work, whether or not the audio is still there.
+    ///
+    /// This test used to assert the opposite, and the reasoning was sound at the time: the row is
+    /// one retry away from working, and there was nowhere else it would be seen. There is now —
+    /// failures have their own filter, and the first screen's notice leads to it — so counting
+    /// them as waiting only made "Bekleyenler" a list nobody could empty. A real recording that
+    /// came back with "konuşma bulunamadı" sat at the top of it permanently, beside a number no
+    /// amount of work could clear.
+    ///
+    /// Nothing is hidden by this: the row is in "İşlenemeyenler" with its reason, its retry and
+    /// its delete. What changed is which question it answers.
     /// </summary>
     [Fact]
-    public void ARecordingThatExistsAndFailedIsStillWaiting()
+    public void ARecordingThatFailedIsNotWaitingEvenWithItsAudio()
     {
-        Assert.True(Row(ProcessingState.Failed, mic: @"C:\ses\call-1-mic.wav").NeedsTranscription);
+        Assert.False(Row(ProcessingState.Failed, mic: @"C:\ses\call-1-mic.wav").NeedsTranscription);
     }
 
     [Fact]

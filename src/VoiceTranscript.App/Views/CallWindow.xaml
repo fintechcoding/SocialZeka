@@ -281,9 +281,16 @@
                             <TextBlock Grid.Column="1" Text="{Binding QualityLine}" TextWrapping="Wrap"
                                        VerticalAlignment="Center" Style="{StaticResource Caption}" />
 
-                            <ui:Button Grid.Column="2" Content="{loc:T callwindow.yeniden-cevir}" Appearance="Transparent"
-                                       Margin="10,0,0,0" Click="Retranscribe_Click"
-                                       ToolTip="{loc:T callwindow.bu-gorusmeyi-baska-bir-motorla-bastan-yazi}" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                <!-- Every transcript this call has had, and the engine each came from. -->
+                                <ui:Button Content="{loc:T callwindow.dokumler}" Appearance="Transparent"
+                                           Margin="10,0,0,0" Click="Versions_Click"
+                                           ToolTip="{loc:T callwindow.bu-gorusmenin-butun-dokumleri-ve-hangi-mot}" />
+
+                                <ui:Button Content="{loc:T callwindow.yeniden-cevir}" Appearance="Transparent"
+                                           Margin="4,0,0,0" Click="Retranscribe_Click"
+                                           ToolTip="{loc:T callwindow.bu-gorusmeyi-baska-bir-motorla-bastan-yazi}" />
+                            </StackPanel>
                         </Grid>
                     </Border>
 

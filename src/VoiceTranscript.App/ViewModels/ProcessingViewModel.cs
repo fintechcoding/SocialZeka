@@ -164,10 +164,21 @@ public sealed record ProcessingRow(Call Call, string ContactName, int SegmentCou
     /// a backlog figure that no amount of work would clear, which is the same fault the pending
     /// count itself was written to fix. They are still in "Hepsi", and still deletable there.
     /// </summary>
+    /// <summary>
+    /// Whether the machine still has this row to do.
+    ///
+    /// Waiting means waiting. A row that failed is not queued behind anything and nothing is
+    /// going to pick it up: it needs a person to choose another engine or to let it go, and it
+    /// has its own filter now that says exactly that. Counted as pending, one recording that came
+    /// back with "konuşma bulunamadı" sat at the top of "Bekleyenler" permanently with a number
+    /// beside it that no amount of work could clear — the same fault the pending count was
+    /// written to fix, arriving from a third direction.
+    /// </summary>
     public bool NeedsTranscription =>
         IsWaiting
         || IsWorking
-        || (HasAudio && (TranscriptFailed || (!HasTranscript && Call.State != ProcessingState.Skipped)));
+        || (HasAudio && !HasTranscript
+            && Call.State is not (ProcessingState.Skipped or ProcessingState.Failed));
 }
 
 /// <summary>

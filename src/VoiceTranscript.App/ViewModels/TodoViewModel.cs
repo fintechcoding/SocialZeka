@@ -54,6 +54,14 @@ public sealed class TodoEntry(TodoEntryKind kind, long id, string text, DateOnly
     public bool HasCall => CallId is not null;
     public bool CanDelete => Kind == TodoEntryKind.Manual;
 
+    /// <summary>
+    /// A suggestion can be turned down. A note the user wrote is deleted, not refused.
+    ///
+    /// Two different verbs for two different things: refusing is a judgement about something the
+    /// machine proposed, and the machine is told — a refused suggestion is not offered again.
+    /// </summary>
+    public bool CanDismiss => Kind == TodoEntryKind.Action && !IsDone;
+
     public string DueText => Due is { } d
         ? d == DateOnly.FromDateTime(DateTime.Today) ? Localisation.T("todopage.bugun")
         : d == DateOnly.FromDateTime(DateTime.Today).AddDays(1) ? Localisation.T("todopage.yarin")
@@ -116,6 +124,22 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
     /// a real question the one blended list could not answer.
     /// </summary>
     [ObservableProperty] private TodoSource _source = TodoSource.All;
+
+    /// <summary>
+    /// What just happened to a row, with a way to undo it.
+    ///
+    /// Refusing a suggestion is permanent — it is recorded so the same one is never proposed
+    /// again — which is exactly the kind of act that must not be one misplaced click away with no
+    /// way back. The pattern is the one every list application settled on: do it immediately,
+    /// say so quietly, and offer to undo for as long as the line is on screen. A confirmation
+    /// dialog would be worse: it interrupts the list to ask about the least consequential thing
+    /// on it, and people learn to dismiss it without reading.
+    /// </summary>
+    [ObservableProperty] private string? _notice;
+
+    private long _undoActionId;
+
+    public bool CanUndo => _undoActionId != 0;
 
     /// <summary>Raised when a row wants its conversation opened; the page owns the window.</summary>
     public event EventHandler<TodoEntry>? OpenCallRequested;
@@ -236,6 +260,48 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
 
         Refresh();
     }
+
+    /// <summary>Turns down a suggestion, and remembers it long enough to be taken back.</summary>
+    [RelayCommand]
+    private void Dismiss(TodoEntry? entry)
+    {
+        if (entry is null || entry.Kind != TodoEntryKind.Action) return;
+
+        repository.SetActionStatus(entry.Id, ActionStatus.Hidden);
+
+        _undoActionId = entry.Id;
+        Notice = $"Gizlendi: {Shorten(entry.Text)}";
+
+        OnPropertyChanged(nameof(CanUndo));
+        Refresh();
+    }
+
+    [RelayCommand]
+    private void UndoDismiss()
+    {
+        if (_undoActionId == 0) return;
+
+        repository.SetActionStatus(_undoActionId, ActionStatus.Open);
+
+        _undoActionId = 0;
+        Notice = null;
+
+        OnPropertyChanged(nameof(CanUndo));
+        Refresh();
+    }
+
+    [RelayCommand]
+    private void ClearNotice()
+    {
+        _undoActionId = 0;
+        Notice = null;
+
+        OnPropertyChanged(nameof(CanUndo));
+    }
+
+    /// <summary>Enough of the line to recognise it, not enough to fill the bar.</summary>
+    private static string Shorten(string text) =>
+        text.Length <= 46 ? text : text[..45].TrimEnd() + "…";
 
     [RelayCommand]
     private void Delete(TodoEntry? entry)

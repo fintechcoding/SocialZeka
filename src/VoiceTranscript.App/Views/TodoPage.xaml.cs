@@ -17,6 +17,20 @@ public partial class TodoPage
         };
     }
 
+    /// <summary>
+    /// Clicking the line opens the conversation it came from.
+    ///
+    /// The buttons inside the row swallow their own clicks, so ticking, refusing and deleting
+    /// still do their own thing; the space between them is the way in.
+    /// </summary>
+    private void Row_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: TodoEntry entry }) return;
+        if (DataContext is not TodoViewModel model) return;
+
+        model.OpenCommand.Execute(entry);
+    }
+
     private void OnOpenCall(object? sender, TodoEntry entry)
     {
         if (entry.CallId is not { } callId) return;

@@ -118,6 +118,10 @@ public class WindowSmokeTests
 
                 Build("Kişiyi yeniden adlandır", () => new RenameContactWindow("Serdal"), failures);
 
+                // Every transcript a call has had. Built here because it is opened from inside
+                // another window, which is the surest way for a page to ship unbuilt.
+                Build("Dökümler", () => new TranscriptVersionsWindow(repository, callId: 1), failures);
+
                 // The densest new markup in the product: four tabs, a chat layout, two
                 // converters and a player, all of which compile cleanly and would throw on
                 // first open if a resource key were wrong.

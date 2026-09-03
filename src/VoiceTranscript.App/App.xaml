@@ -1,4 +1,4 @@
-<Application x:Class="VoiceTranscript.App.App"
+﻿<Application x:Class="VoiceTranscript.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -46,6 +46,7 @@
             <local:EqualsParameterConverter x:Key="IsPage" />
             <local:EqualToVisibilityConverter x:Key="EqualToVisibility" />
             <local:FilterToAppearanceConverter x:Key="FilterAppearance" />
+            <local:BoolToCursorConverter x:Key="HandWhenTrue" />
 
         </ResourceDictionary>
     </Application.Resources>
