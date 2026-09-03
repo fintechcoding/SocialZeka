@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -100,7 +100,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         _notionApiKey = settings.NotionApiKey ?? "";
         _notionDatabaseId = settings.NotionDatabaseId ?? "";
         _audioRetentionDays = settings.AudioRetentionDays;
-        _trimSilence = settings.TrimSilenceAfterProcessing;
         _compressAudio = settings.CompressAudioAfterProcessing;
 
         foreach (var endpoint in settings.SttEndpoints)
@@ -444,8 +443,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _notionDatabaseId;
     [ObservableProperty] private int _audioRetentionDays;
 
-    /// <summary>Shrink the nobody-talking stretches once a recording is processed.</summary>
-    [ObservableProperty] private bool _trimSilence;
     [ObservableProperty] private bool _compressAudio = true;
 
     /// <summary>Nothing chosen for analysis: the page shows what to do instead of an empty address.</summary>
@@ -923,7 +920,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         NotionApiKey = string.IsNullOrWhiteSpace(NotionApiKey) ? null : NotionApiKey,
         NotionDatabaseId = string.IsNullOrWhiteSpace(NotionDatabaseId) ? null : NotionDatabaseId.Trim(),
         AudioRetentionDays = AudioRetentionDays,
-        TrimSilenceAfterProcessing = TrimSilence,
         CompressAudioAfterProcessing = CompressAudio,
         SttEndpoints = [.. SttEndpoints.Select(e => e.ToEndpoint())],
     };

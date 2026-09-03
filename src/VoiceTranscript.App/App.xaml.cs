@@ -350,6 +350,50 @@ public partial class App : Application
             AppLog.Error("veri", repair, "ses dosyalarının yolu bu makineye göre düzeltilemedi");
         }
 
+        // The duration on a row has to describe the audio that row points at.
+        //
+        // It stopped doing so, and the way it stopped is the reason this check exists rather than
+        // a fix in one place. Silence trimming rewrote both streams and then failed on a
+        // derived file the player happened to have open — after the audio had been replaced and
+        // before the row was updated. The recording became 28 seconds shorter, the row went on
+        // saying the old length, and nothing anywhere compared the two: the player scaled its
+        // timeline to the row while the audio came from the file, so every position in that
+        // conversation drifted by up to a seventh of its length. The operation that caused it is
+        // gone; this is what makes the class of fault visible instead of silent.
+        //
+        // On a background thread because it reads the end of every recording in the archive, and
+        // corrected quietly because the user cannot act on it — what they can act on is a
+        // conversation that plays in step, which is what this gives them back.
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var corrected = 0;
+
+                foreach (var call in Repository.CallsWithAudio())
+                {
+                    var measured = Core.Audio.AudioLength.Of(call.MicPath)
+                                   ?? Core.Audio.AudioLength.Of(call.FarPath);
+
+                    if (measured is not { } length) continue;
+                    if (Math.Abs((length - call.Duration).TotalSeconds) < 1) continue;
+
+                    Repository.SetDuration(call.Id, length);
+                    corrected++;
+                }
+
+                if (corrected > 0)
+                {
+                    AppLog.Write("veri",
+                        $"{corrected} görüşmenin süresi diskteki sesle uyuşmuyordu, sese göre düzeltildi");
+                }
+            }
+            catch (Exception repair)
+            {
+                AppLog.Error("veri", repair, "görüşme süreleri sesle karşılaştırılamadı");
+            }
+        });
+
         // Counters that could already be wrong are corrected once, here.
         //
         // Moving a call between contacts used to recalculate only the destination, so the contact

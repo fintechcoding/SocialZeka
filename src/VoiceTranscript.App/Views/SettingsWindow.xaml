@@ -1,4 +1,4 @@
-<ui:FluentWindow x:Class="VoiceTranscript.App.Views.SettingsWindow"
+﻿<ui:FluentWindow x:Class="VoiceTranscript.App.Views.SettingsWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:VoiceTranscript.App"
@@ -628,25 +628,6 @@
                             </Grid>
                         </Border>
 
-                        <Border Style="{StaticResource SettingCard}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0" Symbol="Cut24" FontSize="18" Margin="0,0,14,0"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{loc:T settingswindow.sessizligi-kirp}" FontSize="{StaticResource TextBody}" />
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="{loc:T settingswindow.sessizligi-kirp-aciklama}" />
-                                </StackPanel>
-                                <ui:ToggleSwitch Grid.Column="2" IsChecked="{Binding TrimSilence}"
-                                                 VerticalAlignment="Center" />
-                            </Grid>
-                        </Border>
 
                         <!-- Two PCM streams are 230 MB an hour. Opus keeps the call and drops
                              the size twenty-fold; the two sides stay separate files. -->

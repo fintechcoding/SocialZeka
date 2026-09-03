@@ -642,8 +642,6 @@
   "settingswindow.ses-yakalamayi-sina": "Test audio capture",
   "settingswindow.sesi-sikistir": "Compress audio",
   "settingswindow.sesi-sikistir-aciklama": "Turns a processed recording into Opus: the same audio, a fifth of the size. The two sides stay apart, and it is decoded again for playback, clips and re-transcription. The quality is kept deliberately high because re-transcription reads this file. Older recordings are compressed in the background at startup.",
-  "settingswindow.sessizligi-kirp": "Trim silence after processing",
-  "settingswindow.sessizligi-kirp-aciklama": "Long stretches where nobody is talking are shortened — words, pauses and timestamps stay exactly as they were. A 46-minute call can halve.",
   "settingswindow.sesten-kisi-tanima": "Recognise people by voice",
   "settingswindow.sifir-suresiz-saklamak-demektir-sabitlenmi": "Zero keeps them forever. Only the audio goes — transcripts, the ledger and notes stay. Calls on the board or with a note are never swept.",
   "settingswindow.signal": "Signal",

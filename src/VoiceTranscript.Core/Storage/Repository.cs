@@ -970,6 +970,31 @@ public sealed class Repository(Database database)
         return [.. rows.Select(r => (r.Item1.ToModel(), r.Item2 ?? "İsimsiz"))];
     }
 
+    /// <summary>Every call that still has audio on the row, for the checks that read the files.</summary>
+    public IReadOnlyList<Call> CallsWithAudio()
+    {
+        using var connection = Open();
+        return [.. connection.Query<CallRow>(
+            "SELECT * FROM call WHERE mic_path IS NOT NULL OR far_path IS NOT NULL ORDER BY id;")
+            .Select(r => r.ToModel())];
+    }
+
+    /// <summary>
+    /// Corrects how long a recording is said to be.
+    ///
+    /// Separate from <see cref="CompleteCall"/> because this is not the recorder speaking: it is
+    /// a repair, made when the number on the row turns out not to describe the audio the row
+    /// points at.
+    /// </summary>
+    public void SetDuration(long callId, TimeSpan duration)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            "UPDATE call SET duration_ms = @durationMs WHERE id = @callId;",
+            new { callId, durationMs = (long)duration.TotalMilliseconds });
+    }
+
     /// <summary>Points a call at new audio files — after compression, when the bytes moved but nothing else did.</summary>
     public void SetAudioPaths(long callId, string? micPath, string? farPath)
     {
@@ -3048,74 +3073,6 @@ public sealed class Repository(Database database)
     }
 
     // ---- silence trimming ---------------------------------------------------
-
-    /// <summary>
-    /// Moves every timestamp this call owns onto the trimmed timeline, atomically.
-    ///
-    /// One transaction across four tables, because a half-applied shift is worse than none: a
-    /// segment on the new clock beside a quote on the old one means clicking a quote plays the
-    /// wrong moment — precisely the betrayal this product exists to make impossible. The stamp
-    /// is written in the same transaction, so "was this recording shifted" and "were its rows
-    /// shifted" can never answer differently.
-    /// </summary>
-    public void ApplyTrim(
-        long callId,
-        IReadOnlyList<(long StartMs, long RemovedMs)> cuts,
-        TimeSpan newDuration)
-    {
-        using var connection = Open();
-        using var transaction = connection.BeginTransaction();
-
-        // Row by row through the same mapping the audio went through. SQL could express the
-        // arithmetic, but not legibly, and a call has hundreds of rows, not millions.
-        var segments = connection.Query<(long Id, long StartMs, long EndMs)>(
-            "SELECT id, start_ms, end_ms FROM segment WHERE call_id = @callId;",
-            new { callId }, transaction);
-
-        foreach (var (id, startMs, endMs) in segments)
-        {
-            connection.Execute(
-                "UPDATE segment SET start_ms = @s, end_ms = @e WHERE id = @id;",
-                new
-                {
-                    id,
-                    s = Audio.SilenceTrimmer.MapMs(startMs, cuts),
-                    e = Audio.SilenceTrimmer.MapMs(endMs, cuts),
-                }, transaction);
-        }
-
-        foreach (var table in new[] { "commitment", "claim", "flag" })
-        {
-            var quotes = connection.Query<(long Id, long QuoteStartMs)>(
-                $"SELECT id, quote_start_ms FROM {table} WHERE call_id = @callId;",
-                new { callId }, transaction);
-
-            foreach (var (id, quoteStartMs) in quotes)
-            {
-                connection.Execute(
-                    $"UPDATE {table} SET quote_start_ms = @q WHERE id = @id;",
-                    new { id, q = Audio.SilenceTrimmer.MapMs(quoteStartMs, cuts) }, transaction);
-            }
-        }
-
-        var counters = connection.Query<(long Id, long? CounterMs)>(
-            "SELECT id, counter_quote_start_ms FROM flag WHERE call_id = @callId AND counter_quote_start_ms IS NOT NULL;",
-            new { callId }, transaction);
-
-        foreach (var (id, counterMs) in counters)
-        {
-            connection.Execute(
-                "UPDATE flag SET counter_quote_start_ms = @q WHERE id = @id;",
-                new { id, q = Audio.SilenceTrimmer.MapMs(counterMs!.Value, cuts) }, transaction);
-        }
-
-        connection.Execute(
-            "UPDATE call SET duration_ms = @d, trimmed_at = @now WHERE id = @callId;",
-            new { callId, d = (long)newDuration.TotalMilliseconds, now = Iso(DateTimeOffset.UtcNow) },
-            transaction);
-
-        transaction.Commit();
-    }
 
     // ---- retention ----------------------------------------------------------
 

@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Reflection;
 using VoiceTranscript.App.ViewModels;
 using VoiceTranscript.Core.Configuration;
@@ -173,7 +173,7 @@ public class SettingsSurviveSavingTests
         nameof(AppSettings.NotionApiKey), nameof(AppSettings.NotionDatabaseId),
         nameof(AppSettings.AudioRetentionDays), nameof(AppSettings.SttEndpoints),
         nameof(AppSettings.RecordSignal), nameof(AppSettings.StartWithWindows),
-        nameof(AppSettings.TrimSilenceAfterProcessing), nameof(AppSettings.IdentifySpeakers),
+        nameof(AppSettings.IdentifySpeakers),
         nameof(AppSettings.Language), nameof(AppSettings.TranscribeGroupCalls),
         nameof(AppSettings.LogDetail),
     ];
