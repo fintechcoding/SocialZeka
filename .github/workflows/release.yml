@@ -71,9 +71,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      # numpy alongside pytest, because vt_worker.speaker computes its filterbank with it. The
+      # rest of the pinned runtime is deliberately absent — see the same step in ci.yml. This file
+      # was missed when that one was updated, and the release that followed failed here rather
+      # than shipping, which is the failure working as intended.
       - name: Python testleri
         run: |
-          python -m pip install --quiet --upgrade pip pytest
+          python -m pip install --quiet --upgrade pip pytest numpy
           python -m pytest worker/tests -q
 
       - name: Inno Setup
