@@ -214,6 +214,18 @@ public sealed class WorkerProgress : WorkerEvent
     public string Stage { get; init; } = "";
 
     public double Percent { get; init; }
+
+    /// <summary>
+    /// What the engine is doing, in its own words — "3/5 yükleniyor · 12.4 MB · Opus · dil tr",
+    /// "sunucuda sırada · 4 dk", "2/5 geldi · dil tr · 18 satır · 214 kelime". Null when nothing
+    /// new has been said since the last event.
+    ///
+    /// The cloud engines had been composing these all along and the worker discarded them, so a
+    /// percentage was the only thing that ever reached a log. Four days of "why is the cloud
+    /// worse" were spent guessing at what a request contained while the request was describing
+    /// itself into a variable named with a leading underscore.
+    /// </summary>
+    public string? Note { get; init; }
 }
 
 public sealed class WorkerFailure : WorkerEvent

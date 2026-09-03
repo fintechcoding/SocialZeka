@@ -209,9 +209,29 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
         if not path:
             return []
 
-        def on_progress(fraction: float, _stage: str) -> None:
+        # What the engine says, not only how far it has got.
+        #
+        # The second argument was named _stage and thrown away, and what it actually carries is
+        # every diagnostic line the cloud engines were given a great deal of care to produce:
+        # "3/5 yükleniyor · 12.4 MB · Opus · dil tr", "sunucuda sırada · 4 dk", "2/5 geldi ·
+        # dil tr · 18 satır · 214 kelime". None of it had ever reached a log or a screen. Four
+        # days went into comparing a local transcript with a cloud one and guessing at what
+        # differed — the flag, the bitrate, the silence — while the answer to "what did we send
+        # and what came back" was being computed and discarded on every chunk.
+        last = ""
+
+        def on_progress(fraction: float, note: str) -> None:
+            nonlocal last
             percent = weight_from + (weight_to - weight_from) * fraction
-            emit({"type": "progress", "id": job_id, "stage": stage, "percent": round(percent, 1)})
+            event = {"type": "progress", "id": job_id, "stage": stage, "percent": round(percent, 1)}
+
+            # Only when it changes: a long upload reports the same line several times a second,
+            # and a log that repeats one sentence four hundred times hides the one after it.
+            if note and note != last:
+                event["note"] = note
+                last = note
+
+            emit(event)
 
         raw = engine.transcribe(path, options, on_progress)
 
