@@ -1,126 +1,86 @@
 namespace VoiceTranscript.Core.Text;
 
 /// <summary>
-/// The words the recogniser should expect, assembled from everything the archive already knows.
+/// The words the recogniser should expect: the ones the user typed, and only those.
 ///
-/// A hand-written term list does not scale: the user has hundreds of names, products and bits of
-/// jargon, and nobody maintains a list like that. Most of it is already in the application —
-/// the contacts, what the user wrote about them, and the proper nouns the transcripts themselves
-/// keep producing. Those are gathered here and sent ahead of every transcription; the typed list
-/// is kept for the stubborn few ("Sumsub") that the recogniser has never once got right and so
-/// cannot be mined.
+/// <b>This class used to do considerably more, and what was removed is worth writing down,
+/// because the idea that produced it is a good one and somebody will have it again.</b>
+///
+/// The reasoning was that a hand-written term list does not scale — the user has hundreds of
+/// names, products and bits of jargon, nobody maintains a list like that, and most of it is
+/// already in the application: the contacts, and the proper nouns the transcripts themselves keep
+/// producing. So a miner read capitalised mid-sentence words out of the archive, they were merged
+/// with the contact list, and the result went to the recogniser two ways at once: as
+/// <c>hotwords</c>, and as the decoder's <c>initial_prompt</c>.
+///
+/// Those two are not the same feature spelled differently, and treating them as one is what
+/// caused the worst fault this application has had.
+///
+/// <list type="bullet">
+///   <item><b>hotwords</b> is a weighting. Every term's probability is nudged up in each decoding
+///   window, so "Sumsub" wins against "sum sub" where the audio is ambiguous. A wrong term costs
+///   almost nothing: it simply never wins.</item>
+///   <item><b>initial_prompt</b> is context — text the decoder is told it has just produced, which
+///   it then continues. It carries style as much as vocabulary, and a comma-separated list of
+///   capitalised words is a style. Given one, the model stops transcribing and goes on writing the
+///   list.</item>
+/// </list>
+///
+/// Measured on one real recording, the same 180 seconds through the same service, the only
+/// difference being this field:
+///
+/// <code>
+/// with it:    "Yani, Uzun, Bir, Süre, Tabii, İşin, Yücün, Rast gelsin, Yapıyor, Bunu, Ama,
+///              Sonuçta, Bu, Paraları, Senin, Ödem..."
+/// without it: "Bu paraları senin ödemen gerekiyordu. O kendisi üstleniyor. Neden? Çünkü senin
+///              sorumluluğunda."
+/// </code>
+///
+/// The second is the transcript. The dates agree: the prompt was introduced on 2026-09-02, every
+/// call recorded before it reads cleanly at 100-160 words a minute with no invented lines, and
+/// almost every call after it carries them.
+///
+/// And it compounded rather than staying constant, because the list fed itself. The miner found
+/// names by looking for capitalised words mid-sentence — and a transcript made of capitalised
+/// words mid-sentence is nothing but candidates. Two days of that had collected 230 "names" whose
+/// most frequent members were "Yani", "Ben", "Tamam", "Ama", "Evet": the commonest words in the
+/// language. Those went back into the prompt, and round again.
+///
+/// So the prompt is gone, and the mining with it. What is left is the list the user typed, which
+/// was always the part that could not be derived from anything and is the reason the feature
+/// exists — "Sumsub" is not in the archive under the right spelling precisely because the
+/// recogniser has never once got it right.
+///
+/// <b>Where the remaining list actually reaches.</b> Hotwords is a faster-whisper (CTranslate2)
+/// parameter. The local engine uses it; ElevenLabs takes the same terms as <c>keyterms</c> and
+/// Deepgram as <c>keywords</c>. stt.ex5.ai and OpenAI have no equivalent field at all, so on those
+/// two the typed list is carried and has no effect. That is worth knowing before anybody spends
+/// an evening wondering why a term they added changed nothing.
 /// </summary>
-public sealed record Vocabulary(string? Terms, string? Prompt)
+public sealed record Vocabulary(string? Terms)
 {
-    public static readonly Vocabulary Empty = new(null, null);
+    public static readonly Vocabulary Empty = new((string?)null);
 
     /// <summary>How many terms go as hotwords. Beyond this the bias dilutes into noise.</summary>
     public const int MaxTerms = 300;
 
-    /// <summary>
-    /// How many go in the initial prompt. Whisper reads only the last ~220 tokens of it, and a
-    /// prompt that long gets echoed into silence; forty short terms stays well under that.
-    /// </summary>
-    public const int PromptTerms = 40;
-
-    /// <summary>
-    /// Merges the sources in order of trust: what the user typed, then the people they know,
-    /// then what the transcripts keep saying. Duplicates keep their first, more trusted, place.
-    /// </summary>
-    public static Vocabulary Compose(
-        IEnumerable<string>? manual,
-        IEnumerable<string>? names = null,
-        IEnumerable<string>? mined = null)
+    /// <summary>The typed terms, cleaned and de-duplicated, as the recogniser wants them.</summary>
+    public static Vocabulary Compose(IEnumerable<string>? manual)
     {
+        if (manual is null) return Empty;
+
         var seen = new HashSet<string>(StringComparer.CurrentCultureIgnoreCase);
         var terms = new List<string>();
 
-        foreach (var source in new[] { manual, names, mined })
+        foreach (var raw in manual)
         {
-            if (source is null) continue;
+            var term = raw.Trim().Trim(',', ';', '.');
+            if (term.Length < 2 || !seen.Add(term)) continue;
 
-            foreach (var raw in source)
-            {
-                var term = raw.Trim().Trim(',', ';', '.');
-                if (term.Length < 2 || !seen.Add(term)) continue;
-
-                terms.Add(term);
-                if (terms.Count >= MaxTerms) break;
-            }
-
+            terms.Add(term);
             if (terms.Count >= MaxTerms) break;
         }
 
-        if (terms.Count == 0) return Empty;
-
-        return new Vocabulary(
-            string.Join(", ", terms),
-            string.Join(", ", terms.Take(PromptTerms)) + ".");
-    }
-}
-
-/// <summary>
-/// Finds the proper nouns a transcript archive keeps producing.
-///
-/// Whisper capitalises names it recognises and little else mid-sentence, so a capitalised token
-/// that is not at the start of a sentence and recurs across the archive is, nearly always, a
-/// person, a place, a company or a product. Sentence-initial words are skipped: every sentence
-/// starts with a capital. Turkish suffixes after an apostrophe are cut ("Sumsub'a" → "Sumsub").
-/// Deterministic and free — no model runs — so it can run before every transcription.
-/// </summary>
-public static class VocabularyMiner
-{
-    private static readonly char[] SentenceEnds = ['.', '?', '!', ':', ';'];
-
-    public static IReadOnlyList<string> Mine(IEnumerable<string> texts, int max = 200, int minCount = 2)
-    {
-        var counts = new Dictionary<string, int>(StringComparer.CurrentCulture);
-
-        foreach (var text in texts)
-        {
-            if (string.IsNullOrWhiteSpace(text)) continue;
-
-            var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var sentenceStart = true;
-
-            foreach (var token in tokens)
-            {
-                var word = Stem(token);
-                var endsSentence = token.Length > 0 && SentenceEnds.Contains(token[^1]);
-
-                if (!sentenceStart && LooksLikeAName(word))
-                    counts[word] = counts.GetValueOrDefault(word) + 1;
-
-                sentenceStart = endsSentence;
-            }
-        }
-
-        return
-        [
-            .. counts
-                .Where(kv => kv.Value >= minCount)
-                .OrderByDescending(kv => kv.Value)
-                .ThenBy(kv => kv.Key, StringComparer.CurrentCulture)
-                .Select(kv => kv.Key)
-                .Take(max),
-        ];
-    }
-
-    /// <summary>The token without punctuation and without a Turkish suffix after an apostrophe.</summary>
-    private static string Stem(string token)
-    {
-        var cut = token.IndexOfAny(['\'', '’', '‘']);
-        if (cut >= 0) token = token[..cut];
-
-        return token.Trim('.', ',', '?', '!', ':', ';', '"', '(', ')', '[', ']', '«', '»', '“', '”');
-    }
-
-    private static bool LooksLikeAName(string word)
-    {
-        if (word.Length < 3 || word.Length > 30) return false;
-        if (!char.IsUpper(word[0])) return false;
-
-        // Letters only, apart from an inner hyphen or dot ("Coca-Cola", "Node.js").
-        return word.All(c => char.IsLetter(c) || c is '-' or '.');
+        return terms.Count == 0 ? Empty : new Vocabulary(string.Join(", ", terms));
     }
 }

@@ -3,83 +3,75 @@ using VoiceTranscript.Core.Text;
 namespace VoiceTranscript.Tests;
 
 /// <summary>
-/// The vocabulary the recogniser is sent has to come from the archive, not from a list nobody
-/// will maintain — and it has to be the names, not every capital letter.
+/// The vocabulary is the list the user typed, and it reaches the recogniser as a weighting.
+///
+/// It used to be more than that: contact names and proper nouns mined out of the archive were
+/// merged in, and the result was sent both as hotwords and as the decoder's initial prompt. That
+/// combination broke transcription outright for two days, and these tests exist to hold the two
+/// halves of the fix — no prompt, no mining — rather than to describe a feature.
 /// </summary>
 public sealed class VocabularyTests
 {
     [Fact]
-    public void RecurringMidSentenceNamesAreMined()
+    public void TheTypedTermsAreCleanedAndDeduplicated()
     {
-        var texts = new[]
-        {
-            "Dün Uliana ile Sumsub'a bakacağız dedik.",
-            "Sumsub tarafı KYC için bir daha aradı.",
-            "Bugün Uliana aramadı, ama Sumsub onboarding'i sordu ve KYC belgelerini istedi.",
-        };
+        var vocabulary = Vocabulary.Compose(["Sumsub", "KYC,", " Uliana ", "sumsub", "x", ""]);
 
-        var mined = VocabularyMiner.Mine(texts);
-
-        Assert.Contains("Sumsub", mined);
-        Assert.Contains("Uliana", mined);
-        Assert.Contains("KYC", mined);
+        // "x" is one character and "sumsub" is the same word again; both go.
+        Assert.Equal("Sumsub, KYC, Uliana", vocabulary.Terms);
     }
 
     [Fact]
-    public void SentenceStartsAndOneOffsAreNotNames()
-    {
-        var texts = new[]
-        {
-            "Bugün hava güzel. Yarın da güzel olacak.",
-            "Bugün geldi. Ahmet bir kez geçti.",
-        };
-
-        var mined = VocabularyMiner.Mine(texts);
-
-        // "Bugün" and "Yarın" only ever start a sentence; "Ahmet" appears once, after a stop.
-        Assert.DoesNotContain("Bugün", mined);
-        Assert.DoesNotContain("Yarın", mined);
-        Assert.DoesNotContain("Ahmet", mined);
-    }
-
-    [Fact]
-    public void TheMostFrequentComeFirstAndTheListIsCapped()
-    {
-        var texts = Enumerable.Range(0, 5).Select(_ => "biz Sumsub ve Uliana ile Sumsub için konuştuk").ToList();
-        texts.Add("bir kere Zeta dedi, sonra yine Zeta dedi");
-
-        var mined = VocabularyMiner.Mine(texts, max: 2);
-
-        Assert.Equal(["Sumsub", "Uliana"], mined);
-    }
-
-    [Fact]
-    public void ComposeKeepsTheTypedTermsFirstAndDropsDuplicates()
-    {
-        var vocabulary = Vocabulary.Compose(
-            manual: ["Sumsub", "KYC"],
-            names: ["Uliana", "sumsub"],
-            mined: ["KYC", "Zeta"]);
-
-        Assert.Equal("Sumsub, KYC, Uliana, Zeta", vocabulary.Terms);
-        Assert.Equal("Sumsub, KYC, Uliana, Zeta.", vocabulary.Prompt);
-    }
-
-    [Fact]
-    public void ThePromptIsShortEvenWhenTheTermListIsLong()
-    {
-        var many = Enumerable.Range(0, 400).Select(i => $"Isim{i}").ToList();
-
-        var vocabulary = Vocabulary.Compose(many);
-
-        Assert.Equal(Vocabulary.MaxTerms, vocabulary.Terms!.Split(", ").Length);
-        Assert.Equal(Vocabulary.PromptTerms, vocabulary.Prompt!.TrimEnd('.').Split(", ").Length);
-    }
-
-    [Fact]
-    public void NothingKnownMeansNothingSent()
+    public void NothingTypedMeansNothingSent()
     {
         Assert.Same(Vocabulary.Empty, Vocabulary.Compose(null));
-        Assert.Null(Vocabulary.Compose([""], [" "]).Terms);
+        Assert.Null(Vocabulary.Compose(["", " ", "x"]).Terms);
+    }
+
+    [Fact]
+    public void TheListIsCapped()
+    {
+        var many = Enumerable.Range(0, 400).Select(i => $"Isim{i}");
+
+        Assert.Equal(Vocabulary.MaxTerms, Vocabulary.Compose(many).Terms!.Split(", ").Length);
+    }
+
+    /// <summary>
+    /// The fault, guarded at the type level.
+    ///
+    /// Hotwords weights a decoding window and a wrong term simply never wins. A prompt is text the
+    /// decoder is told it has already written, so it continues the *style* of it — and a
+    /// comma-separated list of capitalised terms is a style. Measured on one real recording, the
+    /// same 180 seconds through the same service with and without: with it, "Yani, Uzun, Bir,
+    /// Süre, Tabii, İşin, Yücün, Rast gelsin, Yapıyor, Bunu, Ama, Sonuçta..."; without it, "Bu
+    /// paraları senin ödemen gerekiyordu. O kendisi üstleniyor. Neden?"
+    ///
+    /// So <see cref="Vocabulary"/> carries one field. If a second one appears here that is handed
+    /// to a decoder as context, this test is the place that should have stopped it.
+    /// </summary>
+    [Fact]
+    public void TheVocabularyHasNoWayToBecomeDecoderContext()
+    {
+        var properties = typeof(Vocabulary)
+            .GetProperties()
+            .Select(p => p.Name)
+            .Where(name => name != "EqualityContract")
+            .ToArray();
+
+        Assert.Equal(["Terms"], properties);
+    }
+
+    /// <summary>
+    /// The other half: the archive can no longer put words into the recogniser's mouth.
+    ///
+    /// The miner read names out of transcripts by looking for capitalised words mid-sentence,
+    /// which works on clean output and collects the whole language on output that capitalises
+    /// mid-sentence at random. Two days of it had gathered 230 "names" led by "Yani", "Ben",
+    /// "Tamam", "Ama", "Evet". Those went back into the prompt and produced more of themselves.
+    /// </summary>
+    [Fact]
+    public void NothingIsCollectedFromTheArchive()
+    {
+        Assert.Null(typeof(Vocabulary).Assembly.GetType("VoiceTranscript.Core.Text.VocabularyMiner"));
     }
 }

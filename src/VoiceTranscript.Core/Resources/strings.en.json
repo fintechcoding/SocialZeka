@@ -629,8 +629,6 @@
   "settingswindow.sirayla-denenir-biri-cevap-vermezse-ya-da": "Tried in order. If one does not answer or runs out of credit, the next takes over — there is only one copy of a recording and it must not be lost.",
   "settingswindow.sistemi-izle": "Follow system",
   "settingswindow.sistemi-izle-windows-un-acik-koyu-ayariyla": "Follow system changes with Windows' light/dark setting. The choice is applied when saved.",
-  "settingswindow.sozlugu-arsivden-buyut": "Grow the vocabulary from the archive",
-  "settingswindow.sozlugu-arsivden-buyut-aciklama": "Contact names, profile details and the proper nouns your transcripts keep producing are sent ahead of every transcription on their own. The box above is only for the few words it never gets right.",
   "settingswindow.sozluk": "Vocabulary — names and terms",
   "settingswindow.sozluk-aciklama": "Words transcription keeps getting wrong: product names, people, jargon. One per line or comma-separated. Passed to the local engine and to the cloud services alike.",
   "settingswindow.sozluk-ornek": "Sumsub, KYC, onboarding, Uliana",

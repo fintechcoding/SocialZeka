@@ -63,7 +63,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         _assignContactFromTitle = settings.AssignContactFromTitle;
         _speechVocabulary = settings.SpeechVocabulary;
         _mixedLanguage = settings.MixedLanguage;
-        _autoVocabulary = settings.AutoVocabulary;
         _uiLanguage = UiLanguages.FirstOrDefault(l => l.Code == settings.UiLanguage) ?? UiLanguages[0];
         _showRecordingBar = settings.ShowRecordingBar;
         _verboseLog = settings.VerboseLog;
@@ -433,7 +432,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _assignContactFromTitle;
     [ObservableProperty] private string _speechVocabulary = "";
     [ObservableProperty] private bool _mixedLanguage;
-    [ObservableProperty] private bool _autoVocabulary = true;
 
     /// <summary>Whether a strip appears at the top of the screen while recording.</summary>
     [ObservableProperty] private bool _showRecordingBar = true;
@@ -782,7 +780,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         AssignContactFromTitle = AssignContactFromTitle,
         SpeechVocabulary = SpeechVocabulary.Trim(),
         MixedLanguage = MixedLanguage,
-        AutoVocabulary = AutoVocabulary,
         ShowRecordingBar = ShowRecordingBar,
         VerboseLog = VerboseLog,
         StartWithWindows = StartWithWindows,

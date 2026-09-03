@@ -654,46 +654,6 @@ public sealed class Repository(Database database)
     /// Safe to reclaim precisely because this is only ever called at startup: the process that
     /// might have been holding them is the one that just died.
     /// </summary>
-    // ---- vocabulary -------------------------------------------------------------
-
-    /// <summary>
-    /// Every name the user has written down: contacts and the values of their profile fields
-    /// (company, role, city…). The recogniser is told to expect them before every transcription.
-    /// </summary>
-    public IReadOnlyList<string> VocabularyNames()
-    {
-        using var connection = Open();
-
-        return
-        [
-            .. connection.Query<string>(
-                """
-                SELECT name FROM contact WHERE name IS NOT NULL AND name <> ''
-                UNION
-                SELECT value FROM contact_field WHERE value IS NOT NULL AND value <> ''
-                ORDER BY 1;
-                """),
-        ];
-    }
-
-    /// <summary>The text of the most recent calls' transcripts, newest first, for the vocabulary miner.</summary>
-    public IReadOnlyList<string> RecentTranscriptTexts(int calls = 300)
-    {
-        using var connection = Open();
-
-        return
-        [
-            .. connection.Query<string>(
-                """
-                SELECT s.text
-                FROM segment s
-                WHERE s.call_id IN (SELECT id FROM call ORDER BY started_at DESC LIMIT @calls)
-                  AND s.text IS NOT NULL;
-                """,
-                new { calls }),
-        ];
-    }
-
     // ---- to-do ------------------------------------------------------------------
 
     public long AddTodo(string text, DateOnly? due, long? contactId = null, long? callId = null)

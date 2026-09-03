@@ -111,6 +111,19 @@ class Ex5WhisperEngine(CloudWhisperEngine):
         server-side change to that default would quietly start feeding hallucinations into
         somebody's conversation, and a request that states what it wants cannot drift.
         """
+        fields = self._job_fields(options)
+        body, content_type = _multipart(fields, Path(path))
+
+        return f"{self._base_url}/jobs", self._headers(content_type), body
+
+    def _job_fields(self, options: EngineOptions) -> dict[str, str]:
+        """
+        The form fields of one job, apart from the file.
+
+        Separate from the request so the cache key can be taken from exactly what was asked. A
+        chunk's answer is kept on disk so a rate limit does not cost the upload again, and an
+        answer produced under different flags is a different answer.
+        """
         fields: dict[str, str] = {
             "word_timestamps": "true",
             "filter_noise": "true",
@@ -127,22 +140,36 @@ class Ex5WhisperEngine(CloudWhisperEngine):
             # windows, it does not join unrelated audio together, and there is no seam to hallucinate
             # at. Which is why this belongs on the request and not in our own audio.
             #
-            # The service ships with it off, on a measurement its operator has since withdrawn: two
-            # different channels were being compared, so the "lost" words were never in the one they
-            # were counted against. If a transcript ever comes back thinner than the local engine's
-            # on the same recording, this is the first thing to try turning off.
+            # HOWEVER — measured 2026-09-03, and the measurement says this flag currently does
+            # nothing. Sixty seconds of synthetic room tone (no speech, -55 dBFS), posted twice,
+            # once without this field and once with it: byte-identical transcripts, and the same
+            # two hallucinated lines at the same timestamps, 27.2-30.0 and 57.2-60.0. A flag the
+            # server accepts and does not apply. It is sent anyway because it is what we want and
+            # the server will one day honour it, but nothing here may be built on the assumption
+            # that it is working. See docs/ISLEM-GUNLUGU.md.
             "vad": "true",
+            # Off, because the recording is one side of a call and is silent for most of it.
+            #
+            # The server normalises by default. That is right for a file somebody recorded too
+            # quietly and wrong for this one: with no speech in the window there is nothing to
+            # normalise towards, so the gain lands on the room tone and hands the decoder
+            # something at speech level to transcribe. Measured on the same room-tone clip:
+            # normalize=true gave two hallucinated lines, normalize=false gave one, and the
+            # service's own filter caught that one as konusma_degil(no_speech=0.89).
+            #
+            # Nothing is lost by it here. The recorder captures at a fixed gain and these files
+            # already peak at full scale.
+            "normalize": "false",
         }
 
         if options.language and not options.multilingual:
             fields["language"] = options.language
 
-        if options.initial_prompt:
-            fields["prompt"] = options.initial_prompt
+        return fields
 
-        body, content_type = _multipart(fields, Path(path))
-
-        return f"{self._base_url}/jobs", self._headers(content_type), body
+    def _request_signature(self, options: EngineOptions) -> dict:
+        """The cache key sees every flag, so turning one on invalidates the answers from before."""
+        return self._job_fields(options)
 
     def _headers(self, content_type: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._api_key}", "Content-Type": content_type}

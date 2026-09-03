@@ -30,6 +30,7 @@ between "works on a two-minute test" and "works on a real conversation":
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -222,6 +223,19 @@ class CloudWhisperEngine(AsrEngine):
         os.makedirs(workspace, exist_ok=True)
         return workspace
 
+    def _request_signature(self, options: EngineOptions) -> dict:
+        """
+        Everything about the request that decides the answer, for the cache key.
+
+        Anything that changes what the service is asked belongs here. A provider that sends flags
+        of its own adds them by overriding this; leaving them out is not a slow cache, it is a
+        wrong one that hands back an answer produced under settings nobody is using any more.
+        """
+        return {
+            "language": None if options.multilingual else options.language,
+            "multilingual": options.multilingual,
+        }
+
     def _chunk_segments(
         self,
         wav_path: str,
@@ -232,7 +246,20 @@ class CloudWhisperEngine(AsrEngine):
         progress: ProgressCallback | None = None,
     ) -> list[Segment]:
         # The model is part of the key: changing model must not reuse the old model's answers.
-        cache = os.path.join(workspace, f"{self.name}-{self._model}-{chunk.index}-{total_chunks}.json")
+        #
+        # So is the rest of the request, and leaving it out cost a day. The workspace exists so a
+        # rate limit or a closed window does not re-upload forty minutes that already transcribed,
+        # and it survives exactly the failures people retry after. But the key was the model and
+        # the chunk number and nothing else — so changing the language, dropping a bad prompt or
+        # turning a decoder flag on and pressing "yeniden yazıya dök" replayed the answer from
+        # before the change, byte for byte. The fix looks like it did nothing, and the next thing
+        # tried is a different fix rather than the same one on a clean cache.
+        fingerprint = hashlib.sha256(
+            json.dumps(self._request_signature(options), sort_keys=True, ensure_ascii=False).encode()
+        ).hexdigest()[:12]
+
+        cache = os.path.join(
+            workspace, f"{self.name}-{self._model}-{fingerprint}-{chunk.index}-{total_chunks}.json")
 
         if os.path.exists(cache):
             try:
@@ -286,11 +313,10 @@ class CloudWhisperEngine(AsrEngine):
             # was not written down. The language matters most: forced Turkish on a channel where
             # somebody speaks Russian comes back as Turkish syllables that mean nothing.
             said = "otomatik" if options.multilingual else (options.language or "otomatik")
-            terms = len((options.initial_prompt or "").split(",")) if options.initial_prompt else 0
             progress(
                 0.02 + 0.94 * chunk.index / total_chunks,
                 f"{chunk.index + 1}/{total_chunks} yükleniyor · {megabytes:.1f} MB · {how}"
-                f" · dil {said} · sözlük {terms} terim (ipucu)",
+                f" · dil {said}",
             )
 
         self._chunk_seconds = chunk.length_seconds
@@ -461,10 +487,9 @@ class CloudWhisperEngine(AsrEngine):
             "timestamp_granularities[]": "word",
         }
 
-        # The user's vocabulary, in the field the OpenAI shape has for it. Product names and
-        # people are what a hosted model gets wrong in exactly the same way the local one does.
-        if options.initial_prompt:
-            fields["prompt"] = options.initial_prompt
+        # No prompt. The OpenAI shape has a field for the vocabulary and it is the wrong field:
+        # it is decoder context, not a weighting, and a list of capitalised terms is a style the
+        # model continues instead of transcribing. See EngineOptions.hotwords.
 
         # A mixed-language call: let the service detect rather than forcing Turkish on English words.
         if options.multilingual:

@@ -67,12 +67,11 @@ def test_the_job_request_sends_only_the_four_fields_that_endpoint_declares(engin
     """
     A different, smaller shape — not the transcription request pointed at another path.
 
-    The job endpoint declares file, language, prompt and word_timestamps and nothing else. Sending
-    model or response_format here would be the same mistake as the bracketed granularity field,
-    just in the other direction.
+    The job endpoint declares file, language, prompt, word_timestamps and a handful of decoder
+    flags, and nothing else. Sending model or response_format here would be the same mistake as
+    the bracketed granularity field, just in the other direction.
     """
-    url, headers, body = engine._job_request(
-        _upload(tmp_path), _options(initial_prompt="Sumsub, KYC"))
+    url, headers, body = engine._job_request(_upload(tmp_path), _options())
     text = body.decode("utf-8", errors="replace")
 
     assert url == "https://stt.ex5.ai/v1/jobs"
@@ -88,11 +87,64 @@ def test_the_job_request_sends_only_the_four_fields_that_endpoint_declares(engin
     # local gets this audio right with vad_filter=True, on the processor as well as the card.
     assert 'name="vad"\r\n\r\ntrue' in text
     assert 'name="language"\r\n\r\ntr' in text
-    assert 'name="prompt"\r\n\r\nSumsub, KYC' in text
+    # And no prompt, ever. The endpoint declares one and it is the wrong field for a vocabulary:
+    # a prompt is text the decoder is told it has already written, so it continues the style of
+    # it, and a comma-separated list of capitalised terms is a style. Measured on one real
+    # recording, the same 180 seconds with and without — with it the transcript came back as
+    # "Yani, Uzun, Bir, Süre, Tabii, İşin..." and without it as the conversation.
+    assert 'name="prompt"' not in text
 
     assert 'name="model"' not in text
     assert 'name="response_format"' not in text
     assert 'name="timestamp_granularities"' not in text
+
+
+def test_the_server_is_told_not_to_normalise_a_channel_that_is_mostly_silent(engine, tmp_path):
+    """
+    Normalising one side of a call is gain applied to whatever is in the window, and for most of
+    a conversation what is in this window is room tone.
+
+    Measured against the live service on 2026-09-03 with sixty seconds of synthetic room tone —
+    no speech, -55 dBFS. With the server's default (normalize=true) it came back with two
+    hallucinated lines; with normalize=false, one, and the service's own filter caught that one
+    as ``konusma_degil(no_speech=0.89)``. Nothing is given up: the recorder captures at a fixed
+    gain and these files already peak at full scale.
+    """
+    _url, _headers, body = engine._job_request(_upload(tmp_path), _options())
+
+    assert 'name="normalize"\r\n\r\nfalse' in body.decode("utf-8", errors="replace")
+
+
+def test_the_cached_answer_belongs_to_the_request_that_produced_it(engine, monkeypatch, tmp_path):
+    """
+    Change a flag, press "yeniden yazıya dök", and the old answer must not come back.
+
+    The workspace beside a recording exists so a rate limit does not cost a forty-minute upload
+    twice, and it survives exactly the failures people retry after. But the key was the model and
+    the chunk number and nothing else, so every fix to the request replayed the answer from before
+    the fix, byte for byte — which reads as "the fix did nothing" and sends somebody looking for a
+    different one.
+    """
+    chunk = cloud_engine.plan_chunks.__globals__["Chunk"](0, 0.0, 47.0)
+    wav = tmp_path / "call.wav"
+    wav.write_bytes(b"RIFF" + bytes(2048))
+
+    answers = iter([{"text": "önce"}, {"text": "sonra"}])
+    monkeypatch.setattr(engine, "_send", lambda url, headers, body=None: {"id": "j"})
+    monkeypatch.setattr(
+        engine, "_poll", lambda url: {"status": "completed", "result": next(answers)})
+
+    first = engine._chunk_segments(str(wav), chunk, _options(), str(tmp_path), 1)
+    again = engine._chunk_segments(str(wav), chunk, _options(), str(tmp_path), 1)
+
+    # The same request is still answered from disk — that is what the workspace is for.
+    assert [s.text for s in first] == [s.text for s in again] == ["önce"]
+
+    # A different language is a different request, so it is asked again rather than replayed.
+    changed = engine._chunk_segments(
+        str(wav), chunk, EngineOptions(model_ref="x", language="en"), str(tmp_path), 1)
+
+    assert [s.text for s in changed] == ["sonra"]
 
 
 # ---- which door a piece goes through -----------------------------------------

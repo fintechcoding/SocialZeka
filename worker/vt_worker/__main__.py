@@ -188,7 +188,6 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
         word_timestamps=bool(request.get("word_timestamps", True)),
         vad_filter=bool(request.get("vad_filter", True)),
         hotwords=request.get("hotwords") or None,
-        initial_prompt=request.get("initial_prompt") or None,
         multilingual=bool(request.get("multilingual", False)),
     )
 

@@ -217,13 +217,13 @@ public sealed record AppSettings
     /// </summary>
     public bool MixedLanguage { get; init; }
 
-    /// <summary>
-    /// Grows the vocabulary from the archive without being asked: contact names, profile fields,
-    /// and the proper nouns the transcripts keep producing. On by default because a typed list
-    /// of hundreds of terms is a list nobody maintains; the typed list stays for the few words
-    /// the recogniser has never once got right and so cannot learn from itself.
-    /// </summary>
-    public bool AutoVocabulary { get; init; } = true;
+    // AutoVocabulary was here: the vocabulary grew itself from contact names and the proper nouns
+    // the transcripts kept producing. It is gone rather than defaulted off, because a setting that
+    // exists can be switched back on and this one broke transcription outright — the mined terms
+    // were also sent as the decoder's initial prompt, the miner collected ordinary Turkish words
+    // rather than names, and the model wrote them back out in place of the conversation. Removing
+    // the reading of a stored setting is safe: a settings.json still carrying the old key is
+    // ignored rather than rejected. See Vocabulary for the measurement.
 
     /// <summary>The vocabulary as the comma list the engines expect, or null when there is none.</summary>
     public string? VocabularyTerms()

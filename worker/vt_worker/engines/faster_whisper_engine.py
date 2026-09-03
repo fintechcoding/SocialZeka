@@ -60,8 +60,6 @@ def transcribe_kwargs(options: EngineOptions) -> dict:
 
     if options.hotwords:
         kwargs["hotwords"] = options.hotwords
-    if options.initial_prompt:
-        kwargs["initial_prompt"] = options.initial_prompt
 
     # Per-window language detection needs the language left open; forcing "tr" and asking for
     # code-switching at the same time would be a contradiction faster-whisper resolves by

@@ -288,9 +288,13 @@ public sealed class CallOrchestrator : IDisposable
     private string _vocabularyManual = "";
 
     /// <summary>
-    /// The words the recogniser is told to expect: the typed list, then the people the user
-    /// knows, then what the transcripts keep saying. Rebuilt at most every ten minutes — mining a
-    /// few hundred transcripts is cheap but not free, and a transcription is minutes long anyway.
+    /// The words the recogniser is told to expect: the list the user typed, and nothing else.
+    ///
+    /// It used to also collect the contacts and mine proper nouns out of the archive, and that is
+    /// what broke transcription for two days — see <see cref="Vocabulary"/> for the measurement.
+    /// The short version is that the collected terms were also being sent as the decoder's initial
+    /// prompt, the miner was collecting ordinary words rather than names, and the model wrote them
+    /// back out instead of transcribing. Both the prompt and the mining are gone.
     /// </summary>
     private Vocabulary CurrentVocabulary(AppSettings settings)
     {
@@ -299,28 +303,8 @@ public sealed class CallOrchestrator : IDisposable
         if (DateTimeOffset.Now - _vocabularyBuiltAt < TimeSpan.FromMinutes(10) && manual == _vocabularyManual)
             return _vocabulary;
 
-        var typed = (settings.VocabularyTerms() ?? "").Split(", ", StringSplitOptions.RemoveEmptyEntries);
-
-        if (!settings.AutoVocabulary)
-        {
-            _vocabulary = Vocabulary.Compose(typed);
-        }
-        else
-        {
-            try
-            {
-                _vocabulary = Vocabulary.Compose(
-                    typed,
-                    _repository.VocabularyNames(),
-                    VocabularyMiner.Mine(_repository.RecentTranscriptTexts()));
-            }
-            catch (Exception e)
-            {
-                // The vocabulary is a courtesy to the recogniser, never a reason not to transcribe.
-                AppLog.Error("çeviri", e, "sözlük arşivden toplanamadı; yalnızca yazılan liste gönderiliyor");
-                _vocabulary = Vocabulary.Compose(typed);
-            }
-        }
+        _vocabulary = Vocabulary.Compose(
+            (settings.VocabularyTerms() ?? "").Split(", ", StringSplitOptions.RemoveEmptyEntries));
 
         _vocabularyBuiltAt = DateTimeOffset.Now;
         _vocabularyManual = manual;
@@ -1441,7 +1425,6 @@ public sealed class CallOrchestrator : IDisposable
                     MicPath = AudioMaterialiser.EnsurePcm(call.MicPath),
                     FarPath = AudioMaterialiser.EnsurePcm(call.FarPath),
                     Hotwords = CurrentVocabulary(settings).Terms,
-                    InitialPrompt = CurrentVocabulary(settings).Prompt,
                     Multilingual = settings.MixedLanguage,
                     CacheDir = _paths.Models,
                 }, progress: new Progress<Core.Asr.WorkerProgress>(p =>
@@ -1806,7 +1789,6 @@ public sealed class CallOrchestrator : IDisposable
                     MicPath = AudioMaterialiser.EnsurePcm(call.MicPath),
                     FarPath = AudioMaterialiser.EnsurePcm(call.FarPath),
                     Hotwords = CurrentVocabulary(settings).Terms,
-                    InitialPrompt = CurrentVocabulary(settings).Prompt,
                     Multilingual = settings.MixedLanguage,
                     CacheDir = _paths.Models,
                 }, progress: new Progress<Core.Asr.WorkerProgress>(p =>

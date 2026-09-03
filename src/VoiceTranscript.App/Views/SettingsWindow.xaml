@@ -642,21 +642,6 @@
                                             PlaceholderText="{loc:T settingswindow.sozluk-ornek}"
                                             AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" MaxHeight="160"
                                             VerticalScrollBarVisibility="Auto" />
-
-                                <!-- The list nobody maintains, maintained by the archive. -->
-                                <Grid Margin="0,10,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                        <TextBlock Text="{loc:T settingswindow.sozlugu-arsivden-buyut}" FontSize="{StaticResource TextBody}" />
-                                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                                   Text="{loc:T settingswindow.sozlugu-arsivden-buyut-aciklama}" />
-                                    </StackPanel>
-                                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0"
-                                                     IsChecked="{Binding AutoVocabulary}" />
-                                </Grid>
                             </StackPanel>
                         </Border>
 

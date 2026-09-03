@@ -35,10 +35,16 @@ class EngineOptions:
     condition_on_previous_text: bool = False
     no_speech_threshold: float = 0.6
 
-    # The user's own vocabulary: product names, people, jargon. Hotwords bias every decoding
-    # window; the initial prompt seeds the first one. Either may be None.
+    # The user's own vocabulary: product names, people, jargon. Biases every decoding window,
+    # so "Sumsub" wins against "sum sub" where the audio is ambiguous. May be None.
+    #
+    # There was an initial_prompt beside this, carrying the same terms, and it is gone. The two
+    # are not one feature spelled twice: hotwords is a weighting, and a wrong term simply never
+    # wins; a prompt is text the decoder is told it has already written, so it continues the
+    # style of it. The terms were a comma-separated list of capitalised words, and the model went
+    # on writing that list instead of the conversation — measured against one real recording, the
+    # same 180 seconds with and without, on the hosted service and on the local engine both.
     hotwords: str | None = None
-    initial_prompt: str | None = None
 
     # Detect the language per window instead of once per file, for calls that switch between
     # Turkish and English mid-sentence. Slower, and only the large models can do it.

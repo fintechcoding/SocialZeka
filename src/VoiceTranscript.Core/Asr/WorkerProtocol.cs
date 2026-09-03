@@ -323,11 +323,12 @@ public sealed class TranscriptionRequest
     /// </summary>
     public string? Hotwords { get; init; }
 
-    /// <summary>
-    /// A short sentence of the same terms, used as the decoder's first context. Stronger than
-    /// hotwords and riskier: a long prompt gets echoed into silence. Kept short by the sender.
-    /// </summary>
-    public string? InitialPrompt { get; init; }
+    // InitialPrompt was here, and the comment above it was right about the risk without being
+    // right about the size of it. A prompt is not a stronger kind of hotword: it is text the
+    // decoder is told it has already written, so it continues the *style* of it. A list of
+    // capitalised terms separated by commas is a style, and the model went on producing the list
+    // instead of the conversation — on the hosted service and, less visibly, on the local engine
+    // too. Measured, removed, and not to be reintroduced without measuring again.
 
     /// <summary>
     /// Detect the language per window rather than once per file, for calls that switch between
