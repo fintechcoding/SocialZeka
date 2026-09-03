@@ -135,6 +135,18 @@ public sealed record Call
     public DateTimeOffset? TrimmedAt { get; init; }
 }
 
+/// <summary>
+/// One word and the moment it was said, in milliseconds from the start of the call.
+///
+/// Integers, not seconds: the rest of the archive counts in milliseconds and a word boundary is
+/// not a place where a rounding difference should appear. Deliberately without a confidence —
+/// the engines return one, it means different things on each of them, and nothing reads it.
+/// </summary>
+/// <param name="StartMs">Where the word begins.</param>
+/// <param name="EndMs">Where it ends.</param>
+/// <param name="Text">The word itself, with whatever spacing the engine gave it.</param>
+public readonly record struct SpokenWord(int StartMs, int EndMs, string Text);
+
 public sealed record Segment
 {
     public long Id { get; init; }
@@ -162,6 +174,16 @@ public sealed record Segment
 
     public bool OverlapsOtherSpeaker { get; init; }
     public bool SuspectedEcho { get; init; }
+
+    /// <summary>
+    /// Where each word in <see cref="Text"/> was said, or empty when this line predates them.
+    ///
+    /// Empty is not the same as "the line has no words": every transcript stored before these
+    /// were kept has an empty list here, and a reader that treated that as "nothing was said"
+    /// would blank half the archive. Anything following the audio has to fall back to the line's
+    /// own start and end when this is empty.
+    /// </summary>
+    public IReadOnlyList<SpokenWord> Words { get; init; } = [];
 
     public TimeSpan Start => TimeSpan.FromMilliseconds(StartMs);
     public TimeSpan End => TimeSpan.FromMilliseconds(EndMs);

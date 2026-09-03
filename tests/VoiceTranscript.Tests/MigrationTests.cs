@@ -239,6 +239,28 @@ public sealed class MigrationTests : IDisposable
             deception.CommandText = "SELECT COUNT(*) FROM deception_note;";
             Assert.Equal(0L, deception.ExecuteScalar());
         }
+
+        // v11: the voiceprints and the record of how a call came to be filed.
+        Assert.True(ColumnExistsIn("call", "contact_source"));
+
+        using (var connection = new Database(_path).Open())
+        {
+            using var voices = connection.CreateCommand();
+            voices.CommandText = "SELECT COUNT(*) FROM contact_voice;";
+            Assert.Equal(0L, voices.ExecuteScalar());
+        }
+
+        // v12: where each word was said. Nullable on purpose — every line transcribed before
+        // this has none, and that must read as "no word detail" rather than as an empty line.
+        Assert.True(ColumnExistsIn("segment", "words"));
+
+        using (var connection = new Database(_path).Open())
+        {
+            using var nullable = connection.CreateCommand();
+            nullable.CommandText =
+                "SELECT \"notnull\" FROM pragma_table_info('segment') WHERE name = 'words';";
+            Assert.Equal(0L, nullable.ExecuteScalar());
+        }
     }
 
     private bool ColumnExistsIn(string table, string column)

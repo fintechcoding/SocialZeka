@@ -1005,9 +1005,9 @@ public sealed class Repository(Database database)
                 """
                 INSERT INTO segment (call_id, is_me, start_ms, end_ms, text, text_normalised,
                                      avg_logprob, no_speech_prob, low_confidence,
-                                     overlaps_other_speaker, suspected_echo)
+                                     overlaps_other_speaker, suspected_echo, words)
                 VALUES (@callId, @isMe, @startMs, @endMs, @text, @normalised,
-                        @avgLogprob, @noSpeechProb, @lowConfidence, @overlaps, @echo);
+                        @avgLogprob, @noSpeechProb, @lowConfidence, @overlaps, @echo, @words);
                 """,
                 new
                 {
@@ -1023,6 +1023,7 @@ public sealed class Repository(Database database)
                     lowConfidence = segment.LowConfidence ? 1 : 0,
                     overlaps = segment.OverlapsOtherSpeaker ? 1 : 0,
                     echo = segment.SuspectedEcho ? 1 : 0,
+                    words = SegmentWords.Write(segment.Words),
                 },
                 transaction);
         }
@@ -3558,6 +3559,7 @@ public sealed class Repository(Database database)
         public long low_confidence { get; set; }
         public long overlaps_other_speaker { get; set; }
         public long suspected_echo { get; set; }
+        public string? words { get; set; }
 
         public Segment ToModel() => new()
         {
@@ -3568,6 +3570,7 @@ public sealed class Repository(Database database)
             EndMs = (int)end_ms,
             Text = text,
             TextNormalised = text_normalised,
+            Words = SegmentWords.Read(words),
             AvgLogprob = avg_logprob,
             NoSpeechProb = no_speech_prob,
             LowConfidence = low_confidence != 0,

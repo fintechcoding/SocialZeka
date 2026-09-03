@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 11;
+    public const int Version = 12;
 
     public static readonly string[] Statements =
     [
@@ -98,7 +98,8 @@ public static class Schema
             no_speech_prob         REAL,
             low_confidence         INTEGER NOT NULL DEFAULT 0,
             overlaps_other_speaker INTEGER NOT NULL DEFAULT 0,
-            suspected_echo         INTEGER NOT NULL DEFAULT 0
+            suspected_echo         INTEGER NOT NULL DEFAULT 0,
+            words                  TEXT
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_segment_call ON segment(call_id, start_ms);",

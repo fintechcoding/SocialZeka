@@ -2027,6 +2027,13 @@ public sealed class CallOrchestrator : IDisposable
             LowConfidence = s.LowConfidence,
             OverlapsOtherSpeaker = s.OverlapsOtherSpeaker,
             SuspectedEcho = s.SuspectedEcho,
+
+            // Kept now rather than discarded. Every engine returns these and the worker has
+            // always carried them across; storage dropped them, so anything wanting to follow a
+            // transcript while it plays had only the line to go on — and a nine-second line says
+            // nothing about which part of it is sounding.
+            Words = [.. s.Words.Select(w => new Core.Domain.SpokenWord(
+                (int)(w.Start * 1000), (int)(w.End * 1000), w.Text))],
         }));
 
         if (result.Stats?.LikelyNoHeadphones == true)

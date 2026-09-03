@@ -211,5 +211,22 @@ public static class Migrations
                 // question with an answer from the first day rather than the second.
                 "UPDATE call SET contact_source = 'user' WHERE contact_id IS NOT NULL;",
             ]),
+
+        // Where each word was said, so a transcript can be read while it plays.
+        //
+        // The engines have always returned these and the worker has always passed them across;
+        // storage threw them away, and everything downstream then had only the line to work with.
+        // A line is enough to order a conversation and not enough to follow one: the reader
+        // listening to a nine-second turn has no way to see which part of it is sounding now.
+        //
+        // Kept as JSON on the segment rather than as rows of their own. A word belongs to exactly
+        // one line, is never queried on its own, and is always wanted with the line — a table
+        // would add four thousand rows per call to answer a question nobody asks. The column is
+        // the same shape the archive already uses for capture_stats and the reading notes.
+        //
+        // Null on every line transcribed before this, and the reader treats null as "no
+        // word-level detail" rather than as an empty transcript. Re-transcribing fills it in.
+        new(12, "Kelime zaman damgaları",
+            ["ALTER TABLE segment ADD COLUMN words TEXT;"]),
     ];
 }
