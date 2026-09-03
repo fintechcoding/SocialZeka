@@ -1,4 +1,4 @@
-<ui:FluentWindow x:Class="VoiceTranscript.App.Views.CallWindow"
+﻿<ui:FluentWindow x:Class="VoiceTranscript.App.Views.CallWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:VoiceTranscript.App"
@@ -289,7 +289,7 @@
 
                     <ScrollViewer Grid.Row="2" x:Name="TranscriptScroller"
                                   VerticalScrollBarVisibility="Auto" Padding="0,4,10,4"
-                                  ScrollChanged="OnTranscriptScrolled"
+                                  PreviewMouseWheel="OnTranscriptWheel" PreviewKeyDown="OnTranscriptKey"
                                   Visibility="{Binding HasTurns, Converter={StaticResource BoolToVisibility}}">
                         <ItemsControl x:Name="TranscriptTurns" ItemsSource="{Binding Turns}">
                             <ItemsControl.ItemTemplate>
@@ -553,7 +553,7 @@
                             </ScrollViewer>
                         </TabItem>
 
-                        <TabItem Header="{loc:T callwindow.aksiyonlar}">
+                        <TabItem x:Name="ActionsTab" Header="{loc:T callwindow.aksiyonlar}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                                 <StackPanel>
 

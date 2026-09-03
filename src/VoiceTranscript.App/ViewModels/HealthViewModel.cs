@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -591,6 +591,7 @@ public sealed partial class HealthViewModel : ObservableObject
         BackupWithAudio,
         ExportEverything,
         RestoreFromBackup,
+        ImportAndMerge,
     }
 
     [RelayCommand]
@@ -604,6 +605,9 @@ public sealed partial class HealthViewModel : ObservableObject
 
     [RelayCommand]
     private void Restore() => DataActionRequested?.Invoke(this, DataRequest.RestoreFromBackup);
+
+    [RelayCommand]
+    private void Import() => DataActionRequested?.Invoke(this, DataRequest.ImportAndMerge);
 
     /// <summary>
     /// Performs whichever data action the page collected a path for.
@@ -689,6 +693,52 @@ public sealed partial class HealthViewModel : ObservableObject
                     DataMessage =
                         $"{staged} dosya hazırlandı. Uygulamayı kapatıp açtığında geri yüklenecek. " +
                         "Şu anki verilerin silinmeyecek, kenara alınacak.";
+                    break;
+                }
+
+                case DataRequest.ImportAndMerge:
+                {
+                    // Same question as the restore, same reason: the file says whether it needs a
+                    // password, so an ordinary backup stays one click.
+                    string? password = null;
+
+                    if (Core.Storage.BackupService.NeedsPassword(path))
+                    {
+                        password = await Services.Dialogs.AskPasswordAsync(
+                            System.Windows.Application.Current?.MainWindow,
+                            "Bu yedek parolalı",
+                            "Yazıldığı sıradaki parolayı gir. Yanlış parolayla hiçbir şey içe "
+                            + "aktarılmaz — mevcut arşivine dokunulmaz.",
+                            okText: "Aç");
+
+                        if (string.IsNullOrEmpty(password))
+                        {
+                            DataMessage = "İçe aktarma iptal edildi.";
+                            break;
+                        }
+                    }
+
+                    var merged = await service.ImportAsync(path, progress, password: password);
+
+                    // Said as a sentence rather than a number, because "12 görüşme eklendi, 39
+                    // zaten vardı" is the answer to the question somebody actually has: did it
+                    // take, and did it touch what was already here.
+                    var parts = new List<string> { $"{merged.Calls} görüşme" };
+
+                    if (merged.Contacts > 0) parts.Add($"{merged.Contacts} kişi");
+                    if (merged.Segments > 0) parts.Add($"{merged.Segments} konuşma satırı");
+                    if (merged.Recordings > 0) parts.Add($"{merged.Recordings} ses kaydı");
+
+                    DataMessage = merged.Calls == 0 && merged.AlreadyHere > 0
+                        ? $"Yeni bir şey yok: {merged.AlreadyHere} görüşmenin hepsi zaten arşivinde."
+                        : $"İçe aktarıldı: {string.Join(", ", parts)}."
+                          + (merged.AlreadyHere > 0
+                              ? $" {merged.AlreadyHere} görüşme zaten vardı, olduğu gibi bırakıldı."
+                              : "");
+
+                    // Every list that shows calls re-reads on this. Without it the import lands in
+                    // the database and the screens keep showing what they read before it.
+                    if (merged.Calls > 0 || merged.Contacts > 0) Services.CallActions.NotifyChanged();
                     break;
                 }
             }

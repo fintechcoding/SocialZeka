@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using VoiceTranscript.App.Views;
 using VoiceTranscript.Core.Domain;
@@ -22,6 +22,15 @@ public static class CallActions
     public static event EventHandler? Changed;
 
     private static void RaiseChanged() => Changed?.Invoke(null, EventArgs.Empty);
+
+    /// <summary>
+    /// Announces that many calls changed at once — an import, a bulk delete.
+    ///
+    /// The event already exists for exactly this; what was missing was a way for something
+    /// outside this class to raise it. Without it an import finished, wrote several hundred rows,
+    /// and every screen went on showing what it had read a minute earlier.
+    /// </summary>
+    public static void NotifyChanged() => RaiseChanged();
 
     /// <summary>Whether the recording's audio is still on disk.</summary>
     public static bool HasAudio(Call call) =>

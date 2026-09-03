@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Input;
 using VoiceTranscript.App.ViewModels;
 using VoiceTranscript.Core.Analysis;
@@ -14,6 +14,21 @@ namespace VoiceTranscript.App.Views;
 /// context and binding a command through two relative-source hops for a mouse event is harder to
 /// read than four lines.
 /// </summary>
+/// <summary>Which surface of a conversation a click was about.</summary>
+public enum CallTab
+{
+    /// <summary>The transcript, which is what somebody opening a call usually wants.</summary>
+    Conversation,
+
+    /// <summary>
+    /// The suggested next moves.
+    ///
+    /// Clicking a suggestion on the first screen or on the to-do page opened the window on the
+    /// transcript, and left the reader to find the tab holding the very thing they clicked.
+    /// </summary>
+    Actions,
+}
+
 public partial class CallWindow
 {
     public CallWindow(CallWindowViewModel model)
@@ -24,6 +39,13 @@ public partial class CallWindow
         DataContext = model;
 
         model.CurrentTurnChanged += (_, turn) => Dispatcher.Invoke(() => FollowPlayhead(turn));
+
+        // Dragging the thumb, clicking the track, clicking an arrow: all of them raise this on
+        // the scrollbar inside the scroller's template, and none of them can be confused with a
+        // scroll this window performed itself.
+        TranscriptScroller.AddHandler(
+            System.Windows.Controls.Primitives.ScrollBar.ScrollEvent,
+            new System.Windows.Controls.Primitives.ScrollEventHandler((_, _) => _following = false));
         model.Playback.PropertyChanged += (_, e) =>
         {
             // Pressing play is the other half of "take me to the audio".
@@ -81,40 +103,60 @@ public partial class CallWindow
     /// <summary>Whether the transcript still follows the player. Scrolling by hand turns it off.</summary>
     private bool _following = true;
 
-    /// <summary>Set while we are the ones scrolling, so our own move is not read as the user's.</summary>
-    private bool _scrollingToTurn;
-
     /// <summary>
-    /// Brings the spoken line into view, unless the reader has taken the scrollbar over.
+    /// Moves the transcript to the line being spoken, unless the reader has taken it over.
     ///
     /// Following has to yield. Somebody scrolling back to check what was said a minute ago is
     /// doing the thing this window exists for, and a view that drags them forward twice a second
-    /// makes that impossible — the feature would be actively worse than not having it. So a
-    /// scroll the user performs stops the following, and pressing play or clicking a line — both
-    /// of which say "take me to the audio" — starts it again.
+    /// makes that impossible. So the wheel, the scrollbar and the navigation keys stop it, and
+    /// pressing play or clicking a line — both of which say "take me to the audio" — start it
+    /// again.
+    ///
+    /// <b>Why it is not BringIntoView.</b> It was, and it stopped following after a line or two.
+    /// That call scrolls asynchronously, sometimes over two layout passes, so the flag saying
+    /// "this move was ours" had to be cleared on a guess about timing — and when the second pass
+    /// landed after the guess, the window read its OWN scroll as the reader reaching for the bar
+    /// and switched following off for good. Setting the offset directly removes the race: what
+    /// the user does is known from what the user does, not inferred from the scrollbar moving.
     /// </summary>
     private void FollowPlayhead(ChatTurn? turn)
     {
         if (!_following || turn is null) return;
         if (TranscriptTurns.ItemContainerGenerator.ContainerFromItem(turn) is not FrameworkElement bubble) return;
+        if (!bubble.IsVisible || bubble.ActualHeight <= 0) return;
 
-        _scrollingToTurn = true;
-        bubble.BringIntoView();
+        double top;
 
-        // Cleared after the scroll has been laid out, otherwise the ScrollChanged it causes
-        // arrives later and is mistaken for the reader reaching for the bar.
-        Dispatcher.BeginInvoke(
-            new Action(() => _scrollingToTurn = false),
-            System.Windows.Threading.DispatcherPriority.Background);
+        try
+        {
+            // Relative to the panel rather than to the viewport, so it does not depend on where
+            // the scroller happens to be right now.
+            top = bubble.TransformToAncestor(TranscriptTurns).Transform(default).Y;
+        }
+        catch (InvalidOperationException)
+        {
+            // The bubble is not in the tree yet; the next tick is fifty milliseconds away.
+            return;
+        }
+
+        var target = CallWindowViewModel.FollowOffset(
+            top, bubble.ActualHeight,
+            TranscriptScroller.VerticalOffset,
+            TranscriptScroller.ViewportHeight,
+            TranscriptScroller.ExtentHeight);
+
+        if (Math.Abs(target - TranscriptScroller.VerticalOffset) < 1) return;
+
+        TranscriptScroller.ScrollToVerticalOffset(target);
     }
 
-    private void OnTranscriptScrolled(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
-    {
-        // Height changes fire this too — the window being resized, the panel first laying itself
-        // out. Only a vertical move counts, and only one we did not make.
-        if (_scrollingToTurn || e.VerticalChange == 0) return;
+    /// <summary>The reader reaching for the wheel. Unambiguous, unlike the scrollbar moving.</summary>
+    private void OnTranscriptWheel(object sender, MouseWheelEventArgs e) => _following = false;
 
-        _following = false;
+    private void OnTranscriptKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
+            _following = false;
     }
 
     /// <summary>Anything that means "take me to the audio" puts the transcript back in step.</summary>
@@ -142,13 +184,17 @@ public partial class CallWindow
     /// Six places used to build their own window, and every click on a row, a to-do or a
     /// calendar promise stacked another copy of the same conversation. One doorway, one window.
     /// </summary>
-    public static CallWindow Show(Window? owner, long callId, int? startMs = null, bool isMe = false)
+    public static CallWindow Show(
+        Window? owner, long callId, int? startMs = null, bool isMe = false,
+        CallTab tab = CallTab.Conversation)
     {
         if (Open.TryGetValue(callId, out var existing))
         {
             existing.Show();
             if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
             existing.Activate();
+
+            existing.SelectTab(tab);
 
             if (startMs is { } at) existing.ViewModel?.Playback.PlayFrom(at, isMe);
             return existing;
@@ -161,9 +207,16 @@ public partial class CallWindow
         window.Closed += (_, _) => Open.Remove(callId);
 
         window.Show();
+        window.SelectTab(tab);
 
         if (startMs is { } seek) model.Playback.PlayFrom(seek, isMe);
         return window;
+    }
+
+    /// <summary>Brings the named surface forward. The transcript is already the default.</summary>
+    private void SelectTab(CallTab tab)
+    {
+        if (tab == CallTab.Actions) MainTabs.SelectedItem = ActionsTab;
     }
 
     private void Citation_Click(object sender, MouseButtonEventArgs e)

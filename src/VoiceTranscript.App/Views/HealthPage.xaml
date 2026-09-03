@@ -1,4 +1,4 @@
-<UserControl x:Class="VoiceTranscript.App.Views.HealthPage"
+﻿<UserControl x:Class="VoiceTranscript.App.Views.HealthPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:VoiceTranscript.App"
@@ -323,6 +323,33 @@
 
                     <ui:Button Grid.Column="2" Content="{loc:T healthpage.disa-aktar}" MinWidth="120" Margin="14,0,0,0"
                                Command="{Binding ExportEverythingCommand}"
+                               IsEnabled="{Binding IsArchiving, Converter={StaticResource InverseBool}}" />
+                </Grid>
+            </Border>
+
+            <!-- Above the restore, and deliberately: adding an archive to this one is what
+                 people do most often, and replacing everything is the rarer, heavier answer. -->
+            <Border Style="{StaticResource SettingCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="ArrowImport24" FontSize="18" Margin="0,0,14,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{loc:T healthpage.yedegi-ice-aktar}" FontSize="{StaticResource TextBody}" />
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                   Text="{loc:T healthpage.baska-bir-yedekteki-gorusmeleri-buradakile}" />
+                    </StackPanel>
+
+                    <ui:Button Grid.Column="2" Content="{loc:T healthpage.ice-aktar}" MinWidth="120" Margin="14,0,0,0"
+                               Appearance="Primary"
+                               Command="{Binding ImportCommand}"
                                IsEnabled="{Binding IsArchiving, Converter={StaticResource InverseBool}}" />
                 </Grid>
             </Border>

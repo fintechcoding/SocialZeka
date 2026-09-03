@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using VoiceTranscript.App.ViewModels;
 
 namespace VoiceTranscript.App.Views;
@@ -17,8 +17,15 @@ public partial class TodoPage
         };
     }
 
-    private void OnOpenCall(object? sender, long callId)
+    private void OnOpenCall(object? sender, TodoEntry entry)
     {
-        CallWindow.Show(Window.GetWindow(this), callId);
+        if (entry.CallId is not { } callId) return;
+
+        // A suggestion opens on the suggestions, not on the transcript. Landing on the
+        // conversation and leaving somebody to find the tab is a step this click already knows
+        // the answer to.
+        CallWindow.Show(
+            Window.GetWindow(this), callId,
+            tab: entry.Kind == TodoEntryKind.Action ? CallTab.Actions : CallTab.Conversation);
     }
 }

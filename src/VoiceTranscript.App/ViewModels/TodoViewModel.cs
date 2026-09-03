@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Domain;
@@ -6,6 +6,19 @@ using VoiceTranscript.Core.Storage;
 using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
+
+/// <summary>Which of the three sources the list is showing.</summary>
+public enum TodoSource
+{
+    /// <summary>Everything, which is the point of the page.</summary>
+    All,
+
+    /// <summary>Only what the analysis proposed.</summary>
+    Suggestions,
+
+    /// <summary>Only what the user wrote down or set themselves.</summary>
+    Mine,
+}
 
 public enum TodoEntryKind
 {
@@ -93,8 +106,19 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
     [ObservableProperty] private DateTime? _newDue;
     [ObservableProperty] private bool _showDone;
 
+    /// <summary>
+    /// Which source is on screen.
+    ///
+    /// The page mixes three on purpose — most of what somebody has to do after a call is already
+    /// known here, and a list holding only the typed items would be the smaller half. But mixing
+    /// is not the same as being unable to separate: the suggestions are the machine's, they
+    /// arrive in bursts after an analysis, and "show me only what the conversations proposed" is
+    /// a real question the one blended list could not answer.
+    /// </summary>
+    [ObservableProperty] private TodoSource _source = TodoSource.All;
+
     /// <summary>Raised when a row wants its conversation opened; the page owns the window.</summary>
-    public event EventHandler<long>? OpenCallRequested;
+    public event EventHandler<TodoEntry>? OpenCallRequested;
 
     public void Refresh()
     {
@@ -113,6 +137,17 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
                 TodoEntryKind.Action, action.Id, action.Action, action.DeadlineDate, contactName, action.CallId, done: false));
         }
 
+        // Ticked suggestions belong under "Bitenler" with everything else that got done. Read
+        // only when that section is open, so the ordinary list costs one query less.
+        if (ShowDone)
+        {
+            foreach (var (action, contactName) in repository.AllDoneActions())
+            {
+                entries.Add(new TodoEntry(
+                    TodoEntryKind.Action, action.Id, action.Action, action.DeadlineDate, contactName, action.CallId, done: true));
+            }
+        }
+
         foreach (var (callId, contactName, title, day) in repository.RemindersBetween(today.AddYears(-1), today.AddYears(1)))
         {
             entries.Add(new TodoEntry(TodoEntryKind.Reminder, callId, title, day, contactName, callId, done: false));
@@ -120,7 +155,14 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
 
         Overdue.Clear(); Today.Clear(); Upcoming.Clear(); Undated.Clear(); Done.Clear();
 
-        foreach (var entry in entries
+        var shown = Source switch
+        {
+            TodoSource.Suggestions => entries.Where(e => e.Kind == TodoEntryKind.Action),
+            TodoSource.Mine => entries.Where(e => e.Kind != TodoEntryKind.Action),
+            _ => entries,
+        };
+
+        foreach (var entry in shown
                      .OrderBy(e => e.Due ?? DateOnly.MaxValue)
                      .ThenBy(e => e.Kind)
                      .ThenBy(e => e.Text, StringComparer.CurrentCultureIgnoreCase))
@@ -142,6 +184,16 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
     }
 
     partial void OnShowDoneChanged(bool value) => Refresh();
+    partial void OnSourceChanged(TodoSource value) => Refresh();
+
+    [RelayCommand]
+    private void ShowAllSources() => Source = TodoSource.All;
+
+    [RelayCommand]
+    private void ShowSuggestions() => Source = TodoSource.Suggestions;
+
+    [RelayCommand]
+    private void ShowMine() => Source = TodoSource.Mine;
 
     [RelayCommand]
     private void Add()
@@ -172,7 +224,9 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
                 break;
 
             case TodoEntryKind.Action:
-                repository.SetActionStatus(entry.Id, ActionStatus.Done);
+                // Both ways, like the notes beside it. A suggestion ticked by mistake used to be
+                // unreachable: it left the list and there was no row left to untick.
+                repository.SetActionStatus(entry.Id, entry.IsDone ? ActionStatus.Open : ActionStatus.Done);
                 break;
 
             case TodoEntryKind.Reminder:
@@ -195,6 +249,6 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
     [RelayCommand]
     private void Open(TodoEntry? entry)
     {
-        if (entry?.CallId is { } callId) OpenCallRequested?.Invoke(this, callId);
+        if (entry?.CallId is not null) OpenCallRequested?.Invoke(this, entry);
     }
 }

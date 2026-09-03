@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Input;
 using VoiceTranscript.App.ViewModels;
 
@@ -406,7 +406,10 @@ public partial class OverviewPage
 
     private void DayAction_Click(object sender, MouseButtonEventArgs e)
     {
-        if (DayActionOf(sender) is { } row) Open(row.CallId);
+        // On the suggestions, not on the transcript: this row IS a suggestion, and the tab
+        // holding it is the one the click was about.
+        if (DayActionOf(sender) is { } row)
+            CallWindow.Show(Window.GetWindow(this), row.CallId, tab: CallTab.Actions);
     }
 
     private void DayActionDone_Click(object sender, RoutedEventArgs e)

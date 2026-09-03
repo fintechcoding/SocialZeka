@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Export;
 
@@ -25,6 +25,9 @@ public sealed record ArchiveResult(string Path, int Files, long Bytes)
         }
     }
 }
+
+/// <summary>What an import added to the archive that was already here.</summary>
+public sealed record ImportResult(int Contacts, int Calls, int Segments, int Recordings, int AlreadyHere);
 
 /// <summary>
 /// Getting the archive out, in one piece and in a form that outlives this application.
@@ -260,11 +263,6 @@ public sealed class BackupService(AppPaths paths, Repository repository)
         if (!File.Exists(archivePath))
             throw new FileNotFoundException("Yedek dosyası bulunamadı.", archivePath);
 
-        // An encrypted backup is opened into a plain copy first, and that copy is removed however
-        // this ends. It is written beside the staging area rather than in the temp folder for the
-        // same reason the backup was: with audio it is gigabytes.
-        var opened = archivePath;
-
         // Said before anything is opened, so a restore that behaved unexpectedly can be read
         // back afterwards rather than reconstructed from memory. Whether the FILE is encrypted
         // and whether a password was SUPPLIED are recorded separately: the interesting case is
@@ -275,36 +273,32 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             + $"dosya {(NeedsPassword(archivePath) ? "sifreli" : "sifresiz")} · "
             + $"parola {(string.IsNullOrEmpty(password) ? "verilmedi" : "verildi")}");
 
-        if (NeedsPassword(archivePath))
-        {
-            if (string.IsNullOrEmpty(password))
-                throw new InvalidOperationException("Bu yedek parolalı. Parola olmadan açılamaz.");
-
-            progress?.Report("Yedek çözülüyor…");
-
-            opened = Path.Combine(paths.Root, "geri-yukleme.acilan");
-
-            var fault = await Task.Run(() =>
-            {
-                using var input = File.OpenRead(archivePath);
-                using var output = File.Create(opened);
-
-                return Export.EncryptedArchive.TryRead(input, output, password);
-            }, ct);
-
-            if (fault != Export.ArchiveFault.None)
-            {
-                TryDelete(opened);
-                CoreLog.Write("veri", $"geri yukleme reddedildi: {fault}");
-
-                throw new InvalidOperationException(Export.EncryptedArchive.Explain(fault));
-            }
-
-            CoreLog.Write("veri", "geri yukleme: parola dogru, yedek acildi");
-        }
+        var opened = await OpenForReadingAsync(archivePath, password, StagingFolder + ".acilan", progress, ct);
 
         var staging = Path.Combine(paths.Root, StagingFolder);
+        var extracted = await UnpackAsync(opened, archivePath, staging, progress, ct);
 
+        progress?.Report($"{extracted} dosya hazırlandı. Uygulama yeniden başlatıldığında yerine konacak.");
+        return extracted;
+    }
+
+    /// <summary>
+    /// Empties <paramref name="staging"/> and unpacks the archive into it.
+    ///
+    /// Shared by the restore and the import because "what a backup file is" should have one
+    /// answer: the two known prefixes, nothing that climbs out of the folder, and the decrypted
+    /// copy removed however this ends — an archive is untrusted input even when the user chose
+    /// the file themselves.
+    /// </summary>
+    /// <param name="opened">The readable zip, which is the decrypted copy when there was one.</param>
+    /// <param name="original">The file the user chose, so the decrypted copy can be told apart.</param>
+    private static async Task<int> UnpackAsync(
+        string opened,
+        string original,
+        string staging,
+        IProgress<string>? progress,
+        CancellationToken ct)
+    {
         if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
         Directory.CreateDirectory(staging);
 
@@ -314,39 +308,37 @@ public sealed class BackupService(AppPaths paths, Repository repository)
 
         try
         {
-        await Task.Run(() =>
-        {
-            using var archive = ZipFile.OpenRead(opened);
-
-            foreach (var entry in archive.Entries)
+            await Task.Run(() =>
             {
-                ct.ThrowIfCancellationRequested();
-                if (entry.Length == 0) continue;
+                using var archive = ZipFile.OpenRead(opened);
 
-                // Only the two known prefixes, and never a path that climbs out of the folder.
-                // An archive is untrusted input even when the user chose the file.
-                var name = entry.FullName.Replace('\\', '/');
-
-                if (!name.StartsWith("data/", StringComparison.Ordinal)
-                    && !name.StartsWith("recordings/", StringComparison.Ordinal))
+                foreach (var entry in archive.Entries)
                 {
-                    continue;
+                    ct.ThrowIfCancellationRequested();
+                    if (entry.Length == 0) continue;
+
+                    var name = entry.FullName.Replace('\\', '/');
+
+                    if (!name.StartsWith("data/", StringComparison.Ordinal)
+                        && !name.StartsWith("recordings/", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    var target = Path.GetFullPath(Path.Combine(staging, name.Replace('/', Path.DirectorySeparatorChar)));
+                    if (!target.StartsWith(Path.GetFullPath(staging), StringComparison.OrdinalIgnoreCase)) continue;
+
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    entry.ExtractToFile(target, overwrite: true);
+                    extracted++;
                 }
-
-                var target = Path.GetFullPath(Path.Combine(staging, name.Replace('/', Path.DirectorySeparatorChar)));
-                if (!target.StartsWith(Path.GetFullPath(staging), StringComparison.OrdinalIgnoreCase)) continue;
-
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                entry.ExtractToFile(target, overwrite: true);
-                extracted++;
-            }
-        }, ct);
+            }, ct);
         }
         finally
         {
-            // However this ended. A decrypted copy of somebody's archive left on disk beside the
-            // encrypted one would make the password pointless.
-            if (!ReferenceEquals(opened, archivePath) && opened != archivePath) TryDelete(opened);
+            // A decrypted copy of somebody's archive left on disk beside the encrypted one would
+            // make the password pointless.
+            if (!ReferenceEquals(opened, original) && opened != original) TryDelete(opened);
         }
 
         if (extracted == 0)
@@ -355,8 +347,185 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             throw new InvalidOperationException("Bu dosya bir VoiceTranscript yedeği değil.");
         }
 
-        progress?.Report($"{extracted} dosya hazırlandı. Uygulama yeniden başlatıldığında yerine konacak.");
         return extracted;
+    }
+
+    /// <summary>Name of the folder an import is unpacked into.</summary>
+    private const string ImportFolder = "ice-aktarma";
+
+    /// <summary>
+    /// Adds another archive to this one, now, without a restart.
+    ///
+    /// The restore below answers "the laptop died" and answers it by replacing everything, which
+    /// is why it has to wait for the next start: the database is open and held by the process
+    /// doing the restoring. That cost is worth paying to put a lost archive back. It is the wrong
+    /// price for what people actually do most of the time — carry conversations from one machine
+    /// to another, or open last month's backup beside three newer weeks — because there the
+    /// replacement is the damage: one of the two halves is deliberately thrown away, and the
+    /// restart is a minute spent watching it happen.
+    ///
+    /// So this one merges into the live database through the ordinary connection. Nothing is
+    /// moved aside, nothing has to be restarted, and a call that is already here is left exactly
+    /// as it is. The rules are in <see cref="Repository.MergeArchive"/>; what happens here is the
+    /// file half — unpacking, bringing the archive's schema up to date, and putting its
+    /// recordings where this installation keeps recordings.
+    /// </summary>
+    public async Task<ImportResult> ImportAsync(
+        string archivePath,
+        IProgress<string>? progress = null,
+        CancellationToken ct = default,
+        string? password = null)
+    {
+        if (!File.Exists(archivePath))
+            throw new FileNotFoundException("Yedek dosyası bulunamadı.", archivePath);
+
+        CoreLog.Write("veri",
+            $"ice aktarma baslatildi: {Path.GetFileName(archivePath)} · "
+            + $"{new FileInfo(archivePath).Length / 1_048_576.0:0.0} MB · "
+            + $"dosya {(NeedsPassword(archivePath) ? "sifreli" : "sifresiz")} · "
+            + $"parola {(string.IsNullOrEmpty(password) ? "verilmedi" : "verildi")}");
+
+        var opened = await OpenForReadingAsync(archivePath, password, ImportFolder + ".acilan", progress, ct);
+        var staging = Path.Combine(paths.Root, ImportFolder);
+
+        await UnpackAsync(opened, archivePath, staging, progress, ct);
+
+        try
+        {
+            var incoming = Path.Combine(staging, "data", "voicetranscript.db");
+
+            if (!File.Exists(incoming))
+                throw new InvalidOperationException("Bu yedekte veritabanı yok, içe aktarılamaz.");
+
+            progress?.Report("Yedek okunuyor…");
+
+            // An archive written by an older build is missing tables and columns this one relies
+            // on. Migrating the COPY rather than this installation's database means the merge
+            // reads a shape it understands, and a backup from a newer build is left alone: its
+            // stored version is already above every step, so nothing runs.
+            var archive = new Database(incoming);
+            archive.Migrate();
+            archive.ClearPool();
+
+            progress?.Report("Görüşmeler birleştiriliyor…");
+
+            var merged = await Task.Run(() => repository.MergeArchive(incoming), ct);
+
+            progress?.Report("Ses kayıtları yerine konuyor…");
+
+            var recordings = await Task.Run(() => AdoptRecordings(merged.NewCalls, staging), ct);
+
+            CoreLog.Write("veri", $"ice aktarma bitti: {merged.Calls} gorusme, {recordings} ses dosyasi");
+
+            return new ImportResult(
+                merged.Contacts, merged.Calls, merged.Segments, recordings, merged.AlreadyHere);
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Left for the next import to clear. Not worth failing an import that worked.
+            }
+        }
+    }
+
+    /// <summary>
+    /// Moves the imported calls' audio into this installation's recordings folder.
+    ///
+    /// Renamed to the identifier the call was given HERE, because the archive's call-5 and this
+    /// machine's call-5 are two different conversations and one would overwrite the other. A call
+    /// whose audio is not in the archive — which is every call in an ordinary backup, since audio
+    /// is off by default — is left with no audio rather than with a path to a file on somebody
+    /// else's disk.
+    /// </summary>
+    private int AdoptRecordings(IReadOnlyList<ImportedCall> calls, string staging)
+    {
+        var source = Path.Combine(staging, "recordings");
+        var adopted = 0;
+
+        foreach (var call in calls)
+        {
+            var mic = Adopt(call.MicPath, "mic");
+            var far = Adopt(call.FarPath, "far");
+
+            // Written even when both are null, and that is the important half. The row arrived
+            // carrying the other machine's path, and leaving it there would be a lie the whole
+            // interface believes: a retry button that cannot work, a "show the file" that opens
+            // nothing — and, once the startup repair re-roots stale paths onto this machine, a
+            // conversation that could be pointed at a DIFFERENT call's audio, because the archive
+            // numbers its recordings from one just as this installation does.
+            repository.SetAudioPaths(call.Id, mic, far);
+
+            if (mic is not null || far is not null) adopted++;
+
+            continue;
+
+            string? Adopt(string? stored, string which)
+            {
+                if (!Directory.Exists(source)) return null;
+
+                // The same tail the archive recorded, looked for under what was just unpacked.
+                if (Repository.RebaseRecordingPath(stored, source) is not { } found) return null;
+
+                var directory = paths.RecordingDirectoryFor(call.StartedAt);
+                Directory.CreateDirectory(directory);
+
+                var target = Path.Combine(
+                    directory, $"call-{call.Id}-{which}{Path.GetExtension(found)}");
+
+                File.Move(found, target, overwrite: true);
+                return target;
+            }
+        }
+
+        return adopted;
+    }
+
+    /// <summary>
+    /// A readable zip for this archive: the file itself, or a decrypted copy of it.
+    ///
+    /// The copy is written beside the data rather than in the temp folder for the same reason the
+    /// backup was: with audio these are gigabytes, and the disk somebody chose is the one with
+    /// room. The caller removes it; <see cref="UnpackAsync"/> does that however it ends.
+    /// </summary>
+    private async Task<string> OpenForReadingAsync(
+        string archivePath,
+        string? password,
+        string copyName,
+        IProgress<string>? progress,
+        CancellationToken ct)
+    {
+        if (!NeedsPassword(archivePath)) return archivePath;
+
+        if (string.IsNullOrEmpty(password))
+            throw new InvalidOperationException("Bu yedek parolalı. Parola olmadan açılamaz.");
+
+        progress?.Report("Yedek çözülüyor…");
+
+        var opened = Path.Combine(paths.Root, copyName);
+
+        var fault = await Task.Run(() =>
+        {
+            using var input = File.OpenRead(archivePath);
+            using var output = File.Create(opened);
+
+            return Export.EncryptedArchive.TryRead(input, output, password);
+        }, ct);
+
+        if (fault != Export.ArchiveFault.None)
+        {
+            TryDelete(opened);
+            CoreLog.Write("veri", $"yedek acilamadi: {fault}");
+
+            throw new InvalidOperationException(Export.EncryptedArchive.Explain(fault));
+        }
+
+        CoreLog.Write("veri", "parola dogru, yedek acildi");
+        return opened;
     }
 
     private static void TryDelete(string path)

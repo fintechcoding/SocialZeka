@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using VoiceTranscript.App.ViewModels;
 using VoiceTranscript.Core.Text;
 
@@ -76,6 +76,20 @@ public partial class HealthPage
             if (!confirmed) return;
         }
 
+        if (request == HealthViewModel.DataRequest.ImportAndMerge)
+        {
+            // Said plainly because the two neighbouring buttons do opposite things, and the one
+            // that keeps everything is the one that needs to say so out loud.
+            var confirmed = await Services.Dialogs.ConfirmAsync(
+                Window.GetWindow(this), "Yedeği içe aktar",
+                "Bu yedekteki görüşmeler mevcut arşivine EKLENİR. Şu anki hiçbir şey silinmez " +
+                "ve değiştirilmez; aynı görüşme her ikisinde de varsa buradaki olduğu gibi kalır.\n\n" +
+                "Yeniden başlatma gerekmez.\n\nDevam edilsin mi?",
+                okText: "İçe aktar");
+
+            if (!confirmed) return;
+        }
+
         await model.RunDataActionAsync(request, path);
     }
 
@@ -107,6 +121,18 @@ public partial class HealthPage
                 };
 
                 return dialog.ShowDialog() == true ? dialog.FolderName : null;
+            }
+
+            case HealthViewModel.DataRequest.ImportAndMerge:
+            {
+                var dialog = new Microsoft.Win32.OpenFileDialog
+                {
+                    Title = "Hangi yedek içe aktarılsın?",
+                    Filter = "Yedek dosyası (*.zip)|*.zip",
+                    CheckFileExists = true,
+                };
+
+                return dialog.ShowDialog() == true ? dialog.FileName : null;
             }
 
             case HealthViewModel.DataRequest.RestoreFromBackup:

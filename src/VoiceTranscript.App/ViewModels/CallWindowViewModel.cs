@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -652,6 +652,33 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         if (anchor is not null) anchor.IsCurrent = true;
 
         return anchor;
+    }
+
+    /// <summary>
+    /// Where the scroller should sit for the line being spoken, or <paramref name="current"/> when
+    /// it is already comfortably readable.
+    ///
+    /// A third of the way down rather than at an edge: what was just said stays visible, which is
+    /// most of what makes reading along work, and there is room for the lines about to arrive.
+    /// A bubble taller than the viewport goes to the top — a third of a negative gap would scroll
+    /// past the start of the very line being followed.
+    ///
+    /// Pure, and separate from the window, because this is the part that can be wrong in a way
+    /// nobody notices until they are watching a conversation play.
+    /// </summary>
+    public static double FollowOffset(
+        double top, double height, double current, double viewport, double extent)
+    {
+        var furthest = Math.Max(0, extent - viewport);
+
+        // Already in view with room to breathe: leave it. Re-scrolling on every line would twitch
+        // the transcript under the reader even when nothing needed to move.
+        var margin = Math.Min(viewport / 6, 80);
+
+        if (top >= current + margin && top + height <= current + viewport - margin) return current;
+
+        var visible = Math.Min(height, viewport);
+        return Math.Clamp(top - ((viewport - visible) / 3), 0, furthest);
     }
 
     private static void Highlight(

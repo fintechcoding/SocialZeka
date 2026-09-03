@@ -19,6 +19,19 @@ public sealed record DeletionResult(int FilesRemoved, IReadOnlyList<string> File
     public bool IsComplete => FilesLeftBehind.Count == 0;
 }
 
+/// <summary>One call that an import brought in, before its audio has been put in place.</summary>
+/// <param name="Id">The identifier it was given here, which is not the one it had in the archive.</param>
+/// <param name="MicPath">The path the archive recorded, on the machine that wrote it.</param>
+public sealed record ImportedCall(long Id, string? MicPath, string? FarPath, DateTimeOffset StartedAt);
+
+/// <summary>What a merge actually added, for the sentence the user reads afterwards.</summary>
+public sealed record MergeCounts(
+    int Contacts,
+    int Calls,
+    int Segments,
+    int AlreadyHere,
+    IReadOnlyList<ImportedCall> NewCalls);
+
 public sealed record SearchHit(
     long CallId,
     long SegmentId,
@@ -911,6 +924,33 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>Every suggested step still open, across all calls — the to-do page's second source.</summary>
+    /// <summary>
+    /// The suggestions the user has ticked off, most recent deadline first.
+    ///
+    /// Needed because "Yaptım" used to be a disappearance. The suggestion left the first screen,
+    /// left the to-do list, and turned up nowhere — not even under "Bitenler", which is the one
+    /// place somebody looks to check whether they really did the thing. A list that can only
+    /// lose items teaches people not to tick anything.
+    /// </summary>
+    public IReadOnlyList<(ActionItem Action, string ContactName)> AllDoneActions()
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<ActionRow, string?, (ActionRow, string?)>(
+            """
+            SELECT a.*, ct.name
+            FROM action_item a
+            JOIN call c          ON c.id = a.call_id
+            LEFT JOIN contact ct ON ct.id = a.contact_id
+            WHERE a.status = 1
+            ORDER BY a.deadline_date IS NULL, a.deadline_date DESC, c.started_at DESC;
+            """,
+            (action, name) => (action, name),
+            splitOn: "name");
+
+        return [.. rows.Select(r => (r.Item1.ToModel(), r.Item2 ?? "İsimsiz"))];
+    }
+
     public IReadOnlyList<(ActionItem Action, string ContactName)> AllOpenActions()
     {
         using var connection = Open();
@@ -1076,6 +1116,282 @@ public sealed class Repository(Database database)
             "SELECT * FROM call WHERE state IN (0, 1) ORDER BY started_at ASC;")
             .Select(r => r.ToModel())];
     }
+
+    // ---- merging another archive into this one ------------------------------
+
+    /// <summary>Column names a table has in one of the attached databases.</summary>
+    private sealed class ColumnRow
+    {
+        public string name { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Adds everything from another archive to this one, keeping what is already here.
+    ///
+    /// The difference from a restore is the whole point. A restore answers "the laptop died":
+    /// it replaces the archive wholesale, which is why it has to wait for a restart and why it
+    /// moves the current data aside first. That is the wrong operation for the far more common
+    /// case — the same person, two machines, or a backup from last month next to three weeks of
+    /// newer conversations — where replacing means deliberately discarding one of the two halves.
+    ///
+    /// So this merges, in one transaction, and nothing is overwritten:
+    ///
+    ///   * A contact already here, matched on the folded name and the app, keeps their row and
+    ///     collects the incoming calls. Otherwise the contact is created.
+    ///   * A call is the same call when it started at the same instant in the same app. One that
+    ///     is already here is left completely alone — its transcript, its ledger and its notes
+    ///     stay as they are, and the incoming copy is dropped rather than merged row by row,
+    ///     because two transcripts of one conversation interleaved is not a better archive.
+    ///   * Everything hanging off a genuinely new call — segments, ledger, suggestions, notes,
+    ///     tags, runs — comes with it, with the identifiers rewritten.
+    ///
+    /// The columns are read from both databases and intersected at run time rather than listed
+    /// here. An archive written by an older build is missing columns this one has; one written by
+    /// a newer build has columns this one has never heard of. Naming them by hand would mean an
+    /// import that throws on the first schema change nobody remembered to come back and update.
+    ///
+    /// Settings are deliberately not merged. They carry this machine's audio devices and this
+    /// machine's API keys, and importing somebody's conversations must not quietly repoint the
+    /// recorder or replace a working key.
+    /// </summary>
+    /// <param name="importedDatabaseFile">
+    /// The archive's database, already brought up to the current schema by the caller.
+    /// </param>
+    public MergeCounts MergeArchive(string importedDatabaseFile)
+    {
+        using var connection = Open();
+
+        // ATTACH cannot run inside a transaction, so the two are ordered rather than nested.
+        connection.Execute("ATTACH DATABASE @path AS gelen;", new { path = importedDatabaseFile });
+
+        try
+        {
+            using var transaction = connection.BeginTransaction();
+
+            connection.Execute(
+                """
+                CREATE TEMP TABLE map_contact (old INTEGER PRIMARY KEY, new INTEGER NOT NULL);
+                CREATE TEMP TABLE map_call    (old INTEGER PRIMARY KEY, new INTEGER NOT NULL);
+                CREATE TEMP TABLE new_call    (old INTEGER PRIMARY KEY);
+                """,
+                transaction: transaction);
+
+            // Which calls are new is decided BEFORE anything is inserted. Asked afterwards, every
+            // call would look like one that was already here — because it would be.
+            connection.Execute(
+                """
+                INSERT INTO new_call (old)
+                SELECT s.id FROM gelen.call s
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM main.call m
+                     WHERE m.started_at = s.started_at AND m.app = s.app);
+                """,
+                transaction: transaction);
+
+            var alreadyHere = connection.ExecuteScalar<int>(
+                "SELECT (SELECT COUNT(*) FROM gelen.call) - (SELECT COUNT(*) FROM new_call);",
+                transaction: transaction);
+
+            var contacts = Copy(connection, transaction, "contact", where:
+                """
+                NOT EXISTS (
+                    SELECT 1 FROM main.contact m
+                     WHERE m.name_normalised = s.name_normalised AND m.app = s.app)
+                """);
+
+            connection.Execute(
+                """
+                INSERT OR IGNORE INTO map_contact (old, new)
+                SELECT s.id, m.id
+                  FROM gelen.contact s
+                  JOIN main.contact m ON m.name_normalised = s.name_normalised AND m.app = s.app;
+                """,
+                transaction: transaction);
+
+            var toContact = new Dictionary<string, string> { ["contact_id"] = "map_contact" };
+
+            var calls = Copy(connection, transaction, "call", toContact, "s.id IN (SELECT old FROM new_call)");
+
+            connection.Execute(
+                """
+                INSERT OR IGNORE INTO map_call (old, new)
+                SELECT s.id, m.id
+                  FROM gelen.call s
+                  JOIN main.call m ON m.started_at = s.started_at AND m.app = s.app;
+                """,
+                transaction: transaction);
+
+            // Children of the calls that were actually new. A call already here keeps what it has.
+            const string ofNewCalls = "s.call_id IN (SELECT old FROM new_call)";
+
+            var toCall = new Dictionary<string, string> { ["call_id"] = "map_call" };
+
+            var toCallAndContact = new Dictionary<string, string>
+            {
+                ["call_id"] = "map_call",
+                ["contact_id"] = "map_contact",
+            };
+
+            var segments = Copy(connection, transaction, "segment", toCall, ofNewCalls);
+
+            foreach (var table in new[]
+                     {
+                         "call_summary", "call_note", "call_tag", "consistency_note",
+                         "reading_note", "deception_note", "board_card", "processing_run",
+                     })
+            {
+                Copy(connection, transaction, table, toCall, ofNewCalls);
+            }
+
+            Copy(connection, transaction, "claim", toCallAndContact, ofNewCalls);
+            Copy(connection, transaction, "action_item", toCallAndContact, ofNewCalls);
+
+            Copy(
+                connection, transaction, "commitment",
+                new Dictionary<string, string>(toCallAndContact) { ["fulfilled_by_call_id"] = "map_call" },
+                ofNewCalls);
+
+            Copy(
+                connection, transaction, "flag",
+                new Dictionary<string, string>(toCallAndContact) { ["counter_call_id"] = "map_call" },
+                ofNewCalls);
+
+            // Things that hang off a person rather than a call. What is here wins in every case:
+            // a photo, a voiceprint or a set of fields already on a contact is this machine's.
+            Copy(connection, transaction, "contact_profile", toContact);
+            Copy(connection, transaction, "contact_voice", toContact);
+
+            Copy(connection, transaction, "contact_field", toContact, where:
+                """
+                NOT EXISTS (
+                    SELECT 1 FROM main.contact_field f
+                     WHERE f.contact_id = (SELECT new FROM map_contact WHERE old = s.contact_id)
+                       AND f.label = s.label AND f.value = s.value)
+                """);
+
+            Copy(connection, transaction, "title_binding", toContact, where:
+                """
+                NOT EXISTS (
+                    SELECT 1 FROM main.title_binding t
+                     WHERE t.title_pattern = s.title_pattern AND t.app = s.app)
+                """);
+
+            Copy(connection, transaction, "message", toContact, where:
+                """
+                NOT EXISTS (
+                    SELECT 1 FROM main.message m
+                     WHERE m.contact_id = (SELECT new FROM map_contact WHERE old = s.contact_id)
+                       AND m.sent_at = s.sent_at AND m.text = s.text)
+                """);
+
+            Copy(
+                connection, transaction, "todo",
+                new Dictionary<string, string> { ["contact_id"] = "map_contact", ["call_id"] = "map_call" },
+                """
+                NOT EXISTS (
+                    SELECT 1 FROM main.todo t
+                     WHERE t.text = s.text AND IFNULL(t.due_date, '') = IFNULL(s.due_date, ''))
+                """);
+
+            // Tag looks are keyed by the folded tag, so a definition already here is kept.
+            Copy(connection, transaction, "tag_def");
+
+            var arrived = connection.Query<ImportedCallRow>(
+                """
+                SELECT m.id, m.mic_path, m.far_path, m.started_at
+                  FROM new_call n
+                  JOIN map_call k ON k.old = n.old
+                  JOIN main.call m ON m.id = k.new;
+                """,
+                transaction: transaction).ToList();
+
+            // The counters are denormalised, and every incoming call landed on somebody.
+            connection.Execute(
+                """
+                UPDATE contact SET
+                    call_count   = (SELECT COUNT(*)        FROM call WHERE call.contact_id = contact.id),
+                    last_call_at = (SELECT MAX(started_at) FROM call WHERE call.contact_id = contact.id);
+                """,
+                transaction: transaction);
+
+            transaction.Commit();
+
+            CoreLog.Write("veri",
+                $"ice aktarma: {calls} gorusme, {contacts} kisi, {segments} satir eklendi; "
+                + $"{alreadyHere} gorusme zaten vardi");
+
+            return new MergeCounts(
+                contacts, calls, segments, alreadyHere,
+                [.. arrived.Select(r => new ImportedCall(
+                    r.id, r.mic_path, r.far_path, ParseIso(r.started_at)))]);
+        }
+        finally
+        {
+            // Temp tables belong to the connection, and the connection goes back to the pool.
+            // Left behind, the next import would fail on CREATE rather than on anything real.
+            connection.Execute(
+                """
+                DROP TABLE IF EXISTS map_contact;
+                DROP TABLE IF EXISTS map_call;
+                DROP TABLE IF EXISTS new_call;
+                """);
+
+            connection.Execute("DETACH DATABASE gelen;");
+        }
+    }
+
+    private sealed class ImportedCallRow
+    {
+        public long id { get; set; }
+        public string? mic_path { get; set; }
+        public string? far_path { get; set; }
+        public string started_at { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Copies one table out of the attached archive, rewriting the identifiers named in
+    /// <paramref name="remap"/> and skipping rows the <paramref name="where"/> clause rejects.
+    ///
+    /// The column list is the intersection of what both databases have, minus the surrogate key,
+    /// so an archive from a different version of the application still merges: a column only one
+    /// side knows about is left behind instead of failing the import.
+    ///
+    /// INSERT OR IGNORE throughout, because several of these tables are keyed by something real —
+    /// a folded tag, a call, a contact — and for a merge the right answer to a collision is that
+    /// what is already here wins. Foreign key violations are NOT ignored by that clause, so a
+    /// genuine mapping mistake still stops the transaction instead of quietly dropping rows.
+    /// </summary>
+    private static int Copy(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string table,
+        IReadOnlyDictionary<string, string>? remap = null,
+        string? where = null)
+    {
+        var mine = ColumnsOf(connection, transaction, "main", table);
+        var theirs = ColumnsOf(connection, transaction, "gelen", table);
+
+        var shared = mine.Where(theirs.Contains).Where(c => c != "id").ToList();
+        if (shared.Count == 0) return 0;
+
+        var values = shared.Select(c =>
+            remap is not null && remap.TryGetValue(c, out var map)
+                ? $"(SELECT new FROM {map} WHERE old = s.\"{c}\")"
+                : $"s.\"{c}\"");
+
+        var sql =
+            $"INSERT OR IGNORE INTO main.\"{table}\" ({string.Join(", ", shared.Select(c => $"\"{c}\""))}) "
+            + $"SELECT {string.Join(", ", values)} FROM gelen.\"{table}\" s"
+            + (where is null ? ";" : $" WHERE {where};");
+
+        return connection.Execute(sql, transaction: transaction);
+    }
+
+    private static HashSet<string> ColumnsOf(
+        SqliteConnection connection, SqliteTransaction transaction, string schema, string table) =>
+        [.. connection
+            .Query<ColumnRow>($"PRAGMA {schema}.table_info(\"{table}\");", transaction: transaction)
+            .Select(r => r.name)];
 
     // ---- segments -----------------------------------------------------------
 
