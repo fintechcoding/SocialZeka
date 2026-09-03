@@ -11,8 +11,20 @@ from __future__ import annotations
 import difflib
 import re
 import unicodedata
+import zlib
 from dataclasses import dataclass, field
 from enum import Enum
+
+# Above this, a segment's text is repeating itself rather than saying something.
+#
+# Whisper's own number, from the reference implementation, where exceeding it makes the decoder
+# re-run the window at a higher temperature. We cannot re-run anything — the audio is on somebody
+# else's machine by then — but the same measure still tells us the line is not evidence.
+COMPRESSION_RATIO_LIMIT = 2.4
+
+# Below this many characters the ratio measures zlib's header rather than the text, and ordinary
+# short answers ("Tamam.", "Evet evet.") would score as loops.
+_COMPRESSION_MIN_CHARS = 60
 
 
 class Speaker(str, Enum):
@@ -53,12 +65,45 @@ class Segment:
 
         A misheard "on sekiz bin" -> "on sekiz yuz" turns into a fabricated price conflict
         attributed to a real person, so uncertain audio must not feed the deterministic checks.
+
+        Two of the three tests below need the decoder to have told us how sure it was, and a
+        hosted one does not have to. Counted over this archive: 1321 of 2241 segments carry
+        neither ``avg_logprob`` nor ``no_speech_prob``, and the split is exactly by engine — every
+        segment from the local engine has both, every segment from the service has neither. Since
+        both tests are None-guarded, a missing score read as *confident*, so the segments least
+        worth trusting were the ones entering the ledger unmarked.
+
+        The third test needs nothing from anybody. Whisper's own measure of an output that has
+        come off the rails is how well its text compresses, and it is computed from the text.
         """
         if self.no_speech_prob is not None and self.no_speech_prob > 0.6:
             return True
         if self.avg_logprob is not None and self.avg_logprob < -1.0:
             return True
-        return False
+        return self.compression_ratio > COMPRESSION_RATIO_LIMIT
+
+    @property
+    def compression_ratio(self) -> float:
+        """How much this segment's text repeats itself, by how far it compresses.
+
+        Whisper's own fallback uses exactly this, and the threshold below is the one from its
+        reference implementation. Text that says something new compresses two-ish times; text
+        that has fallen into a loop compresses far harder, because the whole segment is one
+        string repeated.
+
+        Recomputing it here rather than reading it off the response is the point: the responses
+        that need this test hardest are the ones that carry no scores at all. On this archive it
+        is what "Mack Kiiiiiiii..." over 28 seconds and "Grafolfolfolfol..." have in common, and
+        neither of them was marked as anything.
+        """
+        text = self.text.strip()
+        if len(text) < _COMPRESSION_MIN_CHARS:
+            # Short text compresses badly whatever it says — the header outweighs the content —
+            # so the ratio is meaningless and a threshold on it would flag ordinary answers.
+            return 0.0
+
+        raw = text.encode("utf-8")
+        return len(raw) / max(1, len(zlib.compress(raw, 6)))
 
 
 @dataclass(slots=True)

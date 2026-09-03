@@ -7,7 +7,7 @@ import math
 import os
 import wave
 
-from vt_worker.chunking import Chunk, plan_chunks, slice_wav
+from vt_worker.chunking import Chunk, plan_chunks, slice_wav, speech_coverage
 
 RATE = 16_000
 
@@ -153,3 +153,58 @@ def test_chunks_cover_the_whole_recording(tmp_path):
     covered = sum(c.length_seconds for c in chunks)
 
     assert abs(covered - 66.0) < 0.5
+
+
+# ---- how much of the speech came back ----------------------------------------
+
+
+class _Seg:
+    """Only the two fields speech_coverage reads, so the test needs no engine."""
+
+    def __init__(self, start: float, end: float):
+        self.start, self.end = start, end
+
+
+def test_coverage_counts_the_speech_that_came_back_with_words(tmp_path):
+    """
+    A transcript that goes quiet is the failure nothing was measuring.
+
+    Measured on a real call: the hosted service returned words for 108 of 157 seconds of speech
+    where the local engine returned 150, and the missing 49 seconds were at the same level as the
+    rest — so the transcript alone could not say they were missing.
+    """
+    path = str(tmp_path / "call.wav")
+    _write(path, [(10.0, 8000), (10.0, 0), (10.0, 8000)])  # speech, pause, speech
+
+    assert plan_chunks(path, 60.0)  # the file is readable at all
+
+    # Both stretches transcribed.
+    assert speech_coverage(path, [_Seg(0.0, 10.0), _Seg(20.0, 30.0)]) > 0.95
+
+    # Only the first: half the conversation is missing, and it says so.
+    half = speech_coverage(path, [_Seg(0.0, 10.0)])
+    assert 0.4 < half < 0.6
+
+    # Nothing at all.
+    assert speech_coverage(path, []) == 0.0
+
+
+def test_coverage_does_not_accuse_a_silent_channel(tmp_path):
+    """
+    One channel is quiet for most of a call because the other person is talking, and a channel
+    that is quiet throughout is a fact about the call rather than a failed transcription. Asking
+    "what share of the speech came back" of a file with no speech in it has no answer, and
+    inventing a low one would put a warning on every one-sided recording.
+    """
+    path = str(tmp_path / "quiet.wav")
+    _write(path, [(20.0, 0)])
+
+    assert speech_coverage(path, []) is None
+
+
+def test_coverage_of_something_that_is_not_a_wav_is_unknown_rather_than_zero(tmp_path):
+    path = str(tmp_path / "not.wav")
+    with open(path, "wb") as handle:
+        handle.write(b"OggS not a wav at all")
+
+    assert speech_coverage(path, [_Seg(0.0, 5.0)]) is None

@@ -123,6 +123,37 @@ def test_low_confidence_segments_are_identified():
     assert merged.stats.low_confidence_segments == 2
 
 
+def test_a_segment_that_repeats_itself_is_doubted_without_the_decoder_saying_so():
+    """
+    The hosted service returns no confidence scores, and both other tests are None-guarded — so a
+    missing score read as certain, and the segments least worth trusting reached the ledger
+    unmarked. Counted over the archive: 1321 of 2241 segments, every one of them from the service.
+
+    This test needs nothing from the decoder. It is Whisper's own measure of an output that has
+    come off the rails, computed from the text, at Whisper's own threshold. The strings are real:
+    they are what the archive actually contains.
+    """
+    loop = seg(0.0, 28.5, "Mack K" + "ı" * 150)
+    syllables = seg(30.0, 45.0, "Grafol" + "fol" * 60)
+    words = seg(50.0, 70.0, "Kamera mı koymuş polisler " * 8)
+
+    assert loop.is_low_confidence
+    assert syllables.is_low_confidence
+    assert words.is_low_confidence
+
+    # And an ordinary long sentence, from the same archive, is not.
+    real = seg(
+        0.0, 12.6,
+        "Bu paraları senin ödemen gerekiyordu. O kendisi üstleniyor. Neden? "
+        "Çünkü senin sorumluluğunda.")
+
+    assert not real.is_low_confidence
+
+    # Nor is a short answer, whose text is too small for the ratio to mean anything.
+    assert not seg(0.0, 1.0, "Tamam.").is_low_confidence
+    assert not seg(0.0, 1.0, "Evet evet.").is_low_confidence
+
+
 def test_readable_transcript_is_labelled_and_timestamped():
     mic = [seg(0.0, 2.0, "alo")]
     far = [seg(63.0, 65.0, "buyrun")]

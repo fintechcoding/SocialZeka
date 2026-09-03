@@ -28,11 +28,17 @@ import time
 import traceback
 from typing import Any
 
-from vt_worker import dll_paths, gpu
+from vt_worker import chunking, dll_paths, gpu
 from vt_worker import models
 from vt_worker.engines import DEFAULT_ENGINE, EngineError, EngineOptions, create, probe_all
 from vt_worker.merge import MergedTranscript, Segment, merge_streams
 from vt_worker.segmentation import DEFAULT_MAX_GAP, resegment_on_gaps
+
+# Below this share of the audible speech, a transcript is worth complaining about rather than
+# presenting. Set from what a working engine does on a real call: on one measured stretch the
+# local engine reached 0.96 and the service 0.96 with its VAD on, 0.69 with it off. Anything
+# under four fifths is a transcript with conversation missing from it, not a quiet call.
+LOW_COVERAGE = 0.8
 
 
 def _configure_streams() -> None:
@@ -224,6 +230,23 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
 
     engine.unload()
 
+    # How much of the speech that is audibly there came back with words on it.
+    #
+    # An engine that invents is obvious; one that goes quiet is not, and for a record of what
+    # somebody said the quiet failure is the worse of the two. Measured on one real stretch, the
+    # hosted service returned words for 108 of 157 seconds of speech against the local engine's
+    # 150 — and the missing 49 seconds ran at the same level as the rest, so nothing in the
+    # transcript said they were missing. It is a number now, and a low one is worth acting on.
+    coverage = {
+        stage: chunking.speech_coverage(path, segments)
+        for stage, path, segments in (("mic", mic_path, mic_segments), ("far", far_path, far_segments))
+        if path
+    }
+
+    for stage, value in coverage.items():
+        if value is not None and value < LOW_COVERAGE:
+            log(f"{stage}: konuşmanın yalnızca %{value * 100:.0f}'i yazıya döküldü")
+
     emit(
         _transcript_to_json(
             job_id,
@@ -234,6 +257,9 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
                 "language": options.language,
                 "resegment_max_gap": max_gap,
                 "elapsed_s": round(time.monotonic() - started, 2),
+                "speech_coverage": {
+                    stage: round(value, 3) for stage, value in coverage.items() if value is not None
+                },
             },
         )
     )

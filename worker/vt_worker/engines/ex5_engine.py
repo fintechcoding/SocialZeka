@@ -140,26 +140,30 @@ class Ex5WhisperEngine(CloudWhisperEngine):
             # windows, it does not join unrelated audio together, and there is no seam to hallucinate
             # at. Which is why this belongs on the request and not in our own audio.
             #
-            # HOWEVER — measured 2026-09-03, and the measurement says this flag currently does
-            # nothing. Sixty seconds of synthetic room tone (no speech, -55 dBFS), posted twice,
-            # once without this field and once with it: byte-identical transcripts, and the same
-            # two hallucinated lines at the same timestamps, 27.2-30.0 and 57.2-60.0. A flag the
-            # server accepts and does not apply. It is sent anyway because it is what we want and
-            # the server will one day honour it, but nothing here may be built on the assumption
-            # that it is working. See docs/ISLEM-GUNLUGU.md.
+            # And it is the single largest thing we control. Measured 2026-09-03 against 180
+            # seconds of a real call carrying 157 seconds of speech, scored on how many of those
+            # seconds came back with words on them:
+            #
+            #     server defaults (vad off)            108/157   20 lines   1 hallucinated
+            #     vad=true                             151/157   43 lines   0 hallucinated
+            #     the local engine, faster-whisper     150/157    8 lines   0 hallucinated
+            #
+            # With it the service is level with the local engine and finer-grained; without it,
+            # a third of the conversation is missing — and missing quietly, which in a record of
+            # what somebody said is worse than an invented line, because nothing looks wrong.
+            #
+            # A caution for whoever measures this next: on sixty seconds of synthetic room tone
+            # the flag changes nothing at all, byte for byte, same timestamps. It was very nearly
+            # written off on that basis. Silence is not the case it acts on.
             "vad": "true",
-            # Off, because the recording is one side of a call and is silent for most of it.
+            # normalize is deliberately NOT sent, and the server's default (on) is what we want.
             #
-            # The server normalises by default. That is right for a file somebody recorded too
-            # quietly and wrong for this one: with no speech in the window there is nothing to
-            # normalise towards, so the gain lands on the room tone and hands the decoder
-            # something at speech level to transcribe. Measured on the same room-tone clip:
-            # normalize=true gave two hallucinated lines, normalize=false gave one, and the
-            # service's own filter caught that one as konusma_degil(no_speech=0.89).
-            #
-            # Nothing is lost by it here. The recorder captures at a fixed gain and these files
-            # already peak at full scale.
-            "normalize": "false",
+            # It was sent as false for a few hours on the strength of the room-tone clip, where
+            # turning it off halved the hallucinated lines — the reasoning being that gain applied
+            # to a window with no speech in it only lifts the room tone to where a decoder will
+            # transcribe it. That reasoning is sound and the conclusion was still wrong: on real
+            # speech, normalize=false costs 23 of those 157 seconds (151 -> 128) and adds back a
+            # hallucinated line. Whatever it does to silence, it helps the model hear.
         }
 
         if options.language and not options.multilingual:

@@ -99,20 +99,23 @@ def test_the_job_request_sends_only_the_four_fields_that_endpoint_declares(engin
     assert 'name="timestamp_granularities"' not in text
 
 
-def test_the_server_is_told_not_to_normalise_a_channel_that_is_mostly_silent(engine, tmp_path):
+def test_normalisation_is_left_to_the_server(engine, tmp_path):
     """
-    Normalising one side of a call is gain applied to whatever is in the window, and for most of
-    a conversation what is in this window is room tone.
+    Sent as false for a few hours, on a measurement that was real and did not generalise.
 
-    Measured against the live service on 2026-09-03 with sixty seconds of synthetic room tone —
-    no speech, -55 dBFS. With the server's default (normalize=true) it came back with two
-    hallucinated lines; with normalize=false, one, and the service's own filter caught that one
-    as ``konusma_degil(no_speech=0.89)``. Nothing is given up: the recorder captures at a fixed
-    gain and these files already peak at full scale.
+    On sixty seconds of synthetic room tone, turning normalisation off halved the hallucinated
+    lines — gain applied to a window with no speech in it only lifts room tone to where a decoder
+    will transcribe it. On 180 seconds of real conversation it cost 23 of 157 seconds of speech
+    (151 covered against 128) and added a hallucinated line back. Whatever it does to silence, it
+    helps the model hear.
+
+    So the field is not sent at all rather than sent as true: the server's default is already what
+    we want, and a request that states a value we did not choose is a value somebody will later
+    try to justify.
     """
     _url, _headers, body = engine._job_request(_upload(tmp_path), _options())
 
-    assert 'name="normalize"\r\n\r\nfalse' in body.decode("utf-8", errors="replace")
+    assert 'name="normalize"' not in body.decode("utf-8", errors="replace")
 
 
 def test_the_cached_answer_belongs_to_the_request_that_produced_it(engine, monkeypatch, tmp_path):
