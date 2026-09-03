@@ -451,8 +451,10 @@ public partial class CallWindow
     {
         if (ActionOf(sender) is not { } row || ViewModel is not { } model) return;
 
-        RemindWindow.Open(this, App.Repository, model.CallId, model.Title, row.Action);
-        model.SetActionStatus(row, Core.Domain.ActionStatus.Routed, "hatırlatıcı");
+        // Only when something was actually scheduled. Routed removes the row from the open list
+        // for good, and a suggestion cancelled out of is a suggestion still outstanding.
+        if (RemindWindow.Open(this, App.Repository, model.CallId, model.Title, row.Action))
+            model.SetActionStatus(row, Core.Domain.ActionStatus.Routed, "hatırlatıcı");
     }
 
     /// <summary>Suggestion → the important pile. Existing card titles are never overwritten.</summary>

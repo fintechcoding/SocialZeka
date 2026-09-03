@@ -78,6 +78,37 @@ public static class AudioMaterialiser
     }
 
     /// <summary>Oldest decoded copies go first once the cache is over its cap.</summary>
+    /// <summary>
+    /// Removes half-written files abandoned beside <paramref name="neighbour"/>.
+    ///
+    /// The same rule the cache sweep applies, made available to the one other place that writes
+    /// these: the archive encoder, which writes its temporary file next to the .ogg it is
+    /// building — in the recordings folder, which no sweeper looked at. A file older than a day
+    /// with this name is one that never finished, because the finished ones are renamed within
+    /// seconds.
+    /// </summary>
+    public static void DiscardPartials(string? neighbour)
+    {
+        if (string.IsNullOrWhiteSpace(neighbour)) return;
+
+        try
+        {
+            var directory = Path.GetDirectoryName(neighbour);
+            if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;
+
+            foreach (var abandoned in new DirectoryInfo(directory).GetFiles("*.partial"))
+            {
+                if (abandoned.LastWriteTimeUtc < DateTime.UtcNow - TimeSpan.FromDays(1))
+                    try { abandoned.Delete(); } catch (IOException) { }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Housekeeping. A folder that cannot be listed is not a reason to fail the job it
+            // was about to do.
+        }
+    }
+
     private static void Trim()
     {
         try

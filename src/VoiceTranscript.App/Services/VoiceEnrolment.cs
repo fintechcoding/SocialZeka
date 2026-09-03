@@ -111,7 +111,8 @@ public sealed class VoiceEnrolment(
         _log(rejected.Count == 0
             ? $"ses izi: kişi #{contactId} · {used.Count} görüşmeden kuruldu"
             : $"ses izi: kişi #{contactId} · {used.Count} görüşmeden kuruldu, "
-              + $"{rejected.Count} görüşme etiketiyle uyuşmadığı için dışarıda bırakıldı");
+              + $"etiketiyle uyuşmayan {rejected.Count} görüşme dışarıda bırakıldı: "
+              + $"#{string.Join(", #", rejected)}");
 
         return new EnrolmentResult(contactId, true, used, rejected);
     }

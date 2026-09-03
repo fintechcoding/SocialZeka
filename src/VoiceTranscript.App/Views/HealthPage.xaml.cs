@@ -18,42 +18,40 @@ public partial class HealthPage
             if (e.OldValue is HealthViewModel previous)
             {
                 previous.DataActionRequested -= OnDataAction;
-                previous.SettingsChangeRequested -= OnVerboseLogChanged;
+                previous.SettingsChangeRequested -= OnLogDetailChanged;
             }
 
             if (e.NewValue is HealthViewModel next)
             {
                 next.DataActionRequested += OnDataAction;
-                next.SettingsChangeRequested += OnVerboseLogChanged;
+                next.SettingsChangeRequested += OnLogDetailChanged;
             }
         };
     }
 
     /// <summary>
-    /// Persists the detailed-log switch straight away.
+    /// Persists the log level straight away.
     ///
-    /// This screen has no Save button, and the next thing somebody does after turning it on is
-    /// reproduce the fault they are chasing — a setting that waited for confirmation would be off
-    /// for precisely the run that mattered.
+    /// This screen has no Save button, and the next thing somebody does after raising the level
+    /// is reproduce the fault they are chasing — a setting that waited for confirmation would be
+    /// off for precisely the run that mattered.
+    ///
+    /// This page is the setting's only home. It was briefly a switch here and a picker in
+    /// Ayarlar, then a picker here bound to properties this page's view model did not have. WPF
+    /// reports a broken binding by doing nothing at all, so the box was simply empty and the
+    /// level could not be changed from anywhere.
     /// </summary>
-    private void OnVerboseLogChanged(object? sender, bool verbose)
+    private void OnLogDetailChanged(object? sender, Core.Configuration.LogDetail level)
     {
-        // The switch on this page is the coarse half of a three-position setting that lives in
-        // Ayarlar → Genel. Turning it off means Normal; turning it on means Verbose, and never
-        // Debug — dropping somebody into the loudest level from a toggle they flipped in passing
-        // would fill their log with lines written for whoever is chasing one specific fault.
-        var level = verbose ? Core.Configuration.LogDetail.Verbose : Core.Configuration.LogDetail.Normal;
-
         App.Settings = App.Settings with { LogDetail = level };
         App.Settings.Save(App.Paths.SettingsFile);
 
         Services.AppLog.Level = level;
-        Services.AppLog.Write("app", $"günlük ayrıntısı: {level}");
+        Services.AppLog.Write("app", $"gunluk ayrintisi: {level}");
 
         if (DataContext is HealthViewModel model)
-            model.DataMessage = Localisation.T(verbose
-                ? "healthpage.ayrintili-gunluk-acik"
-                : "healthpage.ayrintili-gunluk-kapali");
+            model.DataMessage = Localisation.T(
+                "healthpage.gunluk-" + level.ToString().ToLowerInvariant() + "-secildi");
     }
 
     private async void OnDataAction(object? sender, HealthViewModel.DataRequest request)

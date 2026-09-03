@@ -28,6 +28,9 @@ public partial class LabelCallWindow
     private readonly Repository _repository;
     private readonly long _callId;
     private readonly string? _observedTitle;
+
+    /// <summary>Who the call is probably about, from a recognised title or the voice.</summary>
+    private readonly long? _suggestedContactId;
     private readonly CallApp _app;
 
     /// <summary>Set while a suggestion is being applied, so the edit does not reopen the list.</summary>
@@ -49,6 +52,7 @@ public partial class LabelCallWindow
         _repository = repository;
         _callId = callId;
         _observedTitle = observedTitle;
+        _suggestedContactId = suggestedContactId;
         _app = app;
 
         HeadlineText.Text = $"{duration:mm\\:ss} uzunluğunda bir {app} görüşmesi kaydedildi.";
@@ -104,10 +108,11 @@ public partial class LabelCallWindow
             return;
         }
 
-        // Zero is never a contact id, so this asks the only question that can be answered yet:
-        // is the title free? A title already bound — to this person or another — cannot be
-        // claimed by whoever is about to be typed into the box.
-        if (!_repository.CanRememberTitle(_observedTitle, _app, forContactId: 0))
+        // Asked on behalf of whoever this call is most likely about, which is the prefilled
+        // answer when there is one. Asking on behalf of nobody reported a title already bound to
+        // THIS person as belonging to somebody else — true of the question asked, wrong about the
+        // situation, and the sentence a user would read as the application having lost track.
+        if (!_repository.CanRememberTitle(_observedTitle, _app, forContactId: _suggestedContactId ?? 0))
             Withdraw($"“{_observedTitle}” başka bir kişiye bağlı, hatırlanamaz");
 
         void Withdraw(string reason)

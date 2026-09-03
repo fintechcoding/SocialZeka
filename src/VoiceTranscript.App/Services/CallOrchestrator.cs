@@ -913,8 +913,7 @@ public sealed class CallOrchestrator : IDisposable
             AppLog.Write("kayit", $"cihaz — mikrofon: {_devices.Microphone ?? "?"}; " +
                                   $"cikis: {_devices.Output ?? "?"}; " +
                                   $"yakalama: {backend.Name}; " +
-                                  $"yanki engelleme: {(settings.UseEchoCancellation ? "acik" : "kapali")}" +
-                                  $"{(settings.UseEchoCancellation && !WasapiCaptureBackend.EchoCancellationSupported ? " (bu Windows desteklemiyor)" : "")}");
+                                  $"yanki engelleme: {EchoCancellationInUse(backend, settings)}");
         }
         catch (Exception e)
         {
@@ -962,6 +961,25 @@ public sealed class CallOrchestrator : IDisposable
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// What echo cancellation is actually doing on this recording, rather than what was asked.
+    ///
+    /// The setting is a request and the three backends answer it differently: per-application
+    /// capture opens the microphone with no communications mode and no reference endpoint, so it
+    /// never cancels anything, and Windows 10 has no API to ask with. A log line that printed the
+    /// request said "açık" on both — and this line exists to explain a recording after the fact,
+    /// where a wrong answer is worse than none.
+    /// </summary>
+    private static string EchoCancellationInUse(IAudioCaptureBackend backend, AppSettings settings)
+    {
+        if (!settings.UseEchoCancellation) return "kapali";
+        if (backend.IsProcessIsolated) return "kapali (uygulama bazli yakalamada yok)";
+
+        return WasapiCaptureBackend.EchoCancellationSupported
+            ? "acik"
+            : "kapali (bu Windows desteklemiyor)";
     }
 
     private IAudioCaptureBackend CreateBackend(AppSettings settings)
@@ -1563,10 +1581,11 @@ public sealed class CallOrchestrator : IDisposable
     /// <summary>
     /// Replaces a processed call's PCM streams with Opus, one stream at a time.
     ///
-    /// Each stream is encoded to a sibling file, decoded again to prove it holds every frame,
-    /// and only then does the WAV go and the row learn the new path — so a crash anywhere leaves
-    /// either the original or a verified replacement, never neither. The two streams are never
-    /// mixed: the separation is what makes speaker attribution a fact, and it survives.
+    /// Both streams are encoded to sibling files and decoded again to prove they hold every
+    /// frame; only then does the row learn the new paths, and only then do the originals go — so
+    /// a crash anywhere leaves both originals or both verified replacements, never one of each.
+    /// The two streams are never mixed: the separation is what makes speaker attribution a fact,
+    /// and it survives.
     /// </summary>
     private void CompressAudio(long callId, bool gateHeld = false)
     {
@@ -1588,12 +1607,40 @@ public sealed class CallOrchestrator : IDisposable
             }
 
             long before = 0, after = 0;
-            var mic = CompressStream(call.MicPath, ref before, ref after);
-            var far = CompressStream(call.FarPath, ref before, ref after);
 
-            if (mic == call.MicPath && far == call.FarPath) return;
+            // Both streams encoded and verified before either original goes.
+            //
+            // They used to be finished one at a time — encode, verify, delete the WAV, next — and
+            // the second one failing left the first in a state nothing could repair: its WAV
+            // deleted, its .ogg on disk, and the row still naming the WAV. No code path looks for
+            // an .ogg beside a missing .wav, so the audio was there and unreachable, permanently,
+            // from a failure whose whole purpose was to save disk space.
+            //
+            // Now the deletions happen last and only together, which is the same rule the silence
+            // trim already follows for the same reason: the two streams share a clock and a row,
+            // and half a swap is worse than none.
+            var mic = EncodeStream(call.MicPath, ref before, ref after);
+            var far = EncodeStream(call.FarPath, ref before, ref after);
 
-            _repository.SetAudioPaths(callId, mic, far);
+            if (mic.Path == call.MicPath && far.Path == call.FarPath) return;
+
+            _repository.SetAudioPaths(callId, mic.Path, far.Path);
+
+            // Past the point of no return: the row names the archives now, so the originals are
+            // redundant. A delete that fails here leaves a stray WAV, which is only wasted space.
+            foreach (var original in new[] { mic.Original, far.Original })
+            {
+                if (original is null) continue;
+
+                try
+                {
+                    File.Delete(original);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    AppLog.Write("veri", $"sıkıştırma sonrası {Path.GetFileName(original)} silinemedi");
+                }
+            }
 
             // The mixed copy was built from the PCM names; the next play rebuilds it from the
             // decoded cache.
@@ -1618,10 +1665,16 @@ public sealed class CallOrchestrator : IDisposable
         }
     }
 
-    /// <summary>One stream. Returns the path the row should hold afterwards.</summary>
-    private static string? CompressStream(string? wavPath, ref long before, ref long after)
+    /// <summary>
+    /// One stream, encoded and proved, with its original still in place.
+    ///
+    /// Returns the path the row should hold and — separately — the original that may now be
+    /// deleted, or null when there is nothing to delete. Deleting is the caller's to do, once
+    /// both streams have got this far.
+    /// </summary>
+    private static (string? Path, string? Original) EncodeStream(string? wavPath, ref long before, ref long after)
     {
-        if (wavPath is null || AudioMaterialiser.IsCompressed(wavPath)) return wavPath;
+        if (wavPath is null || AudioMaterialiser.IsCompressed(wavPath)) return (wavPath, null);
 
         // A PCM path with no file behind it is not something to carry on past: the row would be
         // left pointing at nothing while the other stream was rewritten. Said as an error.
@@ -1629,6 +1682,15 @@ public sealed class CallOrchestrator : IDisposable
             throw new FileNotFoundException("Sıkıştırılacak kayıt dosyası yerinde değil.", wavPath);
 
         var oggPath = OpusArchive.CompressedPathFor(wavPath);
+
+        // Anything a killed encode left beside the archive, before writing a new one.
+        //
+        // The encoder writes its temporary file next to the .ogg — in the recordings folder — and
+        // the only sweeper anybody wrote looks in the cache folder, for a different name. A
+        // process killed mid-encode therefore left a .partial in with the recordings and nothing
+        // ever removed it.
+        AudioMaterialiser.DiscardPartials(oggPath);
+
         var frames = OpusArchive.Encode(wavPath, oggPath);
 
         // Verified by decoding, not by trusting the encoder: a truncated file decodes short.
@@ -1644,8 +1706,7 @@ public sealed class CallOrchestrator : IDisposable
         before += new FileInfo(wavPath).Length;
         after += new FileInfo(oggPath).Length;
 
-        File.Delete(wavPath);
-        return oggPath;
+        return (oggPath, wavPath);
     }
 
     /// <summary>

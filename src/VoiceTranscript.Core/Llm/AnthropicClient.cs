@@ -122,8 +122,19 @@ public sealed class AnthropicClient(
         {
             var body = await response.Content.ReadAsStringAsync(deadline.Token);
 
+            // The same treatment every other provider gets. This client had its own wording and
+            // so kept printing the provider's English at somebody who has to decide whether to
+            // wait or to change a setting — the one decision the sentence exists to inform.
             if (!response.IsSuccessStatusCode)
-                throw new LlmException($"Anthropic {(int)response.StatusCode} döndürdü: {Describe(body)}");
+            {
+                CoreLog.Write("llm", $"Anthropic: HTTP {(int)response.StatusCode} — {Describe(body)}");
+
+                throw new LlmException(
+                    LlmFailureText.Describe(LlmProviderKind.Anthropic, (int)response.StatusCode, body))
+                {
+                    Body = body,
+                };
+            }
 
             return Parse(body);
         }

@@ -173,9 +173,16 @@ public sealed class AnthropicProviderTests
         Assert.Equal(4, response.CompletionTokens);
     }
 
-    /// <summary>The useful part of a failure is nested; a raw dump buries it in envelope.</summary>
+    /// <summary>
+    /// The useful part of a failure is nested, and what reaches the reader is a decision.
+    ///
+    /// "credit balance is too low" is accurate and in the wrong language for this window, and it
+    /// leaves the one question unanswered: is the key wrong, or is the money gone? They look the
+    /// same from a status code and take opposite actions. The provider's own sentence is kept on
+    /// the exception, where the retry logic and the log read it.
+    /// </summary>
     [Fact]
-    public async Task TheProvidersOwnErrorMessageIsShown()
+    public async Task ASpentBalanceIsReportedAsOneRatherThanAsABadKey()
     {
         var handler = new StubHandler(_ => Json(
             """{"type":"error","error":{"type":"invalid_request_error","message":"credit balance is too low"}}""",
@@ -186,7 +193,12 @@ public sealed class AnthropicProviderTests
         var problem = await Assert.ThrowsAsync<LlmException>(() =>
             Client(http).CompleteAsync(Request(), TestContext.Current.CancellationToken));
 
-        Assert.Contains("credit balance is too low", problem.Message);
+        Assert.Contains("bakiyesi", problem.Message);
+        Assert.Contains("Anahtar doğru", problem.Message);
+
+        // Nested, not the whole envelope: the extractor still has to find it.
+        Assert.Contains("credit balance is too low", problem.Body);
+        Assert.DoesNotContain("invalid_request_error", problem.Message);
     }
 
     // ---- wiring --------------------------------------------------------------

@@ -266,10 +266,12 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
 
     # The two streams are transcribed independently and only then merged. Attribution comes
     # from which file a segment was in, so it is a fact rather than a model prediction.
-    mic_segments = transcribe_stream(mic_path, "mic", 5.0, 50.0)
-    far_segments = transcribe_stream(far_path, "far", 50.0, 95.0)
+    # Room left at the top for a second attempt, which is a whole channel and not a rounding
+    # error. It used to be announced inside 95-96 AFTER merge had claimed 97, so the bar went
+    # backwards and the longest remaining step looked like one percent of the work.
+    mic_segments = transcribe_stream(mic_path, "mic", 5.0, 45.0)
+    far_segments = transcribe_stream(far_path, "far", 45.0, 85.0)
 
-    emit({"type": "progress", "id": job_id, "stage": "merge", "percent": 97.0})
     merged = merge_streams(mic_segments, far_segments)
 
     # How much of the speech that is audibly there came back with words on it.
@@ -297,7 +299,11 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
     # without saying so, and at this level the alternative costs one request and settles the
     # question with a measurement instead of a threshold. The better of the two is kept — never
     # simply the newer one, because the second attempt can be worse.
-    for stage in list(coverage):
+    # Only where a second attempt would actually differ. Every other engine sends the same
+    # request whatever this says, so retrying one is paying twice for the same answer — and on
+    # the OpenAI-shaped cloud path it is paying twice in money, because the chunk cache is
+    # cleared after a successful pass and the whole recording goes up again.
+    for stage in list(coverage) if engine.honours_normalize else ():
         value = coverage[stage]
         if value is None or value >= RETRY_COVERAGE:
             continue
@@ -309,7 +315,7 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
             f"ses seviyeleme {'kapalı' if first_choice else 'açık'} olarak tekrar deneniyor")
 
         try:
-            retried = transcribe_stream(path, stage, 95.0, 96.0, normalize=not first_choice)
+            retried = transcribe_stream(path, stage, 85.0, 95.0, normalize=not first_choice)
         except EngineError as e:
             log(f"{stage}: ikinci deneme yapılamadı ({e.code})")
             continue
@@ -325,6 +331,13 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
             else:
                 far_segments = retried
 
+            # Cleared before merging again, because merge_streams only ever sets these. A segment
+            # marked as echo against the answer that was just discarded would keep the mark
+            # against an answer it was never compared to.
+            for segment in (*mic_segments, *far_segments):
+                segment.overlaps_other_speaker = False
+                segment.suspected_echo = False
+
             merged = merge_streams(mic_segments, far_segments)
         else:
             log(f"{stage}: ikinci deneme iyileştirmedi, ilk sonuç korundu")
@@ -334,6 +347,8 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
             log(f"{stage}: konuşmanın %{value * 100:.0f}'i yazıya döküldü")
 
     engine.unload()
+
+    emit({"type": "progress", "id": job_id, "stage": "merge", "percent": 97.0})
 
     emit(
         _transcript_to_json(

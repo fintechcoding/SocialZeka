@@ -120,11 +120,19 @@ public partial class RemindWindow
         Close();
     }
 
-    /// <summary>The one doorway every "Hatırlat" click goes through, wherever it started.</summary>
-    public static void Open(
+    /// <summary>
+    /// The one doorway every "Hatırlat" click goes through, wherever it started.
+    ///
+    /// Returns whether a reminder was actually set. The callers act on that: one of them marked
+    /// the suggestion as dealt with and dropped it off the list the moment this returned, so
+    /// pressing Escape here made the suggestion disappear without anything being scheduled — and
+    /// nothing shows it again.
+    /// </summary>
+    public static bool Open(
         Window? owner, Repository repository, long callId, string subject, string? reason = null)
     {
         var dialog = new RemindWindow(repository, callId, subject, reason) { Owner = owner };
-        dialog.ShowDialog();
+
+        return dialog.ShowDialog() == true;
     }
 }

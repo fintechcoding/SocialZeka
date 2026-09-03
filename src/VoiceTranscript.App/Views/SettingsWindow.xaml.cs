@@ -218,16 +218,27 @@ public partial class SettingsWindow
         {
             var settings = _viewModel.ToSettings();
 
-            using var backend = settings.PreferProcessLoopback
-                ? new ProcessLoopbackCaptureBackend()
-                : (Core.Audio.IAudioCaptureBackend)new WasapiCaptureBackend(
-                    settings.UseEchoCancellation,
-                    settings.MicrophoneDeviceId,
-                    settings.OutputDeviceId);
+            // Always the device backend, whatever the setting says.
+            //
+            // Per-application capture needs the messenger's process to follow, and outside a real
+            // call there is none — ProcessLoopbackCaptureBackend throws on the first line without
+            // a target. So with "Uygulama bazlı yakalama" on, this button could only ever fail,
+            // and it failed by showing a raw English exception in a Turkish window. The health
+            // page already resolved this the right way; this is the same answer.
+            using var backend = new WasapiCaptureBackend(
+                settings.UseEchoCancellation,
+                settings.MicrophoneDeviceId,
+                settings.OutputDeviceId);
 
             var result = await CaptureSelfTest.RunAsync(backend, TimeSpan.FromSeconds(5));
 
-            CaptureTestResult.Text = result.Summary;
+            // Honest about what was tested rather than silent about it: a green tick for a path
+            // the recording will not take is worse than no tick.
+            CaptureTestResult.Text = settings.PreferProcessLoopback
+                ? result.Summary +
+                  " (Cihaz yakalama sınandı. \"Uygulama bazlı yakalama\" yalnızca gerçek bir " +
+                  "arama sırasında sınanabilir — ilk aramadan sonra günlüğe bak.)"
+                : result.Summary;
             CaptureTestResult.Foreground = (Brush)FindResource(
                 result is { MicrophoneWorks: true, LoopbackWorks: true } ? "TextFillColorSecondaryBrush" : "SystemFillColorCautionBrush");
         }
@@ -446,11 +457,17 @@ public partial class SettingsWindow
                     ShowVoiceStatus($"{p.Done}/{p.Total}")));
 
             var learned = results.Count(r => r.Learned);
-            var suspect = results.Sum(r => r.Rejected.Count);
+            var odd = results.SelectMany(r => r.Rejected).ToList();
 
-            ShowVoiceStatus(suspect > 0
-                ? $"{learned} kişinin sesi öğrenildi. {suspect} görüşme, yazıldığı kişiye benzemiyor "
-                  + "— etiketleri yanlış olabilir."
+            // Named, not counted. "Şu kadar görüşme yanlış olabilir" tells somebody their archive
+            // has a problem and gives them no way to look at it — and this class exists precisely
+            // because a recording that does not sound like the person it is filed under is
+            // usually filed under the wrong person. The numbers are what the calls list is
+            // searchable by.
+            ShowVoiceStatus(odd.Count > 0
+                ? $"{learned} kişinin sesi öğrenildi. Şu görüşmeler yazıldığı kişiye benzemiyor, "
+                  + $"etiketleri yanlış olabilir: #{string.Join(", #", odd.Take(12))}"
+                  + (odd.Count > 12 ? $" (+{odd.Count - 12})" : "")
                 : $"{learned} kişinin sesi öğrenildi.");
         }
         catch (Exception ex)

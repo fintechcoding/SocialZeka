@@ -507,12 +507,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Recognise the far end by voice. Off until chosen — it stores biometric data.</summary>
     [ObservableProperty] private bool _identifySpeakers;
 
-    /// <summary>Owned by the health page; carried here so saving other settings keeps it.</summary>
-    /// <summary>How much the log records. Three positions, because two were not enough.</summary>
+    /// <summary>
+    /// How much the log records.
+    ///
+    /// Chosen on the health page, beside the buttons that copy the log and open its folder.
+    /// Carried here with no control of its own so that saving anything else on this window
+    /// writes the level back unchanged rather than resetting it to the default.
+    /// </summary>
     [ObservableProperty] private LogDetail _logDetail = LogDetail.Verbose;
-
-    public IReadOnlyList<LogDetail> LogDetails { get; } =
-        [LogDetail.Normal, LogDetail.Verbose, LogDetail.Debug];
 
     /// <summary>Whether Windows starts this application at logon. Reconciled by AutoStart on save.</summary>
     [ObservableProperty] private bool _startWithWindows = true;

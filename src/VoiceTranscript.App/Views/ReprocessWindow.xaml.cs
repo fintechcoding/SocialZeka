@@ -341,7 +341,8 @@ public partial class ReprocessWindow
             .Distinct()
             .Count();
 
-        ScopeBar.Visibility = worlds > 1 ? Visibility.Visible : Visibility.Collapsed;
+        var barShown = worlds > 1;
+        ScopeBar.Visibility = barShown ? Visibility.Visible : Visibility.Collapsed;
 
         // Opened on the world the application is actually set to use.
         //
@@ -353,12 +354,23 @@ public partial class ReprocessWindow
         // Automatic stays on "Tümü", and that is not a gap: it is the mode that says either world
         // may be used, so narrowing to one of them would be the window asserting a choice the
         // user deliberately did not make.
-        var opening = App.Settings?.AsrMode switch
-        {
-            Core.Configuration.TranscriptionMode.CloudOnly => "Cloud",
-            Core.Configuration.TranscriptionMode.LocalOnly => "Local",
-            _ => "All",
-        };
+        //
+        // Two guards, both learned the hard way. It is only applied when the bar is on screen:
+        // with one world listed there is no bar, so a filter that hid that world left an empty
+        // list and no control to widen it — a dead end reachable by setting CloudOnly with no
+        // usable endpoint configured. And it reads the setting that belongs to THIS list: asking
+        // the transcription mode about a list of analysis models emptied that list for anybody
+        // whose analysis runs in the cloud while their transcription runs locally.
+        var opening = !barShown
+            ? "All"
+            : _kind == ReprocessKind.Analyse
+                ? (App.Settings?.Provider.SendsDataOffMachine == true ? "Cloud" : "Local")
+                : App.Settings?.AsrMode switch
+                {
+                    Core.Configuration.TranscriptionMode.CloudOnly => "Cloud",
+                    Core.Configuration.TranscriptionMode.LocalOnly => "Local",
+                    _ => "All",
+                };
 
         ApplyScope(opening);
     }

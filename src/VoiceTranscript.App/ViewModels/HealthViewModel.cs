@@ -553,26 +553,34 @@ public sealed partial class HealthViewModel : ObservableObject
 
     /// <summary>Raised when an action needs a file or folder chosen by the user.</summary>
     /// <summary>
-    /// Whether the log records diagnostic detail.
+    /// How much the log records.
     ///
-    /// Saved the moment it is toggled rather than on a Save button, because this screen has no
-    /// Save button and because the next thing somebody does after turning it on is reproduce the
+    /// Saved the moment it is chosen rather than on a Save button, because this screen has no
+    /// Save button and because the next thing somebody does after raising it is reproduce the
     /// problem — a setting that needed confirming would be off for exactly the run that mattered.
+    ///
+    /// Three positions and not a switch. A switch cannot reach Debug, which is the level that
+    /// says what did NOT happen and which number stopped it — the only level worth having while
+    /// chasing a fault. Verbose is the default and the middle.
     /// </summary>
-    public bool VerboseLog
+    public LogDetail LogDetail
     {
-        get => _settings().VerboseLog;
+        get => _settings().LogDetail;
         set
         {
-            if (value == _settings().VerboseLog) return;
+            if (value == _settings().LogDetail) return;
 
             SettingsChangeRequested?.Invoke(this, value);
             OnPropertyChanged();
         }
     }
 
+    /// <summary>The three positions, quietest first, for the picker beside the log buttons.</summary>
+    public IReadOnlyList<LogDetail> LogDetails { get; } =
+        [LogDetail.Normal, LogDetail.Verbose, LogDetail.Debug];
+
     /// <summary>Raised so the window can persist the change; the view model does not own the file.</summary>
-    public event EventHandler<bool>? SettingsChangeRequested;
+    public event EventHandler<LogDetail>? SettingsChangeRequested;
 
     public event EventHandler<DataRequest>? DataActionRequested;
 

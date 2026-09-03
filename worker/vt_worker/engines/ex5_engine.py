@@ -70,6 +70,10 @@ class Ex5WhisperEngine(CloudWhisperEngine):
 
     name = "cloud-ex5"
 
+    # The only engine with a service-side loudness step, so the only one for which
+    # EngineOptions.normalize is a question rather than a no-op.
+    honours_normalize = True
+
     max_upload_bytes = MAX_UPLOAD_BYTES
 
     def _post(self, path: str, options: EngineOptions) -> dict:

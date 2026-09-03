@@ -115,12 +115,27 @@ public static class AudioDeviceCatalog
 
         try
         {
-            return enumerator.GetDevice(deviceId);
+            var device = enumerator.GetDevice(deviceId);
+
+            // Present is not the same as usable, and the difference cost conversations.
+            //
+            // GetDevice throws only for an id Windows has never heard of. A headset that was
+            // unplugged this morning, or an endpoint the user disabled, is still returned — with
+            // a state of Unplugged or Disabled and no ability to capture anything. The caller
+            // read a non-null answer as "the chosen device is there", skipped the fallback it
+            // already has, and opened a client on a device that was not connected: no packets,
+            // no warning, no recording. Meanwhile the list this was chosen from only ever showed
+            // Active endpoints, so the id could stop matching anything selectable at any moment.
+            if (device.State == DeviceState.Active) return device;
+
+            device.Dispose();
+            return null;
         }
         catch (Exception)
         {
-            // Unplugged since it was chosen. The caller falls back to the default rather than
-            // refusing to record, because a missing headset must not cost a conversation.
+            // An id from a machine this profile was copied from, or a driver mid-reinstall. The
+            // caller falls back to the default rather than refusing to record, because a missing
+            // headset must not cost a conversation.
             return null;
         }
     }

@@ -75,6 +75,15 @@ class AsrEngine(ABC):
 
     name: str = "abstract"
 
+    #: Whether this engine can act on :attr:`EngineOptions.normalize`.
+    #:
+    #: False everywhere but the ex5 engine, which is the only one with a service-side loudness
+    #: step to ask about. It exists so the caller can tell "the gain was wrong" from "there is no
+    #: gain to be wrong": a poor result is worth a second attempt only if the second attempt would
+    #: differ. Without this the retry re-sent a byte-identical request and doubled the work of
+    #: every local transcription that happened to score low.
+    honours_normalize: bool = False
+
     @abstractmethod
     def load(self, options: EngineOptions) -> None:
         """Bring the model into memory. May take several seconds."""
