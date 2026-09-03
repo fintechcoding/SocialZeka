@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json.Nodes;
 
 namespace VoiceTranscript.Core.Analysis;
@@ -120,13 +120,14 @@ public static class ConsistencyPrompt
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["tur", "konusan", "alinti", "aciklama", "gerekce", "guven"],
+                "required": ["tur", "konusan", "alinti", "karsi_alinti", "onceki_baglam_no",
+                             "aciklama", "gerekce", "guven"],
                 "properties": {
                   "tur": { "type": "string", "enum": ["celiski", "zaman_celiskisi", "kacamak", "belirsizlesme", "baski"] },
                   "konusan": { "type": "string", "enum": ["BEN", "KARSI"] },
                   "alinti": { "type": "string" },
-                  "karsi_alinti": { "type": "string" },
-                  "onceki_baglam_no": { "type": "integer" },
+                  "karsi_alinti": { "type": ["string", "null"] },
+                  "onceki_baglam_no": { "type": ["integer", "null"] },
                   "aciklama": { "type": "string" },
                   "gerekce": { "type": "string" },
                   "guven": { "type": "string", "enum": ["dusuk", "orta", "yuksek"] }

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json.Nodes;
 using VoiceTranscript.Core.Domain;
 
@@ -97,8 +97,8 @@ public static class ReadingPrompt
               "type": "array",
               "items": {
                 "type": "object", "additionalProperties": false,
-                "required": ["konu"],
-                "properties": { "konu": { "type": "string" }, "alinti": { "type": "string" } }
+                "required": ["konu", "alinti"],
+                "properties": { "konu": { "type": "string" }, "alinti": { "type": ["string", "null"] } }
               }
             },
             "baska_okuma": { "type": "string" },
@@ -106,11 +106,11 @@ public static class ReadingPrompt
               "type": "array",
               "items": {
                 "type": "object", "additionalProperties": false,
-                "required": ["soru", "neden"],
+                "required": ["soru", "neden", "alinti"],
                 "properties": {
                   "soru": { "type": "string" },
                   "neden": { "type": "string" },
-                  "alinti": { "type": "string" }
+                  "alinti": { "type": ["string", "null"] }
                 }
               }
             },

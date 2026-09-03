@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -25,6 +25,12 @@ public sealed record LlmRequest
     public double Temperature { get; init; } = 0.2;
 
     public int MaxTokens { get; init; } = 2048;
+
+    /// <summary>
+    /// The most this request may be given on a second attempt, when the first one spent its
+    /// whole budget thinking and answered nothing. See <c>OpenAiCompatibleClient.CompleteAsync</c>.
+    /// </summary>
+    public int MaxTokensCeiling { get; init; } = 16_384;
 
     /// <summary>
     /// Ask the server to unload the model when the request finishes.
@@ -131,7 +137,11 @@ public sealed class OpenAiCompatibleClient(
     {
         try
         {
-            return await SendAsync(request, cancellationToken);
+            var response = await SendAsync(request, cancellationToken);
+
+            return NeedsMoreRoom(request, response)
+                ? await AskAgainWithRoom(request, response, cancellationToken)
+                : response;
         }
         catch (LlmException e) when (request.JsonSchema is not null && LooksLikeUnsupportedSchema(e.Message))
         {
@@ -153,6 +163,53 @@ public sealed class OpenAiCompatibleClient(
             var response = await SendAsync(withoutSchema, cancellationToken);
             return response with { Content = StripCodeFence(response.Content) };
         }
+    }
+
+    /// <summary>
+    /// Whether the model ran out of budget before it said anything at all.
+    ///
+    /// A reasoning model spends completion tokens on its own thinking before a single visible
+    /// character is emitted, and that thinking comes out of the SAME allowance as the answer. On
+    /// a real call the ledger step asked for 2048 and the reply came back finished for "length"
+    /// with 1787 prompt tokens, 2048 completion tokens and zero characters: the model had thought
+    /// for the whole budget and never started writing.
+    ///
+    /// Nothing about that looks like a failure from the outside. The request succeeded, the
+    /// section was skipped as "unfinished", and the conversation was recorded as analysed with
+    /// no commitments and no claims in it — which reads exactly like a conversation in which
+    /// nothing was promised.
+    ///
+    /// A cut-off answer is a different thing and is left alone: it holds real content, the
+    /// caller can see it was truncated, and asking again would pay for the same tokens twice.
+    /// </summary>
+    private static bool NeedsMoreRoom(LlmRequest request, LlmResponse response) =>
+        response.FinishReason == "length"
+        && string.IsNullOrWhiteSpace(response.Content)
+        && request.MaxTokens < request.MaxTokensCeiling;
+
+    /// <summary>
+    /// The same request with room to think in, asked once.
+    ///
+    /// Four times the budget rather than a little more: the failure says the model needs more
+    /// than it was given and says nothing about how much, and a retry that lands one token short
+    /// costs the whole call again. Capped, so a model that would never answer cannot be paid for
+    /// indefinitely.
+    /// </summary>
+    private async Task<LlmResponse> AskAgainWithRoom(
+        LlmRequest request, LlmResponse first, CancellationToken cancellationToken)
+    {
+        var room = Math.Min(request.MaxTokens * 4, request.MaxTokensCeiling);
+
+        CoreLog.Write("llm",
+            $"{kind}/{request.Model}: {request.MaxTokens} jetonun tamamı düşünmeye gitti, "
+            + $"yanıt boş — {room} ile yeniden deneniyor");
+
+        var second = await SendAsync(request with { MaxTokens = room }, cancellationToken);
+
+        // The first answer was empty, so there is nothing to lose by preferring the second even
+        // when it is truncated too — and something to gain, because a truncated answer with
+        // content in it is one the caller can at least read.
+        return string.IsNullOrWhiteSpace(second.Content) ? first : second;
     }
 
     /// <summary>

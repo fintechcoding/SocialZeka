@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json.Nodes;
 using VoiceTranscript.Core.Domain;
 
@@ -63,14 +63,14 @@ public static class ActionPrompt
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["eylem", "neden", "tur", "alinti", "konusan"],
+                "required": ["eylem", "neden", "tur", "alinti", "konusan", "tarih_ham"],
                 "properties": {
                   "eylem": { "type": "string" },
                   "neden": { "type": "string" },
                   "tur": { "type": "string", "enum": ["yazili_teyit", "gonderme", "soru", "takip", "hazirlik", "diger"] },
                   "alinti": { "type": "string" },
                   "konusan": { "type": "string", "enum": ["BEN", "KARSI"] },
-                  "tarih_ham": { "type": "string" }
+                  "tarih_ham": { "type": ["string", "null"] }
                 }
               }
             },
