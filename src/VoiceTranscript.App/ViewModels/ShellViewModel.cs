@@ -31,16 +31,17 @@ public enum ShellPage
 
     Contacts,
 
-    /// <summary>
-    /// What has been processed, what has not, and what went wrong.
-    ///
-    /// Its own page rather than a strip on the first screen, because the question it answers —
-    /// "is the transcription actually happening" — is asked while looking at a list of recordings,
-    /// and answering it needs room for a reason beside each one. On a machine without a usable GPU
-    /// this is the difference between an application that is working slowly and one that appears
-    /// to have hung.
-    /// </summary>
-    Processing,
+    // ShellPage.Processing was here, and removing it is the fix rather than a tidy-up.
+    //
+    // The processing list is a tab on the Durum page and has been for a long time; nothing in the
+    // window was ever bound to a shell page of that name. So the value was a state the shell could
+    // enter and no view would answer for — every visibility binding said "not me" and the content
+    // area went blank. The first screen's "N görüşme işlenemedi · Göster" navigated there, and the
+    // button that promised to show four failures showed an empty screen instead. Twice: the first
+    // repair corrected which rows the list would hold without noticing that nobody could reach it.
+    //
+    // A value that cannot be rendered should not be expressible. See MainWindow.OnAttentionAction,
+    // which now goes to Health and selects the tab.
 
     Search,
 
@@ -235,7 +236,6 @@ public sealed partial class ShellViewModel : ObservableObject
         ShellPage.Search => Localisation.T("mainwindow.arama"),
         ShellPage.Ask => Localisation.T("mainwindow.sor"),
         ShellPage.Health => Localisation.T("mainwindow.durum"),
-        ShellPage.Processing => "İşlemler",
         _ => "VoiceTranscript",
     };
 
