@@ -243,6 +243,47 @@ public class BackupServiceTests : IDisposable
     }
 
     /// <summary>
+    /// A backup reported as written can be opened with the password just used.
+    ///
+    /// This is the one guarantee a locked backup has to make, and it is the one nobody can check
+    /// later: the readable copy is deleted the moment the encrypted one exists, and whether that
+    /// file opens is discovered on the day somebody needs it. So it is checked here, by opening
+    /// it — every frame of an AES-GCM archive carries its own tag, so reading it through proves
+    /// the key and the bytes together.
+    /// </summary>
+    [Fact]
+    public async Task AReportedBackupOpensWithThePasswordItWasGiven()
+    {
+        var backup = await _backup.BackupAsync(Destination("kilitli.zip"), password: "dogru parola");
+
+        Assert.True(Core.Storage.BackupService.NeedsPassword(backup.Path));
+
+        using var written = File.OpenRead(backup.Path);
+
+        Assert.Equal(
+            Core.Export.ArchiveFault.None,
+            Core.Export.EncryptedArchive.TryRead(written, Stream.Null, "dogru parola"));
+    }
+
+    /// <summary>
+    /// An empty password means no encryption, and the file must say so about itself.
+    ///
+    /// The two are asked for in the same box and the difference decides whether the restore ever
+    /// prompts. A file encrypted under an empty password would be one the window can never open:
+    /// it would ask for a password and treat the empty answer as "cancelled", forever.
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyPasswordLeavesTheFileReadable()
+    {
+        var backup = await _backup.BackupAsync(Destination("bos.zip"), password: null);
+
+        Assert.False(Core.Storage.BackupService.NeedsPassword(backup.Path));
+
+        // And it restores without one being asked for.
+        Assert.True(await _backup.StageRestoreAsync(backup.Path) > 0);
+    }
+
+    /// <summary>
     /// The readable copy must not outlive the encrypted one. Somebody who asked for a password
     /// expects the plain version gone, not sitting beside it with a different extension.
     /// </summary>

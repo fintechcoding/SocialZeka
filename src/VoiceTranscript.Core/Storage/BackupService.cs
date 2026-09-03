@@ -123,6 +123,34 @@ public sealed class BackupService(AppPaths paths, Repository repository)
                     Export.EncryptedArchive.Write(sealedFile, plain, password);
                 }
 
+                // Opened again with the same password before the readable copy is let go.
+                //
+                // Everything downstream of this point is irreversible and silent: the plain zip
+                // is deleted, and whether the encrypted one can be opened is not discovered until
+                // somebody needs it — which, for a backup, is the worst day to find out. The
+                // archive is AES-GCM with a tag per frame, so reading it through and discarding
+                // the output verifies every byte and the key together. One extra pass over the
+                // file is nothing against the alternative.
+                //
+                // Written to Stream.Null rather than to disk: nothing here wants the plaintext,
+                // only the answer to whether it comes back.
+                using (var written = File.OpenRead(destination))
+                {
+                    var fault = Export.EncryptedArchive.TryRead(written, Stream.Null, password);
+
+                    if (fault != Export.ArchiveFault.None)
+                    {
+                        // The readable copy stays, and the unusable encrypted one goes. A backup
+                        // that exists and cannot be opened is worse than one that is not secret.
+                        TryDelete(destination);
+
+                        throw new InvalidOperationException(
+                            "Yedek şifrelendi ama aynı parolayla geri açılamadı, o yüzden "
+                            + "yazılmadı: " + Export.EncryptedArchive.Explain(fault)
+                            + " Şifrelenmemiş kopya duruyor: " + plainPath);
+                    }
+                }
+
                 // The unencrypted copy must not outlive the encrypted one, or the password was
                 // decoration: somebody who asked for this expects the readable version gone.
                 File.Delete(plainPath);
@@ -130,6 +158,17 @@ public sealed class BackupService(AppPaths paths, Repository repository)
         }
 
         var size = new FileInfo(destination).Length;
+
+        // Written down, because nothing else records that this happened.
+        //
+        // A backup and a restore are the two operations that move somebody's whole archive, and
+        // neither left a trace — so when a restore behaved unexpectedly there was nothing to look
+        // at afterwards, only a memory of which buttons were pressed. Names and content stay out;
+        // what is kept is what was done, to how much, and whether it was locked.
+        CoreLog.Write("veri",
+            $"yedek yazıldı: {files} dosya · {size / 1_048_576.0:0.0} MB · "
+            + $"ses {(includeAudio ? "dahil" : "haric")} · "
+            + $"{(password is null ? "sifrelenmedi" : "sifrelendi ve geri acilarak dogrulandi")}");
 
         progress?.Report(password is null
             ? $"Yedek hazır: {files} dosya."
@@ -226,6 +265,16 @@ public sealed class BackupService(AppPaths paths, Repository repository)
         // same reason the backup was: with audio it is gigabytes.
         var opened = archivePath;
 
+        // Said before anything is opened, so a restore that behaved unexpectedly can be read
+        // back afterwards rather than reconstructed from memory. Whether the FILE is encrypted
+        // and whether a password was SUPPLIED are recorded separately: the interesting case is
+        // the two disagreeing.
+        CoreLog.Write("veri",
+            $"geri yukleme baslatildi: {Path.GetFileName(archivePath)} · "
+            + $"{new FileInfo(archivePath).Length / 1_048_576.0:0.0} MB · "
+            + $"dosya {(NeedsPassword(archivePath) ? "sifreli" : "sifresiz")} · "
+            + $"parola {(string.IsNullOrEmpty(password) ? "verilmedi" : "verildi")}");
+
         if (NeedsPassword(archivePath))
         {
             if (string.IsNullOrEmpty(password))
@@ -246,8 +295,12 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             if (fault != Export.ArchiveFault.None)
             {
                 TryDelete(opened);
+                CoreLog.Write("veri", $"geri yukleme reddedildi: {fault}");
+
                 throw new InvalidOperationException(Export.EncryptedArchive.Explain(fault));
             }
+
+            CoreLog.Write("veri", "geri yukleme: parola dogru, yedek acildi");
         }
 
         var staging = Path.Combine(paths.Root, StagingFolder);

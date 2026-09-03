@@ -602,22 +602,71 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
     private ChatTurn? _currentTurn;
 
-    private void Highlight(int positionMs)
-    {
-        ChatTurn? current = null;
+    private void Highlight(int positionMs) => Highlight(Turns, positionMs, ref _currentTurn, CurrentTurnChanged, this);
 
-        foreach (var turn in Turns)
+    /// <summary>
+    /// Marks every line being spoken at <paramref name="positionMs"/> and returns the one the
+    /// view should travel with.
+    ///
+    /// <b>Every line, not one of them.</b> Marking whichever line had started most recently is
+    /// the same thing only while people take turns, and they do not: in this archive 144 of one
+    /// call's 217 lines overlap another. A nine-second turn with a half-second "iyi" inside it
+    /// moved the mark onto the interjection and left it there — the long line kept playing with
+    /// nothing marked, and the view had scrolled away from it.
+    ///
+    /// Marking both is also the honest answer to what the reader is looking at. Two outlined
+    /// bubbles say "these were said over each other", which lines stacked top to bottom cannot.
+    ///
+    /// The one returned is the EARLIEST line still in progress. Following the newest would scroll
+    /// to a half-second interjection and straight back, twice a second.
+    ///
+    /// Static and over a plain list so the decision can be checked without a window, a
+    /// repository or an audio device.
+    /// </summary>
+    public static ChatTurn? Spoken(IReadOnlyList<ChatTurn> turns, int positionMs)
+    {
+        ChatTurn? speaking = null;   // earliest line still in progress
+        ChatTurn? lastEnded = null;  // the line that finished most recently, for the gaps
+
+        foreach (var turn in turns)
         {
-            if (turn.StartMs <= positionMs) current = turn;
-            else break;
+            if (turn.StartMs > positionMs)
+            {
+                turn.IsCurrent = false;
+                continue;
+            }
+
+            var live = positionMs < turn.EndMs;
+            turn.IsCurrent = live;
+
+            if (live) speaking ??= turn;
+            else if (lastEnded is null || turn.EndMs > lastEnded.EndMs) lastEnded = turn;
         }
 
-        foreach (var turn in Turns) turn.IsCurrent = ReferenceEquals(turn, current);
+        // Between two lines nothing is being spoken. The one that finished most recently keeps
+        // the mark rather than the transcript going blank every time somebody draws breath — and
+        // most recently FINISHED, not most recently started: after a long turn that ran over a
+        // short interjection, the words still in the reader's ear are the long one's.
+        var anchor = speaking ?? lastEnded;
 
-        if (ReferenceEquals(current, _currentTurn)) return;
+        if (anchor is not null) anchor.IsCurrent = true;
 
-        _currentTurn = current;
-        CurrentTurnChanged?.Invoke(this, current);
+        return anchor;
+    }
+
+    private static void Highlight(
+        IReadOnlyList<ChatTurn> turns,
+        int positionMs,
+        ref ChatTurn? currentTurn,
+        EventHandler<ChatTurn?>? changed,
+        object sender)
+    {
+        var anchor = Spoken(turns, positionMs);
+
+        if (ReferenceEquals(anchor, currentTurn)) return;
+
+        currentTurn = anchor;
+        changed?.Invoke(sender, anchor);
     }
 
     /// <summary>

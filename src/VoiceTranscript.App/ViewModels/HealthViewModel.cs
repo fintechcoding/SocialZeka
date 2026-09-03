@@ -640,7 +640,8 @@ public sealed partial class HealthViewModel : ObservableObject
                         ". Parola verirsen dosya yalnızca bu uygulamayla ve bu parolayla açılır — "
                         + "parolayı kaybedersen yedek de kaybolur, kurtarma yolu yok. "
                         + "Boş bırakırsan şifrelenmez.",
-                        okText: "Devam");
+                        okText: "Devam",
+                        confirm: true);
 
                     if (password is null) { DataMessage = "Yedekleme iptal edildi."; break; }
 
