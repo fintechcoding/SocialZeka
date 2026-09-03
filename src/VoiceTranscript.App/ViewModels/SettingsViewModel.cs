@@ -59,6 +59,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _recordWhatsApp = settings.RecordWhatsApp;
         _recordTelegram = settings.RecordTelegram;
         _recordSignal = settings.RecordSignal;
+        _preferredName = settings.PreferredName ?? "";
         _recordAutomatically = settings.RecordAutomatically;
         _assignContactFromTitle = settings.AssignContactFromTitle;
         _transcribeGroupCalls = settings.TranscribeGroupCalls;
@@ -395,6 +396,11 @@ public sealed partial class SettingsViewModel : ObservableObject
             };
         }
     }
+
+    /// <summary>
+    /// What the reading calls you. Empty is "sen", which is what it said before anybody asked.
+    /// </summary>
+    [ObservableProperty] private string _preferredName = "";
 
     public bool UsesCloudAsr => AsrMode != TranscriptionMode.LocalOnly;
 
@@ -965,6 +971,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         NotionApiKey = string.IsNullOrWhiteSpace(NotionApiKey) ? null : NotionApiKey,
         NotionDatabaseId = string.IsNullOrWhiteSpace(NotionDatabaseId) ? null : NotionDatabaseId.Trim(),
         AudioRetentionDays = AudioRetentionDays,
+        PreferredName = string.IsNullOrWhiteSpace(PreferredName) ? null : PreferredName.Trim(),
         CompressAudioAfterProcessing = CompressAudio,
         SttEndpoints = [.. SttEndpoints.Select(e => e.ToEndpoint())],
     };

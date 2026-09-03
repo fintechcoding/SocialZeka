@@ -173,7 +173,7 @@ public class SettingsSurviveSavingTests
         nameof(AppSettings.NotionApiKey), nameof(AppSettings.NotionDatabaseId),
         nameof(AppSettings.AudioRetentionDays), nameof(AppSettings.SttEndpoints),
         nameof(AppSettings.RecordSignal), nameof(AppSettings.StartWithWindows),
-        nameof(AppSettings.IdentifySpeakers),
+        nameof(AppSettings.IdentifySpeakers), nameof(AppSettings.PreferredName),
         nameof(AppSettings.Language), nameof(AppSettings.TranscribeGroupCalls),
         nameof(AppSettings.LogDetail),
     ];

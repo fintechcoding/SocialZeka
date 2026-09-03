@@ -143,6 +143,20 @@ public sealed record AppSettings
     /// glance whether their conversations are being recorded will assume the worst, and they
     /// would be right to.
     /// </summary>
+    /// <summary>
+    /// What the reading should call the person reading it.
+    ///
+    /// Empty means second person — "sana", "senin" — which is the honest default: the
+    /// application has never asked anybody's name and inventing one would be worse than not
+    /// using one. Given a name it is used instead, because a reading written to somebody reads
+    /// differently when it says their name, and this is the one surface here that is written
+    /// TO a person rather than about a recording.
+    ///
+    /// Only the reading uses it. The ledger, the actions and the consistency check are evidence
+    /// tables whose speaker field is an enum the parser reads; a name has no business there.
+    /// </summary>
+    public string? PreferredName { get; init; }
+
     public bool ShowRecordingBar { get; init; } = true;
 
     /// <summary>

@@ -1105,7 +1105,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
             var model = settings.ResolvedConsistencyModel;
             var report = await new ReadingAnalysis(client, _repository).RunAsync(
-                CallId, model, cancellationToken);
+                CallId, model, settings.PreferredName, cancellationToken);
 
             if (!report.Ok)
             {

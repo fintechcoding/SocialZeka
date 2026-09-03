@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Llm;
@@ -43,11 +43,18 @@ public sealed class ReadingAnalysis(ILlmClient llm, Repository repository)
     public const int MaxQuestions = 3;
 
     public async Task<ReadingReport> RunAsync(
-        long callId, string model, CancellationToken cancellationToken = default)
+        long callId, string model, string? preferredName = null,
+        CancellationToken cancellationToken = default)
     {
         var segments = repository.GetSegments(callId);
         if (segments.Count == 0)
             return ReadingReport.Failed("Bu görüşmenin metni yok — önce yazıya dökülmesi gerekir.");
+
+        // Who this conversation was with, as the user filed it. Null when the call has not been
+        // named yet, and the prompt then says "karşı taraf" rather than guessing.
+        var otherParty = repository.GetCall(callId)?.ContactId is { } contactId
+            ? repository.GetContact(contactId)?.Name
+            : null;
 
         var startedAt = DateTimeOffset.UtcNow;
         var clock = System.Diagnostics.Stopwatch.StartNew();
@@ -58,8 +65,8 @@ public sealed class ReadingAnalysis(ILlmClient llm, Repository repository)
             response = await llm.CompleteAsync(new LlmRequest
             {
                 Model = model,
-                SystemPrompt = ReadingPrompt.SystemPrompt,
-                UserPrompt = ReadingPrompt.BuildUserPrompt(segments),
+                SystemPrompt = ReadingPrompt.BuildSystemPrompt(otherParty, preferredName),
+                UserPrompt = ReadingPrompt.BuildUserPrompt(segments, otherParty, preferredName),
                 JsonSchema = ReadingPrompt.Schema,
 
                 // A reading wants a voice; extraction temperatures read like meeting minutes.

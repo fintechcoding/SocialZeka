@@ -105,7 +105,41 @@
                         <TextBlock Style="{StaticResource PageSubtitle}"
                                    Text="{loc:T settingswindow.genel-aciklama}" />
 
-                        <TextBlock Text="{loc:T settingswindow.arayuz-dili}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+                        <!--
+                            What the reading calls you.
+
+                            Only the reading uses it, and only because that is the one surface in
+                            the product written TO somebody rather than about a recording. It said
+                            "BEN" — the transcript's own label for the microphone stream — inside
+                            prose meant for the person that microphone belonged to.
+                        -->
+                        <TextBlock Text="{loc:T settingswindow.sana-nasil-seslensin}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Person24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.senin-adin}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.okumada-sana-bu-adla-seslenir-bos-birakirs}" />
+                                </StackPanel>
+
+                                <ui:TextBox Grid.Column="2" Width="180" Margin="14,0,0,0"
+                                            PlaceholderText="{loc:T settingswindow.ornek-ahmet}"
+                                            Text="{Binding PreferredName, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="{loc:T settingswindow.arayuz-dili}" Style="{StaticResource GroupHeader}" Margin="0,16,0,8" />
 
                         <Border Style="{StaticResource SettingCard}">
                             <Grid>

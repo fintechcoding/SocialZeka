@@ -349,6 +349,14 @@ public sealed partial class ProcessingViewModel(
     [RelayCommand]
     public void Refresh()
     {
+        // Whatever the last action said, it was about the list as it stood then.
+        //
+        // "1 görüşme yeniden kuyruğa alındı. 2 tanesi atlandı." went on sitting under an empty
+        // list after those recordings had been deleted — a sentence about rows that no longer
+        // exist, with a dismiss button as the only way to be rid of it. A notice outlives the
+        // state it describes for exactly as long as nobody re-reads that state.
+        Notice = null;
+
         // Counted from every call rather than from the filtered view, so the tabs say how much
         // there is even while looking at one slice of it.
         var all = repository.ListCalls(limit: 2000);
