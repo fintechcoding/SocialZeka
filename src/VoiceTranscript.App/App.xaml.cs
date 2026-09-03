@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Windows;
@@ -330,6 +330,25 @@ public partial class App : Application
         // Rows written before engine references were scrubbed can hold an API key. Struck out
         // here, once, so no screen ever prints a credential again.
         Repository.ScrubSecretsFromRuns();
+
+        // A restored archive points at the machine it was written on.
+        //
+        // The paths are absolute, so a backup taken on one computer and restored on another —
+        // which is the only reason the feature exists — leaves every call saying its recording
+        // is gone while the audio sits in the right folder under a different user name. Put back
+        // here, before any screen reads a call, and only for files that are genuinely there.
+        try
+        {
+            var rerooted = Repository.RebaseRecordingPaths(Paths.Recordings);
+
+            if (rerooted > 0)
+                AppLog.Write("veri", $"{rerooted} görüşmenin ses dosyası bu makinedeki yerinde bulundu");
+        }
+        catch (Exception repair)
+        {
+            // Housekeeping. It must never be the reason the application does not start.
+            AppLog.Error("veri", repair, "ses dosyalarının yolu bu makineye göre düzeltilemedi");
+        }
 
         // Counters that could already be wrong are corrected once, here.
         //

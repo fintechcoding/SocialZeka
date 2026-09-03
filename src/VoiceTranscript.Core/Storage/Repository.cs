@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Text.Json;
 using Dapper;
 using Microsoft.Data.Sqlite;
@@ -938,6 +938,93 @@ public sealed class Repository(Database database)
         connection.Execute(
             "UPDATE call SET mic_path = @micPath, far_path = @farPath WHERE id = @callId;",
             new { callId, micPath, farPath });
+    }
+
+    /// <summary>
+    /// Re-roots recording paths written on another machine onto this one.
+    ///
+    /// The paths in the archive are absolute, and a backup carries them exactly as they were
+    /// written. Restoring onto a different computer — a new laptop, a rebuilt one, the same
+    /// person under a different Windows account — is the case the whole backup feature exists
+    /// for, and it is the case that failed: the audio is unpacked into the right folder, but
+    /// every row still points at C:\Users\{somebody else}\…, so the application says the
+    /// recording is gone. Not for one call — for the whole archive at once, which is exactly the
+    /// moment somebody has nothing else left.
+    ///
+    /// Rows already under <paramref name="recordingsRoot"/> are skipped without touching the
+    /// disk, so an ordinary start pays nothing at all. A row is rewritten only when the rebased
+    /// file is really there: audio the retention sweep deleted stays deleted, and a path is
+    /// never invented for something that is not on this machine.
+    /// </summary>
+    /// <returns>How many calls were pointed back at their audio.</returns>
+    public int RebaseRecordingPaths(string recordingsRoot)
+    {
+        var root = Path.GetFullPath(recordingsRoot).TrimEnd(Path.DirectorySeparatorChar);
+
+        using var connection = Open();
+
+        var rows = connection.Query<CallRow>(
+            "SELECT id, mic_path, far_path FROM call WHERE mic_path IS NOT NULL OR far_path IS NOT NULL;");
+
+        List<(long Id, string? Mic, string? Far)> repaired = [];
+
+        foreach (var row in rows)
+        {
+            var mic = RebaseRecordingPath(row.mic_path, root);
+            var far = RebaseRecordingPath(row.far_path, root);
+
+            if (mic is null && far is null) continue;
+
+            repaired.Add((row.id, mic ?? row.mic_path, far ?? row.far_path));
+        }
+
+        if (repaired.Count == 0) return 0;
+
+        using var transaction = connection.BeginTransaction();
+
+        foreach (var (id, mic, far) in repaired)
+        {
+            connection.Execute(
+                "UPDATE call SET mic_path = @mic, far_path = @far WHERE id = @id;",
+                new { id, mic, far },
+                transaction);
+        }
+
+        transaction.Commit();
+
+        CoreLog.Write("veri", $"{repaired.Count} gorusmenin ses yolu bu makineye gore yeniden koklendi");
+
+        return repaired.Count;
+    }
+
+    /// <summary>
+    /// The same recording under <paramref name="root"/>, or null when the stored path needs no
+    /// change — either it is already ours, or the file is genuinely not on this disk.
+    /// </summary>
+    internal static string? RebaseRecordingPath(string? stored, string root)
+    {
+        if (string.IsNullOrWhiteSpace(stored)) return null;
+
+        // Already ours. Whether the file is still there is a different question and not this
+        // one's business: audio removed by the retention sweep is supposed to be missing.
+        if (stored.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var segments = stored.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0) return null;
+
+        // Everything below the archive's own recordings folder — normally 2026-08\call-5-mic.ogg,
+        // so the month grouping survives. A path from somewhere else keeps only its file name.
+        var start = Array.FindLastIndex(
+            segments, s => s.Equals("recordings", StringComparison.OrdinalIgnoreCase)) + 1;
+
+        var tail = start > 0 && start < segments.Length ? segments[start..] : [segments[^1]];
+
+        var candidate = Path.Combine(root, string.Join(Path.DirectorySeparatorChar, tail));
+
+        return File.Exists(candidate) ? candidate : null;
     }
 
     /// <summary>
