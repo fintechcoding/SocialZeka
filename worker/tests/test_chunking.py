@@ -208,3 +208,54 @@ def test_coverage_of_something_that_is_not_a_wav_is_unknown_rather_than_zero(tmp
         handle.write(b"OggS not a wav at all")
 
     assert speech_coverage(path, [_Seg(0.0, 5.0)]) is None
+
+
+# ---- the ceiling on one upload -----------------------------------------------
+
+
+def test_one_upload_stays_under_five_minutes():
+    """
+    A rule written into a test, because the obvious reason to break it is a good one.
+
+    MAX_CHUNK_SECONDS looks like a request-count knob: raise it and a twenty-minute call is one
+    upload instead of five, which is fewer round trips, less queue waiting and a simpler progress
+    bar. Every one of those is true, and the price is not paid where anybody would look for it.
+
+    Measured against the live service, one recording uploaded from its own beginning at five
+    lengths, scored on the share of audible speech that came back with words on it:
+
+        180 s  96%      420 s  82%      1200 s  74%
+        300 s  98%      600 s  89%
+
+    The old value was 1200, chosen for latency and failure-blast-radius and never measured for
+    accuracy — and it is why a bench figure of 96% on a three-minute slice showed up as 32-69%
+    on real calls. A quarter of every long conversation, missing, with nothing on screen saying so.
+
+    So: a ceiling, and a test that fails when somebody raises it for the good reason.
+    """
+    from vt_worker.engines import cloud_engine
+
+    assert cloud_engine.MAX_CHUNK_SECONDS <= 300.0, (
+        "Raising this loses transcript: 600 s measured 89% coverage and 1200 s measured 74%, "
+        "against 98% at 300 s. Re-measure before changing it."
+    )
+
+
+def test_a_long_call_is_cut_into_several_uploads(tmp_path):
+    """Twenty minutes of conversation must not arrive as one request any more."""
+    path = str(tmp_path / "long.wav")
+
+    # Twelve minutes: speech and pauses, so there are real quiet moments to cut at.
+    _write(path, [(60.0, 8000), (2.0, 0)] * 12)
+
+    from vt_worker.engines import cloud_engine
+
+    chunks = plan_chunks(path, cloud_engine.MAX_CHUNK_SECONDS)
+
+    assert len(chunks) >= 3
+    assert all(c.length_seconds <= cloud_engine.MAX_CHUNK_SECONDS + 30 for c in chunks)
+
+    # And the pieces still cover the whole recording, in order, with no gap.
+    assert chunks[0].start_seconds == 0.0
+    for earlier, later in zip(chunks, chunks[1:]):
+        assert later.start_seconds == earlier.end_seconds

@@ -83,11 +83,35 @@ UPLOAD_MARGIN = 0.6
 
 # Ceiling on one upload, in seconds of audio.
 #
-# Twenty minutes rather than "as much as fits". Several providers cap duration separately from
-# size; a shorter request is far less likely to be cut off mid-flight; a failure costs one piece
-# instead of the whole call; and it is the only way to report honest progress on a long
-# conversation instead of a bar that sits still for four minutes.
-MAX_CHUNK_SECONDS = 1200.0
+# Shorter than "as much as fits", for four reasons that were true from the start: several
+# providers cap duration separately from size; a shorter request is far less likely to be cut off
+# mid-flight; a failure costs one piece instead of the whole call; and it is the only way to
+# report honest progress instead of a bar that sits still for four minutes.
+#
+# **And a fifth, which is the one that set the number.** How much of a conversation comes back at
+# all depends on how much goes up at once, and it depends on it steeply. One recording, uploaded
+# from its own beginning at five lengths, scored on the share of its audible speech that came back
+# with words on it:
+#
+#     180 s   96%
+#     300 s   98%
+#     420 s   82%
+#     600 s   89%
+#    1200 s   74%
+#
+# The middle of that is noisy — each prefix contains different speech, so the denominator moves —
+# but the ends are not: under five minutes lands at 96-98%, over ten at 74-89%.
+#
+# Twenty minutes was the old value and nothing about it had ever been measured for accuracy; it
+# was picked for the four reasons above and quietly cost a quarter of every long call. On this
+# archive that is what the difference between the bench figure and the real one turned out to be:
+# 96% measured on a three-minute slice, 32-69% on whole calls in production, same flags, same
+# service, same code.
+#
+# Five minutes, then. It is the best number measured, and the cost is requests: a twenty-minute
+# call becomes five uploads rather than one. That is a queue this application already waits on
+# patiently and reports progress through.
+MAX_CHUNK_SECONDS = 300.0
 
 # Retry schedule. Five attempts spanning roughly a minute of waiting, which covers the ordinary
 # rate-limit window without leaving somebody staring at a stuck job for an hour.
