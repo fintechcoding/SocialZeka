@@ -1832,7 +1832,23 @@ public sealed class CallOrchestrator : IDisposable
             engine: Core.Asr.SttEndpoint.ScrubRef(result.ModelRef ?? result.Engine ?? model.DisplayName),
             startedAt,
             clock.Elapsed,
-            call.Duration);
+            call.Duration,
+            speechCoverage: result.WorstSpeechCoverage);
+
+        // Said out loud when a transcript is missing conversation rather than merely uncertain.
+        //
+        // These are different faults with different remedies and they used to look identical: an
+        // uncertain line is marked and the reader can judge it, while a dropped one leaves a gap
+        // that reads as a pause. On this archive a hosted service returned words for 108 of 157
+        // seconds of speech and nothing anywhere said so — it took four days and a level meter to
+        // find, which is four days longer than a line in the log would have cost.
+        if (result.WorstSpeechCoverage is { } coverage && coverage < 0.8)
+        {
+            AppLog.Write(
+                "çeviri",
+                $"görüşme #{call.Id} · konuşmanın yalnızca %{coverage * 100:0}'i yazıya döküldü — "
+                + "motor konuşmayı düşürüyor olabilir");
+        }
 
         // A result with no lines in it is not a transcript, and must not be written over one.
         //

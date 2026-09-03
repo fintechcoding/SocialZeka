@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 9;
+    public const int Version = 10;
 
     public static readonly string[] Statements =
     [
@@ -476,7 +476,8 @@ public static class Schema
             audio_ms          INTEGER NOT NULL DEFAULT 0,
             prompt_tokens     INTEGER,
             completion_tokens INTEGER,
-            succeeded         INTEGER NOT NULL DEFAULT 1
+            succeeded         INTEGER NOT NULL DEFAULT 1,
+            speech_coverage   REAL
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_run_started ON processing_run(started_at DESC);",

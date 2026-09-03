@@ -557,7 +557,19 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         if (overlapping > 0) parts.Add($"{overlapping} satırda üst üste konuşma");
 
-        if (_repository.LastRun(CallId, ProcessingStage.Transcribe) is { } run)
+        var run = _repository.LastRun(CallId, ProcessingStage.Transcribe);
+
+        // How much of the conversation is here at all, before anything about how sure it was.
+        //
+        // Uncertain lines and missing ones are different faults and used to read the same. A
+        // marked line is one the reader can judge; a dropped one leaves a gap indistinguishable
+        // from a pause in the call. This archive holds transcripts where a hosted engine returned
+        // words for two thirds of the speech and the text gave no sign of it — which is the
+        // failure that took four days to name.
+        if (run?.SpeechCoverage is { } coverage && coverage < 0.95)
+            parts.Add($"konuşmanın %{coverage * 100:0}'i yazıya döküldü");
+
+        if (run is not null)
         {
             parts.Add(Core.Asr.AsrCatalog.DisplayFor(run.Engine));
 
@@ -566,9 +578,10 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         QualityLine = string.Join(" · ", parts);
 
-        // A third is the point where the text stops being something to quote from. Said plainly
-        // rather than scored: the reader can see the marked lines and decide.
-        QualityIsPoor = lowConfidence * 3 >= lines;
+        // Two ways a transcript stops being worth quoting from, and the second is the quieter one.
+        // A third of the lines marked uncertain is the old threshold; a fifth of the speech never
+        // transcribed at all is the new one.
+        QualityIsPoor = lowConfidence * 3 >= lines || run?.CoverageIsPoor == true;
     }
 
     /// <summary>

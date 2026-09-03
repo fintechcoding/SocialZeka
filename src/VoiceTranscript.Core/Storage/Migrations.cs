@@ -167,5 +167,20 @@ public static class Migrations
                 """,
                 "CREATE INDEX IF NOT EXISTS ix_todo_open ON todo(done_at, due_date);",
             ]),
+
+        // How much of the speech in a recording came back with words on it.
+        //
+        // The failure this exists to make visible had been running for days without anybody being
+        // able to name it. A transcript that invents is obvious the moment you read it; one that
+        // goes quiet is not, because a conversation with pauses in it looks exactly the same. On
+        // one measured stretch the service returned words for 108 of 157 seconds of speech where
+        // the local engine returned 150 — and the 49 seconds it dropped ran at the same level as
+        // the rest, so nothing in the text said they were missing.
+        //
+        // Kept per run rather than per call: it is a property of the engine and the flags that
+        // produced this text, and comparing two runs of the same recording is exactly the question
+        // somebody asks when a transcript looks thin.
+        new(10, "Konuşmanın ne kadarının yazıya döküldüğü",
+            ["ALTER TABLE processing_run ADD COLUMN speech_coverage REAL;"]),
     ];
 }

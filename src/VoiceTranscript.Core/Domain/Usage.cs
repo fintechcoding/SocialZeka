@@ -131,9 +131,22 @@ public sealed record CallRun
     public long AudioMs { get; set; }
     public bool Succeeded { get; set; }
 
+    /// <summary>
+    /// What share of the audible speech came back with words on it, 0 to 1. Null when it was not
+    /// measured — runs recorded before this existed, or a channel with no speech to measure.
+    ///
+    /// The number the whole "the cloud transcribes badly" investigation turned on, and the one
+    /// nothing was keeping. A transcript that invents is obvious; one that quietly returns two
+    /// thirds of a conversation reads as a conversation with pauses in it.
+    /// </summary>
+    public double? SpeechCoverage { get; set; }
+
     public TimeSpan Elapsed => TimeSpan.FromMilliseconds(ElapsedMs);
 
     /// <summary>How many times faster than real time this one call ran. Null without audio.</summary>
     public double? SpeedFactor =>
         ElapsedMs > 0 && AudioMs > 0 ? (double)AudioMs / ElapsedMs : null;
+
+    /// <summary>Whether enough of the conversation is missing to be worth saying out loud.</summary>
+    public bool CoverageIsPoor => SpeechCoverage is { } share && share < 0.8;
 }

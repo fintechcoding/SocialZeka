@@ -237,6 +237,21 @@ public sealed class WorkerResult : WorkerEvent
     public string? ModelRef { get; init; }
     public string? Language { get; init; }
     public double ElapsedS { get; init; }
+
+    /// <summary>
+    /// Per stream ("mic", "far"), the share of the audible speech that came back with words on
+    /// it. Absent for an engine or a recording where the question does not apply.
+    ///
+    /// The measurement that would have caught this in a day rather than in four. A hosted service
+    /// was returning words for 108 of 157 seconds of speech while the local engine returned 150,
+    /// and the transcript alone could not say so — the missing 49 seconds were at the same level
+    /// as the rest, so what came back read as a conversation with pauses in it.
+    /// </summary>
+    public Dictionary<string, double>? SpeechCoverage { get; init; }
+
+    /// <summary>The worst of the streams, which is the one worth reporting. Null if unmeasured.</summary>
+    public double? WorstSpeechCoverage =>
+        SpeechCoverage is { Count: > 0 } c ? c.Values.Min() : null;
 }
 
 public sealed class TranscriptSegment

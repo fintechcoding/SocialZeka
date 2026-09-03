@@ -2903,7 +2903,8 @@ public sealed class Repository(Database database)
         TimeSpan audio,
         int? promptTokens = null,
         int? completionTokens = null,
-        bool succeeded = true)
+        bool succeeded = true,
+        double? speechCoverage = null)
     {
         try
         {
@@ -2913,10 +2914,10 @@ public sealed class Repository(Database database)
                 """
                 INSERT INTO processing_run
                     (call_id, stage, engine, started_at, elapsed_ms, audio_ms,
-                     prompt_tokens, completion_tokens, succeeded)
+                     prompt_tokens, completion_tokens, succeeded, speech_coverage)
                 VALUES
                     (@callId, @stage, @engine, @startedAt, @elapsedMs, @audioMs,
-                     @promptTokens, @completionTokens, @succeeded);
+                     @promptTokens, @completionTokens, @succeeded, @speechCoverage);
                 """,
                 new
                 {
@@ -2929,6 +2930,7 @@ public sealed class Repository(Database database)
                     promptTokens,
                     completionTokens,
                     succeeded = succeeded ? 1 : 0,
+                    speechCoverage,
                 });
         }
         catch (Exception)
@@ -2957,7 +2959,8 @@ public sealed class Repository(Database database)
                    r.engine     AS Engine,
                    r.elapsed_ms AS ElapsedMs,
                    r.audio_ms   AS AudioMs,
-                   r.succeeded  AS Succeeded
+                   r.succeeded  AS Succeeded,
+                   r.speech_coverage AS SpeechCoverage
             FROM processing_run r
             JOIN (
                 SELECT MAX(id) AS id
@@ -3028,7 +3031,8 @@ public sealed class Repository(Database database)
         return connection.QueryFirstOrDefault<CallRun>(
             """
             SELECT call_id AS CallId, engine AS Engine, elapsed_ms AS ElapsedMs,
-                   audio_ms AS AudioMs, succeeded AS Succeeded
+                   audio_ms AS AudioMs, succeeded AS Succeeded,
+                   speech_coverage AS SpeechCoverage
             FROM processing_run
             WHERE call_id = @callId AND stage = @stage
             ORDER BY id DESC LIMIT 1;
