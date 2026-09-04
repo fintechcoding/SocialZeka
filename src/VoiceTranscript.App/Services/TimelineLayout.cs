@@ -80,22 +80,36 @@ public static class TimelineLayout
     }
 
     /// <summary>
-    /// Pixels per second for a call of this length in a window of this height.
+    /// How much room the drawing gives the pauses, on top of the room the text itself needs.
     ///
-    /// Scaled rather than fixed: a two-minute call at the density that suits nineteen minutes is a
-    /// postage stamp, and nineteen minutes at the density that suits two is a mile of empty paper.
-    /// The bounds keep both ends usable — dense enough that a pause reads as a pause, open enough
-    /// that a long call does not become a scroll with nothing in it.
+    /// At 1.0 the lines would exactly fill the height and every gap would be squeezed out by the
+    /// collision rule, which is a list with extra steps. Half again leaves the pauses visible
+    /// without turning the quiet parts into scrolling.
     /// </summary>
-    public static double PixelsPerSecond(int durationMs, double viewportHeight)
+    public const double Slack = 1.5;
+
+    /// <summary>
+    /// Pixels per second, chosen from how much was said rather than from how long the call was.
+    ///
+    /// The first version asked only the duration — "about six screenfuls for any call" — and that
+    /// is the wrong question. A thirty-eight-second call came out at the ceiling of sixty pixels a
+    /// second: two thousand three hundred pixels of drawing for nine short lines, six seconds
+    /// visible at a time, one bubble on screen with emptiness above and below it. Thirty-eight
+    /// seconds of brisk back-and-forth and thirty-eight seconds of one person talking without
+    /// pause need very different amounts of paper, and the clock cannot tell them apart.
+    ///
+    /// The text can. The panel has already measured its children by the time it asks, so the
+    /// height the words actually need is known; the density is whatever maps the call's duration
+    /// onto that height plus <see cref="Slack"/>. Time stays linear inside the drawing — only the
+    /// scale changes, so every proportion is preserved.
+    ///
+    /// The bounds are still there for the ends: a call with almost nothing in it does not collapse
+    /// to a line, and a dense hour does not become a mile.
+    /// </summary>
+    public static double PixelsPerSecond(int durationMs, double contentHeight)
     {
-        if (durationMs <= 0) return 30;
+        if (durationMs <= 0 || contentHeight <= 0) return 30;
 
-        var seconds = durationMs / 1000.0;
-
-        // Roughly six screenfuls for any call, then clamped.
-        var scaled = viewportHeight * 6 / seconds;
-
-        return Math.Clamp(scaled, 8, 60);
+        return Math.Clamp(contentHeight * Slack / (durationMs / 1000.0), 6, 60);
     }
 }

@@ -41,24 +41,14 @@ public sealed class TimelinePanel : Panel
     private readonly record struct Placed(double Top, double Height, double BarHeight, bool IsMe);
 
     /// <summary>
-    /// How many pixels one second is worth.
+    /// How many pixels one second is worth, worked out during measure and kept for the arrange
+    /// and the drawing so all three agree.
     ///
-    /// Set by the window from the call's length and the height of the viewport, so a two-minute
-    /// call and a nineteen-minute one are both readable. Zero means "not set yet", and the panel
-    /// falls back to a middling density rather than collapsing to nothing.
+    /// It used to be a property the window set from the call's duration. That could not work: the
+    /// right density depends on how much was said, and the amount of text is only known here,
+    /// after the children have been measured. See <see cref="TimelineLayout.PixelsPerSecond"/>.
     /// </summary>
-    public static readonly DependencyProperty PixelsPerSecondProperty =
-        DependencyProperty.Register(
-            nameof(PixelsPerSecond), typeof(double), typeof(TimelinePanel),
-            new FrameworkPropertyMetadata(
-                30.0,
-                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
-
-    public double PixelsPerSecond
-    {
-        get => (double)GetValue(PixelsPerSecondProperty);
-        set => SetValue(PixelsPerSecondProperty, value);
-    }
+    private double _density = 30;
 
     /// <summary>Colour of the spine, the minute rules and their labels.</summary>
     public static readonly DependencyProperty RuleBrushProperty =
@@ -109,7 +99,13 @@ public sealed class TimelinePanel : Panel
             items.Add(ItemFor(child));
         }
 
-        var tops = TimelineLayout.Tops(items, Density());
+        // The scale comes from what was said, and this is the first moment that is known.
+        var span = items.Count > 0 ? items.Max(i => Math.Max(i.EndMs, i.StartMs)) : 0;
+        var text = items.Sum(i => i.Height);
+
+        _density = TimelineLayout.PixelsPerSecond(span, text);
+
+        var tops = TimelineLayout.Tops(items, _density);
 
         return new Size(width, TimelineLayout.Height(items, tops));
     }
@@ -156,7 +152,7 @@ public sealed class TimelinePanel : Panel
         var middle = Math.Round(ActualWidth / 2) + 0.5;
         var column = ColumnWidth(ActualWidth);
 
-        var faint = Faint(RuleBrush, 0.35);
+        var faint = Faint(RuleBrush, 0.55);
         var spine = new Pen(faint, 1);
         spine.Freeze();
 
@@ -231,7 +227,7 @@ public sealed class TimelinePanel : Panel
 
     private double ColumnWidth(double width) => Math.Max(80, (width - ColumnGap) / 2);
 
-    private double Density() => PixelsPerSecond > 0 ? PixelsPerSecond : 30;
+    private double Density() => _density > 0 ? _density : 30;
 
     /// <summary>The same colour, quieter. Drawn behind the text rather than competing with it.</summary>
     private static Brush Faint(Brush brush, double opacity)

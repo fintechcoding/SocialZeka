@@ -92,22 +92,47 @@ public class TimelineLayoutTests
         Assert.Equal(260, TimelineLayout.Height(items, tops));
     }
 
-    [Fact]
-    public void DensityFitsTheCallRatherThanBeingFixed()
-    {
-        // Two minutes and nineteen minutes cannot share a density and both stay readable.
-        var brief = TimelineLayout.PixelsPerSecond(164_000, 700);
-        var long_ = TimelineLayout.PixelsPerSecond(1_129_000, 700);
+    // ---- how dense the drawing is ------------------------------------------
+    //
+    // The first version asked only the duration and got a thirty-eight-second call badly wrong:
+    // nine short lines spread over 2328 pixels, six seconds visible at a time, one bubble on
+    // screen surrounded by nothing. Duration cannot tell brisk back-and-forth apart from one
+    // person talking without pause; the amount of text can.
 
-        Assert.True(brief > long_);
-        Assert.InRange(brief, 8, 60);
-        Assert.InRange(long_, 8, 60);
+    /// <summary>A short call with little in it does not become a mile of empty paper.</summary>
+    [Fact]
+    public void AShortCallWithFewLinesStaysCompact()
+    {
+        // The real case: 38,8 seconds, nine bubbles of about 55 pixels.
+        var density = TimelineLayout.PixelsPerSecond(38_800, contentHeight: 9 * 55);
+        var height = 38.8 * density;
+
+        Assert.InRange(height, 9 * 55, 9 * 55 * 2.5);
+    }
+
+    /// <summary>The same length holding four times the words gets four times the room.</summary>
+    [Fact]
+    public void MoreWordsInTheSameMinuteEarnMoreRoom()
+    {
+        var sparse = TimelineLayout.PixelsPerSecond(60_000, contentHeight: 200);
+        var dense = TimelineLayout.PixelsPerSecond(60_000, contentHeight: 800);
+
+        Assert.True(dense > sparse);
+    }
+
+    /// <summary>Both ends stay usable however extreme the call.</summary>
+    [Fact]
+    public void TheDensityIsAlwaysWithinTheBounds()
+    {
+        foreach (var (ms, height) in new[] { (5_000, 40.0), (38_800, 495.0), (1_129_000, 17_000.0), (7_200_000, 200.0) })
+            Assert.InRange(TimelineLayout.PixelsPerSecond(ms, height), 6, 60);
     }
 
     [Fact]
-    public void ARecordingWithNoLengthStillGetsAUsableDensity()
+    public void ARecordingWithNoLengthOrNoTextStillGetsAUsableDensity()
     {
         Assert.True(TimelineLayout.PixelsPerSecond(0, 700) > 0);
+        Assert.True(TimelineLayout.PixelsPerSecond(38_800, 0) > 0);
     }
 
     // ---- the minute rules -------------------------------------------------

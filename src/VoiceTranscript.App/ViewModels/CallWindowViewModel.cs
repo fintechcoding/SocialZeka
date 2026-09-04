@@ -133,9 +133,6 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     /// </summary>
     [ObservableProperty] private bool _timelineView;
 
-    /// <summary>Pixels per second the timeline draws at. Zero until the call's length is known.</summary>
-    [ObservableProperty] private double _timelineDensity = 30;
-
     public PlaybackViewModel Playback { get; } = new();
 
     public ObservableCollection<ChatTurn> Turns { get; } = [];
@@ -410,12 +407,6 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         UpdateConsistencyCostLine(segments.Sum(s => s.Text.Length));
         ComputeTalkStats(segments);
-
-        // Scaled to the call: two minutes and nineteen minutes cannot share a density and both
-        // stay readable. 700 stands in for the viewport, which is close enough — the value is
-        // clamped at both ends anyway.
-        TimelineDensity = Services.TimelineLayout.PixelsPerSecond(
-            (int)call.Duration.TotalMilliseconds, 700);
 
         Turns.Clear();
 
