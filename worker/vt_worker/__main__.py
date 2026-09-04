@@ -33,6 +33,7 @@ from vt_worker import models, speaker
 from vt_worker.engines import DEFAULT_ENGINE, EngineError, EngineOptions, create, probe_all
 from vt_worker.merge import MergedTranscript, Segment, merge_streams
 from vt_worker.segmentation import DEFAULT_MAX_GAP, resegment_on_gaps
+from vt_worker.timestamps import repair_stretched_words
 
 # Below this share of the audible speech, a transcript is worth complaining about rather than
 # presenting. Set from what a working engine does on a real call: on one measured stretch the
@@ -206,6 +207,8 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
 
     max_gap = float(request.get("resegment_max_gap", DEFAULT_MAX_GAP))
 
+    # On by default, and switchable per request so a bad result can be reproduced without it.
+
     started = time.monotonic()
     engine = create(engine_name)
 
@@ -255,14 +258,23 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
 
         raw = engine.transcribe(path, stream_options, on_progress)
 
+        # First the stamps themselves, because everything below trusts them.
+        #
+        # A word cannot last 1.5 seconds; where one claims to, the engine has stretched it back
+        # over a silence, and that silence is what the cut below needs to find.
+        raw = repair_stretched_words(raw)
+
         # Whisper merges utterances across silence when the VAD filter removes it, producing
         # segments whose timestamps are minutes away from where the words were actually said.
-        # The word timestamps stay accurate, so the turns are cut back apart from those.
+        # The word timestamps carry the truth the segment boundaries lost — once the step
+        # above has repaired the few that do not — so the turns are cut back apart from those.
         #
         # The sign-offs go last, after the boundaries are settled: one of them stuck to the front
         # of a real sentence has to be removed from a line whose words already line up, or the
         # timestamps and the text stop agreeing.
-        return artifacts.clean(resegment_on_gaps(raw, max_gap=max_gap))
+        cut = resegment_on_gaps(raw, max_gap=max_gap)
+
+        return artifacts.clean(cut)
 
     # The two streams are transcribed independently and only then merged. Attribution comes
     # from which file a segment was in, so it is a fact rather than a model prediction.
