@@ -669,6 +669,26 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     /// Pure, and separate from the window, because this is the part that can be wrong in a way
     /// nobody notices until they are watching a conversation play.
     /// </summary>
+    /// <summary>How long the transcript stops following after the reader scrolls it by hand.</summary>
+    public const long ResumeFollowingAfterMs = 10_000;
+
+    /// <summary>
+    /// Whether the transcript should travel with the playhead right now.
+    ///
+    /// Following used to stop for good at the first turn of the wheel, and only pressing play
+    /// again brought it back. That reads as broken: the recording is still playing, the highlight
+    /// is moving somewhere below the fold, and nothing on screen says why the text stopped
+    /// keeping up or how to make it start. Reported as "auto scroll still does not work", which
+    /// is what it looked like from the outside.
+    ///
+    /// So the pause is a pause. Scrolling back to re-read a minute ago still wins immediately —
+    /// that is the thing this window is for — and when the reader stops, the transcript rejoins
+    /// the audio on its own. Ten seconds is long enough to read the two or three lines somebody
+    /// scrolls back for, and short enough that nobody has to wonder what to press.
+    /// </summary>
+    public static bool ShouldFollow(long nowMs, long lastManualScrollMs) =>
+        lastManualScrollMs <= 0 || nowMs - lastManualScrollMs >= ResumeFollowingAfterMs;
+
     public static double FollowOffset(
         double top, double height, double current, double viewport, double extent)
     {

@@ -94,4 +94,35 @@ public class PlayheadFollowTests
 
         Assert.Equal(0, offset);
     }
+
+    // ---- yielding to the reader, and coming back ---------------------------
+    //
+    // Following used to stop at the first turn of the wheel and stay stopped until the player was
+    // pressed again. With the audio still playing and the highlight moving somewhere below the
+    // fold, that reads as the feature being broken rather than as the window being polite.
+
+    /// <summary>Untouched, the transcript follows.</summary>
+    [Fact]
+    public void AReaderWhoHasNotScrolledIsFollowed()
+    {
+        Assert.True(CallWindowViewModel.ShouldFollow(nowMs: 500_000, lastManualScrollMs: 0));
+    }
+
+    /// <summary>Scrolling back to re-read wins immediately.</summary>
+    [Fact]
+    public void ScrollingByHandStopsTheTranscriptMoving()
+    {
+        Assert.False(CallWindowViewModel.ShouldFollow(nowMs: 500_000, lastManualScrollMs: 499_000));
+    }
+
+    /// <summary>And it is a pause, not a switch: the audio is still playing.</summary>
+    [Fact]
+    public void FollowingComesBackOnceTheReaderStops()
+    {
+        var now = 500_000L;
+        var scrolled = now - CallWindowViewModel.ResumeFollowingAfterMs;
+
+        Assert.True(CallWindowViewModel.ShouldFollow(now, scrolled));
+        Assert.False(CallWindowViewModel.ShouldFollow(now - 1, scrolled));
+    }
 }

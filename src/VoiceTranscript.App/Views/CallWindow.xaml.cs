@@ -45,7 +45,8 @@ public partial class CallWindow
         // scroll this window performed itself.
         TranscriptScroller.AddHandler(
             System.Windows.Controls.Primitives.ScrollBar.ScrollEvent,
-            new System.Windows.Controls.Primitives.ScrollEventHandler((_, _) => _following = false));
+            new System.Windows.Controls.Primitives.ScrollEventHandler(
+                (_, _) => _scrolledByHandAt = Environment.TickCount64));
         model.Playback.PropertyChanged += (_, e) =>
         {
             // Pressing play is the other half of "take me to the audio".
@@ -110,8 +111,14 @@ public partial class CallWindow
     // marking is for — reading along, and seeing which sentence the voice is on — only worked for
     // the first screenful.
 
-    /// <summary>Whether the transcript still follows the player. Scrolling by hand turns it off.</summary>
-    private bool _following = true;
+    /// <summary>
+    /// When the reader last scrolled by hand, or 0 if they have not.
+    ///
+    /// A timestamp rather than a flag: following yields to the reader and then comes back, instead
+    /// of yielding once and staying gone until the player is pressed again. See
+    /// <see cref="CallWindowViewModel.ShouldFollow"/> for why.
+    /// </summary>
+    private long _scrolledByHandAt;
 
     /// <summary>
     /// Moves the transcript to the line being spoken, unless the reader has taken it over.
@@ -131,7 +138,8 @@ public partial class CallWindow
     /// </summary>
     private void FollowPlayhead(ChatTurn? turn)
     {
-        if (!_following || turn is null) return;
+        if (turn is null) return;
+        if (!CallWindowViewModel.ShouldFollow(Environment.TickCount64, _scrolledByHandAt)) return;
         if (TranscriptTurns.ItemContainerGenerator.ContainerFromItem(turn) is not FrameworkElement bubble) return;
         if (!bubble.IsVisible || bubble.ActualHeight <= 0) return;
 
@@ -161,16 +169,17 @@ public partial class CallWindow
     }
 
     /// <summary>The reader reaching for the wheel. Unambiguous, unlike the scrollbar moving.</summary>
-    private void OnTranscriptWheel(object sender, MouseWheelEventArgs e) => _following = false;
+    private void OnTranscriptWheel(object sender, MouseWheelEventArgs e) =>
+        _scrolledByHandAt = Environment.TickCount64;
 
     private void OnTranscriptKey(object sender, KeyEventArgs e)
     {
         if (e.Key is Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
-            _following = false;
+            _scrolledByHandAt = Environment.TickCount64;
     }
 
-    /// <summary>Anything that means "take me to the audio" puts the transcript back in step.</summary>
-    private void ResumeFollowing() => _following = true;
+    /// <summary>Anything that means "take me to the audio" puts the transcript back in step now.</summary>
+    private void ResumeFollowing() => _scrolledByHandAt = 0;
 
     /// <summary>
     /// Opens the list of transcripts this call has had.
