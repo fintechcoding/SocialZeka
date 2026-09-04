@@ -5,6 +5,7 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
                  xmlns:controls="clr-namespace:VoiceTranscript.App.Controls"
+                 xmlns:views="clr-namespace:VoiceTranscript.App.Views"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  mc:Ignorable="d"
@@ -23,12 +24,12 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="{Binding Title}" />
+        <ui:TitleBar Grid.Row="0" Height="30" Title="{Binding Title}" />
 
         <!-- One band under the title bar (which already shows the name — repeating it in 20pt
              spent a full line saying nothing new): the facts, the user's labels, and the two
              verbs a conversation being read most often needs. -->
-        <StackPanel Grid.Row="1" Margin="20,4,20,0">
+        <StackPanel Grid.Row="1" Margin="20,0,20,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -211,7 +212,7 @@
             </Border>
         </StackPanel>
 
-        <TabControl x:Name="MainTabs" Grid.Row="2" Margin="20,8,20,0" Padding="0,10,0,0"
+        <TabControl x:Name="MainTabs" Grid.Row="2" Margin="20,4,20,0" Padding="0,6,0,0"
                     Style="{StaticResource SegmentedTabs}">
 
             <!-- ================= the conversation ================= -->
@@ -226,7 +227,30 @@
                     <!-- Who did the talking — the same thin strip the contacts page wears,
                          here at the user's request. Facts with seconds behind them; the
                          interruption line is a count, never a complaint. -->
-                    <StackPanel Grid.Row="1" Margin="0,0,10,10"
+                    <Grid Grid.Row="1" Margin="0,0,10,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Two ways of reading the same lines. The list is a chat, which is what
+                             most calls are; the timeline puts each line at the moment it was said,
+                             which is the only honest picture of a call where people talk over each
+                             other. Remembered, because it is a preference and not a per-call
+                             decision. -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top"
+                                    Margin="10,0,0,0">
+                            <RadioButton Content="{loc:T callwindow.sohbet}" GroupName="ConversationView"
+                                         Style="{StaticResource ChipButton}" Padding="10,3"
+                                         IsChecked="{Binding TimelineView, Converter={StaticResource InverseBool}}"
+                                         ToolTip="{loc:T callwindow.satirlar-alt-alta-sohbet-gibi}" />
+                            <RadioButton Content="{loc:T callwindow.zaman-cizgisi}" GroupName="ConversationView"
+                                         Style="{StaticResource ChipButton}" Padding="10,3" Margin="4,0,0,0"
+                                         IsChecked="{Binding TimelineView}"
+                                         ToolTip="{loc:T callwindow.her-satir-soylendigi-anda-iki-sutun}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="0"
                                 Visibility="{Binding HasTalkStats, Converter={StaticResource BoolToVisibility}}">
                         <Grid Height="6" Margin="0,0,0,4">
                             <Grid.ColumnDefinitions>
@@ -242,7 +266,8 @@
                         <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap">
                             <Run Text="{Binding TalkSummary, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding InterruptionSummary, Mode=OneWay}" />
                         </TextBlock>
-                    </StackPanel>
+                        </StackPanel>
+                    </Grid>
 
                     <!--
                         What produced this text, and how sure it was.
@@ -299,6 +324,30 @@
                                   PreviewMouseWheel="OnTranscriptWheel" PreviewKeyDown="OnTranscriptKey"
                                   Visibility="{Binding HasTurns, Converter={StaticResource BoolToVisibility}}">
                         <ItemsControl x:Name="TranscriptTurns" ItemsSource="{Binding Turns}">
+                            <ItemsControl.Style>
+                                <Style TargetType="ItemsControl">
+                                    <Setter Property="ItemsPanel">
+                                        <Setter.Value>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel />
+                                            </ItemsPanelTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TimelineView}" Value="True">
+                                            <Setter Property="ItemsPanel">
+                                                <Setter.Value>
+                                                    <ItemsPanelTemplate>
+                                                        <views:TimelinePanel
+                                                            PixelsPerSecond="{Binding DataContext.TimelineDensity,
+                                                                RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                                    </ItemsPanelTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ItemsControl.Style>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <!--

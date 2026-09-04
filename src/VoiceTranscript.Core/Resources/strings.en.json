@@ -1,4 +1,4 @@
-﻿{
+{
   "aistatuspage.30-gun": "30 days",
   "aistatuspage.7-gun": "7 days",
   "aistatuspage.ayarla": "Configure",
@@ -759,5 +759,9 @@
   "updatewindow.degisenler": "What changed",
   "updatewindow.simdi-guncelle": "Update now",
   "updatewindow.sonra": "Later",
-  "updatewindow.yeni-surum": "New version"
+  "updatewindow.yeni-surum": "New version",
+  "callwindow.sohbet": "Chat",
+  "callwindow.zaman-cizgisi": "Timeline",
+  "callwindow.satirlar-alt-alta-sohbet-gibi": "Lines one under the next, read as a chat.",
+  "callwindow.her-satir-soylendigi-anda-iki-sutun": "Every line sits at the moment it was said; you on the right, them on the left. Overlapping speech appears side by side."
 }

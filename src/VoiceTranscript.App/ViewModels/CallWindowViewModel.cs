@@ -125,6 +125,17 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
     public long CallId { get; }
 
+    /// <summary>
+    /// Whether the conversation is drawn against the clock instead of as a list of turns.
+    ///
+    /// Set by the window from the remembered preference and written back when it changes. Held
+    /// here rather than read from settings directly so the view model still builds in a test.
+    /// </summary>
+    [ObservableProperty] private bool _timelineView;
+
+    /// <summary>Pixels per second the timeline draws at. Zero until the call's length is known.</summary>
+    [ObservableProperty] private double _timelineDensity = 30;
+
     public PlaybackViewModel Playback { get; } = new();
 
     public ObservableCollection<ChatTurn> Turns { get; } = [];
@@ -400,8 +411,18 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         UpdateConsistencyCostLine(segments.Sum(s => s.Text.Length));
         ComputeTalkStats(segments);
 
+        // Scaled to the call: two minutes and nineteen minutes cannot share a density and both
+        // stay readable. 700 stands in for the viewport, which is close enough — the value is
+        // clamped at both ends anyway.
+        TimelineDensity = Services.TimelineLayout.PixelsPerSecond(
+            (int)call.Duration.TotalMilliseconds, 700);
+
         Turns.Clear();
-        foreach (var segment in segments)
+
+        // Read in the order it happened, not in the order the lines start. A twelve-second turn
+        // with a real answer inside it is cut open here so the answer is not filed underneath the
+        // sentence it replies to. Nothing stored changes: see Services.ChatFlow.
+        foreach (var segment in Services.ChatFlow.InReadingOrder(segments))
         {
             Turns.Add(new ChatTurn(
                 SpeakerText.For(segment.IsMe, contact),

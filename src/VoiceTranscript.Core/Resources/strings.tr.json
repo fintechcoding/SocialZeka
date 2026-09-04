@@ -1,4 +1,4 @@
-﻿{
+{
   "aistatuspage.30-gun": "30 gün",
   "aistatuspage.7-gun": "7 gün",
   "aistatuspage.ayarla": "Ayarla",
@@ -759,5 +759,9 @@
   "updatewindow.degisenler": "Değişenler",
   "updatewindow.simdi-guncelle": "Şimdi güncelle",
   "updatewindow.sonra": "Sonra",
-  "updatewindow.yeni-surum": "Yeni sürüm"
+  "updatewindow.yeni-surum": "Yeni sürüm",
+  "callwindow.sohbet": "Sohbet",
+  "callwindow.zaman-cizgisi": "Zaman çizgisi",
+  "callwindow.satirlar-alt-alta-sohbet-gibi": "Satırlar alt alta, sohbet gibi okunur.",
+  "callwindow.her-satir-soylendigi-anda-iki-sutun": "Her satır söylendiği anda durur; sen sağda, karşı taraf solda. Üst üste konuşma yan yana görünür."
 }

@@ -47,6 +47,17 @@ public partial class CallWindow
             System.Windows.Controls.Primitives.ScrollBar.ScrollEvent,
             new System.Windows.Controls.Primitives.ScrollEventHandler(
                 (_, _) => _scrolledByHandAt = Environment.TickCount64));
+        // How this reader likes to read a conversation, remembered across windows and sessions.
+        model.TimelineView = App.Settings.ConversationTimeline;
+
+        model.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(model.TimelineView)) return;
+            if (App.Settings.ConversationTimeline == model.TimelineView) return;
+
+            App.Settings = App.Settings with { ConversationTimeline = model.TimelineView };
+        };
+
         model.Playback.PropertyChanged += (_, e) =>
         {
             // Pressing play is the other half of "take me to the audio".

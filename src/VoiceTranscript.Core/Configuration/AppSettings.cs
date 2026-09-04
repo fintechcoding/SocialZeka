@@ -173,6 +173,20 @@ public sealed record AppSettings
     public double? OverlayTop { get; init; }
 
     /// <summary>
+    /// Whether a conversation opens against the clock rather than as a list of turns.
+    ///
+    /// Two ways of showing the same lines, and neither is right for every call. The list reads
+    /// like a chat, which is what most calls are. The timeline puts each line at the moment it was
+    /// said with the two speakers in their own columns, which is the only honest picture of a call
+    /// where people talk over each other — one in this archive spends 130 of its 1129 seconds with
+    /// both voices going, and no single column can order that correctly.
+    ///
+    /// Remembered because it is a way of reading, not a per-call decision: somebody who prefers
+    /// one should not have to choose it again on every conversation they open.
+    /// </summary>
+    public bool ConversationTimeline { get; init; }
+
+    /// <summary>
     /// Whether the far end of a call is recognised by voice — shown on screen while the call runs,
     /// and used to file the conversation under the right person when it ends.
     ///
