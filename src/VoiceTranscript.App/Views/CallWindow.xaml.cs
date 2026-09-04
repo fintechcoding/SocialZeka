@@ -60,14 +60,23 @@ public partial class CallWindow
         // view models alive.
         EventHandler<Services.CallProgress>? onProgress = null;
         EventHandler<Services.CallProcessed>? onProcessed = null;
+        EventHandler<long>? onTranscript = null;
 
         if (App.Orchestrator is { } orchestrator)
         {
             onProgress = (_, p) => Dispatcher.InvokeAsync(() => model.OnProgress(p));
             onProcessed = (_, p) => Dispatcher.InvokeAsync(() => model.OnProcessed(p));
 
+            // The new lines land minutes before the summary does, and this window is the one
+            // place somebody is watching for them.
+            onTranscript = (_, id) => Dispatcher.InvokeAsync(() =>
+            {
+                if (id == model.CallId) model.Reload();
+            });
+
             orchestrator.ProgressChanged += onProgress;
             orchestrator.CallProcessed += onProcessed;
+            orchestrator.TranscriptReplaced += onTranscript;
         }
 
         // Enter in the tag box must reach our handler even when the suggestion dropdown is
@@ -85,6 +94,7 @@ public partial class CallWindow
             {
                 if (onProgress is not null) o.ProgressChanged -= onProgress;
                 if (onProcessed is not null) o.CallProcessed -= onProcessed;
+                if (onTranscript is not null) o.TranscriptReplaced -= onTranscript;
             }
 
             model.Dispose();

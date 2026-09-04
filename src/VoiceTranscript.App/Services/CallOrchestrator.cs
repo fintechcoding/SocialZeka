@@ -182,6 +182,18 @@ public sealed class CallOrchestrator : IDisposable
     public event EventHandler<CallProcessed>? CallProcessed;
 
     /// <summary>
+    /// Raised with the call id the moment a new transcript has replaced the old one, before
+    /// analysis runs.
+    ///
+    /// <see cref="CallProcessed"/> comes at the end of the whole pipeline, and analysis is the
+    /// long half: on an eighteen-minute conversation the new lines were in the database within two
+    /// minutes and the open window went on showing the old ones for another three, because the
+    /// only signal it had arrived after the summary did. Somebody who presses "transcribe again"
+    /// is watching for the text to change, and it had already changed everywhere except on screen.
+    /// </summary>
+    public event EventHandler<long>? TranscriptReplaced;
+
+    /// <summary>
     /// How far along the recording currently being processed is.
     ///
     /// This was produced end to end and thrown away. The Python worker emits a stage and a
@@ -2014,6 +2026,17 @@ public sealed class CallOrchestrator : IDisposable
         _engineInFlight.TryRemove(call.Id, out _);
 
         _repository.SetCallState(call.Id, ProcessingState.Transcribed);
+
+        // The text is now the new text everywhere it is read from. Anything showing it should say
+        // so, without waiting for the summary that is about to be written.
+        try
+        {
+            TranscriptReplaced?.Invoke(this, call.Id);
+        }
+        catch (Exception e)
+        {
+            AppLog.Error("işleme", e, $"görüşme #{call.Id} dökümü tazelendiği bildirilemedi");
+        }
     }
 
     /// <summary>
