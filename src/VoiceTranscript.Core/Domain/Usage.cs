@@ -147,6 +147,14 @@ public sealed record CallRun
     public double? SpeedFactor =>
         ElapsedMs > 0 && AudioMs > 0 ? (double)AudioMs / ElapsedMs : null;
 
+    /// <summary>
+    /// Below this share of the audible speech, the transcript is missing enough to say so.
+    ///
+    /// Named because two screens ask the same question of two different sources — the run, and
+    /// the stored transcript the call is showing — and the answer has to be the same number.
+    /// </summary>
+    public const double PoorCoverage = 0.8;
+
     /// <summary>Whether enough of the conversation is missing to be worth saying out loud.</summary>
-    public bool CoverageIsPoor => SpeechCoverage is { } share && share < 0.8;
+    public bool CoverageIsPoor => SpeechCoverage is { } share && share < PoorCoverage;
 }

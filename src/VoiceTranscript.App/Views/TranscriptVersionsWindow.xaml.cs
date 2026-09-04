@@ -74,6 +74,10 @@ public partial class TranscriptVersionsWindow
 
         if (!_repository.RestoreTranscriptVersion(row.Id)) return;
 
+        // The list no longer records that a restore happened — it is a history of transcriptions,
+        // and going back to one is a reading decision. This is where that decision is kept.
+        Services.AppLog.Write("veri", $"görüşme #{_callId} · döküm geri yüklendi: {row.Engine}");
+
         Restored = true;
         Load();
     }

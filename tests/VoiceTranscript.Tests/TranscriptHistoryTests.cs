@@ -123,11 +123,18 @@ public class TranscriptHistoryTests : IDisposable
     }
 
     /// <summary>
-    /// Putting one back is itself a thing that happened. The list is a history, and a list that
-    /// quietly reordered itself would lose "I went back to the local one at four o'clock".
+    /// Putting one back moves the pointer and writes nothing.
+    ///
+    /// It used to file a second copy of the restored transcript, so that "newest" would keep
+    /// meaning "current". The reasoning was that the list is a history and going back is part of
+    /// what happened — true, but the list is a history of TRANSCRIPTIONS, and a restore is not
+    /// one. The cost showed up immediately in use: four presses of "use this one" left four
+    /// identical rows, and a history capped at ten then evicted real transcriptions to make room
+    /// for copies. The reading decision belongs in the log; the call now records which transcript
+    /// it is showing, so nothing has to be duplicated to say so.
     /// </summary>
     [Fact]
-    public void PuttingOneBackIsRecordedAsWell()
+    public void PuttingOneBackMovesThePointerWithoutAddingARow()
     {
         Transcribe("large-v3", 0.808, Lines(("bir", false)));
         Transcribe("cloud-ex5", 0.839, Lines(("iki", false)));
@@ -137,9 +144,78 @@ public class TranscriptHistoryTests : IDisposable
 
         var after = _repository.ListTranscriptVersions(_callId);
 
-        Assert.Equal(3, after.Count);
-        Assert.Equal("large-v3", after[0].Engine);
+        Assert.Equal(2, after.Count);
+        Assert.Equal("large-v3", after.Single(v => v.IsCurrent).Engine);
+        Assert.Equal("large-v3", _repository.CurrentTranscriptVersion(_callId)?.Engine);
+    }
+
+    /// <summary>The complaint that found this: the list grew every time it was used.</summary>
+    [Fact]
+    public void PressingUseThisFourTimesDoesNotGrowTheList()
+    {
+        Transcribe("large-v3", 0.808, Lines(("bir", false)));
+        Transcribe("cloud-ex5", 0.839, Lines(("iki", false)));
+
+        var older = _repository.ListTranscriptVersions(_callId).Single(v => v.Engine == "large-v3");
+
+        for (var i = 0; i < 4; i++) _repository.RestoreTranscriptVersion(older.Id);
+
+        Assert.Equal(2, _repository.ListTranscriptVersions(_callId).Count);
+    }
+
+    /// <summary>
+    /// A new transcription becomes the current one, because it is what the call now shows.
+    /// </summary>
+    [Fact]
+    public void ANewTranscriptionBecomesTheCurrentOne()
+    {
+        Transcribe("large-v3", 0.808, Lines(("bir", false)));
+        Transcribe("cloud-ex5", 0.839, Lines(("iki", false)));
+
+        Assert.Equal("cloud-ex5", _repository.CurrentTranscriptVersion(_callId)?.Engine);
+    }
+
+    /// <summary>
+    /// The sweep may not delete the transcript on screen.
+    ///
+    /// Otherwise the strip goes back to being unable to say where its own text came from — which
+    /// is the fault this pointer exists to fix.
+    /// </summary>
+    [Fact]
+    public void TheOneOnScreenSurvivesTheSweep()
+    {
+        Transcribe("yerel-ilk", 0.9, Lines(("bir", false)));
+
+        var kept = _repository.ListTranscriptVersions(_callId).Single();
+        _repository.RestoreTranscriptVersion(kept.Id);
+
+        for (var i = 0; i < 14; i++) Transcribe($"motor-{i}", 0.5, Lines(($"satır {i}", false)));
+
+        // The last transcription is what the call shows now, and it is still there.
+        Assert.Equal("motor-13", _repository.CurrentTranscriptVersion(_callId)?.Engine);
+        Assert.Contains(_repository.ListTranscriptVersions(_callId), v => v.Engine == "motor-13");
+    }
+
+    /// <summary>A call from before the pointer existed still answers "which is current".</summary>
+    [Fact]
+    public void ACallWithNoPointerFallsBackToTheNewest()
+    {
+        Transcribe("large-v3", 0.808, Lines(("bir", false)));
+        Transcribe("cloud-ex5", 0.839, Lines(("iki", false)));
+
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection(
+            $"Data Source={Path.Combine(_root, "voicetranscript.db")}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE call SET transcript_version_id = NULL;";
+            command.ExecuteNonQuery();
+        }
+
+        var after = _repository.ListTranscriptVersions(_callId);
+
         Assert.True(after[0].IsCurrent);
+        Assert.Equal("cloud-ex5", after[0].Engine);
     }
 
     /// <summary>Kept for comparison, not as an archive of its own — the recording is the archive.</summary>

@@ -249,5 +249,19 @@ public static class Migrations
         """,
                 "CREATE INDEX IF NOT EXISTS ix_transcript_call ON transcript_version(call_id, created_at DESC);",
             ]),
+
+        // v14 — the call remembers which stored transcript its lines came from.
+        //
+        // "Newest wins" was doing this job implicitly and doing it badly in two directions. The
+        // quality strip asked the LAST RUN which engine produced the text, so restoring an older
+        // transcript left it naming a different engine than the one on screen — provenance mixed
+        // inside a single sentence, in a product whose whole argument is that a quote can be
+        // traced. And restoring had to write a duplicate copy to become the newest, so pressing
+        // "use this one" four times left four identical rows and evicted real transcriptions
+        // from a history capped at ten.
+        //
+        // Null for calls transcribed before this, which is honest: nothing recorded it then.
+        new(14, "Görüşme, hangi dökümü gösterdiğini hatırlasın",
+            ["ALTER TABLE call ADD COLUMN transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL;"]),
     ];
 }

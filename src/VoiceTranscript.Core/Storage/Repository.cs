@@ -1482,32 +1482,72 @@ public sealed class Repository(Database database)
             },
             transaction);
 
+        // The call now shows these lines, so it points at this version. Everything that asks
+        // "which engine produced the text on screen" reads the pointer rather than guessing from
+        // the last run.
+        connection.Execute(
+            "UPDATE call SET transcript_version_id = @id WHERE id = @callId;",
+            new { id, callId }, transaction);
+
         // Bounded, because these are kept for comparison and not as an archive of their own: the
         // recording is the archive. Ten is more engines than anybody will try on one call.
+        //
+        // Never the one on screen, whatever its age. The sweep would otherwise be able to delete
+        // the transcript the call is currently showing, and the strip would go back to saying
+        // nothing about where its own text came from.
         connection.Execute(
             """
             DELETE FROM transcript_version
              WHERE call_id = @callId
+               AND id <> @id
                AND id NOT IN (SELECT id FROM transcript_version
                                WHERE call_id = @callId
                                ORDER BY id DESC LIMIT @keep);
             """,
-            new { callId, keep = KeptTranscripts }, transaction);
+            new { callId, id, keep = KeptTranscripts }, transaction);
 
         transaction.Commit();
         return id;
     }
 
     /// <summary>
+    /// The stored transcript the call is showing, or null when nothing recorded it.
+    ///
+    /// Null happens for calls transcribed before the pointer existed, and that is the honest
+    /// answer for them: the engine that produced their lines was never written down.
+    /// </summary>
+    public TranscriptVersion? CurrentTranscriptVersion(long callId)
+    {
+        using var connection = Open();
+
+        var row = connection.QueryFirstOrDefault<TranscriptRow>(
+            """
+            SELECT v.id, v.call_id, v.engine, v.created_at, v.speech_coverage,
+                   v.segment_count, v.word_count, v.low_confidence, v.spoken_ms
+              FROM transcript_version v
+              JOIN call c ON c.transcript_version_id = v.id
+             WHERE c.id = @callId;
+            """,
+            new { callId });
+
+        return row is null ? null : row.ToModel(current: true);
+    }
+
+    /// <summary>
     /// Every transcript this call has had, newest first, without the lines themselves.
     ///
-    /// The newest is marked as the current one, which is true by construction: a transcript is
-    /// filed at the moment it is written over the call's lines, and restoring an older one files
-    /// it again as the newest.
+    /// Which one is current comes from the call's own pointer rather than from position in the
+    /// list. It used to be "the newest, by construction", and construction is what made it wrong:
+    /// restoring an older transcript had to file a duplicate copy of it to become the newest, so
+    /// pressing "use this one" four times left four identical rows in what is supposed to be a
+    /// history of transcriptions.
     /// </summary>
     public IReadOnlyList<TranscriptVersion> ListTranscriptVersions(long callId)
     {
         using var connection = Open();
+
+        var current = connection.QueryFirstOrDefault<long?>(
+            "SELECT transcript_version_id FROM call WHERE id = @callId;", new { callId });
 
         var rows = connection.Query<TranscriptRow>(
             """
@@ -1519,7 +1559,10 @@ public sealed class Repository(Database database)
             """,
             new { callId }).ToList();
 
-        return [.. rows.Select((r, i) => r.ToModel(current: i == 0))];
+        // No pointer means a call from before it existed: the newest is the best guess available,
+        // and it was right for every call that never had a transcript restored.
+        return [.. rows.Select((r, i) => r.ToModel(
+            current: current is { } id ? r.id == id : i == 0))];
     }
 
     /// <summary>The lines of one stored transcript, or an empty list when it is gone.</summary>
@@ -1552,30 +1595,39 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>
-    /// Puts a stored transcript back as the call's own, and files it again as the newest.
+    /// Puts a stored transcript back as the call's own.
     ///
-    /// Filed again rather than moved, because the list is a history: "I went back to the local
-    /// one at four o'clock" is part of what happened, and a list that quietly reordered itself
-    /// would lose it. The ledger is NOT rebuilt — it quotes the transcript it was made from, and
-    /// silently repointing quotes at different words is the one thing this product must not do.
-    /// The caller says so; see the window that offers this.
+    /// It used to file a second copy of itself so that "newest" would mean "current". That was a
+    /// workaround for the call not recording which transcript it was showing, and it cost the
+    /// thing the list exists for: four presses of "use this one" left four identical rows and
+    /// evicted real transcriptions from a history capped at ten. The call points at a version
+    /// now, so restoring moves the pointer and writes nothing.
+    ///
+    /// That a restore happened is still worth knowing, and it goes in the log — a list of
+    /// transcripts is the wrong place to record a reading decision.
+    ///
+    /// The ledger is NOT rebuilt: it quotes the transcript it was made from, and silently
+    /// repointing quotes at different words is the one thing this product must not do. The
+    /// caller says so; see the window that offers this.
     /// </summary>
     public bool RestoreTranscriptVersion(long versionId)
     {
         var lines = GetTranscriptVersion(versionId);
         if (lines.Count == 0) return false;
 
-        using (var connection = Open())
-        {
-            var row = connection.QueryFirstOrDefault<(long CallId, string Engine, double? Coverage)>(
-                "SELECT call_id, engine, speech_coverage FROM transcript_version WHERE id = @versionId;",
-                new { versionId });
+        using var connection = Open();
 
-            if (row.Engine is null) return false;
+        var row = connection.QueryFirstOrDefault<(long CallId, string Engine)>(
+            "SELECT call_id, engine FROM transcript_version WHERE id = @versionId;",
+            new { versionId });
 
-            ReplaceSegments(row.CallId, lines);
-            SaveTranscriptVersion(row.CallId, row.Engine, row.Coverage, lines);
-        }
+        if (row.Engine is null) return false;
+
+        ReplaceSegments(row.CallId, lines);
+
+        connection.Execute(
+            "UPDATE call SET transcript_version_id = @versionId WHERE id = @callId;",
+            new { versionId, callId = row.CallId });
 
         return true;
     }

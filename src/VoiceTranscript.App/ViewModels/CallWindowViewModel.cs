@@ -583,6 +583,18 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         var run = _repository.LastRun(CallId, ProcessingStage.Transcribe);
 
+        // Where the text on screen came from, asked of the text on screen.
+        //
+        // This used to ask the last run, and the last run is not the same question. Restoring an
+        // older transcript left the strip naming a different engine than the one whose words were
+        // being read — line counts from the visible lines, engine and speed from something else,
+        // mixed inside one sentence. In a product whose argument is that every quote can be
+        // traced, a provenance line that names the wrong engine is worse than none.
+        var version = _repository.CurrentTranscriptVersion(CallId);
+
+        var engine = version?.Engine ?? run?.Engine;
+        var coverage = version?.SpeechCoverage ?? run?.SpeechCoverage;
+
         // How much of the conversation is here at all, before anything about how sure it was.
         //
         // Uncertain lines and missing ones are different faults and used to read the same. A
@@ -590,14 +602,17 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         // from a pause in the call. This archive holds transcripts where a hosted engine returned
         // words for two thirds of the speech and the text gave no sign of it — which is the
         // failure that took four days to name.
-        if (run?.SpeechCoverage is { } coverage && coverage < 0.95)
-            parts.Add($"konuşmanın %{coverage * 100:0}'i yazıya döküldü");
+        if (coverage is { } share && share < 0.95)
+            parts.Add($"konuşmanın %{share * 100:0}'i yazıya döküldü");
 
-        if (run is not null)
+        if (engine is not null)
         {
-            parts.Add(Core.Asr.AsrCatalog.DisplayFor(run.Engine));
+            parts.Add(Core.Asr.AsrCatalog.DisplayFor(engine));
 
-            if (run.SpeedFactor is { } speed) parts.Add($"gerçek zamanın {speed:0.#} katı");
+            // Only when the last run is the run that produced these words. A speed measured while
+            // transcribing something else is another engine's figure wearing this one's name.
+            if (run?.SpeedFactor is { } speed && run.Engine == engine)
+                parts.Add($"gerçek zamanın {speed:0.#} katı");
         }
 
         QualityLine = string.Join(" · ", parts);
@@ -605,7 +620,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         // Two ways a transcript stops being worth quoting from, and the second is the quieter one.
         // A third of the lines marked uncertain is the old threshold; a fifth of the speech never
         // transcribed at all is the new one.
-        QualityIsPoor = lowConfidence * 3 >= lines || run?.CoverageIsPoor == true;
+        QualityIsPoor = lowConfidence * 3 >= lines || coverage < Core.Domain.CallRun.PoorCoverage;
     }
 
     /// <summary>

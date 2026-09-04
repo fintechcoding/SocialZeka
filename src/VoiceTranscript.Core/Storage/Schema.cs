@@ -17,7 +17,7 @@
 /// </summary>
 public static class Schema
 {
-    public const int Version = 13;
+    public const int Version = 14;
 
     public static readonly string[] Statements =
     [
@@ -78,7 +78,21 @@ public static class Schema
             is_pinned            INTEGER NOT NULL DEFAULT 0,
             audio_sha256         TEXT,
             trimmed_at           TEXT,
-            contact_source       TEXT
+            contact_source       TEXT,
+
+            -- Which stored transcript the call's lines currently are.
+            --
+            -- Without it there is no answer to "where did this text come from", and two visible
+            -- faults followed. The quality strip named the engine of the LAST RUN, so a restored
+            -- OpenAI transcript was labelled as the local model's work — provenance mixed inside
+            -- one sentence, which is worse than either half alone. And restoring had to file a
+            -- duplicate copy of the transcript to become "the newest", so pressing "use this one"
+            -- four times left four identical rows in the history and pushed real transcriptions
+            -- out of it.
+            --
+            -- Null on calls transcribed before this column existed; the strip falls back to the
+            -- run for those.
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_call_contact ON call(contact_id, started_at DESC);",
