@@ -23,8 +23,15 @@ namespace VoiceTranscript.App.Services;
 /// </summary>
 public static class TimelineLayout
 {
-    /// <summary>One line to place: when it was said, whose it is, and how tall it draws.</summary>
-    public readonly record struct Item(int StartMs, bool IsMe, double Height);
+    /// <summary>
+    /// One line to place: when it was said, whose it is, how tall it draws, and when it finished.
+    ///
+    /// The end is carried for the drawing rather than the placement. How long somebody held the
+    /// floor is the one thing this view can show that a list cannot, and it is not the same as how
+    /// much room their words need: a sentence read out in two seconds and a sentence read out in
+    /// twelve occupy the same three lines of text.
+    /// </summary>
+    public readonly record struct Item(int StartMs, bool IsMe, double Height, int EndMs = 0);
 
     /// <summary>How far apart two lines in the same column are pushed when time cannot separate them.</summary>
     public const double GapPx = 6;

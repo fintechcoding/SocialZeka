@@ -340,7 +340,10 @@
                                                     <ItemsPanelTemplate>
                                                         <views:TimelinePanel
                                                             PixelsPerSecond="{Binding DataContext.TimelineDensity,
-                                                                RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                                                RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            RuleBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                            MineBrush="{DynamicResource MeBrush}"
+                                                            TheirsBrush="{DynamicResource ThemBrush}" />
                                                     </ItemsPanelTemplate>
                                                 </Setter.Value>
                                             </Setter>

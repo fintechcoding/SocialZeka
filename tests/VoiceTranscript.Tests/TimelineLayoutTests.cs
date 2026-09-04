@@ -1,4 +1,5 @@
 using VoiceTranscript.App.Services;
+using VoiceTranscript.App.Views;
 
 namespace VoiceTranscript.Tests;
 
@@ -107,5 +108,35 @@ public class TimelineLayoutTests
     public void ARecordingWithNoLengthStillGetsAUsableDensity()
     {
         Assert.True(TimelineLayout.PixelsPerSecond(0, 700) > 0);
+    }
+
+    // ---- the minute rules -------------------------------------------------
+    //
+    // The step has to come from the density: at eight pixels a second a minute is half a screen,
+    // at sixty it is eight screens, and a fixed figure either crowds the rules together or leaves
+    // nothing to measure against.
+
+    /// <summary>A denser drawing never gets sparser marks than a looser one.</summary>
+    [Fact]
+    public void MarksNeverThinOutAsTheDrawingGetsDenser()
+    {
+        var densities = new[] { 8.0, 12.0, 20.0, 25.0, 40.0, 60.0 };
+
+        for (var i = 1; i < densities.Length; i++)
+        {
+            Assert.True(TimelinePanel.StepSeconds(densities[i]) <= TimelinePanel.StepSeconds(densities[i - 1]),
+                $"{densities[i]} px/sn, {densities[i - 1]} px/sn'den daha seyrek işaretleniyor");
+        }
+    }
+
+    [Fact]
+    public void RulesAreNeverDrawnOnTopOfEachOther()
+    {
+        foreach (var density in new[] { 8.0, 12.0, 25.0, 40.0, 60.0 })
+        {
+            var step = TimelinePanel.StepSeconds(density);
+
+            Assert.True(step * density >= 100, $"{density} px/sn: {step} sn araligi çok dar");
+        }
     }
 }
