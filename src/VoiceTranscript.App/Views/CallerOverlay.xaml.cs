@@ -88,7 +88,8 @@ public partial class CallerOverlay
         double confidence,
         DateTimeOffset? lastCall,
         string? notes,
-        IReadOnlyList<CommitmentLine> commitments)
+        IReadOnlyList<CommitmentLine> given,
+        IReadOnlyList<CommitmentLine> mine)
     {
         NameText.Text = name;
         InitialText.Text = Initial(name);
@@ -105,8 +106,13 @@ public partial class CallerOverlay
         NotesText.Text = notes ?? "";
         NotesSection.Visibility = string.IsNullOrWhiteSpace(notes) ? Visibility.Collapsed : Visibility.Visible;
 
-        CommitmentsList.ItemsSource = commitments;
-        CommitmentsSection.Visibility = commitments.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        GivenList.ItemsSource = given;
+        GivenTitle.Visibility = GivenList.Visibility = given.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+        CommitmentsList.ItemsSource = mine;
+        MineTitle.Visibility = CommitmentsList.Visibility = mine.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+        CommitmentsSection.Visibility = given.Count + mine.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
         if (!IsVisible) Show();
 
@@ -198,12 +204,18 @@ public partial class CallerOverlay
     /// </summary>
     public static CommitmentLine? Line(Commitment commitment)
     {
-        if (string.IsNullOrWhiteSpace(commitment.Obligation)) return null;
+        if (string.IsNullOrWhiteSpace(commitment.EffectiveObligation)) return null;
+
+        // The user's own date and wording, when they gave one: the strip says what they decided,
+        // not what the machine first heard.
+        var when = commitment.EffectiveDeadline is { } due
+            ? due.ToDateTime(TimeOnly.MinValue).ToString("d MMM")
+            : commitment.DeadlineRaw is { Length: > 0 } raw ? raw : null;
 
         return new CommitmentLine(
             commitment.ByMe,
             commitment.ByMe ? "sen" : "o",
-            commitment.Obligation.Trim(),
-            commitment.DeadlineRaw is { Length: > 0 } raw ? $"  ·  {raw}" : null);
+            commitment.EffectiveObligation.Trim(),
+            when is null ? null : $"  ·  {when}");
     }
 }

@@ -2122,6 +2122,84 @@ public sealed class Repository(Database database)
         return [.. rows.Select(r => new PromiseRow(r.Item1.ToModel(), r.Item2 ?? "Bilinmeyen", ParseIso(r.Item3)))];
     }
 
+    /// <summary>
+    /// How many calls with this person started after a day.
+    ///
+    /// The "was there a chance" half of "açık kaldı": a promise past its date is only called
+    /// left open once the two have spoken again since — silence is not a broken promise, and a
+    /// screen that said so would be accusing people of things that never came up.
+    /// </summary>
+    public int CountCallsSince(long contactId, DateOnly after)
+    {
+        using var connection = Open();
+
+        var from = new DateTimeOffset(after.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
+        return connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM call WHERE contact_id = @contactId AND started_at >= @since;",
+            new { contactId, since = Iso(from) });
+    }
+
+    /// <summary>One later line that sounds like the promise being kept or discussed — an offer, never a mark.</summary>
+    public sealed record FulfilmentHint(long CallId, DateTimeOffset CallStartedAt, int StartMs, bool IsMe, string Quote);
+
+    /// <summary>
+    /// Looks through the calls with the same person after a promise for a line that shares at
+    /// least two meaningful words with what was promised, and offers it as "tutuldu mu?".
+    ///
+    /// Deliberately an offer and nothing more. The machine cannot hear whether a promise was
+    /// kept — "gönderdim" and "göndereceğim" share every word that matters — so the row under
+    /// the card asks, and only the user's click marks anything. The words are folded the way
+    /// the archive questions fold theirs, so both sides of the comparison agree on what a word
+    /// is; a few calls are enough, because the point is the next conversation, not the year.
+    /// </summary>
+    public FulfilmentHint? SuggestFulfilment(long commitmentId, int maxCalls = 5)
+    {
+        using var connection = Open();
+
+        var promise = connection.QueryFirstOrDefault<(long? ContactId, string? StartedAt, string? Obligation, string? UserObligation)>(
+            """
+            SELECT cm.contact_id, c.started_at, cm.obligation, cm.user_obligation
+              FROM commitment cm
+              JOIN call c ON c.id = cm.call_id
+             WHERE cm.id = @commitmentId;
+            """,
+            new { commitmentId });
+
+        if (promise.StartedAt is null || promise.ContactId is not { } contactId) return null;
+
+        var terms = Analysis.ArchiveQuestions.Terms(promise.UserObligation ?? promise.Obligation ?? "");
+        if (terms.Length < 2) return null;
+
+        var wanted = new HashSet<string>(terms, StringComparer.Ordinal);
+
+        var later = connection.Query<(long Id, string StartedAt)>(
+            """
+            SELECT id, started_at FROM call
+             WHERE contact_id = @contactId AND started_at > @after
+             ORDER BY started_at
+             LIMIT @maxCalls;
+            """,
+            new { contactId, after = promise.StartedAt, maxCalls }).ToList();
+
+        foreach (var call in later)
+        {
+            var lines = connection.Query<(long StartMs, long IsMe, string Text)>(
+                "SELECT start_ms, is_me, text FROM segment WHERE call_id = @id ORDER BY start_ms;",
+                new { id = call.Id });
+
+            foreach (var line in lines)
+            {
+                var shared = Analysis.ArchiveQuestions.Terms(line.Text).Count(wanted.Contains);
+                if (shared < 2) continue;
+
+                return new FulfilmentHint(call.Id, ParseIso(call.StartedAt), (int)line.StartMs, line.IsMe != 0, line.Text.Trim());
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>The promises the user turned down, newest ruling first — the "Reddedilenler" chip.</summary>
     public IReadOnlyList<(Commitment Commitment, string ContactName)> DismissedCommitments(int limit = 500)
     {

@@ -147,52 +147,29 @@
                 </ItemsControl>
             </StackPanel>
 
-            <!-- Promises that came due. -->
-            <StackPanel Visibility="{Binding Overdue.Count, Converter={StaticResource CountToVisibility}}">
-                <TextBlock Text="{loc:T overviewpage.vadesi-gecen-sozler}" Style="{StaticResource GroupHeader}" />
-                <TextBlock Style="{StaticResource Secondary}" Margin="0,0,0,10"
-                           Text="{loc:T overviewpage.soylenmis-ve-tarihi-gecmis-alinti-konusmad}" />
+            <!-- Promises that came due: one line, and the page that holds them. The list that
+                 used to be here is the Sözler page now; a second copy of it disagreed with the
+                 first on every filter it did not have. The two Dikkat cards above stay. -->
+            <Border Style="{StaticResource SettingCard}" Padding="16,12" Margin="0,0,0,8"
+                    Visibility="{Binding Overdue.Count, Converter={StaticResource CountToVisibility}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <ItemsControl ItemsSource="{Binding Overdue}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <!-- The most important card on the page was the only one that did
-                                 nothing when clicked. It opens the call at the quoted moment. -->
-                            <Border Style="{StaticResource SettingCard}" Padding="16,14" Cursor="Hand"
-                                    MouseLeftButtonUp="Overdue_Click"
-                                    ToolTip="{loc:T overviewpage.sozun-verildigi-ani-dinle}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Clock24" FontSize="18" Margin="0,0,14,0"
+                                   VerticalAlignment="Center" Foreground="{DynamicResource SystemFillColorCautionBrush}" />
 
-                                    <ui:SymbolIcon Grid.Column="0" Symbol="Clock24" FontSize="18"
-                                                   Margin="0,0,14,0" VerticalAlignment="Top"
-                                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                    <TextBlock Grid.Column="1" Text="{Binding OverdueLine}" VerticalAlignment="Center" TextWrapping="Wrap" />
 
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{Binding Line}" FontWeight="SemiBold"
-                                                   FontSize="{StaticResource TextBody}" TextWrapping="Wrap" />
-
-                                        <Border Style="{StaticResource QuoteBlock}"
-                                                BorderBrush="{DynamicResource ThemBrush}">
-                                            <TextBlock Style="{StaticResource QuoteText}" Text="{Binding Quote}" />
-                                        </Border>
-                                    </StackPanel>
-
-                                    <Border Grid.Column="2" Style="{StaticResource CountPill}" Margin="14,0,0,0"
-                                            VerticalAlignment="Top">
-                                        <TextBlock Style="{StaticResource CountPillText}"
-                                                   Text="{Binding DaysLate, StringFormat='{}{0} gün'}" />
-                                    </Border>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
+                    <ui:HyperlinkButton Grid.Column="2" Content="{loc:T overviewpage.sozlerde-gor}" Padding="6,0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="Promises" />
+                </Grid>
+            </Border>
 
             <!-- The archive. -->
             <StackPanel Visibility="{Binding Recent.Count, Converter={StaticResource CountToVisibility}}">

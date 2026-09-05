@@ -1,9 +1,11 @@
 ﻿using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.App.Services;
 using VoiceTranscript.App.ViewModels;
 using VoiceTranscript.App.Views;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App;
 
@@ -12,6 +14,18 @@ public partial class MainWindow
     public MainWindow()
     {
         InitializeComponent();
+
+        // The keys, from the one list. Each binding looks the shell up when pressed rather than
+        // at construction, so the window can be built with no DataContext (the smoke test does).
+        foreach (var action in ActionRegistry.All)
+        {
+            if (action.Key is not { } key) continue;
+
+            var run = action.Run;
+            InputBindings.Add(new KeyBinding(
+                new RelayCommand(() => { if (DataContext is ShellViewModel shell) run(shell); }),
+                key, action.Modifiers));
+        }
 
         // Notices are shown as a snackbar rather than bound to a bar that stays on screen. The
         // view model still owns the text; the window owns how it appears.
@@ -168,10 +182,11 @@ public partial class MainWindow
         // Entries with no obligation text are dropped rather than counted: a ledger row that
         // cannot say what was promised came out here as a bullet reading "o:" with nothing after
         // it, and three of those is the panel claiming to know something it does not.
-        var commitments = repository.GetOpenCommitments(contact.Id)
-            .Select(CallerOverlay.Line)
+        // Two directions, two lines each: what they owe you is what to ask about, what you owe
+        // them is what not to be caught out on. Read from the same query as the Sözler page.
+        var promises = repository.PromiseLedger(contactId: contact.Id)
+            .Select(r => CallerOverlay.Line(r.Commitment))
             .OfType<CallerOverlay.CommitmentLine>()
-            .Take(3)
             .ToList();
 
         _caller.Begin(
@@ -179,7 +194,8 @@ public partial class MainWindow
             hypothesis.Match.Score,
             contact.LastCallAt,
             contact.Notes,
-            commitments);
+            given: [.. promises.Where(l => !l.ByMe).Take(2)],
+            mine: [.. promises.Where(l => l.ByMe).Take(2)]);
     }
 
     /// <summary>Where the overlays were last dragged to, or null while they have never been moved.</summary>
@@ -332,15 +348,20 @@ public partial class MainWindow
         if (DataContext is ShellViewModel shell) Views.PaletteWindow.Open(this, shell);
     }
 
+    /// <summary>The sheet is printed from the registry, so it cannot drift from the keys again.</summary>
     private async void OnShortcutsRequested(object? sender, EventArgs e)
-        => await Services.Dialogs.InfoAsync(this, "Klavye kısayolları",
-            "Ctrl+K — komut paleti (komut ya da kişi ara)\n" +
-            "Ctrl+1…8 — sayfalar (Genel bakış, Defter, Kişiler, Arama, Sor, Durum, Takvim, Yapılacaklar)\n" +
-            "Ctrl+F — arama\n" +
-            "F5 — yenile\n" +
-            "F2 — kişiyi yeniden adlandır (Kişiler)\n" +
-            "Esc — pencereyi kapat\n" +
-            "Ctrl+? — bu liste");
+    {
+        var lines = ActionRegistry.All
+            .Where(a => a.ShortcutText is not null)
+            .Select(a => $"{a.ShortcutText} — {a.Title}")
+            .Concat(
+            [
+                $"F2 — {Localisation.T("mainwindow.kisayol-f2")}",
+                $"Esc — {Localisation.T("mainwindow.kisayol-esc")}",
+            ]);
+
+        await Services.Dialogs.InfoAsync(this, Localisation.T("mainwindow.klavye-kisayollari"), string.Join("\n", lines));
+    }
 
     /// <summary>Opens the notice history; whatever it holds counts as seen from here on.</summary>
     private void Bell_Click(object sender, RoutedEventArgs e)

@@ -26,14 +26,6 @@ public partial class OverviewPage
     /// and once learned they stop trying. This makes the shortest question — "what happened
     /// today" — one click from its answer.
     /// </summary>
-    /// <summary>An overdue promise opens its call at the moment it was made.</summary>
-    private void Overdue_Click(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not FrameworkElement { DataContext: OverviewViewModel.OverdueItem item }) return;
-
-        CallWindow.Show(Window.GetWindow(this), item.Commitment.CallId, item.Commitment.QuoteStartMs, item.Commitment.ByMe);
-    }
-
     private void RecentCall_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: RecentCall row }) return;

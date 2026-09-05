@@ -29,6 +29,9 @@ public enum ShellPage
     /// <summary>Everything the user has to do, from every source, in one list.</summary>
     Todo,
 
+    /// <summary>Who promised what to whom, by when, and whether the user marked it kept — both directions.</summary>
+    Promises,
+
     Contacts,
 
     // ShellPage.Processing was here, and removing it is the fix rather than a tidy-up.
@@ -97,6 +100,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Ledger = new LedgerViewModel(repository);
         Calendar = new CalendarViewModel(repository);
         Todo = new TodoViewModel(repository, showDone: settings().TodoShowDone);
+        Promises = new PromisesViewModel(repository);
         Contacts = new ContactsViewModel(repository);
         Processing = new ProcessingViewModel(repository, settings);
         // The status screen is told the route the recorder really takes, rather than assuming
@@ -132,6 +136,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Ask.OpenRequested += (_, target) => OpenCall(target.CallId, target.StartMs);
 
         Ledger.OpenRequested += (_, target) => OnUi(() => OpenAt(target.ContactId, target.CallId, target.StartMs, target.IsMe));
+        Promises.OpenRequested += (_, target) => OnUi(() => OpenAt(target.ContactId, target.CallId, target.StartMs, target.IsMe));
 
         // Severity travels WITH the message from here on. Page notices are ordinary news;
         // everything the orchestrator says out loud is a heads-up ("X yanıt vermedi, Y
@@ -202,6 +207,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public LedgerViewModel Ledger { get; }
     public CalendarViewModel Calendar { get; }
     public TodoViewModel Todo { get; }
+    public PromisesViewModel Promises { get; }
     public ContactsViewModel Contacts { get; }
     public ProcessingViewModel Processing { get; }
     public AiStatusViewModel AiStatus { get; }
@@ -232,6 +238,7 @@ public sealed partial class ShellViewModel : ObservableObject
         ShellPage.Ledger => Localisation.T("mainwindow.defter"),
         ShellPage.Calendar => Localisation.T("mainwindow.takvim"),
         ShellPage.Todo => Localisation.T("mainwindow.yapilacaklar"),
+        ShellPage.Promises => Localisation.T("mainwindow.sozler"),
         ShellPage.Contacts => Localisation.T("mainwindow.kisiler"),
         ShellPage.Search => Localisation.T("mainwindow.arama"),
         ShellPage.Ask => Localisation.T("mainwindow.sor"),
@@ -256,8 +263,11 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>A warning when one side has been silent for a while. Null when both are fine.</summary>
     [ObservableProperty] private string? _levelHint;
 
-    /// <summary>Open ledger items across every contact. Shown as a badge on the navigation.</summary>
+    /// <summary>Findings needing attention across every contact. Shown as a badge on Defter.</summary>
     [ObservableProperty] private int _openFlagCount;
+
+    /// <summary>Promises past their date, both directions. Shown as a badge on Sözler.</summary>
+    [ObservableProperty] private int _overduePromiseCount;
 
     /// <summary>Ticks since a stream last carried sound, at ten per second.</summary>
     private int _micQuietTicks;
@@ -469,6 +479,9 @@ public sealed partial class ShellViewModel : ObservableObject
         // Same: a suggestion produced a minute ago belongs on the list now.
         if (Page == ShellPage.Todo) Todo.Refresh();
 
+        // And a promise marked from a call window a moment ago.
+        if (Page == ShellPage.Promises) Promises.Refresh();
+
         // Checked on arrival rather than on a timer: the answers involve reading the disk and
         // starting a Python process, which is not something to do every minute in the background
         // of a machine that is also on a call.
@@ -485,13 +498,16 @@ public sealed partial class ShellViewModel : ObservableObject
         // The to-do page was the one list this did not re-read, so "Yaptım" on a call window or
         // the home screen left it showing the suggestion as still open.
         Todo.Refresh();
+        Promises.Refresh();
         Contacts.Refresh();
         Processing.Refresh();
         AiStatus.Refresh();
 
-        // The badge counts what actually needs attention rather than everything in the ledger:
-        // a badge that never reaches zero stops being read.
-        OpenFlagCount = Ledger.OverdueCount + Ledger.FlagCount;
+        // Two badges, two questions. Defter counts the findings that want a look; Sözler counts
+        // the promises past their date. Each counts what actually needs attention rather than
+        // everything on its page: a badge that never reaches zero stops being read.
+        OpenFlagCount = Ledger.FlagCount;
+        OverduePromiseCount = Promises.OverdueCount;
     }
 
     /// <summary>Opens a contact from anywhere — a search result, or an overview row.</summary>

@@ -302,8 +302,17 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
         foreach (var (commitment, name) in repository.OverdueCommitments(DateOnly.FromDateTime(DateTime.Now)))
             Overdue.Add(new OverdueItem(commitment, name));
 
+        OnPropertyChanged(nameof(OverdueLine));
+
         RebuildAttention();
     }
+
+    /// <summary>"3 sözün vadesi geçti — 1 senin, 2 sana verilen": the one line the home screen keeps.</summary>
+    public string OverdueLine => string.Format(
+        Localisation.T("overviewpage.vadesi-gecen-ozet"),
+        Overdue.Count,
+        Overdue.Count(o => o.ByMe),
+        Overdue.Count(o => !o.ByMe));
 
     /// <summary>
     /// Assembles the things worth interrupting the user about, most serious first.

@@ -106,12 +106,41 @@
                            TextWrapping="Wrap" MaxHeight="54" Margin="0,3,0,0" />
             </StackPanel>
 
-            <!-- What the machine heard, each line resting on a quote it can play back later. -->
+            <!-- What the machine heard, each line resting on a quote it can play back later.
+                 Two directions, because they are read differently in the moment: what they owe
+                 you is what to ask about; what you owe them is what not to be caught out on. -->
             <StackPanel x:Name="CommitmentsSection" Margin="12,0,12,11">
                 <Border Height="1" Background="#1FFFFFFF" Margin="0,0,0,9" />
 
-                <TextBlock Text="{loc:T calleroverlay.acik-sozler}" Foreground="#66FFFFFF"
+                <TextBlock x:Name="GivenTitle" Text="{loc:T calleroverlay.sana-verilen}" Foreground="#66FFFFFF"
                            FontSize="9.5" FontWeight="SemiBold" Margin="0,0,0,4" />
+
+                <ItemsControl x:Name="GivenList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" CornerRadius="6" Padding="5,1" Margin="0,1,7,0"
+                                        MinWidth="30" VerticalAlignment="Top"
+                                        Background="{Binding Tint}">
+                                    <TextBlock Text="{Binding Who}" FontSize="9.5" FontWeight="SemiBold"
+                                               Foreground="#F0FFFFFF" TextAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Foreground="#E0FFFFFF" FontSize="12"
+                                           TextWrapping="Wrap">
+                                    <Run Text="{Binding Text, Mode=OneWay}" />
+                                    <Run Text="{Binding When, Mode=OneWay}" Foreground="#8AFFFFFF" />
+                                </TextBlock>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock x:Name="MineTitle" Text="{loc:T calleroverlay.senin-verdigin}" Foreground="#66FFFFFF"
+                           FontSize="9.5" FontWeight="SemiBold" Margin="0,6,0,4" />
 
                 <ItemsControl x:Name="CommitmentsList">
                     <ItemsControl.ItemTemplate>

@@ -47,6 +47,8 @@ public class WindowSmokeTests
                 Build("Genel bakış", () => new OverviewPage(), failures);
                 Build("Defter", () => new LedgerPage(), failures);
                 Build("Takvim", () => new CalendarPage(), failures);
+                Build("Sözler", () => new PromisesPage(), failures);
+                Build("Yapılacaklar", () => new TodoPage(), failures);
                 Build("Kişiler", () => new ContactsPage(), failures);
                 Build("Arama", () => new SearchPage(), failures);
                 Build("Sor", () => new AskPage(), failures);

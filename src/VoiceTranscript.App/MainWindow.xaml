@@ -18,23 +18,8 @@
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica">
 
-    <ui:FluentWindow.InputBindings>
-        <!-- The keyboard layer: pages on Ctrl+1..7, palette on Ctrl+K, search on Ctrl+F,
-             refresh on F5 — the quiet definition of corporate software. -->
-        <KeyBinding Modifiers="Control" Key="K" Command="{Binding OpenPaletteCommand}" />
-        <KeyBinding Modifiers="Control" Key="D1" Command="{Binding NavigateCommand}" CommandParameter="Overview" />
-        <KeyBinding Modifiers="Control" Key="D2" Command="{Binding NavigateCommand}" CommandParameter="Ledger" />
-        <KeyBinding Modifiers="Control" Key="D3" Command="{Binding NavigateCommand}" CommandParameter="Contacts" />
-        <KeyBinding Modifiers="Control" Key="D4" Command="{Binding NavigateCommand}" CommandParameter="Search" />
-        <KeyBinding Modifiers="Control" Key="D5" Command="{Binding NavigateCommand}" CommandParameter="Ask" />
-        <KeyBinding Modifiers="Control" Key="D6" Command="{Binding NavigateCommand}" CommandParameter="Health" />
-        <KeyBinding Modifiers="Control" Key="D7" Command="{Binding NavigateCommand}" CommandParameter="Calendar" />
-        <KeyBinding Modifiers="Control" Key="D8" Command="{Binding NavigateCommand}" CommandParameter="Todo" />
-        <KeyBinding Modifiers="Control" Key="D9" Command="{Binding NavigateCommand}" CommandParameter="Calls" />
-        <KeyBinding Modifiers="Control" Key="F" Command="{Binding NavigateCommand}" CommandParameter="Search" />
-        <KeyBinding Key="F5" Command="{Binding RefreshAllCommand}" />
-        <KeyBinding Modifiers="Control" Key="OemQuestion" Command="{Binding ShowShortcutsCommand}" />
-    </ui:FluentWindow.InputBindings>
+    <!-- The keyboard layer is built in code from ActionRegistry, so the keys, the rail order,
+         the palette and the Ctrl+? sheet are one list. -->
 
     <Grid>
         <Grid.RowDefinitions>
@@ -190,8 +175,14 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Navigation -->
-                <StackPanel Grid.Row="1">
+                <!-- Navigation: grouped the way the product is used — the calls themselves, what
+                     the calls left behind, and the two ways to look something up. The Ctrl digits
+                     follow this order; ActionRegistry is the one list they and the rail come from. -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <TextBlock Text="{loc:T mainwindow.grup-gorusmeler}" Style="{StaticResource Caption}"
+                               FontWeight="SemiBold" Margin="14,2,0,4" />
+
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
                                  IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Overview}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Overview">
@@ -211,6 +202,18 @@
                     </RadioButton>
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Contacts}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="Contacts">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="People24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T mainwindow.kisiler}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <TextBlock Text="{loc:T mainwindow.grup-hafiza}" Style="{StaticResource Caption}"
+                               FontWeight="SemiBold" Margin="14,12,0,4" />
+
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
                                  IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Ledger}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Ledger">
                         <Grid>
@@ -225,6 +228,25 @@
                             <Border Grid.Column="2" Style="{StaticResource CountPill}"
                                     Visibility="{Binding OpenFlagCount, Converter={StaticResource PositiveToVisibility}}">
                                 <TextBlock Style="{StaticResource CountPillText}" Text="{Binding OpenFlagCount}" />
+                            </Border>
+                        </Grid>
+                    </RadioButton>
+
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Promises}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="Promises">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="Handshake24" FontSize="17" Margin="0,0,12,0"
+                                           VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{loc:T mainwindow.sozler}" VerticalAlignment="Center" />
+                            <Border Grid.Column="2" Style="{StaticResource CountPill}"
+                                    Visibility="{Binding OverduePromiseCount, Converter={StaticResource PositiveToVisibility}}">
+                                <TextBlock Style="{StaticResource CountPillText}" Text="{Binding OverduePromiseCount}" />
                             </Border>
                         </Grid>
                     </RadioButton>
@@ -247,21 +269,8 @@
                         </StackPanel>
                     </RadioButton>
 
-                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
-                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Contacts}"
-                                 Command="{Binding NavigateCommand}" CommandParameter="Contacts">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ui:SymbolIcon Grid.Column="0" Symbol="People24" FontSize="17" Margin="0,0,12,0"
-                                           VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="1" Text="{loc:T mainwindow.kisiler}" VerticalAlignment="Center" />
-                        </Grid>
-                    </RadioButton>
-
+                    <TextBlock Text="{loc:T mainwindow.grup-bul}" Style="{StaticResource Caption}"
+                               FontWeight="SemiBold" Margin="14,12,0,4" />
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
                                  IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Search}"
@@ -280,6 +289,12 @@
                             <TextBlock Text="{loc:T mainwindow.sor}" VerticalAlignment="Center" />
                         </StackPanel>
                     </RadioButton>
+                </StackPanel>
+                </ScrollViewer>
+
+                <!-- Tools -->
+                <StackPanel Grid.Row="3">
+                    <Border Style="{StaticResource Hairline}" Margin="4,0,4,10" />
 
                     <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
                                  IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Health}"
@@ -289,11 +304,7 @@
                             <TextBlock Text="{loc:T mainwindow.durum}" VerticalAlignment="Center" />
                         </StackPanel>
                     </RadioButton>
-                </StackPanel>
 
-                <!-- Tools -->
-                <StackPanel Grid.Row="3">
-                    <Border Style="{StaticResource Hairline}" Margin="4,0,4,10" />
 
                     <!-- The bell: a missed toast is recoverable here. The badge counts what
                          arrived while nobody was looking; opening the list clears it. -->
@@ -422,6 +433,15 @@
                         </MultiBinding>
                     </views:TodoPage.Visibility>
                 </views:TodoPage>
+
+                <views:PromisesPage Style="{StaticResource PageHost}" DataContext="{Binding Promises}">
+                    <views:PromisesPage.Visibility>
+                        <MultiBinding Converter="{StaticResource PageVisibility}">
+                            <Binding Path="DataContext.Page" RelativeSource="{RelativeSource AncestorType=Window}" />
+                            <Binding Source="Promises" />
+                        </MultiBinding>
+                    </views:PromisesPage.Visibility>
+                </views:PromisesPage>
 
                 <views:ContactsPage Style="{StaticResource PageHost}" DataContext="{Binding Contacts}">
                     <views:ContactsPage.Visibility>
