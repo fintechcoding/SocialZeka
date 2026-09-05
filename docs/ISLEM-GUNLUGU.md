@@ -2169,8 +2169,9 @@ kapatmak elendi. `min_speech_duration_ms` hiç denenmedi; `faster_whisper_engine
 çatallandı. Plan, ikinci görüş ve ekran taslakları `docs/PLAN-SOSYALZEKA.md`.
 
 **Ne yapıldı.**
-- Yerel çatal `C:\Voice\SocialZeka` (`git clone`, tam geçmiş, 54 etiket). GitHub reposu henüz
-  yok — `gh` bu makinede kurulu değil; `origin` yerel yola bakıyor.
+- Yerel çatal `C:\Voice\SocialZeka` (`git clone`, tam geçmiş, 54 etiket). GitHub reposunu
+  kullanıcı elle açtı (`gh` bu makinede kurulu değil); `9cc3b64` + bütün etiketler + dallar
+  `fintechcoding/SocialZeka`'ya itildi, yalnız `main` için tek CI koşumu tetiklendi ve geçti.
 - Kimlik: `AppPaths.ApplicationName = "SocialZeka"` (veri kökü `%LOCALAPPDATA%\SocialZeka.Data`),
   `LegacyApplicationName`, `DatabaseFileName`, `LegacyArchiveToTakeOver`; `App.xaml.cs` tek-örnek
   kilidi ve ikinci-açılış sinyali yeni adla, ilk açılışta VoiceTranscript arşivini **taşıma**
@@ -2191,5 +2192,63 @@ geçti · 0 kırık · 5 atlandı** (4 `OpenRouterLiveTests` anahtar yok, 1 `Pyt
 ağırlık yok); Python **156 geçti**. Devralma diyaloğu gerçek makinede henüz denenmedi: ilk
 `SocialZeka.exe` açılışında VoiceTranscript.Data varken görülecek (VoiceTranscript kapalı olmalı).
 
-**Bekleyen.** GitHub reposu ve push (`git remote set-url origin …; git push -u origin --all;
-git push origin --tags`); VoiceTranscript'in dondurulması; §18'e VoiceTranscript2 iptal gerekçesi.
+**Bekleyen.** VoiceTranscript'in dondurulması (README işareti); §18'e VoiceTranscript2 iptal
+gerekçesi (kullanıcıdan).
+
+## 2026-09-05 — Paket A1: arayüz borçları (şikâyet 2/3/4/5/6, dil)
+
+**Ne bozuktu.** Kullanıcının sekiz şikâyetinden beşi şema istemeyen arayüz borcuydu
+(`PLAN-SOSYALZEKA.md` §4.11): "Yaptım" bir yüzeyde işaretlenince öbürleri eski kalıyordu
+(`ShellViewModel.RefreshAll` Yapılacaklar'ı hiç okumuyordu, üç `SetActionStatus` olay
+yaymıyordu); Bitenler kutusu listenin dibindeydi ve kapalıyken sayı bilmiyordu; "N görüşme
+yeniden kuyruğa alındı" yazılıp aynı satırda `Refresh()` tarafından siliniyordu; "Gizlendi:"
+sabit metni ve "kaldır" dili reddi gizleme gibi anlatıyordu; Ayarlar'da Kaydet pencerenin sağ
+kenarındaydı (1920 px'te son alandan ~870 px uzakta), Yenile kutunun üstünde havada, Sına/Bakiye
+kartın en altında, bulut modunda yerel blok soluk ama yerinde; motor kutusu OpenAI'nin yüz modelini
+(gpt-3.5-turbo, babbage-002) listeliyor, üstelik `SttEndpointViewModel.TestAsync` probe'un
+sırasını alfabetik ezerek bozuyordu.
+
+**Ne yapıldı.**
+- Aksiyon ↔ Yapılacaklar: `CallWindowViewModel`/`OverviewViewModel`/`ContactsViewModel`
+  `SetActionStatus` sonrası `Services.CallActions.NotifyChanged()`; `RefreshAll` → `Todo.Refresh()`;
+  `TodoViewModel` Toggle/Dismiss/UndoDismiss de yayar. Bitenler kutusu süzgeç satırına, "Bitenler
+  ({0})" sayısıyla; biten satırlar hep okunur, yalnız açıkken gösterilir (`DoneCount`);
+  `AppSettings.TodoShowDone` (`TodoPage.xaml.cs`, `ConversationTimeline` kalıbı).
+- `ProcessingViewModel.Requeue`: `Refresh()` önce, bildirim sonra.
+- Dil: `todopage.reddedildi-n`; `callwindow.bu-oneri-bir-daha-gosterilmez` → "Reddedersen bir
+  daha önerilmez."; `ledgerpage.bu-satiri-kaldir` ve `contactspage.bu-kaydi-defterden-kaldir` →
+  "Bu bulguyu reddet"; `settingswindow.uzun-aramalar` → "Uzun görüşmeler"; `healthpage.60-…`
+  "görüşme"; `settingswindow.krediyi-sor` → "Bakiyeyi sor"; `todopage.oneriyi-gizle` →
+  `todopage.oneriyi-reddet`. `.cs`/XAML sabit metinleri sözlüğe: `ShellViewModel` durum satırları
+  ("Gelen çağrı", "Görüşme başlayınca…"), `LedgerViewModel` KindLabel/LateText/beş bildirim,
+  `MainWindow.xaml` bildirim paneli, `ProcessingPage.xaml` "Hepsini durdur", `CallWindow.xaml`
+  dört Setter, `RecordingOverlay.xaml.cs`, `CallerOverlay.xaml` başlığı — 35 yeni anahtar, iki
+  dilde. `MainWindow.xaml.cs` ölü `Setup_Click` silindi. `YOLHARITASI`/`YAPILACAKLAR` "Gizle" →
+  "Reddet".
+- Ayarlar: alt bar `232` ray boşluğu + `MaxWidth=760` yıldız sütunu (sola hizalı `MaxWidth`
+  Grid **olmaz**: sorun listesi boşken içeriğe büzülüp düğmeleri sola kaydırıyor — ilk denemede
+  öyle yazılmıştı, düzeltildi); Yenile `VerticalAlignment=Bottom`; model kutusunun altına
+  "Tümünü göster ({0} model daha)" bağlantısı, Sına/Bakiye/Durum kutunun hemen altına, "Gelişmiş
+  adres" en alta; `UsesLocalAsr=false` iken yerel blok `Collapsed`.
+- Motor listesi: `SttProbe.TranscriptionCandidates(models, catalogue)` — `whisper|transcribe|
+  scribe|stt|speech|asr` ∪ katalog, boş kalırsa tam liste; `SttModelList`/`SttTestResult`
+  `AllModels` + `HiddenCount`; `TestAsync` model varlığını tam listeye göre yargılar (kutu gizledi
+  diye "listede yok" denmez); Message "N modelden M tanesi…". `SttEndpointViewModel`: `OrderBy`
+  kalktı, `Offer/Fill`, `ShowAllModels` geçişi, `HiddenModelCount`.
+- Testler (+13): `LocalisationTests` üç kural (`.cs` içindeki `Localisation.T("…")` anahtarları
+  sözlükte; `{0}` eşliği; "gizle" sözü yalnız `calleroverlay.`/`recordingoverlay.` değerlerinde ve
+  `"Gizlendi` sabiti kodda yok); `SttProbeTests` dört (daraltma + sıra, tanınmayan liste bütün
+  gelir, katalog daraltmadan sağ çıkar, yazılan model tam listeye göre); `SttEndpointViewModelTests`
+  yeni (sıra korunur, geçiş, katalogdan kurulan kart gizlemez); `SuggestionsOnTheTodoPageTests`
+  üç (`DoneCount` kapalıyken, `showDone:true` başlangıç, "Reddedildi");
+  `FailedCallsAreReachableTests` Requeue bildirimi.
+
+**Nasıl doğrulandı.** `./test.ps1`: derleme 0 hata / 68 uyarı; C# **1080 test · 1075 geçti · 0
+kırık · 5 atlandı** (taban 1067/1062 → +13); Python **156 geçti**. İlk koşumda
+`EveryKeyUsedInCodeExists` `HealthPage.xaml.cs:54`'teki önek+değer birleştirmesini yarım anahtar
+sandı; tarama yalnız `T("…")` biçimindeki bütün anahtarlara daraltıldı. Kaydet hizası (≤ 32 px
+@1920) ve motor kutusunun canlı OpenAI anahtarıyla ilk beş satırı **elle bakılacak**; kurgu
+gereği ikisi de sütun sayılarından çıkıyor (256 + 760 = 1016 iki yüzeyde de).
+
+**Sürüm.** A1 bitince ilk etiket `v3.0.0` (YOLHARITASI "yığın bitince tek sürüm"); etiket
+kullanıcı onayıyla atılır.

@@ -35,6 +35,16 @@ public sealed record SttProviderInfo
     /// <summary>Models known to work, offered before the live list arrives.</summary>
     public IReadOnlyList<string> Models { get; init; } = [];
 
+    /// <summary>
+    /// Everything the service listed, when <see cref="Models"/> is the transcription-shaped part
+    /// of it. The same list when nothing was narrowed.
+    /// </summary>
+    private readonly IReadOnlyList<string>? _allModels;
+    public IReadOnlyList<string> AllModels { get => _allModels ?? Models; init => _allModels = value; }
+
+    /// <summary>How many listed models the box is not showing.</summary>
+    public int HiddenCount => Math.Max(0, AllModels.Count - Models.Count);
+
     /// <summary>One sentence on what this service is and what it costs.</summary>
     public required string Summary { get; init; }
 
@@ -296,6 +306,16 @@ public sealed record SttTestResult
     /// <summary>Models the service says it has. Empty when it does not publish a list.</summary>
     public IReadOnlyList<string> Models { get; init; } = [];
 
+    /// <summary>
+    /// Everything the service listed, when <see cref="Models"/> is the transcription-shaped part
+    /// of it. The same list when nothing was narrowed.
+    /// </summary>
+    private readonly IReadOnlyList<string>? _allModels;
+    public IReadOnlyList<string> AllModels { get => _allModels ?? Models; init => _allModels = value; }
+
+    /// <summary>How many listed models the box is not showing.</summary>
+    public int HiddenCount => Math.Max(0, AllModels.Count - Models.Count);
+
     public required string Message { get; init; }
 
     public bool IsHealthy => Reachable && Authorised;
@@ -312,6 +332,16 @@ public sealed record SttTestResult
 public sealed record SttModelList
 {
     public IReadOnlyList<string> Models { get; init; } = [];
+
+    /// <summary>
+    /// Everything the service listed, when <see cref="Models"/> is the transcription-shaped part
+    /// of it. The same list when nothing was narrowed.
+    /// </summary>
+    private readonly IReadOnlyList<string>? _allModels;
+    public IReadOnlyList<string> AllModels { get => _allModels ?? Models; init => _allModels = value; }
+
+    /// <summary>How many listed models the box is not showing.</summary>
+    public int HiddenCount => Math.Max(0, AllModels.Count - Models.Count);
 
     /// <summary>True when the models came from the catalogue rather than the service.</summary>
     public bool FromCatalogue { get; init; }

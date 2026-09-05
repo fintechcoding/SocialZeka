@@ -533,6 +533,9 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
         repository.SetActionStatus(row.Item.Id, status);
         CallActions.Remove(row);
         OnPropertyChanged(nameof(HasCallActions));
+
+        // Told to every other list showing the same suggestion; see CallWindowViewModel.
+        Services.CallActions.NotifyChanged();
     }
 
     /// <summary>Raised when an action needs something only the shell can do.</summary>

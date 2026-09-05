@@ -638,6 +638,9 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
         repository.SetActionStatus(row.Item.Id, status);
         DayActions.Remove(row);
         OnPropertyChanged(nameof(HasDayActions));
+
+        // Told to every other list showing the same suggestion; see CallWindowViewModel.
+        Services.CallActions.NotifyChanged();
     }
 
     private void BuildCalendar()

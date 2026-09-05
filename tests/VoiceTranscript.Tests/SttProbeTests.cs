@@ -68,16 +68,64 @@ public sealed class SttProbeTests
         Assert.Equal(["nova-2-general", "nova-3"], listing.Models);
     }
 
+    /// <summary>
+    /// /v1/models on OpenAI answers with everything the account can call. The box used to show
+    /// all of it, transcription models first: a hundred names, and the user read gpt-3.5-turbo
+    /// and babbage-002 as places this application might send audio. Now the box gets the ones
+    /// that transcribe, and the rest is kept for "Tümünü göster" rather than thrown away.
+    /// </summary>
     [Fact]
-    public async Task AnOpenAiShapedListIsFilteredToTranscriptionFirst()
+    public async Task AnOpenAiShapedListIsNarrowedToTheModelsThatTranscribe()
     {
-        const string body = """{"data":[{"id":"gpt-4o"},{"id":"whisper-1"},{"id":"gpt-4o-transcribe"}]}""";
+        const string body = """{"data":[{"id":"gpt-4o"},{"id":"whisper-1"},{"id":"babbage-002"},{"id":"gpt-4o-transcribe"},{"id":"gpt-3.5-turbo"}]}""";
 
         var listing = await Probe(HttpStatusCode.OK, body).ListModelsAsync(Endpoint("openai"));
 
         Assert.False(listing.FromCatalogue);
-        Assert.Contains("whisper-1", listing.Models);
-        Assert.Contains("gpt-4o-transcribe", listing.Models);
+        Assert.Equal(["gpt-4o-transcribe", "whisper-1"], listing.Models);
+        Assert.DoesNotContain("gpt-4o", listing.Models);
+        Assert.DoesNotContain("babbage-002", listing.Models);
+
+        Assert.Equal(5, listing.AllModels.Count);
+        Assert.Equal(3, listing.HiddenCount);
+        Assert.Contains("5 modelden 2", listing.Message);
+    }
+
+    /// <summary>The narrowing is a heuristic; a list it recognises nothing in is shown whole.</summary>
+    [Fact]
+    public async Task AListWithNothingRecognisableInItIsShownWhole()
+    {
+        const string body = """{"data":[{"id":"parakeet-tdt-0.6b"},{"id":"canary-1b"}]}""";
+
+        var listing = await Probe(HttpStatusCode.OK, body).ListModelsAsync(Endpoint("custom") with { BaseUrl = "https://example.test/v1" });
+
+        Assert.Equal(["parakeet-tdt-0.6b", "canary-1b"], listing.Models);
+        Assert.Equal(0, listing.HiddenCount);
+    }
+
+    /// <summary>Whatever the catalogue knows for a provider stays in the box, whatever it is called.</summary>
+    [Fact]
+    public void TheCatalogueModelsSurviveTheNarrowing()
+    {
+        var models = SttProbe.TranscriptionCandidates(["gpt-4o", "nova-x", "whisper-1"], ["nova-x"]);
+
+        Assert.Equal(["nova-x", "whisper-1"], models);
+    }
+
+    /// <summary>
+    /// A typed name the service does have must not be called missing because the box hid it:
+    /// availability is judged against everything the service listed.
+    /// </summary>
+    [Fact]
+    public async Task TheConnectionTestJudgesATypedModelAgainstTheWholeList()
+    {
+        const string body = """{"data":[{"id":"whisper-1"},{"id":"gpt-4o-audio-preview"}]}""";
+
+        var result = await Probe(HttpStatusCode.OK, body).TestAsync(Endpoint("openai") with { Model = "gpt-4o-audio-preview" });
+
+        Assert.True(result.ModelAvailable);
+        Assert.DoesNotContain("gpt-4o-audio-preview", result.Models);
+        Assert.Contains("gpt-4o-audio-preview", result.AllModels);
     }
 
     [Fact]

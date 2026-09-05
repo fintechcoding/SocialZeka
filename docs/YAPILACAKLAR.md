@@ -1313,7 +1313,7 @@ v2.2'ye; UI'de dört eksen birden. Plan onaylı.
   (tur="takip" hariç); GİZLENEN (katlanmış eylem+alıntı) asla dirilmez; yeniden koşum yalnız
   AÇIK satırları değiştirir (yapıldı/gizlendi/yönlendirildi kullanıcı tarihi); tavan 5;
   tarih_ham → TurkishDates. Kart: tur ikonu + gerekçe + çalınabilir alıntı +
-  →Hatırlatıcı (sebep ön-dolu, kaydedilirse yönlendirildi) / →Önemliler / Yaptım / Gizle;
+  →Hatırlatıcı (sebep ön-dolu, kaydedilirse yönlendirildi) / →Önemliler / Yaptım / Reddet;
   panel altyazısı "Öneridir — sen onaylamadan hiçbir yere yazılmaz". Genel bakış'ta "Günün
   aksiyonları" (vadesi gelen + son 3 günün tarihsizleri, ≤5).
 - [x] **19.C1 Bildirim merkezi:** NoticeSeverity tipli önem KAYNAKTA (MainWindow'daki Türkçe
@@ -1469,7 +1469,7 @@ TAKVİM SAYFASI seçildi; "görüşme detayında sıkıntı varsa uyarı çıks�
   asla "seni sürekli bölüyor" hükmü değil.
 - [x] **24.2 Kişiler sayfası sekme revizyonu:** seçili görüşmenin alt sekmeleri artık
   Konuşma / Özet / AKSİYONLAR — açık öneriler görüşme penceresindeki satır düzeniyle
-  (tur ikonu + gerekçe + vade), Yaptım/Gizle yerinde çalışır; →Hatırlatıcı/→Önemliler
+  (tur ikonu + gerekçe + vade), Yaptım/Reddet yerinde çalışır; →Hatırlatıcı/→Önemliler
   yönlendirmesi diyaloglarıyla birlikte görüşme penceresinde kaldı (sayfa hafif kalsın
   diye bilinçli). Tutarlılık/Okuma panelleri de aynı gerekçeyle sayfaya kopyalanmadı.
 
@@ -1485,9 +1485,16 @@ taslakları ve ölçüm kapıları: [`PLAN-SOSYALZEKA.md`](PLAN-SOSYALZEKA.md).
   kilidi, açılış kaydı, sürüm dosya adı `SocialZeka-Setup-*`, `UpdateService` repo yolu.
   Ad alanları ve `VoiceTranscript.exe` bilerek aynı (MIMARI "Ad ve çatal").
 - [~] **P0 — Kod dışı borçlar.** Anahtar sızıntısı temizlendi (anahtar döndürülmeli), ölçüm tezgâhı
-  `tools/olcum/`, taban çizgisi. **Bekleyen:** GitHub reposu + push; VoiceTranscript'in
-  dondurulması (README işareti); §18'e VoiceTranscript2 iptal gerekçesi (kullanıcıdan).
-- [ ] **A1 — Arayüz borçları** (şikâyet 2/3/4/5/6, dil kalıntıları) → v3.0.0
+  `tools/olcum/`, taban çizgisi; GitHub `fintechcoding/SocialZeka` açıldı, `9cc3b64` + 54 etiket
+  itildi. **Bekleyen:** VoiceTranscript'in dondurulması (README işareti); §18'e VoiceTranscript2
+  iptal gerekçesi (kullanıcıdan).
+- [x] **A1 — Arayüz borçları** (şikâyet 2/3/4/5/6, dil kalıntıları) → v3.0.0. "Yaptım" her yüzeyde
+  aynı anda (`CallActions.NotifyChanged`, `RefreshAll` → `Todo`); Bitenler süzgeç satırında sayılı,
+  `TodoShowDone` kalıcı; Requeue bildirimi görünür; Reddet dili + `.cs` sabit metinleri sözlüğe
+  (35 anahtar) + üç yeni `LocalisationTests` kuralı; Ayarlar alt barı içerik sütununda, Yenile
+  kutunun hizasında, Sına/Bakiye kutunun altında, bulut modunda yerel blok gizli; motor kutusu
+  yalnız yazıya dökme modelleri + "Tümünü göster (N)". Ölçü: 1080 C# / 156 Python yeşil;
+  1920 px'te Kaydet hizası elle bakılacak (ISLEM-GUNLUGU 2026-09-05 A1).
 - [ ] **A2 — Şema v15**: bayatlık, söz kararları, `verdict`; şikâyet 1/7/8; `TryResolve(spokenOn)` → v3.0.x
 - [ ] **B — Sözler sayfası + ray düzeni** → v3.1.0
 - [ ] **C + D — Kelime güveni ölçek; Aynam (v16)** → v3.1.x (önce şive ön-ölçümü)

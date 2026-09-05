@@ -187,6 +187,12 @@ public sealed record AppSettings
     public bool ConversationTimeline { get; init; }
 
     /// <summary>
+    /// Whether the to-do page shows its finished section. Remembered for the same reason as the
+    /// timeline view: it is how somebody reads the list, not a decision to repeat each visit.
+    /// </summary>
+    public bool TodoShowDone { get; init; }
+
+    /// <summary>
     /// Whether the far end of a call is recognised by voice — shown on screen while the call runs,
     /// and used to file the conversation under the right person when it ends.
     ///

@@ -470,7 +470,7 @@
                                         </ComboBox>
                                     </StackPanel>
 
-                                    <ui:Button Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Top"
+                                    <ui:Button Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Bottom"
                                                Content="{loc:T settingswindow.yenile}" MinWidth="90"
                                                Command="{Binding RefreshDevicesCommand}"
                                                ToolTip="{loc:T settingswindow.kulakligi-yeni-taktiysan-listeyi-tazele}" />
@@ -920,32 +920,24 @@
                                                 <ComboBox IsEditable="True" ItemsSource="{Binding Models}"
                                                           Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
                                                           DropDownOpened="EndpointModelBox_DropDownOpened"
-                                                          Margin="0,0,0,12" />
+                                                          Margin="0,0,0,4" />
 
-                                                <ui:CardExpander Margin="0,0,0,12" Icon="{ui:SymbolIcon Settings24}"
-                                                                 Header="{loc:T settingswindow.gelismis-adres}">
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                                            <TextBlock Text="{loc:T settingswindow.adres}" Style="{StaticResource Caption}" Margin="0,0,0,4" />
-                                                            <ui:TextBox Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
-                                                        </StackPanel>
-                                                        <ui:Button Grid.Column="1" Content="{loc:T settingswindow.varsayilana-don}"
-                                                                   VerticalAlignment="Bottom" Appearance="Transparent"
-                                                                   Command="{Binding ResetAddressCommand}" />
-                                                    </Grid>
-                                                </ui:CardExpander>
+                                                <!-- The box shows the models that transcribe; the rest of the
+                                                     provider's list is one click away, never gone. -->
+                                                <ui:HyperlinkButton Content="{Binding ShowAllModelsText}" Padding="4,0" Margin="0,0,0,4"
+                                                                    Command="{Binding ToggleShowAllModelsCommand}"
+                                                                    Visibility="{Binding HasHiddenModels, Converter={StaticResource BoolToVisibility}}" />
 
                                                 <!--
                                                     The two buttons that make this trustworthy.
                                                     Otherwise a wrong key or an exhausted balance is
                                                     discovered only when a real conversation has
                                                     already been recorded and fails to upload.
+                                                    Directly under the model box: the address expander
+                                                    used to sit between them, and the test was the last
+                                                    thing on the card rather than the next.
                                                 -->
-                                                <StackPanel Orientation="Horizontal">
+                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                                     <ui:Button Content="{loc:T settingswindow.baglantiyi-sina}" MinWidth="128"
                                                                Command="{Binding TestCommand}"
                                                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}">
@@ -1001,6 +993,23 @@
                                                         </TextBlock.Style>
                                                     </TextBlock>
                                                 </StackPanel>
+
+                                                <ui:CardExpander Margin="0,12,0,0" Icon="{ui:SymbolIcon Settings24}"
+                                                                 Header="{loc:T settingswindow.gelismis-adres}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                                            <TextBlock Text="{loc:T settingswindow.adres}" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                                                            <ui:TextBox Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                        <ui:Button Grid.Column="1" Content="{loc:T settingswindow.varsayilana-don}"
+                                                                   VerticalAlignment="Bottom" Appearance="Transparent"
+                                                                   Command="{Binding ResetAddressCommand}" />
+                                                    </Grid>
+                                                </ui:CardExpander>
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
@@ -1031,7 +1040,9 @@
                                     IsOpen="{Binding UsesLocalAsr, Converter={StaticResource InverseBool}}"
                                     Message="{loc:T settingswindow.her-sey-buluta-gonderiliyor-yerel-model}" />
 
-                        <StackPanel IsEnabled="{Binding UsesLocalAsr}">
+                        <!-- Gone rather than greyed: a disabled model table under "her şey buluta
+                             gönderiliyor" reads as a broken screen, not as a choice already made. -->
+                        <StackPanel Visibility="{Binding UsesLocalAsr, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="{loc:T settingswindow.yerel-model}" Style="{StaticResource GroupHeader}" />
 
                         <!--
@@ -1662,33 +1673,46 @@
             </ScrollViewer>
         </Grid>
 
+        <!-- The bar spans the window so its rule does; what sits on it sits under the content
+             column: a spacer the width of the rail, then a star column capped at 760 — the same
+             numbers as PageScroll above, so Kaydet ends where the last card ends. Right-aligned to
+             the window, it was some 870 px from that card on a 1920 px screen: reachable in the
+             sense that a target is reachable. (A left-aligned grid with MaxWidth would not do: it
+             shrinks to its content when the problem list is empty, and the buttons drift left.) -->
         <Border Grid.Row="2" Padding="24,14,32,16" BorderThickness="0,1,0,0"
                 BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="232" />
+                    <ColumnDefinition Width="*" MaxWidth="760" />
                 </Grid.ColumnDefinitions>
 
-                <ItemsControl Grid.Column="0" ItemsSource="{Binding Problems}" VerticalAlignment="Center"
-                              Margin="0,0,16,0">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                                <ui:SymbolIcon Symbol="Warning24" FontSize="14" Margin="0,0,8,0"
-                                               Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource SystemFillColorCautionBrush}"
-                                           FontSize="{StaticResource TextSecondary}" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <Grid Grid.Column="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <ui:Button Content="{loc:T settingswindow.vazgec}" Margin="0,0,8,0" MinWidth="96" Click="Cancel_Click" />
-                    <ui:Button Content="{loc:T settingswindow.kaydet}" Appearance="Primary" MinWidth="96" Click="Save_Click" />
-                </StackPanel>
+                    <ItemsControl Grid.Column="0" ItemsSource="{Binding Problems}" VerticalAlignment="Center"
+                                  Margin="0,0,16,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                    <ui:SymbolIcon Symbol="Warning24" FontSize="14" Margin="0,0,8,0"
+                                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                               FontSize="{StaticResource TextSecondary}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <ui:Button Content="{loc:T settingswindow.vazgec}" Margin="0,0,8,0" MinWidth="96" Click="Cancel_Click" />
+                        <ui:Button Content="{loc:T settingswindow.kaydet}" Appearance="Primary" MinWidth="96" Click="Save_Click" />
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 

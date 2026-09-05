@@ -303,7 +303,7 @@
                         <Grid HorizontalAlignment="Stretch">
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Symbol="Alert24" FontSize="16" Margin="0,0,12,0" />
-                                <TextBlock Text="Bildirimler" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T mainwindow.bildirimler}" VerticalAlignment="Center" />
                             </StackPanel>
                             <Border Style="{StaticResource CountPill}" HorizontalAlignment="Right"
                                     Visibility="{Binding HasUnseenNotices, Converter={StaticResource BoolToVisibility}}">
@@ -320,7 +320,7 @@
                                                 MaxHeight="420">
                                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                                 <StackPanel>
-                                                    <TextBlock Text="Son bildirimler" FontWeight="SemiBold"
+                                                    <TextBlock Text="{loc:T mainwindow.son-bildirimler}" FontWeight="SemiBold"
                                                                Margin="6,2,6,6" />
                                                     <ItemsControl ItemsSource="{Binding NoticeHistory}">
                                                         <ItemsControl.ItemTemplate>
@@ -344,7 +344,7 @@
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
-                                                    <TextBlock Text="Henüz bildirim yok." Margin="6,4">
+                                                    <TextBlock Text="{loc:T mainwindow.henuz-bildirim-yok}" Margin="6,4">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
                                                                 <Setter Property="Visibility" Value="Collapsed" />

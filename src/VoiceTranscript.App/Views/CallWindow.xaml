@@ -642,10 +642,10 @@
                                                IsEnabled="{Binding IsExtractingActions, Converter={StaticResource InverseBool}}">
                                         <ui:Button.Style>
                                             <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                                <Setter Property="Content" Value="Aksiyonları çıkar" />
+                                                <Setter Property="Content" Value="{loc:T callwindow.aksiyonlari-cikar}" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding HasActions}" Value="True">
-                                                        <Setter Property="Content" Value="Yeniden çıkar" />
+                                                        <Setter Property="Content" Value="{loc:T callwindow.yeniden-cikar}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -1003,10 +1003,10 @@
                                                IsEnabled="{Binding IsReadingRunning, Converter={StaticResource InverseBool}}">
                                         <ui:Button.Style>
                                             <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                                <Setter Property="Content" Value="Okumasını iste" />
+                                                <Setter Property="Content" Value="{loc:T callwindow.okumasini-iste}" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding HasReading}" Value="True">
-                                                        <Setter Property="Content" Value="Yeniden oku" />
+                                                        <Setter Property="Content" Value="{loc:T callwindow.yeniden-oku}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>

@@ -93,7 +93,7 @@ public sealed class TodoEntry(TodoEntryKind kind, long id, string text, DateOnly
 /// somebody has to do after a call is already known here — the promise deadlines, the suggested
 /// steps, the reminders — and a list that only held the typed items would be the smaller half.
 /// </summary>
-public sealed partial class TodoViewModel(Repository repository) : ObservableObject
+public sealed partial class TodoViewModel(Repository repository, bool showDone = false) : ObservableObject
 {
     public ObservableCollection<TodoEntry> Overdue { get; } = [];
     public ObservableCollection<TodoEntry> Today { get; } = [];
@@ -112,7 +112,24 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
 
     [ObservableProperty] private string _newText = "";
     [ObservableProperty] private DateTime? _newDue;
-    [ObservableProperty] private bool _showDone;
+
+    /// <summary>
+    /// Whether the finished section is open. Starts from the saved setting: it is a way of
+    /// reading the list, not a per-visit decision, so it is remembered like the timeline view.
+    /// </summary>
+    [ObservableProperty] private bool _showDone = showDone;
+
+    /// <summary>
+    /// How many things are finished, whether or not the section is open.
+    ///
+    /// The checkbox that opens the section says the number, so "did Yaptım leave a trace" is
+    /// answered without opening it. That means reading the done rows on every refresh; they are
+    /// few, and a box reading "Bitenler" beside twelve finished things it did not count is the
+    /// fault this replaces.
+    /// </summary>
+    public int DoneCount { get; private set; }
+
+    public string ShowDoneText => string.Format(Localisation.T("todopage.bitenler-n"), DoneCount);
 
     /// <summary>
     /// Which source is on screen.
@@ -149,7 +166,7 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
         var today = DateOnly.FromDateTime(DateTime.Today);
         var entries = new List<TodoEntry>();
 
-        foreach (var todo in repository.ListTodos(includeDone: ShowDone))
+        foreach (var todo in repository.ListTodos(includeDone: true))
         {
             entries.Add(new TodoEntry(
                 TodoEntryKind.Manual, todo.Id, todo.Text, todo.DueDate, todo.ContactName, todo.CallId, todo.DoneAt is not null));
@@ -161,15 +178,12 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
                 TodoEntryKind.Action, action.Id, action.Action, action.DeadlineDate, contactName, action.CallId, done: false));
         }
 
-        // Ticked suggestions belong under "Bitenler" with everything else that got done. Read
-        // only when that section is open, so the ordinary list costs one query less.
-        if (ShowDone)
+        // Ticked suggestions belong under "Bitenler" with everything else that got done. Always
+        // read, so the section's checkbox can say how many there are; shown only when it is open.
+        foreach (var (action, contactName) in repository.AllDoneActions())
         {
-            foreach (var (action, contactName) in repository.AllDoneActions())
-            {
-                entries.Add(new TodoEntry(
-                    TodoEntryKind.Action, action.Id, action.Action, action.DeadlineDate, contactName, action.CallId, done: true));
-            }
+            entries.Add(new TodoEntry(
+                TodoEntryKind.Action, action.Id, action.Action, action.DeadlineDate, contactName, action.CallId, done: true));
         }
 
         foreach (var (callId, contactName, title, day) in repository.RemindersBetween(today.AddYears(-1), today.AddYears(1)))
@@ -178,6 +192,8 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
         }
 
         Overdue.Clear(); Today.Clear(); Upcoming.Clear(); Undated.Clear(); Done.Clear();
+
+        DoneCount = entries.Count(e => e.IsDone);
 
         var shown = Source switch
         {
@@ -191,7 +207,10 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
                      .ThenBy(e => e.Kind)
                      .ThenBy(e => e.Text, StringComparer.CurrentCultureIgnoreCase))
         {
-            if (entry.IsDone) Done.Add(entry);
+            if (entry.IsDone)
+            {
+                if (ShowDone) Done.Add(entry);
+            }
             else if (entry.Due is null) Undated.Add(entry);
             else if (entry.Due < today) Overdue.Add(entry);
             else if (entry.Due == today) Today.Add(entry);
@@ -205,6 +224,8 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
         OnPropertyChanged(nameof(HasDone));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(OpenCount));
+        OnPropertyChanged(nameof(DoneCount));
+        OnPropertyChanged(nameof(ShowDoneText));
     }
 
     partial void OnShowDoneChanged(bool value) => Refresh();
@@ -259,6 +280,10 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
         }
 
         Refresh();
+
+        // The other screens showing the same suggestion — the home screen, an open call window —
+        // learn of the verdict the way they learn of a deleted call.
+        Services.CallActions.NotifyChanged();
     }
 
     /// <summary>Turns down a suggestion, and remembers it long enough to be taken back.</summary>
@@ -270,10 +295,11 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
         repository.SetActionStatus(entry.Id, ActionStatus.Hidden);
 
         _undoActionId = entry.Id;
-        Notice = $"Gizlendi: {Shorten(entry.Text)}";
+        Notice = string.Format(Localisation.T("todopage.reddedildi-n"), Shorten(entry.Text));
 
         OnPropertyChanged(nameof(CanUndo));
         Refresh();
+        Services.CallActions.NotifyChanged();
     }
 
     [RelayCommand]
@@ -288,6 +314,7 @@ public sealed partial class TodoViewModel(Repository repository) : ObservableObj
 
         OnPropertyChanged(nameof(CanUndo));
         Refresh();
+        Services.CallActions.NotifyChanged();
     }
 
     [RelayCommand]

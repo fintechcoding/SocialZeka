@@ -64,7 +64,7 @@
                                    VerticalAlignment="Center" Margin="12,0,4,0" />
 
                         <ui:Button Appearance="Transparent" Padding="6,2" Margin="2,0,0,0"
-                                   ToolTip="{loc:T todopage.oneriyi-gizle}"
+                                   ToolTip="{loc:T todopage.oneriyi-reddet}"
                                    Visibility="{Binding CanDismiss, Converter={StaticResource BoolToVisibility}}"
                                    Command="{Binding DataContext.DismissCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                    CommandParameter="{Binding}">
@@ -158,6 +158,11 @@
                        Appearance="{Binding Source, Converter={StaticResource FilterAppearance}, ConverterParameter=Suggestions}" />
             <ui:Button Content="{loc:T todopage.kendi-yazdiklarim}" Command="{Binding ShowMineCommand}"
                        Appearance="{Binding Source, Converter={StaticResource FilterAppearance}, ConverterParameter=Mine}" />
+
+            <!-- The finished section's switch belongs with the other filters, and says its count:
+                 "did Yaptım leave a trace" is answered here, not at the bottom of a scrolled list. -->
+            <CheckBox Content="{Binding ShowDoneText}" IsChecked="{Binding ShowDone}"
+                      Margin="18,0,0,0" VerticalAlignment="Center" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="5" VerticalScrollBarVisibility="Auto">
@@ -186,10 +191,10 @@
                     <ItemsControl ItemsSource="{Binding Undated}" ItemTemplate="{StaticResource TodoRow}" Margin="0,0,0,12" />
                 </StackPanel>
 
-                <CheckBox Content="{loc:T todopage.bitenleri-goster}" IsChecked="{Binding ShowDone}" Margin="4,8,0,4" />
-
-                <ItemsControl ItemsSource="{Binding Done}" ItemTemplate="{StaticResource TodoRow}"
-                              Visibility="{Binding HasDone, Converter={StaticResource BoolToVisibility}}" />
+                <StackPanel Visibility="{Binding HasDone, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{loc:T todopage.bitenler}" Style="{StaticResource GroupHeader}" Margin="4,0,0,4" />
+                    <ItemsControl ItemsSource="{Binding Done}" ItemTemplate="{StaticResource TodoRow}" Margin="0,0,0,12" />
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
     </Grid>

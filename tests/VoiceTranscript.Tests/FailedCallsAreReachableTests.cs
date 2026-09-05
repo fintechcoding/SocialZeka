@@ -89,6 +89,25 @@ public class FailedCallsAreReachableTests : IDisposable
         Call(ProcessingState.Failed, audio: true, segments: 7,
             reason: "Yapılandırılmış servislerin hiçbiri yazıya dökemedi.");
 
+    /// <summary>
+    /// "N görüşme yeniden kuyruğa alındı" was written and then wiped by the re-read that followed
+    /// it, so the button appeared to do nothing. The re-read comes first now; the notice survives.
+    /// </summary>
+    [Fact]
+    public void RequeueingSaysSoAfterTheListIsReRead()
+    {
+        var id = FailureWithText();
+
+        _model.TranscriptFilter = TranscriptFilter.Failed;
+        var row = _model.TranscriptRows.Single(r => r.Id == id);
+
+        _model.Requeue([row]);
+
+        Assert.NotNull(_model.Notice);
+        Assert.Contains("yeniden kuyruğa alındı", _model.Notice);
+        Assert.Equal(ProcessingState.Queued, _repository.ListCalls(limit: 10).Single(c => c.Id == id).State);
+    }
+
     [Fact]
     public void EveryFailureIsOnTheFailuresFilter()
     {

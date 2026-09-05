@@ -12,9 +12,32 @@ public partial class TodoPage
         // The page owns the window, as the calendar does: a view model does not open windows.
         DataContextChanged += (_, e) =>
         {
-            if (e.OldValue is TodoViewModel previous) previous.OpenCallRequested -= OnOpenCall;
-            if (e.NewValue is TodoViewModel next) next.OpenCallRequested += OnOpenCall;
+            if (e.OldValue is TodoViewModel previous)
+            {
+                previous.OpenCallRequested -= OnOpenCall;
+                previous.PropertyChanged -= OnModelPropertyChanged;
+            }
+
+            if (e.NewValue is TodoViewModel next)
+            {
+                next.OpenCallRequested += OnOpenCall;
+                next.PropertyChanged += OnModelPropertyChanged;
+            }
         };
+    }
+
+    /// <summary>
+    /// Whether the finished section is open is remembered, as the timeline view is: it is a way
+    /// of reading the list, not a decision to repeat on every visit. Written to the settings the
+    /// application saves when it closes.
+    /// </summary>
+    private void OnModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(TodoViewModel.ShowDone)) return;
+        if (sender is not TodoViewModel model) return;
+        if (App.Settings.TodoShowDone == model.ShowDone) return;
+
+        App.Settings = App.Settings with { TodoShowDone = model.ShowDone };
     }
 
     /// <summary>

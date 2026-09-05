@@ -127,7 +127,7 @@ Bu betik hem C# hem Python testlerini çalıştırır. **PowerShell'den çalış
 | Takım | Sonuç |
 |---|---|
 | `dotnet build VoiceTranscript.slnx -c Debug` | **0 hata**, 74 uyarı, ~20 sn (artımlı) |
-| `VoiceTranscript.Tests.exe` | **1067 test · 1062 geçti · 0 kırık · 5 atlandı**, ~7 sn |
+| `VoiceTranscript.Tests.exe` | **1080 test · 1075 geçti · 0 kırık · 5 atlandı**, ~9 sn |
 | `pytest` (`worker/`) | **156 test · 156 geçti**, ~29 sn |
 
 Önceki kayıt (2026-09-02): 846/841/5 ve 89/89. Aradaki fark 3–4 Eylül turlarının testleridir;

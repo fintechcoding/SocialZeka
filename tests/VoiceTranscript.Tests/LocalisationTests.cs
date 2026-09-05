@@ -130,4 +130,93 @@ public class LocalisationTests
         // somebody reports; one that renders as an empty label is a fault nobody notices.
         Assert.Equal("overview.nope", Localisation.T("overview.nope"));
     }
+
+    /// <summary>
+    /// The keys written in code, not only the ones in markup.
+    ///
+    /// View models format notices and labels with <c>Localisation.T("…")</c>, and a key mistyped
+    /// there fails the same quiet way as one mistyped in XAML — it renders as itself. The markup
+    /// scan never saw these.
+    /// </summary>
+    [Fact]
+    public void EveryKeyUsedInCodeExists()
+    {
+        var tr = Read("tr");
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        // Only whole keys: a call that builds its key from a prefix and a value is checked by the
+        // screen it belongs to, not here.
+        var pattern = new Regex(@"Localisation\.T\(\s*""([^""]+)""\s*\)", RegexOptions.Compiled);
+
+        foreach (var file in SourceFiles())
+        {
+            foreach (Match match in pattern.Matches(File.ReadAllText(file)))
+                used.Add(match.Groups[1].Value);
+        }
+
+        Assert.NotEmpty(used);
+
+        var unknown = used.Except(tr.Keys).OrderBy(k => k).ToList();
+        Assert.True(unknown.Count == 0, "Kodda kullanılan ama sözlükte olmayan anahtarlar: " + string.Join(", ", unknown.Take(10)));
+    }
+
+    /// <summary>
+    /// A "{0}" the English text dropped is a value that never appears; a "{1}" it added is a
+    /// FormatException at the moment the notice is shown.
+    /// </summary>
+    [Fact]
+    public void PlaceholdersMatchInBothLanguages()
+    {
+        var tr = Read("tr");
+        var en = Read("en");
+        var placeholder = new Regex(@"\{\d+\}", RegexOptions.Compiled);
+
+        var mismatched = tr.Keys
+            .Where(en.ContainsKey)
+            .Where(key =>
+            {
+                var a = placeholder.Matches(tr[key]).Select(m => m.Value).OrderBy(v => v, StringComparer.Ordinal);
+                var b = placeholder.Matches(en[key]).Select(m => m.Value).OrderBy(v => v, StringComparer.Ordinal);
+                return !a.SequenceEqual(b);
+            })
+            .OrderBy(k => k)
+            .ToList();
+
+        Assert.True(mismatched.Count == 0, "Yer tutucuları uyuşmayan anahtarlar: " + string.Join(", ", mismatched.Take(10)));
+    }
+
+    /// <summary>
+    /// One verb per act. "Reddet" is a judgement on something the machine proposed, and it is
+    /// recorded; "gizle" is only ever visual — a strip or a panel put out of the way for a while.
+    /// The word for hiding therefore belongs to the overlays alone. Anywhere else it is the old
+    /// name for a refusal, which the user asked to have gone.
+    /// </summary>
+    [Fact]
+    public void HidingIsAWordOnlyTheOverlaysUse()
+    {
+        var pattern = new Regex(@"\bgizle", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        var offenders = Read("tr")
+            .Where(pair => pattern.IsMatch(pair.Value))
+            .Where(pair => !pair.Key.StartsWith("calleroverlay.", StringComparison.Ordinal)
+                           && !pair.Key.StartsWith("recordingoverlay.", StringComparison.Ordinal))
+            .Select(pair => pair.Key)
+            .OrderBy(k => k)
+            .ToList();
+
+        Assert.True(offenders.Count == 0, "\"Gizle\" yalnız üst katman şeritlerinin sözüdür: " + string.Join(", ", offenders));
+
+        // And not smuggled back in as a literal the dictionaries never see.
+        var literal = SourceFiles()
+            .Where(file => File.ReadAllText(file).Contains("\"Gizlendi", StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .ToList();
+
+        Assert.True(literal.Count == 0, "Sözlük dışı \"Gizlendi\" metni: " + string.Join(", ", literal));
+    }
+
+    private static IEnumerable<string> SourceFiles() =>
+        new[] { "VoiceTranscript.App", "VoiceTranscript.Core" }
+            .SelectMany(project => Directory.EnumerateFiles(Path.Combine(Root, "src", project), "*.cs", SearchOption.AllDirectories))
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                           && !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
 }

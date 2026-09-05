@@ -96,7 +96,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Calls = new CallsViewModel(repository);
         Ledger = new LedgerViewModel(repository);
         Calendar = new CalendarViewModel(repository);
-        Todo = new TodoViewModel(repository);
+        Todo = new TodoViewModel(repository, showDone: settings().TodoShowDone);
         Contacts = new ContactsViewModel(repository);
         Processing = new ProcessingViewModel(repository, settings);
         // The status screen is told the route the recorder really takes, rather than assuming
@@ -240,8 +240,8 @@ public sealed partial class ShellViewModel : ObservableObject
     };
 
     partial void OnPageChanged(ShellPage value) => OnPropertyChanged(nameof(WindowTitle));
-    [ObservableProperty] private string _statusText = "İzleniyor";
-    [ObservableProperty] private string _statusDetail = "Arama başlayınca otomatik kaydedilecek";
+    [ObservableProperty] private string _statusText = Localisation.T("mainwindow.izleniyor");
+    [ObservableProperty] private string _statusDetail = Localisation.T("mainwindow.gorusme-baslayinca-otomatik-kaydedilecek");
     [ObservableProperty] private bool _isRecording;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string? _notice;
@@ -315,10 +315,10 @@ public sealed partial class ShellViewModel : ObservableObject
 
         (StatusText, StatusDetail) = state switch
         {
-            OrchestratorState.Ringing => ("Arama çalıyor", "Cevaplanırsa kayıt başlayacak"),
-            OrchestratorState.Recording => ("Kaydediliyor", "İki ses akışı ayrı ayrı yazılıyor"),
-            OrchestratorState.Processing => ("İşleniyor", "Yazıya dökülüyor ve çözümleniyor"),
-            _ => ("İzleniyor", "Arama başlayınca otomatik kaydedilecek"),
+            OrchestratorState.Ringing => (Localisation.T("mainwindow.gelen-cagri"), Localisation.T("mainwindow.cevaplanirsa-kayit-baslayacak")),
+            OrchestratorState.Recording => (Localisation.T("mainwindow.kaydediliyor"), Localisation.T("mainwindow.iki-ses-akisi-ayri-ayri-yaziliyor")),
+            OrchestratorState.Processing => (Localisation.T("mainwindow.isleniyor"), Localisation.T("mainwindow.yaziya-dokuluyor-ve-cozumleniyor")),
+            _ => (Localisation.T("mainwindow.izleniyor"), Localisation.T("mainwindow.gorusme-baslayinca-otomatik-kaydedilecek")),
         };
 
         OnPropertyChanged(nameof(WindowTitle));
@@ -482,6 +482,9 @@ public sealed partial class ShellViewModel : ObservableObject
         Calls.Refresh();
         Ledger.Refresh();
         Calendar.Refresh();
+        // The to-do page was the one list this did not re-read, so "Yaptım" on a call window or
+        // the home screen left it showing the suggestion as still open.
+        Todo.Refresh();
         Contacts.Refresh();
         Processing.Refresh();
         AiStatus.Refresh();

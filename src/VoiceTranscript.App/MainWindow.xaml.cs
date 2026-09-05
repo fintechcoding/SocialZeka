@@ -352,12 +352,6 @@ public partial class MainWindow
         BellMenu.IsOpen = true;
     }
 
-    private void Setup_Click(object sender, RoutedEventArgs e)
-    {
-        App.ShowSetup(this);
-        if (DataContext is ShellViewModel viewModel) viewModel.RefreshAll();
-    }
-
     private void Settings_Click(object sender, RoutedEventArgs e) => OpenSettings();
 
     private void OnSettingsRequested(object? sender, string? section) => OpenSettings(section);

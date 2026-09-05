@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.Views;
 
@@ -82,7 +83,7 @@ public partial class RecordingOverlay
     {
         _startedAt = startedAt;
 
-        Label.Text = headline ?? "Kaydediliyor";
+        Label.Text = headline ?? Localisation.T("recordingoverlay.kaydediliyor");
         Elapsed.Text = Format(DateTimeOffset.Now - startedAt);
 
         _ticker.Start();

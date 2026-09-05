@@ -481,12 +481,15 @@ public sealed partial class ProcessingViewModel(
             ? new ReprocessRequest([.. possible.Select(r => r.Id)], null, null, false)
             : how with { Ids = [.. possible.Select(r => r.Id)] });
 
+        // Re-read first. Refresh() clears the notice on purpose — a notice must not outlive the
+        // list it describes — so a notice written before it was wiped before anyone saw it, and
+        // "N görüşme yeniden kuyruğa alındı" never appeared at all.
+        Refresh();
+
         var what = analyseOnly ? "yeniden çözümlenecek" : "yeniden kuyruğa alındı";
 
         Notice = impossible == 0
             ? $"{possible.Count} görüşme {what}."
             : $"{possible.Count} görüşme {what}. {impossible} tanesi atlandı.";
-
-        Refresh();
     }
 }

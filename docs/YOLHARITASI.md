@@ -43,7 +43,7 @@ maliyet önizlemesi ("~N bin belirteç · kalan bakiye").
 Kullanıcının üç seçimi işlendi: yorum TAM SERBEST (niyet/karakter izlenimi dahil — dürüst
 paketlemeyle: ayrı zeminli panel, "öznel yorumdur, bulgu değildir" şapkası, model+tarih imzası,
 kanıt katmanlarına asla sızmaz, ayarla kapanır); aksiyonlar ONAYLI ÖNERİ KARTLARI (her kart
-alıntıya demirli, doğrulanamayan düşer; →Hatırlatıcı/→Önemliler/Yaptım/Gizle tek tık; gizlenen
+alıntıya demirli, doğrulanamayan düşer; →Hatırlatıcı/→Önemliler/Yaptım/Reddet tek tık; reddedilen
 asla dirilmez); UI DÖRT eksen birden. Şema v6 (action_item + reading_note). UI: bildirim
 merkezi (tipli önem + zil + son 50 geçmiş + "Ne oldu?" tostu; onaylar ContentDialog), komut
 paleti Ctrl+K (ActionRegistry + kişi araması, Türkçe katlamalı skor) + Ctrl+1..6/F5/Ctrl+F/

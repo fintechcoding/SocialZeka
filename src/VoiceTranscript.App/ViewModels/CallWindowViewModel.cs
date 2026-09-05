@@ -1047,6 +1047,10 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         _repository.SetActionStatus(row.Item.Id, status, note);
         Actions.Remove(row);
         OnPropertyChanged(nameof(HasActions));
+
+        // The verdict is shared: the same suggestion sits on the home screen and the to-do page,
+        // and both went on showing it as open until something else happened to refresh them.
+        Services.CallActions.NotifyChanged();
     }
 
     [RelayCommand]

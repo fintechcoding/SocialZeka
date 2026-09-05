@@ -2,6 +2,7 @@ using VoiceTranscript.App.ViewModels;
 using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.Tests;
 
@@ -99,7 +100,7 @@ public class SuggestionsOnTheTodoPageTests : IDisposable
         Assert.Equal(ActionStatus.Open, _repository.ActionsOf(_callId).Single().Status);
     }
 
-    /// <summary>The finished section is read only when it is open; nothing else changes.</summary>
+    /// <summary>The finished section is shown only when it is open; nothing else changes.</summary>
     [Fact]
     public void FinishedSuggestionsStayOutOfSightUntilAskedFor()
     {
@@ -111,6 +112,49 @@ public class SuggestionsOnTheTodoPageTests : IDisposable
 
         _model.ShowDone = true;
         Assert.Single(_model.Done);
+    }
+
+    /// <summary>
+    /// The count is known while the section is closed: the checkbox says "Bitenler (1)", which
+    /// is how somebody sees that ticking left a trace without opening the section.
+    /// </summary>
+    [Fact]
+    public void TheFinishedCountIsKnownWhileTheSectionIsClosed()
+    {
+        var id = Suggest("Fotoğraf kağıdı al");
+        _repository.SetActionStatus(id, ActionStatus.Done);
+
+        _model.Refresh();
+
+        Assert.Empty(_model.Done);
+        Assert.Equal(1, _model.DoneCount);
+        Assert.Contains("(1)", _model.ShowDoneText);
+    }
+
+    /// <summary>The section starts the way it was left, from the saved setting.</summary>
+    [Fact]
+    public void TheFinishedSectionStartsOpenWhenItWasLeftOpen()
+    {
+        var id = Suggest("Siteyi aç");
+        _repository.SetActionStatus(id, ActionStatus.Done);
+
+        var model = new TodoViewModel(_repository, showDone: true);
+        model.Refresh();
+
+        Assert.True(model.ShowDone);
+        Assert.Single(model.Done);
+    }
+
+    /// <summary>The refusal is named as what it is. "Gizlendi" said the row was merely out of sight.</summary>
+    [Fact]
+    public void RefusingASuggestionSaysRefused()
+    {
+        var id = Suggest("Reddedilecek");
+
+        _model.Refresh();
+        _model.DismissCommand.Execute(Everything().Single(e => e.Id == id));
+
+        Assert.Equal(string.Format(Localisation.T("todopage.reddedildi-n"), "Reddedilecek"), _model.Notice);
     }
 
     /// <summary>A hidden suggestion is hidden. It is not finished, and it is not waiting.</summary>

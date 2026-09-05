@@ -47,15 +47,17 @@ public sealed class SttProbe(HttpClient http)
         var wanted = endpoint.ResolvedModel;
 
         // A catalogue answer cannot rule a model out: the service did not say what it has, and the
-        // model box accepts typed names for exactly that reason.
+        // model box accepts typed names for exactly that reason. Checked against everything the
+        // service listed rather than the transcription-shaped part: the box narrows the list, and
+        // a typed name the service does have must not be called missing.
         var hasModel = listing.FromCatalogue
-            || listing.Models.Count == 0
-            || listing.Models.Contains(wanted, StringComparer.OrdinalIgnoreCase);
+            || listing.AllModels.Count == 0
+            || listing.AllModels.Contains(wanted, StringComparer.OrdinalIgnoreCase);
 
-        var message = listing.FromCatalogue || listing.Models.Count == 0
+        var message = listing.FromCatalogue || listing.AllModels.Count == 0
             ? $"Bağlantı çalışıyor ({latency} ms). {listing.Message}"
             : hasModel
-                ? $"Bağlantı çalışıyor ({latency} ms). {wanted} kullanılabilir, {listing.Models.Count} model listelendi."
+                ? $"Bağlantı çalışıyor ({latency} ms). {wanted} kullanılabilir, {listing.AllModels.Count} model listelendi."
                 : $"Bağlantı çalışıyor ({latency} ms) ama {wanted} listede yok. " +
                   $"Örnekler: {string.Join(", ", listing.Models.Take(4))}";
 
@@ -66,6 +68,7 @@ public sealed class SttProbe(HttpClient http)
             ModelAvailable = hasModel,
             LatencyMs = latency,
             Models = listing.Models,
+            AllModels = listing.AllModels,
             Message = message,
         };
     }
@@ -162,10 +165,18 @@ public sealed class SttProbe(HttpClient http)
 
                 default:
                 {
-                    var models = TranscriptionFirst(ParseModelList(body));
+                    var all = ParseModelList(body);
+                    var models = TranscriptionCandidates(all, catalogue);
 
-                    return models.Count > 0
-                        ? new SttModelList { Models = models, Message = $"{models.Count} model listelendi." }
+                    return all.Count > 0
+                        ? new SttModelList
+                        {
+                            Models = models,
+                            AllModels = all,
+                            Message = models.Count < all.Count
+                                ? $"{all.Count} modelden {models.Count} tanesi yazıya dökme modeli; gerisi \"Tümünü göster\" ile."
+                                : $"{all.Count} model listelendi.",
+                        }
                         : new SttModelList
                         {
                             Models = catalogue,
@@ -215,31 +226,38 @@ public sealed class SttProbe(HttpClient http)
     }
 
     /// <summary>
-    /// Puts the models that can actually transcribe at the top of the list.
+    /// The models that can actually transcribe, out of everything the provider hosts.
     ///
     /// The endpoint being asked is <c>/v1/models</c>, which answers with everything the provider
-    /// hosts. On OpenAI that is around a hundred entries, almost all of them chat models, and the
-    /// four that transcribe are scattered through it alphabetically. Somebody opening the dropdown
-    /// to pick a transcription model was being handed a list in which the right answers were
-    /// invisible.
+    /// has. On OpenAI that is around a hundred entries — chat models, embeddings, image models —
+    /// and the four that transcribe are scattered through it. Moving them to the top was tried
+    /// first; the box still opened on a hundred names, and the user still read gpt-3.5-turbo and
+    /// babbage-002 as things this application might send audio to.
     ///
-    /// Reordered rather than filtered. Matching on the name is a heuristic, and a heuristic that
-    /// hides things is one that will eventually hide the model somebody needs — Deepgram's are
-    /// called "nova", and a provider added tomorrow may call its own something else again. Sorting
-    /// puts the likely answers first and costs nothing when the guess is wrong.
+    /// So the list is narrowed, on three conditions that keep "a heuristic must never hide the
+    /// model somebody needs" true: whatever the catalogue knows for this provider stays, whatever
+    /// it is called; an answer with nothing recognisable in it is shown whole rather than empty;
+    /// and the rest is one click away behind "Tümünü göster" — hidden from the box, never from
+    /// the user. Deepgram does not come through here: its models are called "nova" and it lists
+    /// them under their own key.
     /// </summary>
-    public static IReadOnlyList<string> TranscriptionFirst(IReadOnlyList<string> models)
+    public static IReadOnlyList<string> TranscriptionCandidates(IReadOnlyList<string> models, IReadOnlyList<string> catalogue)
     {
         static bool Transcribes(string id) =>
             id.Contains("whisper", StringComparison.OrdinalIgnoreCase)
-            || id.Contains("transcribe", StringComparison.OrdinalIgnoreCase);
+            || id.Contains("transcribe", StringComparison.OrdinalIgnoreCase)
+            || id.Contains("scribe", StringComparison.OrdinalIgnoreCase)
+            || id.Contains("stt", StringComparison.OrdinalIgnoreCase)
+            || id.Contains("speech", StringComparison.OrdinalIgnoreCase)
+            || id.Contains("asr", StringComparison.OrdinalIgnoreCase);
 
-        return
-        [
-            .. models
-                .OrderByDescending(Transcribes)
-                .ThenBy(id => id, StringComparer.OrdinalIgnoreCase),
-        ];
+        var candidates = models
+            .Where(id => Transcribes(id) || catalogue.Contains(id, StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return candidates.Count > 0 ? candidates : models;
     }
 
     /// <summary>

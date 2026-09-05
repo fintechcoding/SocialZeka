@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 using Wpf.Ui.Controls;
 
 namespace VoiceTranscript.App.ViewModels;
@@ -76,7 +77,9 @@ public sealed partial class LedgerEntry : ObservableObject
 
     public bool IsLate => DaysLate > 0;
 
-    public string LateText => DaysLate == 1 ? "1 gün geçti" : $"{DaysLate} gün geçti";
+    public string LateText => DaysLate == 1
+        ? Localisation.T("ledgerpage.1-gun-gecti")
+        : string.Format(Localisation.T("ledgerpage.n-gun-gecti"), DaysLate);
 
     public SymbolRegular Icon => Kind switch
     {
@@ -89,11 +92,11 @@ public sealed partial class LedgerEntry : ObservableObject
 
     public string KindLabel => Kind switch
     {
-        LedgerFilter.Overdue => "vadesi geçti",
-        LedgerFilter.Promises => "söz",
-        LedgerFilter.MyPromises => "senin sözün",
-        LedgerFilter.Changes => "değişti",
-        _ => "dikkat",
+        LedgerFilter.Overdue => Localisation.T("ledgerpage.tur-vadesi-gecti"),
+        LedgerFilter.Promises => Localisation.T("ledgerpage.tur-soz"),
+        LedgerFilter.MyPromises => Localisation.T("ledgerpage.tur-senin-sozun"),
+        LedgerFilter.Changes => Localisation.T("ledgerpage.tur-degisti"),
+        _ => Localisation.T("ledgerpage.tur-dikkat"),
     };
 }
 
@@ -316,14 +319,14 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
                 // A changed figure is derived from the claims rather than stored as its own row,
                 // so there is nothing to mark. Saying so is better than a button that silently
                 // does nothing.
-                Notice?.Invoke(this, "Değişen rakamlar alıntılardan hesaplanıyor, tek tek kapatılamaz.");
+                Notice?.Invoke(this, Localisation.T("ledgerpage.degisen-rakamlar-tek-tek-reddedilemez"));
                 return;
         }
 
         Entries.Remove(entry);
         OnPropertyChanged(nameof(HasEntries));
 
-        Notice?.Invoke(this, "Kaldırıldı. Alıntı görüşmenin metninde duruyor.");
+        Notice?.Invoke(this, Localisation.T("ledgerpage.reddedildi-alinti-metinde-duruyor"));
     }
 
     /// <summary>Marks a promise as kept.</summary>
@@ -340,7 +343,7 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
         Entries.Remove(entry);
         OnPropertyChanged(nameof(HasEntries));
 
-        Notice?.Invoke(this, "Tutuldu olarak işaretlendi.");
+        Notice?.Invoke(this, Localisation.T("ledgerpage.tutuldu-olarak-isaretlendi"));
     }
 
     /// <summary>
@@ -361,15 +364,14 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
 
         if (swept.Total == 0)
         {
-            Notice?.Invoke(this, "Temizlenecek bir şey yok — defterde boş ya da tekrarlanan kayıt kalmamış.");
+            Notice?.Invoke(this, Localisation.T("ledgerpage.temizlenecek-bir-sey-yok"));
             return;
         }
 
         Refresh();
 
         Notice?.Invoke(this,
-            $"{swept.Total} kayıt kaldırıldı: {swept.Hollow} tanesi neyin söz verildiğini yazmıyordu, "
-            + $"{swept.Duplicates} tanesi tekrardı. Senin kapattığın ya da tuttuğun kayıtlara dokunulmadı.");
+            string.Format(Localisation.T("ledgerpage.n-kayit-kaldirildi"), swept.Total, swept.Hollow, swept.Duplicates));
     }
 
     [RelayCommand]

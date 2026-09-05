@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Asr;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -52,11 +53,66 @@ public sealed partial class SttEndpointViewModel : ObservableObject
             : ServiceReadiness.Unknown;
 
         Models = [.. endpoint.Provider.Models];
+        _offeredModels = _allModels = endpoint.Provider.Models;
     }
 
     public string Id { get; }
 
     public System.Collections.ObjectModel.ObservableCollection<string> Models { get; }
+
+    /// <summary>What the box was last given: the transcription-shaped part, and the whole list.</summary>
+    private IReadOnlyList<string> _offeredModels;
+    private IReadOnlyList<string> _allModels;
+
+    /// <summary>
+    /// Whether the box shows everything the service listed rather than the models that transcribe.
+    ///
+    /// The narrowing is a heuristic, and a heuristic must never hide the model somebody needs — so
+    /// the rest is one click away, and the click says how many there are.
+    /// </summary>
+    [ObservableProperty] private bool _showAllModels;
+
+    public int HiddenModelCount => Math.Max(0, _allModels.Count - _offeredModels.Count);
+
+    public bool HasHiddenModels => HiddenModelCount > 0;
+
+    public string ShowAllModelsText => ShowAllModels
+        ? Localisation.T("settingswindow.yalniz-yaziya-dokme-modelleri")
+        : string.Format(Localisation.T("settingswindow.tumunu-goster-n"), HiddenModelCount);
+
+    partial void OnShowAllModelsChanged(bool value)
+    {
+        Fill(value ? _allModels : _offeredModels);
+        OnPropertyChanged(nameof(ShowAllModelsText));
+    }
+
+    [RelayCommand]
+    private void ToggleShowAllModels() => ShowAllModels = !ShowAllModels;
+
+    /// <summary>Replaces what the box offers, without losing what is typed in it.</summary>
+    private void Offer(IReadOnlyList<string> offered, IReadOnlyList<string> all)
+    {
+        _offeredModels = offered;
+        _allModels = all;
+
+        Fill(ShowAllModels ? all : offered);
+
+        OnPropertyChanged(nameof(HiddenModelCount));
+        OnPropertyChanged(nameof(HasHiddenModels));
+        OnPropertyChanged(nameof(ShowAllModelsText));
+    }
+
+    private void Fill(IReadOnlyList<string> models)
+    {
+        // In the order the probe chose. Sorting here used to undo it: the probe put the models
+        // that transcribe first and this put gpt-3.5-turbo back above whisper-1.
+        var current = Model;
+
+        Models.Clear();
+        foreach (var model in models) Models.Add(model);
+
+        Model = current;
+    }
 
     [ObservableProperty] private string _kind;
     [ObservableProperty] private string _name;
@@ -101,8 +157,7 @@ public sealed partial class SttEndpointViewModel : ObservableObject
         Model = provider.DefaultModel;
         Name = provider.DisplayName;
 
-        Models.Clear();
-        foreach (var model in provider.Models) Models.Add(model);
+        Offer(provider.Models, provider.Models);
 
         Status = null;
         Balance = null;
@@ -158,16 +213,7 @@ public sealed partial class SttEndpointViewModel : ObservableObject
 
             // Replace the built-in suggestions with what the service actually offers. A model
             // list read from the provider is the difference between choosing and guessing.
-            if (result.Models.Count > 0)
-            {
-                var current = Model;
-
-                Models.Clear();
-                foreach (var model in result.Models.OrderBy(m => m, StringComparer.OrdinalIgnoreCase))
-                    Models.Add(model);
-
-                Model = current;
-            }
+            if (result.Models.Count > 0) Offer(result.Models, result.AllModels);
 
             if (result.IsHealthy && SupportsBalance) await ReadBalanceAsync();
         }
@@ -247,12 +293,7 @@ public sealed partial class SttEndpointViewModel : ObservableObject
 
             _modelsFetchedFor = key;
 
-            var current = Model;
-
-            Models.Clear();
-            foreach (var model in listing.Models) Models.Add(model);
-
-            Model = current;
+            Offer(listing.Models, listing.AllModels);
 
             Status = listing.Message;
             StatusIsGood = listing.KeyAccepted;
