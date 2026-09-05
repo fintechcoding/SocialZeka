@@ -139,13 +139,20 @@ public sealed record Call
 /// One word and the moment it was said, in milliseconds from the start of the call.
 ///
 /// Integers, not seconds: the rest of the archive counts in milliseconds and a word boundary is
-/// not a place where a rounding difference should appear. Deliberately without a confidence —
-/// the engines return one, it means different things on each of them, and nothing reads it.
+/// not a place where a rounding difference should appear.
+///
+/// The confidence is kept now, because something reads it: the habit counters (Aynam) put a
+/// word the engine was unsure of into a "belirsiz" bucket rather than counting it. It is the
+/// engine's own figure on a 0..1 scale — the worker converts what needs converting (ElevenLabs
+/// reports a log-probability) — and null when the engine gives none (OpenAI, whisper.cpp). The
+/// scale still means different things on different engines, which is why no threshold is fixed
+/// here: each engine's is measured against listened verdicts, and lives in the settings.
 /// </summary>
 /// <param name="StartMs">Where the word begins.</param>
 /// <param name="EndMs">Where it ends.</param>
 /// <param name="Text">The word itself, with whatever spacing the engine gave it.</param>
-public readonly record struct SpokenWord(int StartMs, int EndMs, string Text);
+/// <param name="Probability">The engine's confidence, 0..1, or null when it gave none.</param>
+public readonly record struct SpokenWord(int StartMs, int EndMs, string Text, double? Probability = null);
 
 /// <summary>
 /// One transcript a call has had, and what it cost to look at it.

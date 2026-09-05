@@ -2004,7 +2004,7 @@ public sealed class CallOrchestrator : IDisposable
             // transcript while it plays had only the line to go on — and a nine-second line says
             // nothing about which part of it is sounding.
             Words = [.. s.Words.Select(w => new Core.Domain.SpokenWord(
-                (int)(w.Start * 1000), (int)(w.End * 1000), w.Text))],
+                (int)(w.Start * 1000), (int)(w.End * 1000), w.Text, w.Probability))],
         }));
 
         // Filed under the engine that produced it, beside whatever this call was transcribed

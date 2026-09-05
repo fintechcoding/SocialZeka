@@ -10,7 +10,9 @@ namespace VoiceTranscript.Core.Storage;
 /// carries several thousand words; spelled as <c>{"startMs":1180,"endMs":1680,"text":"ne"}</c>
 /// that is about forty bytes of punctuation per word before any word is stored, and the archive
 /// this belongs to already holds two hundred calls. As <c>[1180,1680,"ne"]</c> the same fact
-/// costs what it is worth. Nothing outside this file ever sees the encoding.
+/// costs what it is worth. Nothing outside this file ever sees the encoding. A fourth element,
+/// the engine's confidence, rides along only when the engine gave one — a triple stays a triple,
+/// so every line written before confidences were kept reads back exactly as it was.
 ///
 /// Both directions are total: unreadable text reads back as no words, because a line whose
 /// timings cannot be parsed is a line to be shown without them, never a line to be lost.
@@ -25,7 +27,15 @@ public static class SegmentWords
         var rows = new object?[words.Count][];
 
         for (var i = 0; i < words.Count; i++)
-            rows[i] = [words[i].StartMs, words[i].EndMs, words[i].Text];
+        {
+            var word = words[i];
+
+            // Three decimals: a confidence is a rough figure, and fifteen digits of it per word
+            // would cost more than the timings it sits beside.
+            rows[i] = word.Probability is { } p
+                ? [word.StartMs, word.EndMs, word.Text, Math.Round(p, 3)]
+                : [word.StartMs, word.EndMs, word.Text];
+        }
 
         return JsonSerializer.Serialize(rows);
     }
@@ -64,7 +74,14 @@ public static class SegmentWords
                     && row[1].TryGetInt32(out var end)
                     && row[2].GetString() is { } text)
                 {
-                    words.Add(new Domain.SpokenWord(start, end, text));
+                    // The fourth element is optional and, when present, a number; anything else
+                    // reads as "no confidence" rather than as a broken word.
+                    double? probability =
+                        row.GetArrayLength() >= 4 && row[3].ValueKind == JsonValueKind.Number
+                            ? row[3].GetDouble()
+                            : null;
+
+                    words.Add(new Domain.SpokenWord(start, end, text, probability));
                 }
             }
 

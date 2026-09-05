@@ -27,6 +27,36 @@ public class SegmentWordsTests
         Assert.Equal(words, back);
     }
 
+    /// <summary>
+    /// The engine's confidence travels with the word when there is one, and a word without one
+    /// stays a triple. Goes red when a confidence is dropped on the way to the column (the habit
+    /// counters would then have nothing to bucket by), or when a plain triple — every line
+    /// written before confidences were kept — no longer reads back as it was.
+    /// </summary>
+    [Fact]
+    public void AConfidenceRidesAlongOnlyWhenTheEngineGaveOne()
+    {
+        IReadOnlyList<SpokenWord> words =
+        [
+            new(920, 1180, " Abi", 0.9123456),
+            new(1180, 1680, " ne"),
+        ];
+
+        var json = SegmentWords.Write(words);
+
+        Assert.Equal("""[[920,1180," Abi",0.912],[1180,1680," ne"]]""", json);
+
+        var back = SegmentWords.Read(json);
+        Assert.Equal(0.912, back[0].Probability);
+        Assert.Null(back[1].Probability);
+
+        // A stored triple from before is exactly a word with no confidence.
+        Assert.Equal([new SpokenWord(10, 20, "eski")], SegmentWords.Read("""[[10,20,"eski"]]"""));
+
+        // And a fourth element that is not a number is not a confidence.
+        Assert.Null(SegmentWords.Read("""[[10,20,"eski","x"]]""")[0].Probability);
+    }
+
     [Fact]
     public void ALineWithNoWordsStoresNothing()
     {
