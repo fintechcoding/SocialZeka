@@ -38,6 +38,90 @@ public class TurkishDatesTests
     public void HaftayaPushesToTheFollowingWeek()
         => Assert.Equal(new DateOnly(2026, 9, 11), TurkishDates.TryResolve("haftaya cuma", Saturday));
 
+    /// <summary>
+    /// "Cuma" said on a Wednesday is that same week's Friday, two days on.
+    ///
+    /// Red means the weekday rule is counting from some day other than the one the words were
+    /// said on — which is how a three-week-old call grew a deadline in the current week, and a
+    /// person was shown as having missed a date they never named.
+    /// </summary>
+    [Fact]
+    public void AWeekdaySpokenMidweekResolvesWithinThatWeek()
+    {
+        var wednesday = new DateOnly(2026, 8, 12);
+
+        Assert.Equal(new DateOnly(2026, 8, 14), TurkishDates.TryResolve("cuma", wednesday));
+        Assert.Equal(new DateOnly(2026, 8, 14), TurkishDates.TryResolve("cumaya", wednesday));
+    }
+
+    /// <summary>
+    /// "Gelecek hafta cuma" is the Friday of the week after the call; "gelecek hafta" alone
+    /// names a week, not a day, and stays unresolved rather than guessed.
+    /// </summary>
+    [Fact]
+    public void GelecekHaftaPushesToTheFollowingWeek()
+    {
+        var wednesday = new DateOnly(2026, 8, 12);
+
+        Assert.Equal(new DateOnly(2026, 8, 21), TurkishDates.TryResolve("gelecek hafta cuma", wednesday));
+        Assert.Null(TurkishDates.TryResolve("gelecek hafta", wednesday));
+    }
+
+    /// <summary>
+    /// "3 gün sonra" and "iki hafta içinde" are a count from the day of the call.
+    ///
+    /// Red means either the count is taken from some other day, or a vague range like
+    /// "bir iki gün" has started being pinned to a date it never named.
+    /// </summary>
+    [Fact]
+    public void ACountOfDaysOrWeeksIsTakenFromTheCallDate()
+    {
+        var wednesday = new DateOnly(2026, 8, 12);
+
+        Assert.Equal(new DateOnly(2026, 8, 15), TurkishDates.TryResolve("3 gün sonra", wednesday));
+        Assert.Equal(new DateOnly(2026, 8, 15), TurkishDates.TryResolve("üç gün içinde", wednesday));
+        Assert.Equal(new DateOnly(2026, 8, 26), TurkishDates.TryResolve("iki hafta sonra", wednesday));
+
+        Assert.Null(TurkishDates.TryResolve("bir iki gün sonra", wednesday));
+        Assert.Null(TurkishDates.TryResolve("birkaç gün sonra", wednesday));
+    }
+
+    /// <summary>
+    /// Every relative phrase follows the call date, never the clock.
+    ///
+    /// The call date is pinned years in the past, so on whatever day this runs, a resolver that
+    /// quietly reads DateTime.Now lands near today and fails. This is the fault that manufactured
+    /// overdue promises out of old calls on every re-analysis.
+    /// </summary>
+    [Fact]
+    public void RelativeDatesFollowTheCallDateNotTheClock()
+    {
+        var spokenOn = new DateOnly(2024, 3, 6); // a Wednesday, long gone
+
+        Assert.Equal(new DateOnly(2024, 3, 7), TurkishDates.TryResolve("yarın", spokenOn));
+        Assert.Equal(new DateOnly(2024, 3, 8), TurkishDates.TryResolve("cuma", spokenOn));
+        Assert.Equal(new DateOnly(2024, 3, 15), TurkishDates.TryResolve("gelecek hafta cuma", spokenOn));
+        Assert.Equal(new DateOnly(2024, 3, 9), TurkishDates.TryResolve("3 gün sonra", spokenOn));
+        Assert.Equal(new DateOnly(2024, 3, 31), TurkishDates.TryResolve("ay sonu", spokenOn));
+    }
+
+    /// <summary>
+    /// The call date cannot be left out.
+    ///
+    /// TryResolve once took <c>DateOnly? spokenOn = null</c> and fell back to the clock; both
+    /// production callers omitted it, so every re-analysis of an old call resolved "cuma" into the
+    /// current week. Red means somebody has reopened that door.
+    /// </summary>
+    [Fact]
+    public void TheCallDateCannotBeOmitted()
+    {
+        var method = typeof(TurkishDates).GetMethod(nameof(TurkishDates.TryResolve))!;
+        var spokenOn = Assert.Single(method.GetParameters(), p => p.Name == "spokenOn");
+
+        Assert.Equal(typeof(DateOnly), spokenOn.ParameterType);
+        Assert.False(spokenOn.HasDefaultValue);
+    }
+
     [Fact]
     public void ResolvesExplicitDates()
     {
@@ -218,6 +302,10 @@ public sealed class AnalysisPipelineTests : IDisposable
     }
 
     private (long callId, long contactId) SeedCall(CallKind kind = CallKind.OneToOne, params (bool me, int ms, string text)[] lines)
+        => SeedCallOn(DateTimeOffset.UtcNow, kind, lines);
+
+    /// <summary>The same call, placed on a chosen day — for the tests about when things were said.</summary>
+    private (long callId, long contactId) SeedCallOn(DateTimeOffset startedAt, CallKind kind, params (bool me, int ms, string text)[] lines)
     {
         var contact = _repo.UpsertContact("Ahmet", CallApp.Telegram);
         var call = _repo.InsertCall(new Call
@@ -225,7 +313,7 @@ public sealed class AnalysisPipelineTests : IDisposable
             ContactId = contact,
             App = CallApp.Telegram,
             Kind = kind,
-            StartedAt = DateTimeOffset.UtcNow,
+            StartedAt = startedAt,
             State = ProcessingState.Transcribed,
         });
         _repo.AssignContact(call, contact);
@@ -567,6 +655,46 @@ public sealed class AnalysisPipelineTests : IDisposable
             .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Single(_repo.GetOpenCommitments(contact));
+    }
+
+    /// <summary>
+    /// "Cuma" in a call from weeks ago is that call's Friday, not this week's.
+    ///
+    /// The pipeline used to resolve deadlines against the clock, so re-analysing an old call —
+    /// which "Tekrar dene" and the retry-everything button both do — moved every relative
+    /// deadline into the current week and produced an overdue promise the person never made.
+    /// The call date is pinned in the past here: a fallback to today would land near the day the
+    /// test runs and fail. The second run stands in for "a different today" — the deadline is a
+    /// property of the call, so it must not change between analyses.
+    /// </summary>
+    [Fact]
+    public async Task ADeadlineInAnOldCallStaysInThatCallsWeekOnReanalysis()
+    {
+        // Wednesday 12 August 2026, at noon local so no time zone can move the date.
+        var (call, contact) = SeedCallOn(
+            new DateTimeOffset(2026, 8, 12, 12, 0, 0, TimeSpan.FromHours(3)),
+            CallKind.OneToOne,
+            (false, 8_000, "Sözleşmeyi cumaya yollarım."));
+
+        const string extraction =
+            """
+            {"taahhutler":[{"konusan":"KARSI","alinti":"Sözleşmeyi cumaya yollarım",
+              "yukumluluk":"sözleşmeyi göndermek","tarih_ham":"cumaya","kosullu":false}],
+             "iddialar":[],"sorular":[],"baski_isaretleri":[]}
+            """;
+
+        await new AnalysisPipeline(new ScriptedLlm(extraction), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var first = Assert.Single(_repo.GetOpenCommitments(contact));
+        Assert.Equal(new DateOnly(2026, 8, 14), first.DeadlineDate);
+
+        // The same call, analysed again — on whatever day this happens to run.
+        await new AnalysisPipeline(new ScriptedLlm(extraction), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var second = Assert.Single(_repo.GetOpenCommitments(contact));
+        Assert.Equal(first.DeadlineDate, second.DeadlineDate);
     }
 
     /// <summary>

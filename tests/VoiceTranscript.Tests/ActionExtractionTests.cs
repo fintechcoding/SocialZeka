@@ -49,13 +49,17 @@ public sealed class ActionExtractionTests : IDisposable
     }
 
     private (long callId, long contactId) Seed(params (bool me, int ms, string text)[] lines)
+        => SeedOn(DateTimeOffset.UtcNow, lines);
+
+    /// <summary>The same call, placed on a chosen day — for the tests about when things were said.</summary>
+    private (long callId, long contactId) SeedOn(DateTimeOffset startedAt, params (bool me, int ms, string text)[] lines)
     {
         var contact = _repo.UpsertContact("Serdal", CallApp.WhatsApp);
         var call = _repo.InsertCall(new Call
         {
             ContactId = contact,
             App = CallApp.WhatsApp,
-            StartedAt = DateTimeOffset.UtcNow,
+            StartedAt = startedAt,
             State = ProcessingState.Analysed,
         });
         _repo.AssignContact(call, contact);
@@ -103,6 +107,31 @@ public sealed class ActionExtractionTests : IDisposable
         // Persisted, not just returned — and the spend is booked under its own stage.
         Assert.Single(_repo.ActionsOf(call));
         Assert.NotNull(_repo.LastRun(call, ProcessingStage.Action));
+    }
+
+    /// <summary>
+    /// "Yarın" in an old call is the day after that call, not the day after this test runs.
+    ///
+    /// The action layer resolved deadlines against the clock, so re-running it on an old call
+    /// re-dated every suggestion into the present. The call date is pinned in the past: a
+    /// fallback to today lands weeks away and fails.
+    /// </summary>
+    [Fact]
+    public async Task ADeadlineIsCountedFromTheCallDateNotFromToday()
+    {
+        // Wednesday 12 August 2026, at noon local so no time zone can move the date.
+        var (call, _) = SeedOn(
+            new DateTimeOffset(2026, 8, 12, 12, 0, 0, TimeSpan.FromHours(3)),
+            (false, 5_000, "Fiyatı bir de e-postayla teyit edelim."));
+
+        var report = await Run(call, Reply(Item(
+            "Fiyatı e-postayla yazılı teyit et",
+            "Fiyatı bir de e-postayla teyit edelim",
+            tur: "yazili_teyit", tarihHam: "yarın")));
+
+        Assert.True(report.Ok, report.Problem);
+        var action = Assert.Single(report.Actions);
+        Assert.Equal(new DateOnly(2026, 8, 13), action.DeadlineDate);
     }
 
     [Fact]

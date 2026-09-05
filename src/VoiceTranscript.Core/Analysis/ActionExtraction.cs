@@ -103,6 +103,10 @@ public sealed class ActionExtraction(ILlmClient llm, Repository repository)
     {
         var hidden = repository.HiddenActionKeys(call.Id);
 
+        // Deadlines are counted from the day of the call, not from today: a suggestion re-run
+        // on an old call keeps the date the speaker meant.
+        var spokenOn = DateOnly.FromDateTime(call.StartedAt.LocalDateTime);
+
         // Commitment quotes, folded — a suggestion anchored to the same words as a recorded
         // promise is the promise restated, unless it is explicitly a follow-up on it.
         var commitmentQuotes = commitments
@@ -159,7 +163,7 @@ public sealed class ActionExtraction(ILlmClient llm, Repository repository)
                 QuoteStartMs = located.StartMs,
                 QuoteIsMe = located.IsMe,
                 DeadlineRaw = deadlineRaw,
-                DeadlineDate = TurkishDates.TryResolve(deadlineRaw),
+                DeadlineDate = TurkishDates.TryResolve(deadlineRaw, spokenOn),
                 ModelUsed = model,
                 CreatedAt = DateTimeOffset.UtcNow,
             };

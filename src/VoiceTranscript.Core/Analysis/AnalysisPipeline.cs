@@ -134,6 +134,11 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         List<Flag> flags = [];
         var rejected = 0;
 
+        // Relative dates in the extraction ("cuma", "yarın") are resolved against the day of the
+        // call, never against today — re-analysing a three-week-old call must not move its
+        // deadlines into the current week.
+        var spokenOn = DateOnly.FromDateTime(call.StartedAt.LocalDateTime);
+
         var chunks = TranscriptChunker.Split(segments, options.ChunkTokens);
         var failedChunks = 0;
 
@@ -155,7 +160,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
                 continue;
             }
 
-            Absorb(extraction, callId, call.ContactId, segments, commitments, claims, questions, ref rejected);
+            Absorb(extraction, callId, call.ContactId, spokenOn, segments, commitments, claims, questions, ref rejected);
         }
 
         if (rejected > 0)
@@ -396,6 +401,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         JsonNode extraction,
         long callId,
         long? contactId,
+        DateOnly spokenOn,
         IReadOnlyList<Segment> segments,
         List<Commitment> commitments,
         List<Claim> claims,
@@ -437,7 +443,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
                 QuoteStartMs = located.StartMs,
                 Obligation = obligation,
                 DeadlineRaw = Str(node, "tarih_ham"),
-                DeadlineDate = TurkishDates.TryResolve(Str(node, "tarih_ham")),
+                DeadlineDate = TurkishDates.TryResolve(Str(node, "tarih_ham"), spokenOn),
                 Amount = Num(node, "tutar"),
                 Currency = Str(node, "para_birimi") is { } c && c != "BILINMIYOR" ? c : null,
                 IsConditional = Bool(node, "kosullu"),
