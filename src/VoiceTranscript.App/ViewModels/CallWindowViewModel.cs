@@ -216,6 +216,9 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     /// <summary>True when a large share of the lines were uncertain, so it is worth saying louder.</summary>
     [ObservableProperty] private bool _qualityIsPoor;
 
+    /// <summary>How many transcripts this call has had — the strip's badge, which opens their list.</summary>
+    public int TranscriptVersionCount => _repository.ListTranscriptVersions(CallId).Count;
+
     // ---- live processing ----------------------------------------------------
     //
     // This window used to answer "Çözümle" with a dialog telling the user to close it and open
@@ -514,6 +517,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         LoadTags();
         LoadQuality();
+        OnPropertyChanged(nameof(TranscriptVersionCount));
 
         OnPropertyChanged(nameof(HasSummary));
         OnPropertyChanged(nameof(HasLedger));

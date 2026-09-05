@@ -58,11 +58,13 @@
         <Setter Property="Margin" Value="0,0,0,6" />
     </Style>
 
+    <!-- 14 under the subtitle rather than 24: it was the widest gap on every page, and the first
+         card sat ten pixels lower than the eye expected — on every page, so fixed on every page. -->
     <Style x:Key="PageSubtitle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="{StaticResource TextSecondary}" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         <Setter Property="TextWrapping" Value="Wrap" />
-        <Setter Property="Margin" Value="0,0,0,24" />
+        <Setter Property="Margin" Value="0,0,0,14" />
     </Style>
 
     <!-- Group header above a run of setting cards, as Windows 11 Settings uses. -->

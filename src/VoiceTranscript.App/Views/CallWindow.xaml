@@ -11,7 +11,7 @@
                  mc:Ignorable="d"
                  d:DataContext="{d:DesignInstance vm:CallWindowViewModel}"
                  Title="{loc:T callwindow.gorusme}"
-                 Width="880" Height="720" MinWidth="640" MinHeight="480"
+                 Width="880" Height="720" MinWidth="640" MinHeight="560"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica">
@@ -66,7 +66,13 @@
                         <ui:DropDownButton.Flyout>
                             <ContextMenu>
                                 <MenuItem Header="{loc:T callwindow.baska-kisiye-tasi}" Click="Move_Click" />
-                                <MenuItem Header="{loc:T callwindow.yeniden-yaziya-cevir}" Click="Retranscribe_Click" />
+                                <!-- The transcript list and the re-run lived beside the quality
+                                     line; that band is gone, so they live here — and the count
+                                     badge on the strip opens the same list one click nearer. -->
+                                <MenuItem Header="{loc:T callwindow.dokumler}" Click="Versions_Click"
+                                          ToolTip="{loc:T callwindow.bu-gorusmenin-butun-dokumleri-ve-hangi-mot}" />
+                                <MenuItem Header="{loc:T callwindow.yeniden-yaziya-cevir}" Click="Retranscribe_Click"
+                                          ToolTip="{loc:T callwindow.bu-gorusmeyi-baska-bir-motorla-bastan-yazi}" />
                                 <MenuItem Header="{loc:T callwindow.yeniden-cozumle}" Click="Reanalyse_Click" />
                                 <MenuItem Header="{loc:T callwindow.ses-dosyasinin-yerini-ac}" Click="ShowInFolder_Click" />
                                 <Separator />
@@ -119,7 +125,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <StackPanel Orientation="Horizontal">
                     <ui:SymbolIcon Symbol="Tag24" FontSize="14" Margin="0,0,6,0"
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -129,7 +135,10 @@
                              its own icon and colour, and clicking one tags the call there and
                              then — the styled pill IS the choice, not a preview of it. Typing
                              a brand-new word still works, committed with Enter or Etiketle. -->
-                        <ComboBox x:Name="TagBox" IsEditable="True" MinWidth="150" VerticalAlignment="Center"
+                        <!-- Sized to the line the buttons make (30 px), not to the control's own
+                             default: the box was the tallest thing on the band and set its height. -->
+                        <ComboBox x:Name="TagBox" IsEditable="True" MinWidth="110" MinHeight="30" Padding="8,3"
+                                  VerticalAlignment="Center"
                                   ItemsSource="{Binding TagSuggestions}"
                                   Text="{Binding NewTag, UpdateSourceTrigger=PropertyChanged}"
                                   DropDownClosed="TagBox_DropDownClosed"
@@ -188,8 +197,10 @@
 
             <!-- The attention strip: visible on every tab, fed ONLY by the verified evidence
                  layers (pipeline flags and consistency findings — never the subjective
-                 reading). It counts and points; it does not judge. -->
-            <Border Margin="0,10,0,0" Padding="12,8" CornerRadius="6" Cursor="Hand"
+                 reading). It counts and points; it does not judge. One line, trimmed rather
+                 than wrapped: it is a signpost to the Tutarlılık tab, and a signpost that
+                 grows to two lines has taken the room the road needed. -->
+            <Border Margin="0,6,0,0" Padding="12,6" CornerRadius="6" Cursor="Hand"
                     Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
                     Visibility="{Binding HasAttention, Converter={StaticResource BoolToVisibility}}"
                     MouseLeftButtonUp="Attention_Click"
@@ -203,16 +214,14 @@
                     <ui:SymbolIcon Grid.Column="0" Symbol="Warning24" FontSize="16" Margin="0,0,10,0"
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{loc:T callwindow.dikkat-ceken-noktalar-var}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding AttentionLine}" Style="{StaticResource Caption}"
-                                   TextWrapping="Wrap" Margin="0,2,0,0" />
-                    </StackPanel>
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                        <Run Text="{loc:T callwindow.dikkat-ceken-noktalar-var}" FontWeight="SemiBold" /><Run Text=" — " Foreground="{DynamicResource TextFillColorTertiaryBrush}" /><Run Text="{Binding AttentionLine, Mode=OneWay}" FontSize="{StaticResource TextCaption}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </TextBlock>
                 </Grid>
             </Border>
         </StackPanel>
 
-        <TabControl x:Name="MainTabs" Grid.Row="2" Margin="20,4,20,0" Padding="0,6,0,0"
+        <TabControl x:Name="MainTabs" Grid.Row="2" Margin="20,2,20,0" Padding="0,4,0,0"
                     Style="{StaticResource SegmentedTabs}">
 
             <!-- ================= the conversation ================= -->
@@ -220,39 +229,56 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!-- Who did the talking — the same thin strip the contacts page wears,
-                         here at the user's request. Facts with seconds behind them; the
-                         interruption line is a count, never a complaint. -->
-                    <Grid Grid.Row="1" Margin="0,0,10,10">
+                    <!--
+                        One strip for everything said ABOUT the text, so the text gets the rest.
+
+                        What produced these words and how sure it was — a transcript is evidence,
+                        and evidence with unstated provenance is worth less than it looks; who did
+                        the talking, with the seconds behind it; how many transcripts the call has
+                        had; and which way to read the lines. These were three bands and ninety
+                        pixels at the top of a window whose reader had asked for the words. Each
+                        sentence keeps its full length in a tooltip when the strip must trim it.
+                    -->
+                    <Grid Grid.Row="0" Margin="0,0,10,6">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- Two ways of reading the same lines. The list is a chat, which is what
-                             most calls are; the timeline puts each line at the moment it was said,
-                             which is the only honest picture of a call where people talk over each
-                             other. Remembered, because it is a preference and not a per-call
-                             decision. -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top"
-                                    Margin="10,0,0,0">
-                            <RadioButton Content="{loc:T callwindow.sohbet}" GroupName="ConversationView"
-                                         Style="{StaticResource ChipButton}" Padding="10,3"
-                                         IsChecked="{Binding TimelineView, Converter={StaticResource InverseBool}}"
-                                         ToolTip="{loc:T callwindow.satirlar-alt-alta-sohbet-gibi}" />
-                            <RadioButton Content="{loc:T callwindow.zaman-cizgisi}" GroupName="ConversationView"
-                                         Style="{StaticResource ChipButton}" Padding="10,3" Margin="4,0,0,0"
-                                         IsChecked="{Binding TimelineView}"
-                                         ToolTip="{loc:T callwindow.her-satir-soylendigi-anda-iki-sutun}" />
-                        </StackPanel>
+                        <ui:SymbolIcon Grid.Column="0" Symbol="Info24" FontSize="15" Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding QualityLine, Converter={StaticResource NullToCollapsed}}">
+                            <ui:SymbolIcon.Style>
+                                <Style TargetType="ui:SymbolIcon">
+                                    <Setter Property="Foreground"
+                                            Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding QualityIsPoor}" Value="True">
+                                            <Setter Property="Foreground"
+                                                    Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:SymbolIcon.Style>
+                        </ui:SymbolIcon>
 
-                        <StackPanel Grid.Column="0"
-                                Visibility="{Binding HasTalkStats, Converter={StaticResource BoolToVisibility}}">
-                        <Grid Height="6" Margin="0,0,0,4">
+                        <TextBlock Grid.Column="1" Text="{Binding QualityLine}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center" Margin="0,0,12,0"
+                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding QualityLine}"
+                                   Visibility="{Binding QualityLine, Converter={StaticResource NullToCollapsed}}" />
+
+                        <!-- Who did the talking — the same thin bar the contacts page wears, here
+                             at the user's request. Facts with seconds behind them; the
+                             interruption line is a count, never a complaint. -->
+                        <Grid Grid.Column="2" Width="72" Height="6" Margin="0,0,8,0" VerticalAlignment="Center"
+                              Visibility="{Binding HasTalkStats, Converter={StaticResource BoolToVisibility}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=me}" />
                                 <ColumnDefinition Width="{Binding TalkRatio, Converter={StaticResource RatioStar}, ConverterParameter=them}" />
@@ -263,63 +289,50 @@
                                     CornerRadius="0,3,3,0" />
                         </Grid>
 
-                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap">
+                        <TextBlock Grid.Column="3" Style="{StaticResource Caption}" VerticalAlignment="Center"
+                                   Margin="0,0,12,0" TextTrimming="CharacterEllipsis"
+                                   Visibility="{Binding HasTalkStats, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock.ToolTip>
+                                <TextBlock>
+                                    <Run Text="{Binding TalkSummary, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding InterruptionSummary, Mode=OneWay}" />
+                                </TextBlock>
+                            </TextBlock.ToolTip>
                             <Run Text="{Binding TalkSummary, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding InterruptionSummary, Mode=OneWay}" />
                         </TextBlock>
+
+                        <!-- Every transcript this call has had, and the engine each came from. A
+                             count that opens the list: a badge that only counted would be the
+                             far-away button of complaint 5 in another coat. -->
+                        <ui:Button Grid.Column="4" Appearance="Transparent" Padding="4,2" Margin="0,0,10,0"
+                                   VerticalAlignment="Center" Click="Versions_Click"
+                                   ToolTip="{loc:T callwindow.bu-gorusmenin-butun-dokumleri-ve-hangi-mot}"
+                                   Visibility="{Binding TranscriptVersionCount, Converter={StaticResource PositiveToVisibility}}">
+                            <Border Style="{StaticResource Pill}">
+                                <TextBlock Style="{StaticResource PillText}"
+                                           Text="{Binding TranscriptVersionCount, StringFormat={loc:T callwindow.n-dokum}}" />
+                            </Border>
+                        </ui:Button>
+
+                        <!-- Two ways of reading the same lines. The list is a chat, which is what
+                             most calls are; the timeline puts each line at the moment it was said,
+                             which is the only honest picture of a call where people talk over each
+                             other. Remembered, because it is a preference and not a per-call
+                             decision. -->
+                        <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                            <RadioButton Content="{loc:T callwindow.sohbet}" GroupName="ConversationView"
+                                         Style="{StaticResource ChipButton}" Padding="10,3"
+                                         IsChecked="{Binding TimelineView, Converter={StaticResource InverseBool}}"
+                                         ToolTip="{loc:T callwindow.satirlar-alt-alta-sohbet-gibi}" />
+                            <RadioButton Content="{loc:T callwindow.zaman-cizgisi}" GroupName="ConversationView"
+                                         Style="{StaticResource ChipButton}" Padding="10,3" Margin="4,0,0,0"
+                                         IsChecked="{Binding TimelineView}"
+                                         ToolTip="{loc:T callwindow.her-satir-soylendigi-anda-iki-sutun}" />
                         </StackPanel>
                     </Grid>
 
-                    <!--
-                        What produced this text, and how sure it was.
-
-                        A transcript is evidence, and evidence with unstated provenance is worth
-                        less than it looks. The uncertain share is the honest measure of whether
-                        these words can be leaned on — which is why the button beside it is the one
-                        that produces them again, with a different engine if you like.
-                    -->
-                    <Border Grid.Row="0" Margin="0,0,0,10" Padding="12,8" CornerRadius="6"
-                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
-                            Visibility="{Binding QualityLine, Converter={StaticResource NullToCollapsed}}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <ui:SymbolIcon Grid.Column="0" Symbol="Info24" FontSize="15" Margin="0,0,10,0"
-                                           VerticalAlignment="Center">
-                                <ui:SymbolIcon.Style>
-                                    <Style TargetType="ui:SymbolIcon">
-                                        <Setter Property="Foreground"
-                                                Value="{DynamicResource TextFillColorTertiaryBrush}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding QualityIsPoor}" Value="True">
-                                                <Setter Property="Foreground"
-                                                        Value="{DynamicResource SystemFillColorCautionBrush}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ui:SymbolIcon.Style>
-                            </ui:SymbolIcon>
-
-                            <TextBlock Grid.Column="1" Text="{Binding QualityLine}" TextWrapping="Wrap"
-                                       VerticalAlignment="Center" Style="{StaticResource Caption}" />
-
-                            <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                <!-- Every transcript this call has had, and the engine each came from. -->
-                                <ui:Button Content="{loc:T callwindow.dokumler}" Appearance="Transparent"
-                                           Margin="10,0,0,0" Click="Versions_Click"
-                                           ToolTip="{loc:T callwindow.bu-gorusmenin-butun-dokumleri-ve-hangi-mot}" />
-
-                                <ui:Button Content="{loc:T callwindow.yeniden-cevir}" Appearance="Transparent"
-                                           Margin="4,0,0,0" Click="Retranscribe_Click"
-                                           ToolTip="{loc:T callwindow.bu-gorusmeyi-baska-bir-motorla-bastan-yazi}" />
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <ScrollViewer Grid.Row="2" x:Name="TranscriptScroller"
+                    <!-- A floor under the transcript: below 240 px it stops being a conversation
+                         and becomes a keyhole, and the bands above should give way, not this. -->
+                    <ScrollViewer Grid.Row="1" x:Name="TranscriptScroller" MinHeight="240"
                                   VerticalScrollBarVisibility="Auto" Padding="0,4,10,4"
                                   PreviewMouseWheel="OnTranscriptWheel" PreviewKeyDown="OnTranscriptKey"
                                   Visibility="{Binding HasTurns, Converter={StaticResource BoolToVisibility}}">
@@ -461,7 +474,7 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <StackPanel Grid.Row="2" Style="{StaticResource EmptyState}"
+                    <StackPanel Grid.Row="1" Style="{StaticResource EmptyState}"
                                 Visibility="{Binding HasTurns, Converter={StaticResource InverseBoolToVisibility}}">
                         <ui:SymbolIcon Symbol="DocumentText24" FontSize="32" HorizontalAlignment="Center"
                                        Margin="0,0,12,0"
@@ -1223,87 +1236,134 @@
         </TabControl>
 
         <!-- The player stays put across tabs: somebody asking a question about a passage should
-             not lose the passage by changing tab to ask. -->
-        <Border Grid.Row="3" Margin="20,8,20,10" Padding="10,6" CornerRadius="6"
+             not lose the passage by changing tab to ask.
+
+             Gone altogether while there is nothing to play: an empty transport row was forty
+             pixels the transcript wanted, on every call whose audio is missing. It comes back
+             for the pipeline's own strips, because this is where a re-run reports. -->
+        <Border Grid.Row="3" Margin="20,4,20,8" Padding="8,4" CornerRadius="6"
                 Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Playback.IsLoaded}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsWorking}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding WorkFailure, Converter={StaticResource NullToCollapsed}}"
+                                     Value="Visible">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <StackPanel>
 
-                <!--
-                    What the pipeline is doing to this conversation, while it does it.
+                <!-- One slot above the transport, three tenants: the waveform, or the pipeline's
+                     progress, or its failure with the retry beside it. They used to stack, and a
+                     call being transcribed again pushed the words up by two more bands. -->
+                <Grid>
 
-                    This strip replaced a dialog that said "close the window and open it again
-                    to see the result" — the application describing its own missing feature.
-                    Now the request is watched from the window that made it: stage, progress,
-                    and on failure one readable sentence instead of silence.
-                -->
-                <Grid Margin="2,0,2,10"
-                      Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                    <!--
+                        What the pipeline is doing to this conversation, while it does it.
 
-                    <ui:ProgressRing Grid.Column="0" IsIndeterminate="True" Width="16" Height="16"
-                                     Margin="0,0,10,0" VerticalAlignment="Center" />
+                        This strip replaced a dialog that said "close the window and open it again
+                        to see the result" — the application describing its own missing feature.
+                        Now the request is watched from the window that made it: stage, progress,
+                        and on failure one readable sentence instead of silence.
+                    -->
+                    <Grid Margin="2,0,2,4"
+                          Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding WorkStage}" FontSize="{StaticResource TextSecondary}" />
-                        <ProgressBar Height="4" Margin="0,4,0,0"
-                                     Minimum="0" Maximum="1" Value="{Binding WorkPercent}"
-                                     IsIndeterminate="{Binding WorkIsIndeterminate}" />
-                    </StackPanel>
-                </Grid>
+                        <ui:ProgressRing Grid.Column="0" IsIndeterminate="True" Width="16" Height="16"
+                                         Margin="0,0,10,0" VerticalAlignment="Center" />
 
-                <Border Margin="2,0,2,10" Padding="10,8" CornerRadius="6"
-                        Background="{DynamicResource SystemFillColorCriticalBackgroundBrush}"
-                        Visibility="{Binding WorkFailure, Converter={StaticResource NullToCollapsed}}">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="ErrorCircle24" FontSize="15" Margin="0,0,8,0"
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding WorkStage}" FontSize="{StaticResource TextSecondary}" />
+                            <ProgressBar Height="4" Margin="0,4,0,0"
+                                         Minimum="0" Maximum="1" Value="{Binding WorkPercent}"
+                                         IsIndeterminate="{Binding WorkIsIndeterminate}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Margin="2,0,2,4" Padding="10,6" CornerRadius="6"
+                            Background="{DynamicResource SystemFillColorCriticalBackgroundBrush}"
+                            Visibility="{Binding WorkFailure, Converter={StaticResource NullToCollapsed}}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="ErrorCircle24" FontSize="15" Margin="0,0,8,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                            <TextBlock Text="{Binding WorkFailure}" TextWrapping="Wrap"
                                        VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
-                        <TextBlock Text="{Binding WorkFailure}" TextWrapping="Wrap"
-                                   VerticalAlignment="Center"
-                                   FontSize="{StaticResource TextSecondary}" />
-                        <!-- The fix, beside the failure. -->
-                        <ui:Button Content="{loc:T callwindow.tekrar-dene}" Appearance="Secondary" Padding="10,3"
-                                   Margin="12,0,0,0" VerticalAlignment="Center" Click="Retranscribe_Click" />
-                    </StackPanel>
-                </Border>
+                                       FontSize="{StaticResource TextSecondary}" />
+                            <!-- The fix, beside the failure. -->
+                            <ui:Button Content="{loc:T callwindow.tekrar-dene}" Appearance="Secondary" Padding="10,3"
+                                       Margin="12,0,0,0" VerticalAlignment="Center" Click="Retranscribe_Click" />
+                        </StackPanel>
+                    </Border>
 
-                <!--
-                    The timeline, and it is draggable.
+                    <!--
+                        The timeline, and it is draggable.
 
-                    Two mirrored waveforms: you above the line, the other party below. No recorder
-                    that captures a call as one mixed stream can draw this, because it does not
-                    know whose sound is whose at any moment; here it is two files, so the shape is
-                    a fact rather than a guess.
+                        Two mirrored waveforms: you above the line, the other party below. No recorder
+                        that captures a call as one mixed stream can draw this, because it does not
+                        know whose sound is whose at any moment; here it is two files, so the shape is
+                        a fact rather than a guess.
 
-                    Drawn here as well as on the contact page because this window is where somebody
-                    reads a conversation properly, and reading involves going back. Without a
-                    timeline the only way back is clicking a line you can still see — which fails
-                    for exactly the passage you are hunting for, the one scrolled off the screen.
-                -->
-                <Grid Height="38" Margin="0,0,0,4" Background="Transparent" Cursor="Hand"
-                      controls:Scrubbable.Player="{Binding Playback}"
-                      ToolTip="{loc:T callwindow.tikla-ya-da-surukle-o-andan-dinlersin}"
-                      Visibility="{Binding Playback.IsLoaded, Converter={StaticResource BoolToVisibility}}">
-                    <Viewbox Stretch="Fill">
-                        <Canvas Width="1000" Height="68">
-                            <Polygon Points="{Binding Playback.MicShape}"
-                                     Fill="{DynamicResource MeBrush}" Opacity="0.85" />
-                            <Polygon Points="{Binding Playback.FarShape}"
-                                     Fill="{DynamicResource ThemBrush}" Opacity="0.85" />
+                        Drawn here as well as on the contact page because this window is where somebody
+                        reads a conversation properly, and reading involves going back. Without a
+                        timeline the only way back is clicking a line you can still see — which fails
+                        for exactly the passage you are hunting for, the one scrolled off the screen.
+                    -->
+                    <Grid Height="28" Margin="0,0,0,4" Background="Transparent" Cursor="Hand"
+                          controls:Scrubbable.Player="{Binding Playback}"
+                          ToolTip="{loc:T callwindow.tikla-ya-da-surukle-o-andan-dinlersin}">
+                        <!-- Shown only when it is the slot's turn: no audio, a run in progress, a
+                             failure, or the reader folding it away all give the row to somebody else. -->
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Playback.IsLoaded}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsWorking}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding WorkFailure, Converter={StaticResource NullToCollapsed}}"
+                                                 Value="Visible">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsChecked, ElementName=PlayerFold}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Viewbox Stretch="Fill">
+                            <Canvas Width="1000" Height="68">
+                                <Polygon Points="{Binding Playback.MicShape}"
+                                         Fill="{DynamicResource MeBrush}" Opacity="0.85" />
+                                <Polygon Points="{Binding Playback.FarShape}"
+                                         Fill="{DynamicResource ThemBrush}" Opacity="0.85" />
 
-                            <!-- Centre line, so the two bands read as one timeline. -->
-                            <Line X1="0" Y1="34" X2="1000" Y2="34" StrokeThickness="0.6"
-                                  Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" />
+                                <!-- Centre line, so the two bands read as one timeline. -->
+                                <Line X1="0" Y1="34" X2="1000" Y2="34" StrokeThickness="0.6"
+                                      Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" />
 
-                            <Line Y1="0" Y2="68" StrokeThickness="1.6"
-                                  X1="{Binding Playback.PlayheadX}"
-                                  X2="{Binding Playback.PlayheadX}"
-                                  Stroke="{DynamicResource AccentFillColorDefaultBrush}" />
-                        </Canvas>
-                    </Viewbox>
+                                <Line Y1="0" Y2="68" StrokeThickness="1.6"
+                                      X1="{Binding Playback.PlayheadX}"
+                                      X2="{Binding Playback.PlayheadX}"
+                                      Stroke="{DynamicResource AccentFillColorDefaultBrush}" />
+                            </Canvas>
+                        </Viewbox>
+                    </Grid>
                 </Grid>
 
                 <Grid>
@@ -1311,10 +1371,14 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <ui:Button Appearance="Transparent" Command="{Binding Playback.SkipBackCommand}"
+                        <!-- Padded to the icon, not to a text button's default: the transport row
+                             sets the player's folded height, and 32 px of button for a 16 px
+                             glyph was a third of it. -->
+                        <ui:Button Appearance="Transparent" Padding="8,3" Command="{Binding Playback.SkipBackCommand}"
                                    ToolTip="{loc:T callwindow.10-saniye-geri}">
                             <ui:Button.Icon>
                                 <ui:SymbolIcon Symbol="ArrowCounterclockwise24" />
@@ -1334,7 +1398,7 @@
                             invisible again, silently. Content is in the tree; this is the shape
                             the contact page already uses and it is known to work.
                         -->
-                        <ui:Button Appearance="Transparent" Command="{Binding Playback.TogglePlayCommand}"
+                        <ui:Button Appearance="Transparent" Padding="8,3" Command="{Binding Playback.TogglePlayCommand}"
                                    ToolTip="{loc:T callwindow.cal-duraklat}">
                             <Grid>
                                 <ui:SymbolIcon Symbol="Play24"
@@ -1344,7 +1408,7 @@
                             </Grid>
                         </ui:Button>
 
-                        <ui:Button Appearance="Transparent" Command="{Binding Playback.SkipForwardCommand}"
+                        <ui:Button Appearance="Transparent" Padding="8,3" Command="{Binding Playback.SkipForwardCommand}"
                                    ToolTip="{loc:T callwindow.10-saniye-ileri}">
                             <ui:Button.Icon>
                                 <ui:SymbolIcon Symbol="ArrowClockwise24" />
@@ -1357,7 +1421,7 @@
                             at once is possible here and nowhere else — but only if the control
                             says so by being pressable.
                         -->
-                        <ui:Button Appearance="Transparent" Margin="8,0,0,0"
+                        <ui:Button Appearance="Transparent" Padding="8,3" Margin="8,0,0,0"
                                    Command="{Binding Playback.SwitchSpeakerCommand}"
                                    Content="{Binding Playback.ChannelName}"
                                    ToolTip="{loc:T callwindow.tum-gorusme-sen-karsi-taraf-arasinda-gecis}">
@@ -1379,6 +1443,20 @@
                                    FontFamily="Consolas, Cascadia Mono, Segoe UI"
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                     </StackPanel>
+
+                    <!-- The fold. The waveform is for going back; somebody reading straight
+                         through can hand its rows to the transcript and take them back later. -->
+                    <ToggleButton x:Name="PlayerFold" Grid.Column="3" Padding="6,3" Margin="8,0,0,0"
+                                  VerticalAlignment="Center"
+                                  ToolTip="{loc:T callwindow.dalgayi-katla-ya-da-ac}"
+                                  Visibility="{Binding Playback.IsLoaded, Converter={StaticResource BoolToVisibility}}">
+                        <Grid>
+                            <ui:SymbolIcon Symbol="ChevronDown24" FontSize="14"
+                                           Visibility="{Binding IsChecked, ElementName=PlayerFold, Converter={StaticResource InverseBoolToVisibility}}" />
+                            <ui:SymbolIcon Symbol="ChevronUp24" FontSize="14"
+                                           Visibility="{Binding IsChecked, ElementName=PlayerFold, Converter={StaticResource BoolToVisibility}}" />
+                        </Grid>
+                    </ToggleButton>
                 </Grid>
             </StackPanel>
         </Border>

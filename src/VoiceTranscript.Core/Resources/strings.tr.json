@@ -797,5 +797,7 @@
   "ledgerpage.temizlenecek-bir-sey-yok": "Temizlenecek bir şey yok — defterde boş ya da tekrarlanan kayıt kalmamış.",
   "ledgerpage.n-kayit-kaldirildi": "{0} kayıt kaldırıldı: {1} tanesi neyin söz verildiğini yazmıyordu, {2} tanesi tekrardı. Senin kapattığın ya da tuttuğun kayıtlara dokunulmadı.",
   "settingswindow.tumunu-goster-n": "Tümünü göster ({0} model daha)",
-  "settingswindow.yalniz-yaziya-dokme-modelleri": "Yalnız yazıya dökme modelleri"
+  "settingswindow.yalniz-yaziya-dokme-modelleri": "Yalnız yazıya dökme modelleri",
+  "callwindow.n-dokum": "{0} döküm",
+  "callwindow.dalgayi-katla-ya-da-ac": "Dalga şeklini katla ya da aç"
 }
