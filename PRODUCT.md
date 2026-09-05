@@ -1,4 +1,6 @@
-# VoiceTranscript — ürün planı
+# SocialZeka — ürün planı
+
+*VoiceTranscript'ten çatal (5 Eylül 2026). Aşağıdaki ürün tanımı çekirdeği anlatır; koçluk katmanının planı `docs/PLAN-SOSYALZEKA.md`.*
 
 Bu belge, projenin ne olduğunu ve neden para verilesi olduğunu anlatır. Yapılacaklar listesi
 değil; yapılacakların *neden* o sırayla yapıldığının gerekçesi.

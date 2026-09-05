@@ -1,4 +1,4 @@
-# VoiceTranscript — belge dizini
+# SocialZeka — belge dizini
 
 Bu dosya bir içindekiler listesi değil, bir **yönlendirici**. Amacı tek bir soruya cevap vermek:
 *elimdeki iş için hangi dosyayı açmalıyım?*
@@ -18,6 +18,7 @@ aradaki tek kanal yazılı olan şeyler. Yazılmayan her bulgu, ikinci kez satı
 | Şu an ne yapılacak, sıra ne | [YAPILACAKLAR.md](YAPILACAKLAR.md) |
 | Bilinen ama henüz düzeltilmemiş kusurların tamamı | [DENETIM-2026-08-31.md](DENETIM-2026-08-31.md) |
 | Ürün ne vaat ediyor, kime | [../PRODUCT.md](../PRODUCT.md) |
+| Sosyal zekâ koçu programı: aşamalar, ekranlar, ölçüm kapıları (5 Eylül 2026) | [PLAN-SOSYALZEKA.md](PLAN-SOSYALZEKA.md) |
 | Kullanıcıya ne anlatılıyor | [../README.md](../README.md), [../OKUBENI.txt](../OKUBENI.txt) |
 | Arayüzün tasarım gerekçeleri | [PLAN-UI.md](PLAN-UI.md) |
 | Özgün tasarım planı (büyük ölçüde tamamlandı) | [PLAN.md](PLAN.md) |

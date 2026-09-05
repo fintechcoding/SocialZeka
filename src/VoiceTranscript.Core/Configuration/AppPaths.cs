@@ -13,7 +13,23 @@ namespace VoiceTranscript.Core.Configuration;
 /// </summary>
 public sealed class AppPaths
 {
-    public const string ApplicationName = "VoiceTranscript";
+    /// <summary>
+    /// The product's name: what the user meets in titles, the data folder, the startup entry.
+    ///
+    /// SocialZeka is VoiceTranscript forked (5 September 2026). The assemblies, namespaces and
+    /// the executable keep the old name on purpose: renaming two hundred files buys the user
+    /// nothing and puts every pack URI, smoke test and localisation key at risk. What changed is
+    /// the identity the user sees — this constant, the installer's AppId, the release asset name —
+    /// so the two applications can be installed side by side without either touching the other's
+    /// archive, startup entry or single-instance handle.
+    /// </summary>
+    public const string ApplicationName = "SocialZeka";
+
+    /// <summary>The name this was forked from. Its archive is offered for takeover on first start.</summary>
+    public const string LegacyApplicationName = "VoiceTranscript";
+
+    /// <summary>Unchanged across the fork: a moved archive must open without renaming anything inside it.</summary>
+    public const string DatabaseFileName = "voicetranscript.db";
 
     public AppPaths(string? root = null)
     {
@@ -26,7 +42,7 @@ public sealed class AppPaths
         Logs = Path.Combine(Root, "logs");
         Photos = Path.Combine(Root, "photos");
         Cache = Path.Combine(Root, "cache");
-        DatabaseFile = Path.Combine(Root, "voicetranscript.db");
+        DatabaseFile = Path.Combine(Root, DatabaseFileName);
         SettingsFile = Path.Combine(Root, "settings.json");
     }
 
@@ -42,6 +58,29 @@ public sealed class AppPaths
     public string Cache { get; }
     public string DatabaseFile { get; }
     public string SettingsFile { get; }
+
+    /// <summary>
+    /// The archive VoiceTranscript left behind, when there is one to take over.
+    ///
+    /// Returns the old data root only when it holds a database and <paramref name="newRoot"/>
+    /// does not yet — the one moment a takeover is both possible and safe. Null otherwise: no old
+    /// application, an archive already taken over, a fresh start already chosen (this root has its
+    /// own database), or the two roots being the same folder, which a move would destroy.
+    /// </summary>
+    public static string? LegacyArchiveToTakeOver(string newRoot, string? legacyRoot = null)
+    {
+        legacyRoot ??= Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            $"{LegacyApplicationName}.Data");
+
+        if (string.Equals(Path.GetFullPath(legacyRoot), Path.GetFullPath(newRoot), StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (!File.Exists(Path.Combine(legacyRoot, DatabaseFileName))) return null;
+        if (File.Exists(Path.Combine(newRoot, DatabaseFileName))) return null;
+
+        return legacyRoot;
+    }
 
     public void EnsureCreated()
     {

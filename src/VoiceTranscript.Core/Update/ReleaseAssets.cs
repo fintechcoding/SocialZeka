@@ -71,7 +71,7 @@ public static class ReleaseAssets
     /// only symptom is an application that says it is up to date forever.
     /// </summary>
     public static string InstallerNameFor(AppVersion version) =>
-        $"VoiceTranscript-Setup-{version}-win-x64.exe";
+        $"SocialZeka-Setup-{version}-win-x64.exe";
 
     /// <summary>
     /// Reads a release payload, or says why it will not be offered.
@@ -108,7 +108,7 @@ public static class ReleaseAssets
             .Select(a => (Name: Text(a, "name") ?? "", Url: Text(a, "browser_download_url") ?? "",
                           Size: Number(a, "size")))
             .Where(a => a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-                        && a.Name.StartsWith("VoiceTranscript-Setup-", StringComparison.OrdinalIgnoreCase))
+                        && a.Name.StartsWith("SocialZeka-Setup-", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (installers.Count == 0) return (null, ReleaseRejection.NoInstaller);
@@ -141,7 +141,7 @@ public static class ReleaseAssets
     /// <summary>
     /// Finds one file's checksum in a <c>sha256sum</c> listing.
     ///
-    /// Matched on the whole file name rather than a prefix. "VoiceTranscript-Setup-1.2.0-win-x64.exe"
+    /// Matched on the whole file name rather than a prefix. "SocialZeka-Setup-1.2.0-win-x64.exe"
     /// is a prefix of nothing here today, but a release that ever carried both that and a
     /// ".exe.sig" — or a 1.2.0 beside a 1.2.0-rc.1 — would let a prefix match return the wrong
     /// line, and a checksum that verifies the wrong file is worse than no checksum at all.

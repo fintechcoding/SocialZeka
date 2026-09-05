@@ -33,7 +33,7 @@ public sealed class AppPathsTests : IDisposable
     {
         var paths = new AppPaths();
 
-        Assert.Contains("VoiceTranscript.Data", paths.Root);
+        Assert.Contains("SocialZeka.Data", paths.Root);
         Assert.Contains(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             paths.Root);

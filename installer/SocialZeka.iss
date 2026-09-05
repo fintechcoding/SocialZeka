@@ -1,7 +1,7 @@
-; VoiceTranscript installer.
+; SocialZeka installer.
 ;
-; Build with Inno Setup 6:  iscc installer\VoiceTranscript.iss
-; It expects "dotnet publish" to have already produced dist\VoiceTranscript.
+; Build with Inno Setup 6:  iscc installer\SocialZeka.iss
+; It expects "dotnet publish" to have already produced dist\SocialZeka.
 ;
 ; Two decisions worth knowing about:
 ;
@@ -13,26 +13,29 @@
 ;   fetched by the setup wizard on first run instead. Bundling them would turn a 200 MB installer
 ;   into a multi-gigabyte one, and would pin versions that the wizard can otherwise keep current.
 
-#define AppName "VoiceTranscript"
+#define AppName "SocialZeka"
 
 ; The version comes from publish.ps1, which gets it from the git tag.
 ;
 ; Generated rather than edited, because the alternative is somebody remembering to change a number
 ; here for every release and the failure when they forget is silent: the installer builds fine, the
 ; file carries the old version in its name, and the update client then refuses it as belonging to
-; another tag. The fallback keeps a bare "iscc installer\VoiceTranscript.iss" working.
+; another tag. The fallback keeps a bare "iscc installer\SocialZeka.iss" working.
 #ifexist "version.generated.iss"
   #include "version.generated.iss"
 #else
   #define AppVersion "0.0.0-dev"
 #endif
 
-#define AppPublisher "VoiceTranscript"
+#define AppPublisher "SocialZeka"
 #define AppExe "VoiceTranscript.exe"
-#define SourceDir "..\dist\VoiceTranscript"
+#define SourceDir "..\dist\SocialZeka"
 
 [Setup]
-AppId={{7B3E9C41-2D6A-4F18-9E52-1A4C8D0F6B23}
+; Its own AppId, not VoiceTranscript's. The same GUID would make Windows treat this as an upgrade
+; of that installation and replace it in place; SocialZeka is a different product with its own
+; data folder, and the two are meant to sit side by side while the archive is handed over.
+AppId={{A867C415-6BBA-4325-9628-25FE6CE3FD0D}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
@@ -44,7 +47,7 @@ OutputDir=..\dist
 
 ; The architecture is in the name because the update client matches on the whole file name, and
 ; because a second architecture later must not make the old name ambiguous.
-OutputBaseFilename=VoiceTranscript-Setup-{#AppVersion}-win-x64
+OutputBaseFilename=SocialZeka-Setup-{#AppVersion}-win-x64
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -73,7 +76,7 @@ UninstallDisplayIcon={app}\{#AppExe}
 ; So the installer waits instead, and the application closes itself when the user agrees to the
 ; update — after it has stopped detection and finished anything in flight. Somebody who runs the
 ; installer by hand during a call sees a wait rather than a lost recording.
-AppMutex=Global\VoiceTranscript.SingleInstance
+AppMutex=Global\SocialZeka.SingleInstance
 CloseApplications=no
 RestartApplications=no
 
@@ -82,14 +85,14 @@ Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
-turkish.LaunchDescription=VoiceTranscript uygulamasini calistir
+turkish.LaunchDescription=SocialZeka uygulamasini calistir
 turkish.DesktopTask=Masaustune kisayol ekle
 turkish.DesktopInfo=Ek kisayollar
 turkish.PrepareTask=Gerekli bilesenleri simdi hazirla (Python ve Whisper)
 turkish.PrepareInfo=Kurulum bitince acilan pencere Python'u ve model paketlerini kendisi indirir. Internet gerekir; birkac dakika surer.
 turkish.PrepareDescription=Gerekli bilesenleri hazirla
 turkish.DataNotice=Kayitlar ve ayarlar su klasorde tutulur ve kaldirma isleminde SILINMEZ:%n%n%1
-english.LaunchDescription=Launch VoiceTranscript
+english.LaunchDescription=Launch SocialZeka
 english.DesktopTask=Create a desktop shortcut
 english.DesktopInfo=Additional shortcuts
 english.PrepareTask=Prepare prerequisites now (Python and Whisper)
@@ -164,7 +167,7 @@ Type: filesandordirs; Name: "{app}"
 [Code]
 function GetDataDir(Param: string): string;
 begin
-  Result := ExpandConstant('{localappdata}\VoiceTranscript.Data');
+  Result := ExpandConstant('{localappdata}\SocialZeka.Data');
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -173,7 +176,7 @@ var
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    DataDir := ExpandConstant('{localappdata}\VoiceTranscript.Data');
+    DataDir := ExpandConstant('{localappdata}\SocialZeka.Data');
 
     // Recordings are conversations the user chose to keep. Deleting them because a program was
     // uninstalled would be the wrong default in a way that cannot be undone, so the folder is

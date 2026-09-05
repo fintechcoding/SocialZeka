@@ -40,10 +40,10 @@ public sealed class UpdateService(HttpClient http, AppPaths paths)
 {
     /// <summary>Where releases are published.</summary>
     public const string ReleasesApi =
-        "https://api.github.com/repos/fintechcoding/VoiceTranscript/releases/latest";
+        "https://api.github.com/repos/fintechcoding/SocialZeka/releases/latest";
 
     /// <summary>The releases page, for when somebody would rather do it by hand.</summary>
-    public const string ReleasesPage = "https://github.com/fintechcoding/VoiceTranscript/releases";
+    public const string ReleasesPage = "https://github.com/fintechcoding/SocialZeka/releases";
 
     /// <summary>
     /// Asks GitHub what the newest release is.
@@ -62,7 +62,7 @@ public sealed class UpdateService(HttpClient http, AppPaths paths)
 
             // GitHub refuses requests without one, and naming the application makes this
             // identifiable in their logs as something other than an anonymous scraper.
-            request.Headers.UserAgent.ParseAdd($"VoiceTranscript/{running}");
+            request.Headers.UserAgent.ParseAdd($"{AppPaths.ApplicationName}/{running}");
             request.Headers.Accept.ParseAdd("application/vnd.github+json");
 
             // Its own deadline. The shared client is set to ten minutes for uploading audio, and
@@ -163,7 +163,7 @@ public sealed class UpdateService(HttpClient http, AppPaths paths)
     private async Task<string?> FetchChecksumAsync(Release release, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, release.ChecksumUrl);
-        request.Headers.UserAgent.ParseAdd("VoiceTranscript");
+        request.Headers.UserAgent.ParseAdd(AppPaths.ApplicationName);
 
         using var response = await http.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode) return null;
@@ -177,7 +177,7 @@ public sealed class UpdateService(HttpClient http, AppPaths paths)
         string url, string path, long expectedBytes, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.UserAgent.ParseAdd("VoiceTranscript");
+        request.Headers.UserAgent.ParseAdd(AppPaths.ApplicationName);
 
         using var response = await http.SendAsync(
             request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);

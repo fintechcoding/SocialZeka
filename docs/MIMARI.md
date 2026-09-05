@@ -22,6 +22,18 @@ tasarım kararı bu cümlenin sonucu:
 
 ---
 
+## Ad ve çatal
+
+SocialZeka, VoiceTranscript'in 5 Eylül 2026'da çatallanmış hâlidir; kullanıcı kararı. Kullanıcıya
+görünen kimlik değişti (ürün adı `AppPaths.ApplicationName`, kurulum `AppId`, sürüm dosya adı
+`SocialZeka-Setup-*`, veri klasörü `SocialZeka.Data`, tek-örnek kilidi, açılış kaydı); **derleme
+adları, ad alanları ve `VoiceTranscript.exe` bilerek aynı kaldı** — 200'den fazla dosyada mekanik
+yeniden adlandırma kullanıcıya hiçbir şey kazandırmaz, pack URI'lerini, smoke testlerini ve
+yerelleştirme anahtarlarını riske atar. İki uygulama aynı makinede yan yana kurulabilir; ilk
+açılışta VoiceTranscript arşivi taşınmak üzere teklif edilir (`AppPaths.LegacyArchiveToTakeOver`).
+VoiceTranscript reposu v2.9.21'de dondurulmuştur; birleştirme yalnız tek yönlüdür (oradan buraya,
+yalnız kayıt/döküm düzeltmeleri).
+
 ## Katmanlar
 
 ```
@@ -202,7 +214,7 @@ defter.
 şans seviyesinde kalıyor (*Beyond Liars' Bench*, arXiv:2607.20479).
 
 **Değişmez kural:** her kalem **birebir alıntı + tıklanabilir zaman damgası** taşır ve alıntının
-kaynak metinde gerçekten geçtiği Python'da doğrulanır. Uydurma alıntı üreten bir sistem, hiç
+kaynak metinde gerçekten geçtiği C# tarafında (`Analysis/QuoteVerifier.cs`) doğrulanır. Uydurma alıntı üreten bir sistem, hiç
 sistem olmamasından kötüdür.
 
 **Transkript metni güvenilmez girdidir.** Arayan kişi "önceki talimatları yoksay" diyebilir;

@@ -2135,3 +2135,61 @@ Prompt girdikten sonra çevrilen 11 görüşme: 36, 37, 38, 39, 40, 41, 42, 43, 
 `vad` varsayılanının `true` olması, ve segment başına `avg_logprob` /
 `no_speech_prob`. İkincisi olmadan düşük güveni yalnız tekrar döngülerinden
 tahmin edebiliyoruz.
+
+---
+
+## 2026-09-04 — Geriye dönük kayıt: on dokuz commit ve iki ölçüm
+
+Bu turun günlüğü o gün yazılmamıştı; 5 Eylül'de plan denetimi sırasında geri kazanıldı.
+
+**Commit'ler (özet):** hangi dökümün ekranda olduğu `call.transcript_version_id`'de tutuluyor,
+geri yükleme kopya yazmıyor (76d3564); zaman çizgisi yoğunluğu süreye değil söylenene göre
+(694555c); bulutta bozulan kelime sırası bitişten çıpalanarak onarılıyor (5535672, dc3f8b6);
+öneriler reddedilebiliyor, dökümler karşılaştırılabiliyor (b8a828a); "4 görüşme işlenemedi ·
+Göster" gerçekten gösteriyor (7a700c6, d8026a6, 503c1e9); yedek üzerine yazmak zorunlu değil
+(a22ca95); kayıt şeridi sürüklenebilir ve konumunu hatırlıyor (a0b9d9a); sessizlik kırpma
+kaldırıldı (53ce631).
+
+**Ölçüm — kısa görüşmelerde OpenAI (EK-2).** #57/#58/#61 aynı çözülmüş WAV'lar; kapsama mic/far:
+#57 yerel 0,292/0,354 · OpenAI 0,167/0,524; #58 yerel 0,090/0,674 · OpenAI 0,602/0,136;
+#61 yerel 0,818/0,383 · OpenAI 0,860/0,095. **Sistematik değil**: OpenAI bir kanalda yerelden iyi,
+ötekinde kötü. #56 (14 sn) ölçülmedi. Karar yok; "kapsama düşükse yerelle bir daha dene" fikri
+ölçüsüz kaldı (PLAN-SOSYALZEKA §9).
+
+**Ölçüm — VAD ilk sözü düşürüyor (EK-4).** `vad_filter=False` ile: #61 far 0,383 → 0,473 ("Alo"
+geri geldi); #58 far 0,674 → 0,742; **#57 far 0,354 → 0,000** (kanal tamamen kayıp). VAD'i
+kapatmak elendi. `min_speech_duration_ms` hiç denenmedi; `faster_whisper_engine.py`
+`vad_parameters` geçirmiyor — açık iş.
+
+---
+
+## 2026-09-05 — SocialZeka: çatal, kimlik, arşiv devralma (Paket R0 + P0)
+
+**Karar.** Sosyal zekâ koçu programı için kullanıcı ayrı repo istedi: VoiceTranscript
+çatallandı. Plan, ikinci görüş ve ekran taslakları `docs/PLAN-SOSYALZEKA.md`.
+
+**Ne yapıldı.**
+- Yerel çatal `C:\Voice\SocialZeka` (`git clone`, tam geçmiş, 54 etiket). GitHub reposu henüz
+  yok — `gh` bu makinede kurulu değil; `origin` yerel yola bakıyor.
+- Kimlik: `AppPaths.ApplicationName = "SocialZeka"` (veri kökü `%LOCALAPPDATA%\SocialZeka.Data`),
+  `LegacyApplicationName`, `DatabaseFileName`, `LegacyArchiveToTakeOver`; `App.xaml.cs` tek-örnek
+  kilidi ve ikinci-açılış sinyali yeni adla, ilk açılışta VoiceTranscript arşivini **taşıma**
+  teklifi (Evet taşı / Hayır boş başla / İptal çık; yalnız `--data` verilmemişken ve bu kökte
+  veritabanı yokken); `AutoStart` değer adı; pencere başlıkları; `UpdateService` repo yolu ve
+  UserAgent; `ReleaseAssets` `SocialZeka-Setup-*`; `installer/SocialZeka.iss` yeni AppId
+  `{A867C415-…}`, `AppMutex`, `DataDir`; `publish.ps1`, `release.yml`; `strings.tr/en.json` üç
+  değer; README / OKUBENI / PRODUCT / docs başlıkları; MIMARI "Ad ve çatal".
+  **Ad alanları, csproj adları ve `VoiceTranscript.exe` bilerek aynı kaldı.**
+- Testler: `LegacyArchiveTests` (5 yeni: teklif yalnız eski DB varken ve yenisi yokken; aynı
+  klasör asla; sabitler); `UpdateTests`, `ConfigurationTests`, `WindowSmokeTests` yeni adlara.
+- P0: başka oturumun geçici klasöründeki `kisa/oai-57/58/61.json` düz metin OpenAI anahtarı
+  taşıyordu (164 karakter) — üçü silindi. **Anahtar OpenAI panelinden döndürülmeli.** Ölçüm
+  tezgâhı WAV'sız `tools/olcum/` altına; taban çizgisi ve eskimiş belge satırları düzeltildi.
+
+**Nasıl doğrulandı.** `./test.ps1`: derleme 0 hata / 74 uyarı (~20 sn); C# **1067 test · 1062
+geçti · 0 kırık · 5 atlandı** (4 `OpenRouterLiveTests` anahtar yok, 1 `PythonWorkerHostTests`
+ağırlık yok); Python **156 geçti**. Devralma diyaloğu gerçek makinede henüz denenmedi: ilk
+`SocialZeka.exe` açılışında VoiceTranscript.Data varken görülecek (VoiceTranscript kapalı olmalı).
+
+**Bekleyen.** GitHub reposu ve push (`git remote set-url origin …; git push -u origin --all;
+git push origin --tags`); VoiceTranscript'in dondurulması; §18'e VoiceTranscript2 iptal gerekçesi.

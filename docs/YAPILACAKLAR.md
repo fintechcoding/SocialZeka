@@ -1472,3 +1472,27 @@ TAKVİM SAYFASI seçildi; "görüşme detayında sıkıntı varsa uyarı çıks�
   (tur ikonu + gerekçe + vade), Yaptım/Gizle yerinde çalışır; →Hatırlatıcı/→Önemliler
   yönlendirmesi diyaloglarıyla birlikte görüşme penceresinde kaldı (sayfa hafif kalsın
   diye bilinçli). Tutarlılık/Okuma panelleri de aynı gerekçeyle sayfaya kopyalanmadı.
+
+## 25. SocialZeka programı — 5 Eylül 2026
+
+Kullanıcı kararları: sosyal zekâ koçu **ayrı repoda** (VoiceTranscript çatallandı → SocialZeka);
+GSM / Phone Link kapsam dışı; Apple Watch ertelendi; kişi kartındaki opt-in görüş paneli izlenim
+yazar, iki sınırla (psikolojik durum/duygu verilmez, "argümanlar" istenmez). Planın tamamı, ekran
+taslakları ve ölçüm kapıları: [`PLAN-SOSYALZEKA.md`](PLAN-SOSYALZEKA.md).
+
+- [x] **R0 — Çatal ve kimlik.** Yerel çatal, `AppPaths.ApplicationName = "SocialZeka"`, veri klasörü
+  `SocialZeka.Data` + ilk açılışta VoiceTranscript arşivini devralma teklifi, yeni `AppId`, tek-örnek
+  kilidi, açılış kaydı, sürüm dosya adı `SocialZeka-Setup-*`, `UpdateService` repo yolu.
+  Ad alanları ve `VoiceTranscript.exe` bilerek aynı (MIMARI "Ad ve çatal").
+- [~] **P0 — Kod dışı borçlar.** Anahtar sızıntısı temizlendi (anahtar döndürülmeli), ölçüm tezgâhı
+  `tools/olcum/`, taban çizgisi. **Bekleyen:** GitHub reposu + push; VoiceTranscript'in
+  dondurulması (README işareti); §18'e VoiceTranscript2 iptal gerekçesi (kullanıcıdan).
+- [ ] **A1 — Arayüz borçları** (şikâyet 2/3/4/5/6, dil kalıntıları) → v3.0.0
+- [ ] **A2 — Şema v15**: bayatlık, söz kararları, `verdict`; şikâyet 1/7/8; `TryResolve(spokenOn)` → v3.0.x
+- [ ] **B — Sözler sayfası + ray düzeni** → v3.1.0
+- [ ] **C + D — Kelime güveni ölçek; Aynam (v16)** → v3.1.x (önce şive ön-ölçümü)
+- [ ] **E — Kişi kartı, kanıt (v17)** → v3.2.0
+- [ ] **G + H (+J) — Ses düzeyi/perde, canlı ölçer, audio_event (v18)** → v3.3.x (kalibrasyon kapılı)
+- [ ] **I — Kişi kartı, modelin görüşü (v19)** → v3.4.0
+- [ ] **Ölçüm turları** (kod yok): Hume, canlı kelime uyarısı, F0 kararlılığı, şive ön-ölçümü
+- [ ] **EK-5 / EK-4** (varsayılan bulut servisi; `min_speech_duration_ms`) — ayrı iş emri

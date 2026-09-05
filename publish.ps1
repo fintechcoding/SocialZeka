@@ -22,7 +22,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$out = Join-Path $root "dist/VoiceTranscript"
+$out = Join-Path $root "dist/SocialZeka"
 
 # The version is settled once, here, and every other place reads it from this script.
 #
@@ -125,10 +125,10 @@ if (-not $iscc) {
 $generated = Join-Path $root "installer/version.generated.iss"
 "#define AppVersion `"$fullVersion`"" | Out-File -FilePath $generated -Encoding utf8 -NoNewline
 
-& $iscc (Join-Path $root "installer/VoiceTranscript.iss")
+& $iscc (Join-Path $root "installer/SocialZeka.iss")
 if ($LASTEXITCODE -ne 0) { throw "Kurulum paketi uretilemedi." }
 
-$setup = Join-Path $root "dist/VoiceTranscript-Setup-$fullVersion-win-x64.exe"
+$setup = Join-Path $root "dist/SocialZeka-Setup-$fullVersion-win-x64.exe"
 if (-not (Test-Path $setup)) { throw "Beklenen kurulum dosyasi uretilmedi: $setup" }
 
 # Checksums, in the format sha256sum reads, so anybody can verify the download by hand and the

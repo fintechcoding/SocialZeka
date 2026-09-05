@@ -7,8 +7,10 @@
     <!-- xUnit v3 ships two runners. Its own console runner is the default and works when the
          executable is launched directly, but 'dotnet test' speaks the Microsoft.Testing.Platform
          protocol and that runner rejects its arguments, reporting "Zero tests ran" rather than a
-         readable error. Both switches are needed: this one picks the MTP runner inside xUnit, and
-         global.json opts the .NET 10 SDK into driving it. -->
+         readable error. This switch picks the MTP runner inside xUnit; the SDK side has no
+         working opt-in on .NET 10 (a global.json "test.runner" entry was tried and still reported
+         "Zero tests ran" — docs/GELISTIRME.md), so test.ps1 runs the built module directly.
+         There is deliberately no global.json in this repository. -->
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <OutputType>Exe</OutputType>

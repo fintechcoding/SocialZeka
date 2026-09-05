@@ -24,7 +24,7 @@ public partial class App : Application
 
     /// <summary>Signalled by a second launch; the first instance answers by showing its window.</summary>
     private static EventWaitHandle? _showSignal;
-    private const string ShowSignalName = @"Global\VoiceTranscript.Show";
+    private const string ShowSignalName = @"Global\SocialZeka.Show";
 
     public static AppPaths Paths { get; private set; } = null!;
     public static Repository Repository { get; private set; } = null!;
@@ -72,7 +72,7 @@ public partial class App : Application
             System.Windows.MessageBox.Show(
                 $"Bir hata oluştu ve günlüğe yazıldı.\n\n{line}\n\n"
                 + "Sorun sürerse günlük dosyasını iletebilirsin (Ayarlar → veri klasörü → logs).",
-                "VoiceTranscript", System.Windows.MessageBoxButton.OK,
+                AppPaths.ApplicationName, System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Warning);
         };
 
@@ -141,7 +141,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        _singleInstance = new Mutex(initiallyOwned: true, @"Global\VoiceTranscript.SingleInstance", out var isFirst);
+        _singleInstance = new Mutex(initiallyOwned: true, @"Global\SocialZeka.SingleInstance", out var isFirst);
         if (!isFirst)
         {
             // A double-click on the desktop icon while the application sits in the tray means
@@ -155,8 +155,8 @@ public partial class App : Application
             catch (Exception ex) when (ex is WaitHandleCannotBeOpenedException or UnauthorizedAccessException or IOException)
             {
                 MessageBox.Show(
-                    "VoiceTranscript zaten çalışıyor. Simgesi görev çubuğunun bildirim alanında.",
-                    "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Information);
+                    $"{AppPaths.ApplicationName} zaten çalışıyor. Simgesi görev çubuğunun bildirim alanında.",
+                    AppPaths.ApplicationName, MessageBoxButton.OK, MessageBoxImage.Information);
             }
 
             Shutdown();
@@ -196,13 +196,62 @@ public partial class App : Application
                 $"{AppPaths.DataSwitch} verildi ama arkasında bir klasör yok.\n\n" +
                 $"Doğru kullanım:  VoiceTranscript.exe {AppPaths.DataSwitch} C:\\vt-dev\n\n" +
                 "Varsayılan klasörle devam edilmedi: amaç zaten oraya dokunmamaktı.",
-                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AppPaths.ApplicationName, MessageBoxButton.OK, MessageBoxImage.Warning);
 
             Shutdown();
             return;
         }
 
         Paths = new AppPaths(AppPaths.ResolveRoot(e.Args, relocated, defaults.Root));
+
+        // The archive VoiceTranscript left behind, offered once.
+        //
+        // This application is that one forked, and the user's recordings sit under the old name.
+        // Nothing is moved without asking: a move makes the old application blind to its own
+        // archive, and starting fresh hides a year of conversations behind a folder name. Asked
+        // only while this root has no database and no explicit data directory was given — an
+        // explicit --data is a decision already made.
+        if (AppPaths.DataDirectoryFrom(e.Args) is null && relocated is null
+            && AppPaths.LegacyArchiveToTakeOver(Paths.Root) is { } legacy)
+        {
+            var answer = MessageBox.Show(
+                $"{AppPaths.LegacyApplicationName} arşivi bulundu:\n\n{legacy}\n\n" +
+                $"Bu arşiv {AppPaths.ApplicationName}'ya taşınsın mı?\n\n" +
+                $"Evet: klasör olduğu gibi taşınır; {AppPaths.LegacyApplicationName} artık onu görmez " +
+                "(o uygulama kapalı olmalı).\n" +
+                "Hayır: boş bir arşivle başlanır; eski arşiv yerinde kalır.\n" +
+                "İptal: şimdi karar verme, çık.",
+                AppPaths.ApplicationName, MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+            if (answer == MessageBoxResult.Cancel)
+            {
+                Shutdown();
+                return;
+            }
+
+            if (answer == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    // A move, not a copy: same volume, instant, and the old application cannot
+                    // keep writing into an archive this one now owns. Whatever is under the new
+                    // root at this point holds no database (checked above) — empty folders from
+                    // a start that never got as far as opening one.
+                    if (Directory.Exists(Paths.Root)) Directory.Delete(Paths.Root, recursive: true);
+                    Directory.Move(legacy, Paths.Root);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    MessageBox.Show(
+                        $"Arşiv taşınamadı:\n\n{exception.Message}\n\n" +
+                        $"{AppPaths.LegacyApplicationName} açıksa kapatıp yeniden dene.",
+                        AppPaths.ApplicationName, MessageBoxButton.OK, MessageBoxImage.Error);
+
+                    Shutdown();
+                    return;
+                }
+            }
+        }
 
         try
         {
@@ -217,7 +266,7 @@ public partial class App : Application
             // which reports nothing to anybody.
             MessageBox.Show(
                 $"Veri klasörü hazırlanamadı:\n\n{Paths.Root}\n\n{exception.Message}",
-                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Error);
+                AppPaths.ApplicationName, MessageBoxButton.OK, MessageBoxImage.Error);
 
             Shutdown();
             return;
@@ -305,7 +354,7 @@ public partial class App : Application
                 $"Kayıt klasörü {string.Join(" ve ", cloud)} içinde görünüyor. Görüşme kayıtları " +
                 "buluta yüklenirdi, bu yüzden uygulama başlatılmadı.\n\n" +
                 $"Klasör: {Paths.Recordings}",
-                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AppPaths.ApplicationName, MessageBoxButton.OK, MessageBoxImage.Warning);
 
             Shutdown();
             return;
@@ -317,7 +366,7 @@ public partial class App : Application
         {
             MessageBox.Show(
                 "Yedek geri yüklendi.\n\nÖnceki verilerin silinmedi, şu klasöre alındı:\n" + aside,
-                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Information);
+                AppPaths.ApplicationName, MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         var database = new Database(Paths.DatabaseFile);
@@ -823,7 +872,7 @@ public partial class App : Application
             MessageBox.Show(
                 $"Pencere listesi yazıldı:\n\n{file}\n\nEn iyi sonuç için bunu bir arama "
                 + "çalarken veya görüşme sürerken çalıştır.",
-                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Information);
+                AppPaths.ApplicationName, MessageBoxButton.OK, MessageBoxImage.Information);
 
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(file)
             {
@@ -834,7 +883,7 @@ public partial class App : Application
         {
             MessageBox.Show(
                 $"Pencere listesi alınamadı:\n\n{exception.Message}",
-                "VoiceTranscript", MessageBoxButton.OK, MessageBoxImage.Error);
+                AppPaths.ApplicationName, MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
         Shutdown();

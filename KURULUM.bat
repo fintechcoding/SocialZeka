@@ -13,7 +13,7 @@ setlocal
 cd /d "%~dp0"
 
 echo.
-echo   VoiceTranscript kurulumu baslatiliyor...
+echo   SocialZeka kurulumu baslatiliyor...
 echo.
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" %*

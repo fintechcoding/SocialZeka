@@ -63,10 +63,10 @@ py -3.12 -m venv worker/.venv
 worker/.venv/Scripts/python -m pip install -r worker/requirements.txt
 ```
 
-> **Yalnızca `worker/tests` koşacaksan bu venv gerekmez.** O testler sadece standart kütüphane ve
-> `pytest` kullanıyor; `requirements.txt`'teki ağır bağımlılıklar (ctranslate2, faster-whisper,
-> onnxruntime, nvidia-cublas) **gerekmiyor** ve bu makinede işe de yaramaz (GPU yok).
-> `pip install pytest` yeter.
+> **Yalnızca `worker/tests` koşacaksan bu venv gerekmez.** O testler standart kütüphane, `numpy`
+> (`vt_worker.speaker` filtre bankasını onunla hesaplar) ve `pytest` kullanıyor;
+> `requirements.txt`'teki ağır bağımlılıklar (ctranslate2, faster-whisper, onnxruntime,
+> nvidia-cublas) **gerekmiyor**. `pip install pytest numpy` yeter.
 
 ---
 
@@ -122,13 +122,16 @@ Bu betik hem C# hem Python testlerini çalıştırır. **PowerShell'den çalış
 
 ### Bilinen taban çizgisi
 
-2026-09-02, bu makinede, temiz bir depo üzerinde:
+2026-09-05, hedef makinede (`C:\Voice\SocialZeka`, çatalın ilk derlemesi), temiz bir depo üzerinde:
 
 | Takım | Sonuç |
 |---|---|
-| `dotnet build VoiceTranscript.slnx -c Debug` | **0 hata**, 48 uyarı, ~15 sn (artımlı) |
-| `VoiceTranscript.Tests.exe` | **846 test · 841 geçti · 0 kırık · 5 atlandı**, ~35 sn |
-| `pytest` (`worker/`) | **89 test · 89 geçti**, ~5 sn |
+| `dotnet build VoiceTranscript.slnx -c Debug` | **0 hata**, 74 uyarı, ~20 sn (artımlı) |
+| `VoiceTranscript.Tests.exe` | **1067 test · 1062 geçti · 0 kırık · 5 atlandı**, ~7 sn |
+| `pytest` (`worker/`) | **156 test · 156 geçti**, ~29 sn |
+
+Önceki kayıt (2026-09-02): 846/841/5 ve 89/89. Aradaki fark 3–4 Eylül turlarının testleridir;
+sayı düşerse sebep senin değişikliğindir.
 
 Atlanan 5 testin dördü `OpenRouterLiveTests` içinde (`VT_OPENROUTER_KEY` tanımlı değil), biri
 `PythonWorkerHostTests` içinde (Whisper ağırlıkları indirilmeden çalışmaz). İkisi de beklenen

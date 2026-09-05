@@ -1,5 +1,5 @@
-﻿VoiceTranscript — Kurulum
-=========================
+﻿SocialZeka — Kurulum
+====================
 
 Bu klasör kendi kendine yeter. .NET kurmana gerek yok. Sadece Python gerekiyor,
 o da yalnızca yerel Whisper için — buluta göndermeyi seçersen ona bile gerek yok.

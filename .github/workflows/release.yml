@@ -97,5 +97,5 @@ jobs:
           prerelease: ${{ steps.version.outputs.prerelease }}
           generate_release_notes: true
           files: |
-            dist/VoiceTranscript-Setup-${{ steps.version.outputs.version }}-win-x64.exe
+            dist/SocialZeka-Setup-${{ steps.version.outputs.version }}-win-x64.exe
             dist/SHA256SUMS

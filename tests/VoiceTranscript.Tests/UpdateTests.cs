@@ -125,7 +125,7 @@ public class ReleaseAssetsTests
         bool withChecksums = true,
         string? extraAsset = null)
     {
-        var installer = installerName ?? $"VoiceTranscript-Setup-{tag[1..]}-win-x64.exe";
+        var installer = installerName ?? $"SocialZeka-Setup-{tag[1..]}-win-x64.exe";
 
         var assets = new List<string>
         {
@@ -157,7 +157,7 @@ public class ReleaseAssetsTests
         Assert.Equal(ReleaseRejection.None, rejection);
         Assert.NotNull(release);
         Assert.Equal("1.2.0", release!.Version.ToString());
-        Assert.Equal("VoiceTranscript-Setup-1.2.0-win-x64.exe", release.InstallerName);
+        Assert.Equal("SocialZeka-Setup-1.2.0-win-x64.exe", release.InstallerName);
         Assert.Contains("Yenilikler", release.Notes);
         Assert.Equal(68000000, release.SizeBytes);
     }
@@ -189,7 +189,7 @@ public class ReleaseAssetsTests
     public void AReleaseCarryingTwoInstallersIsRefused()
     {
         var json = ReleaseAssets.Read(
-            Payload(extraAsset: "VoiceTranscript-Setup-1.2.0-win-arm64.exe"));
+            Payload(extraAsset: "SocialZeka-Setup-1.2.0-win-arm64.exe"));
 
         Assert.Equal(ReleaseRejection.SeveralInstallers, json.Rejection);
     }
@@ -202,7 +202,7 @@ public class ReleaseAssetsTests
     [Fact]
     public void AnInstallerBuiltFromADifferentTagIsRefused()
     {
-        var json = Payload(tag: "v1.2.0", installerName: "VoiceTranscript-Setup-1.1.0-win-x64.exe");
+        var json = Payload(tag: "v1.2.0", installerName: "SocialZeka-Setup-1.1.0-win-x64.exe");
 
         Assert.Equal(ReleaseRejection.InstallerFromAnotherTag, ReleaseAssets.Read(json).Rejection);
     }
@@ -239,11 +239,11 @@ public class ReleaseAssetsTests
     {
         var listing =
             "0000000000000000000000000000000000000000000000000000000000000000 *other.exe\n"
-            + "e69a26e17e831314be156d9a352c804b04af91ae0141a9d89a5b326b945e0044 *VoiceTranscript-Setup-1.2.0-win-x64.exe\n";
+            + "e69a26e17e831314be156d9a352c804b04af91ae0141a9d89a5b326b945e0044 *SocialZeka-Setup-1.2.0-win-x64.exe\n";
 
         Assert.Equal(
             "e69a26e17e831314be156d9a352c804b04af91ae0141a9d89a5b326b945e0044",
-            ReleaseAssets.ChecksumFor(listing, "VoiceTranscript-Setup-1.2.0-win-x64.exe"));
+            ReleaseAssets.ChecksumFor(listing, "SocialZeka-Setup-1.2.0-win-x64.exe"));
     }
 
     /// <summary>Both sha256sum shapes: two spaces for text mode, space-star for binary.</summary>
@@ -263,9 +263,9 @@ public class ReleaseAssetsTests
     [Fact]
     public void TheChecksumIsFoundByWholeFileNameNotByPrefix()
     {
-        var listing = $"{new string('b', 64)} *VoiceTranscript-Setup-1.2.0-win-x64.exe.sig";
+        var listing = $"{new string('b', 64)} *SocialZeka-Setup-1.2.0-win-x64.exe.sig";
 
-        Assert.Null(ReleaseAssets.ChecksumFor(listing, "VoiceTranscript-Setup-1.2.0-win-x64.exe"));
+        Assert.Null(ReleaseAssets.ChecksumFor(listing, "SocialZeka-Setup-1.2.0-win-x64.exe"));
     }
 
     [Fact]
@@ -284,13 +284,13 @@ public class ReleaseAssetsTests
     [Fact]
     public void TheInstallerScriptProducesTheNameTheClientLooksFor()
     {
-        var script = File.ReadAllText(RepositoryFile("installer/VoiceTranscript.iss"));
+        var script = File.ReadAllText(RepositoryFile("installer/SocialZeka.iss"));
 
-        Assert.Contains("OutputBaseFilename=VoiceTranscript-Setup-{#AppVersion}-win-x64", script);
+        Assert.Contains("OutputBaseFilename=SocialZeka-Setup-{#AppVersion}-win-x64", script);
 
         // Which, filled in, is exactly what the client expects.
         Assert.Equal(
-            "VoiceTranscript-Setup-1.2.0-win-x64.exe",
+            "SocialZeka-Setup-1.2.0-win-x64.exe",
             ReleaseAssets.InstallerNameFor(AppVersion.Parse("1.2.0")));
     }
 
@@ -305,10 +305,10 @@ public class ReleaseAssetsTests
     [Fact]
     public void TheInstallerWaitsForTheRunningApplicationRatherThanClosingIt()
     {
-        var script = File.ReadAllText(RepositoryFile("installer/VoiceTranscript.iss"));
+        var script = File.ReadAllText(RepositoryFile("installer/SocialZeka.iss"));
 
         Assert.Contains("CloseApplications=no", script);
-        Assert.Contains("AppMutex=Global\\VoiceTranscript.SingleInstance", script);
+        Assert.Contains("AppMutex=Global\\SocialZeka.SingleInstance", script);
     }
 
     /// <summary>
@@ -318,11 +318,11 @@ public class ReleaseAssetsTests
     [Fact]
     public void TheInstallerAndTheApplicationNameTheSameMutex()
     {
-        var script = File.ReadAllText(RepositoryFile("installer/VoiceTranscript.iss"));
+        var script = File.ReadAllText(RepositoryFile("installer/SocialZeka.iss"));
         var app = File.ReadAllText(RepositoryFile("src/VoiceTranscript.App/App.xaml.cs"));
 
-        Assert.Contains("AppMutex=Global\\VoiceTranscript.SingleInstance", script);
-        Assert.Contains(@"Global\VoiceTranscript.SingleInstance", app);
+        Assert.Contains("AppMutex=Global\\SocialZeka.SingleInstance", script);
+        Assert.Contains(@"Global\SocialZeka.SingleInstance", app);
     }
 
     /// <summary>
@@ -337,7 +337,7 @@ public class ReleaseAssetsTests
     [Fact]
     public void ASilentInstallStartsTheApplicationAgain()
     {
-        var script = File.ReadAllText(RepositoryFile("installer/VoiceTranscript.iss"));
+        var script = File.ReadAllText(RepositoryFile("installer/SocialZeka.iss"));
 
         Assert.Contains("Check: WizardSilent", script);
     }

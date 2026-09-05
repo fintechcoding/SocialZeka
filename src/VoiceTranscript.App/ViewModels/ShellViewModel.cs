@@ -217,10 +217,10 @@ public sealed partial class ShellViewModel : ObservableObject
     /// they left open nor whether a call was being recorded; both are things they look for there.
     /// </summary>
     public string WindowTitle => IsRecording
-        ? "Kaydediliyor — VoiceTranscript"
+        ? $"Kaydediliyor — {Core.Configuration.AppPaths.ApplicationName}"
         : IsBusy
-            ? "İşleniyor — VoiceTranscript"
-            : $"{PageName(Page)} — VoiceTranscript";
+            ? $"İşleniyor — {Core.Configuration.AppPaths.ApplicationName}"
+            : $"{PageName(Page)} — {Core.Configuration.AppPaths.ApplicationName}";
 
     /// <summary>The tray's hover text: the state and what it means, not just a word.</summary>
     public string TrayText => $"{StatusText} · {StatusDetail}";
@@ -236,7 +236,7 @@ public sealed partial class ShellViewModel : ObservableObject
         ShellPage.Search => Localisation.T("mainwindow.arama"),
         ShellPage.Ask => Localisation.T("mainwindow.sor"),
         ShellPage.Health => Localisation.T("mainwindow.durum"),
-        _ => "VoiceTranscript",
+        _ => Core.Configuration.AppPaths.ApplicationName,
     };
 
     partial void OnPageChanged(ShellPage value) => OnPropertyChanged(nameof(WindowTitle));

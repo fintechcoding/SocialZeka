@@ -1,4 +1,9 @@
-# VoiceTranscript
+# SocialZeka
+
+VoiceTranscript'ten çatallandı (5 Eylül 2026). Kayıt ve döküm çekirdeği aynı; üstüne sosyal zekâ
+koçu katmanı geliyor — plan ve gerekçe: [docs/PLAN-SOSYALZEKA.md](docs/PLAN-SOSYALZEKA.md).
+Derlemeler, ad alanları ve `VoiceTranscript.exe` bilerek eski adı taşır; kullanıcıya görünen ad,
+kurulum kimliği, sürüm adı ve veri klasörü (`%LOCALAPPDATA%\SocialZeka.Data`) yenidir.
 
 WhatsApp ve Telegram sesli görüşmelerini otomatik kaydedip Türkçe yazıya döken, sonra yerel bir
 yapay zekâ ile çözümleyen Windows uygulaması. **Hiçbir konuşma içeriği makineden çıkmaz.**

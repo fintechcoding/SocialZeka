@@ -182,7 +182,7 @@ public class WindowSmokeTests
                     new VoiceTranscript.Core.Update.Release(
                         VoiceTranscript.Core.Update.AppVersion.Parse("1.2.0"),
                         "Yenilikler burada",
-                        "VoiceTranscript-Setup-1.2.0-win-x64.exe",
+                        "SocialZeka-Setup-1.2.0-win-x64.exe",
                         "https://example/setup.exe",
                         "https://example/SHA256SUMS",
                         68_000_000),

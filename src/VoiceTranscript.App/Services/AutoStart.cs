@@ -26,7 +26,7 @@ public static class AutoStart
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
     /// <summary>The value name. Also what the user sees in Task Manager's startup list.</summary>
-    private const string ValueName = "VoiceTranscript";
+    private const string ValueName = Core.Configuration.AppPaths.ApplicationName;
 
     /// <summary>
     /// Passed to the copy Windows starts, so it opens into the tray rather than onto the screen.

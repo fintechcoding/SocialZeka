@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Prepares the Python side of VoiceTranscript on the machine that will actually record calls.
+    Prepares the Python side of SocialZeka on the machine that will actually record calls.
 
 .DESCRIPTION
     Creates a virtual environment, installs the pinned dependencies, wires up the Windows DLL
@@ -23,7 +23,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$DataRoot = (Join-Path $env:LOCALAPPDATA 'VoiceTranscript.Data'),
+    [string]$DataRoot = (Join-Path $env:LOCALAPPDATA 'SocialZeka.Data'),
     [switch]$SkipVerify
 )
 

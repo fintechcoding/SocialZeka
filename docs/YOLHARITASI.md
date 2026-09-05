@@ -1,7 +1,11 @@
 # Yol haritası
 
-*Güncelleme: 1 Eylül 2026, v2.1.0 yayında. Aktif plan V2 Programıdır; eski (V2 öncesi) yol
-haritası durum notlarıyla arşiv bölümünde duruyor.*
+*Güncelleme: 5 Eylül 2026 — SocialZeka çatalı. VoiceTranscript'in son sürümü v2.9.21; SocialZeka
+sürümleri v3.0.0'dan başlar. Aktif program **sosyal zekâ koçu**: `docs/PLAN-SOSYALZEKA.md`
+(paketler R0 → I, ölçüm kapıları, ekranlar). Aşağıdaki V2 programı ve sürüm numaraları tarihseldir;
+Faz 3/4 maddeleri yeni plana şöyle yerleşti: 3.2 kulak teyidi → `verdict` tablosu (A2), 3.4 rakam
+zaman çizelgesi → Kişi kartı "Rakam yolculuğu" (E), 4.1 kişi tutarlılık geçmişi → Kalıplar (E),
+4.3 görüşme öncesi brifing → kayıt şeridi (H).*
 
 ## Bugünkü durumun özeti
 
@@ -46,7 +50,7 @@ paleti Ctrl+K (ActionRegistry + kişi araması, Türkçe katlamalı skor) + Ctrl
 Ctrl+? klavye katmanı, kişi penceresinde "Akış" ilk sekme (görüşme/not/bulgu/söz/aksiyon/
 hatırlatma tek şeritte, ay gruplu), tema seçimi (sistemi izle/açık/koyu — pin watcher'ı susturur).
 
-### Faz 3 — Kanıt derinliği → v2.2.0 (SIRADAKİ)
+### Faz 3 — Kanıt derinliği → (sürüm numarası eskidi; bkz. PLAN-SOSYALZEKA paketleri)
 1. **Bağlam penceresi:** bulguya tıkla → iki panel; alıntı ±45 sn çevresiyle, karşı-alıntı
    kendi bağlamında; tek tuşla çal. Kırpılmış-alıntı riskini kapatır — V2'nin vicdanı.
 2. **Kulak teyidi:** alıntıyı dinledikten sonra "Dinledim, metin doğru" (tarihli damga) /
