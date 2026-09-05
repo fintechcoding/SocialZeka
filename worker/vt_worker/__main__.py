@@ -29,7 +29,7 @@ import traceback
 from typing import Any
 
 from vt_worker import artifacts, chunking, dll_paths, gpu
-from vt_worker import models, speaker
+from vt_worker import models, prosody, speaker
 from vt_worker.engines import DEFAULT_ENGINE, EngineError, EngineOptions, create, probe_all
 from vt_worker.merge import MergedTranscript, Segment, merge_streams
 from vt_worker.segmentation import DEFAULT_MAX_GAP, resegment_on_gaps
@@ -463,6 +463,48 @@ def cmd_speaker(request: dict[str, Any]) -> int:
     return 0
 
 
+def cmd_prosody(request: dict[str, Any]) -> int:
+    """
+    Level and pitch over time for each side of a call — numbers with timestamps, nothing else.
+
+    The same division of labour as cmd_speaker: the worker measures, the C# side decides. Finding
+    the stretches where a level or a pitch stands out from the rest of the same channel, drawing
+    them, and the rules about what may be compared with what (docs/PLAN-SOSYALZEKA.md, Paket G)
+    all live where the calls and the contacts are. The worker never sees two calls at once, which
+    is the simplest way to keep a between-calls comparison from happening here by accident.
+
+    Each channel is measured on its own and reported under its own name, because the two are
+    different signals with different gains. A channel whose path is absent is reported as null
+    rather than left out, so the shape of the event does not depend on which side of the call
+    was recorded.
+    """
+    job_id = str(request.get("id") or "prosody")
+
+    mic_path = request.get("mic_path")
+    far_path = request.get("far_path")
+
+    if not mic_path and not far_path:
+        raise EngineError("bad_request", "at least one of mic_path or far_path is required")
+
+    started = time.monotonic()
+    present = [(stage, path) for stage, path in (("mic", mic_path), ("far", far_path)) if path]
+    channels: dict[str, Any] = {"mic": None, "far": None}
+
+    for index, (stage, path) in enumerate(present):
+        emit({"type": "progress", "id": job_id, "stage": stage,
+              "percent": round(100.0 * index / len(present), 1)})
+        channels[stage] = prosody.analyse(path).to_json()
+
+    emit({
+        "type": "prosody",
+        "id": job_id,
+        "bin_seconds": prosody.BIN_SECONDS,
+        "channels": channels,
+        "elapsed_s": round(time.monotonic() - started, 2),
+    })
+    return 0
+
+
 def _read_request() -> dict[str, Any]:
     raw = sys.stdin.read()
     if not raw.strip():
@@ -481,7 +523,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(prog="vt_worker", description="VoiceTranscript ASR worker")
     parser.add_argument(
-        "command", choices=["probe", "transcribe", "download", "selftest", "speaker"])
+        "command", choices=["probe", "transcribe", "download", "selftest", "speaker", "prosody"])
     args = parser.parse_args(argv)
 
     if args.command == "probe":
@@ -501,6 +543,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_selftest(request)
         if args.command == "speaker":
             return cmd_speaker(request)
+        if args.command == "prosody":
+            return cmd_prosody(request)
 
         return cmd_transcribe(request)
     except EngineError as exc:
