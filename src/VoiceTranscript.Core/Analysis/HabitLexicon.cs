@@ -265,10 +265,18 @@ public sealed class HabitLexicon
                      .OrderBy(r => r.Kind, StringComparer.Ordinal)
                      .ThenBy(r => r.Stem, StringComparer.Ordinal))
         {
-            foreach (var ch in $"{row.Kind}{row.Stem}{row.Suffixes}\n")
+            // Each field is length-prefixed, so "ab"+"c" and "a"+"bc" hash apart without a
+            // separator character — which would have to be one that no stem can contain.
+            foreach (var field in new[] { row.Kind, row.Stem, row.Suffixes })
             {
-                hash ^= ch;
+                hash ^= (uint)field.Length;
                 hash *= prime;
+
+                foreach (var ch in field)
+                {
+                    hash ^= ch;
+                    hash *= prime;
+                }
             }
         }
 
