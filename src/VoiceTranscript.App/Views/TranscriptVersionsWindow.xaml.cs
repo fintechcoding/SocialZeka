@@ -79,6 +79,7 @@ public partial class TranscriptVersionsWindow
         Services.AppLog.Write("veri", $"görüşme #{_callId} · döküm geri yüklendi: {row.Engine}");
 
         Restored = true;
+        RestoredBar.IsOpen = true;
         Load();
     }
 

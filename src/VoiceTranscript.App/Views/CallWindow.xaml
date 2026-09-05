@@ -494,6 +494,17 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                     <StackPanel>
 
+                        <!-- Complaint 7: the note stays, the tab says which text it read. -->
+                        <StackPanel Margin="0,0,0,10"
+                                    Visibility="{Binding IsSummaryStale, Converter={StaticResource BoolToVisibility}}">
+                            <ui:InfoBar Severity="Warning" IsClosable="False" IsOpen="True"
+                                        Title="{loc:T callwindow.ozet-ve-defter-onceki-dokumden}"
+                                        Message="{Binding StaleDetail}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <ui:Button Content="{loc:T callwindow.yeniden-cozumle}" Click="Reanalyse_Click" />
+                            </StackPanel>
+                        </StackPanel>
+
                         <!--
                             An action rather than an empty page.
 
@@ -627,6 +638,18 @@
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                                 <StackPanel>
 
+                        <!-- Complaint 7: the note stays, the tab says which text it read. -->
+                        <StackPanel Margin="0,0,0,10"
+                                    Visibility="{Binding IsActionsStale, Converter={StaticResource BoolToVisibility}}">
+                            <ui:InfoBar Severity="Warning" IsClosable="False" IsOpen="True"
+                                        Title="{loc:T callwindow.oneriler-onceki-dokumden}"
+                                        Message="{Binding StaleDetail}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <ui:Button Content="{loc:T callwindow.yeniden-cikar}" Command="{Binding ExtractActionsCommand}"
+                                           IsEnabled="{Binding IsExtractingActions, Converter={StaticResource InverseBool}}" />
+                            </StackPanel>
+                        </StackPanel>
+
                         <!--
                             The user's proposed next moves. Suggestions, and the panel says so:
                             nothing here writes anywhere until the user clicks it there. Every
@@ -746,6 +769,17 @@
                         <TabItem x:Name="ConsistencyTab" Header="{loc:T callwindow.tutarlilik}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                                 <StackPanel>
+
+                        <!-- Complaint 7: the note stays, the tab says which text it read. -->
+                        <StackPanel Margin="0,0,0,10"
+                                    Visibility="{Binding IsConsistencyStale, Converter={StaticResource BoolToVisibility}}">
+                            <ui:InfoBar Severity="Warning" IsClosable="False" IsOpen="True"
+                                        Title="{loc:T callwindow.tutarlilik-onceki-dokumden}"
+                                        Message="{Binding StaleDetail}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <ui:Button Content="{loc:T callwindow.yeniden-denetle}" Command="{Binding CheckConsistencyCommand}" />
+                            </StackPanel>
+                        </StackPanel>
 
                         <!--
                             The consistency check. Not a lie detector, and the section says so:
@@ -947,6 +981,19 @@
                                            Visibility="{Binding DeceptionProblem, Converter={StaticResource NullToCollapsed}}" />
 
                                 <StackPanel Visibility="{Binding HasDeception, Converter={StaticResource BoolToVisibility}}">
+                                    <!-- Complaint 7: the note stays, the tab says which text it read. -->
+                                    <StackPanel Margin="0,0,0,10"
+                                                Visibility="{Binding IsDeceptionStale, Converter={StaticResource BoolToVisibility}}">
+                                        <ui:InfoBar Severity="Warning" IsClosable="False" IsOpen="True"
+                                                    Title="{loc:T callwindow.degerlendirme-onceki-dokumden}"
+                                                    Message="{Binding StaleDetail}" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                            <ui:Button Content="{loc:T callwindow.yeniden-degerlendir}" Command="{Binding RunDeceptionCommand}"
+                                                       IsEnabled="{Binding IsDeceptionRunning, Converter={StaticResource InverseBool}}" />
+                                            <ui:Button Content="{loc:T callwindow.notu-sil}" Appearance="Transparent" Margin="8,0,0,0"
+                                                       Command="{Binding DeleteDeceptionCommand}" />
+                                        </StackPanel>
+                                    </StackPanel>
                                     <TextBlock Text="{Binding DeceptionLevelLine}" FontWeight="SemiBold" Margin="0,10,0,0" />
 
                                     <TextBlock Text="{Binding Deception.Assessment}" TextWrapping="Wrap" Margin="0,6,0,0" />
@@ -995,6 +1042,20 @@
                                  Visibility="{Binding CommentaryEnabled, Converter={StaticResource BoolToVisibility}}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                                 <StackPanel>
+
+                        <!-- Complaint 7: the note stays, the tab says which text it read. -->
+                        <StackPanel Margin="0,0,0,10"
+                                    Visibility="{Binding IsReadingStale, Converter={StaticResource BoolToVisibility}}">
+                            <ui:InfoBar Severity="Warning" IsClosable="False" IsOpen="True"
+                                        Title="{loc:T callwindow.okuma-onceki-dokumden}"
+                                        Message="{Binding StaleDetail}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <ui:Button Content="{loc:T callwindow.yeniden-oku}" Command="{Binding RunReadingCommand}"
+                                           IsEnabled="{Binding IsReadingRunning, Converter={StaticResource InverseBool}}" />
+                                <ui:Button Content="{loc:T callwindow.notu-sil}" Appearance="Transparent" Margin="8,0,0,0"
+                                           Command="{Binding DeleteReadingCommand}" />
+                            </StackPanel>
+                        </StackPanel>
 
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,10"
                                 Background="{DynamicResource SubtleFillColorSecondaryBrush}">

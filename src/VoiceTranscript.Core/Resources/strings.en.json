@@ -799,5 +799,16 @@
   "settingswindow.tumunu-goster-n": "Show all ({0} more models)",
   "settingswindow.yalniz-yaziya-dokme-modelleri": "Only transcription models",
   "callwindow.n-dokum": "{0} transcript(s)",
-  "callwindow.dalgayi-katla-ya-da-ac": "Fold or unfold the waveform"
+  "callwindow.dalgayi-katla-ya-da-ac": "Fold or unfold the waveform",
+  "callwindow.ozet-ve-defter-onceki-dokumden": "The summary and the ledger come from an earlier transcript",
+  "callwindow.oneriler-onceki-dokumden": "The suggestions were drawn from an earlier transcript",
+  "callwindow.tutarlilik-onceki-dokumden": "The consistency check ran on an earlier transcript",
+  "callwindow.degerlendirme-onceki-dokumden": "The assessment was written for an earlier transcript",
+  "callwindow.okuma-onceki-dokumden": "The reading was written for an earlier transcript",
+  "callwindow.ekrandaki-metin-su-dokumden": "Text on screen: {0}. Quotes may belong to the old text. Running again reads the new text; deleting removes the old note.",
+  "callwindow.notu-sil": "Delete",
+  "callwindow.yeniden-degerlendir": "Assess again",
+  "callwindow.yeniden-denetle": "Check again",
+  "transcriptversions.dokum-geri-yuklendi": "Transcript restored",
+  "transcriptversions.notlar-baska-dokumden": "The summary, ledger, suggestions and reading may have been written for another transcript; the call window says which on each tab."
 }

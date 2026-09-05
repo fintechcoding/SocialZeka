@@ -389,6 +389,63 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     /// <summary>Re-reads everything about this call. Used after a stored transcript is put back.</summary>
     public void Reload() => Load();
 
+    // ---- which transcript the notes were written from ------------------------------------
+
+    /// <summary>
+    /// Every derived note of this call, judged against the transcript on screen.
+    ///
+    /// Complaint 7: transcribing a call again replaced its lines and left the reading, the
+    /// assessment, the summary and the suggestions standing on text that no longer existed,
+    /// quoting words the screen no longer showed, with nothing on any tab to say so. The notes
+    /// are not deleted — a reading was paid for, a suggestion may have been acted on — but each
+    /// tab now says which text its note read, and offers to read the new one or drop the old.
+    /// "Unknown" (a note from before the pointer existed) shows nothing: a wrong "bayat" would
+    /// teach the user to ignore the bar.
+    /// </summary>
+    [ObservableProperty] private DerivedFreshness? _freshness;
+
+    /// <summary>The sentence under every stale bar: which text is on screen now, and what the two buttons do.</summary>
+    [ObservableProperty] private string? _staleDetail;
+
+    public bool IsSummaryStale => Freshness?.Summary == Staleness.Stale;
+    public bool IsActionsStale => Freshness?.Actions == Staleness.Stale;
+    public bool IsConsistencyStale => Freshness?.Consistency == Staleness.Stale;
+    public bool IsDeceptionStale => Freshness?.Deception == Staleness.Stale;
+    public bool IsReadingStale => Freshness?.Reading == Staleness.Stale;
+
+    private void RefreshFreshness()
+    {
+        Freshness = _repository.DerivedFreshness(CallId);
+
+        StaleDetail = string.Format(
+            Localisation.T("callwindow.ekrandaki-metin-su-dokumden"),
+            _repository.CurrentTranscriptVersion(CallId)?.Engine ?? "?");
+
+        OnPropertyChanged(nameof(IsSummaryStale));
+        OnPropertyChanged(nameof(IsActionsStale));
+        OnPropertyChanged(nameof(IsConsistencyStale));
+        OnPropertyChanged(nameof(IsDeceptionStale));
+        OnPropertyChanged(nameof(IsReadingStale));
+    }
+
+    /// <summary>Drops a reading written for an earlier text. The user's choice, never automatic: it was paid for.</summary>
+    [RelayCommand]
+    private void DeleteReading()
+    {
+        _repository.DeleteReading(CallId);
+        LoadReading();
+        RefreshFreshness();
+    }
+
+    /// <summary>Drops an assessment written for an earlier text. Same rule as the reading.</summary>
+    [RelayCommand]
+    private void DeleteDeception()
+    {
+        _repository.DeleteDeception(CallId);
+        LoadDeception();
+        RefreshFreshness();
+    }
+
     private void Load()
     {
         var call = _repository.GetCall(CallId);
@@ -474,6 +531,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         LoadActions();
         LoadReading();
         LoadDeception();
+        RefreshFreshness();
 
         // The consistency section's own rows — split from the ledger's flags because the two
         // come from different runs, clear separately, and answer different clicks. Reloaded
@@ -1043,6 +1101,9 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             Actions.Add(new ActionRow(action));
 
         OnPropertyChanged(nameof(HasActions));
+
+        // Extracted again after a new transcript: the suggestions are of the new text now.
+        if (Freshness is not null) RefreshFreshness();
     }
 
     /// <summary>The user's verdict on one suggestion, applied and reflected immediately.</summary>
@@ -1171,6 +1232,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             Reading = report;
             ReadingStamp = $"{model} · {DateTime.Now:d MMMM yyyy}";
             OnPropertyChanged(nameof(HasReading));
+            RefreshFreshness();
         }
         catch (Exception e)
         {
@@ -1257,6 +1319,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
             Deception = report;
             DeceptionStamp = $"{model} · {DateTime.Now:d MMMM yyyy}";
+            RefreshFreshness();
             OnPropertyChanged(nameof(HasDeception));
             OnPropertyChanged(nameof(DeceptionLevelLine));
             RefreshAttention();

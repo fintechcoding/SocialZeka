@@ -27,6 +27,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="{loc:T transcriptversions.baslik}" Style="{StaticResource PageTitle}" />
@@ -89,7 +90,14 @@
             The entries quote the words they were made from, and silently repointing a quote at
             different words is the one thing this product must not do.
         -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+        <!-- Complaint 7 from the other direction: putting an older transcript back makes every
+             note written since describe a text that is no longer on screen. Opened by Restore_Click. -->
+        <ui:InfoBar x:Name="RestoredBar" Grid.Row="3" Severity="Warning" IsClosable="False" IsOpen="False"
+                    Margin="0,10,0,0"
+                    Title="{loc:T transcriptversions.dokum-geri-yuklendi}"
+                    Message="{loc:T transcriptversions.notlar-baska-dokumden}" />
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
             <TextBlock Text="{loc:T transcriptversions.defter-uyarisi}" Style="{StaticResource Caption}"
                        VerticalAlignment="Center" Margin="0,0,12,0" TextWrapping="Wrap" MaxWidth="380" />
 

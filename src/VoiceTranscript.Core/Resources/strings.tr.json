@@ -799,5 +799,16 @@
   "settingswindow.tumunu-goster-n": "Tümünü göster ({0} model daha)",
   "settingswindow.yalniz-yaziya-dokme-modelleri": "Yalnız yazıya dökme modelleri",
   "callwindow.n-dokum": "{0} döküm",
-  "callwindow.dalgayi-katla-ya-da-ac": "Dalga şeklini katla ya da aç"
+  "callwindow.dalgayi-katla-ya-da-ac": "Dalga şeklini katla ya da aç",
+  "callwindow.ozet-ve-defter-onceki-dokumden": "Özet ve defter önceki dökümden üretildi",
+  "callwindow.oneriler-onceki-dokumden": "Öneriler önceki dökümden çıkarıldı",
+  "callwindow.tutarlilik-onceki-dokumden": "Tutarlılık denetimi önceki döküm üzerinde yapıldı",
+  "callwindow.degerlendirme-onceki-dokumden": "Değerlendirme önceki döküm için yazıldı",
+  "callwindow.okuma-onceki-dokumden": "Okuma önceki döküm için yazıldı",
+  "callwindow.ekrandaki-metin-su-dokumden": "Ekrandaki metin: {0}. Alıntılar eski metne ait olabilir. Yeniden üretmek yeni metni okur; silmek eski notu kaldırır.",
+  "callwindow.notu-sil": "Sil",
+  "callwindow.yeniden-degerlendir": "Yeniden değerlendir",
+  "callwindow.yeniden-denetle": "Yeniden denetle",
+  "transcriptversions.dokum-geri-yuklendi": "Döküm geri yüklendi",
+  "transcriptversions.notlar-baska-dokumden": "Özet, defter, öneriler ve okuma başka bir döküm için yazılmış olabilir; görüşme penceresi hangilerinin eski olduğunu kendi sekmesinde söyler."
 }

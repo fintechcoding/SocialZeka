@@ -1334,6 +1334,14 @@ public sealed class CallOrchestrator : IDisposable
                     return;
                 }
             }
+            else if (!keepTranscript && _repository.DerivedFreshness(callId).AnyStale)
+            {
+                // The text changed and nothing is about to re-read it: the summary, the ledger and
+                // the notes on this call now describe an earlier text. Said once, here; the call
+                // window says it again on each tab, with the buttons that fix it.
+                Notice?.Invoke(this,
+                    "Metin yenilendi; özet, defter ve notlar önceki metinden. Görüşmeyi yeniden çözümle.");
+            }
 
             // With the words safely out of the audio and into the archive, the dead air can go —
             // and then the rest can shrink.
