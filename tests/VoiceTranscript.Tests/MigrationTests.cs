@@ -184,6 +184,22 @@ public sealed class MigrationTests : IDisposable
                     is_pinned INTEGER NOT NULL DEFAULT 0, audio_sha256 TEXT);
                 CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 INSERT INTO setting VALUES ('schema_version', '2');
+
+                -- Two tables in their pre-v15 shape. The baseline creates every table it does not
+                -- find in its CURRENT shape, and the idempotent ALTER then skips a column that is
+                -- already there — so without these, no v15 ALTER would ever execute in this test
+                -- and a typo in one of its thirteen lines would stay green here and fail on the
+                -- first real v14 database. With them, the ALTERs run, REFERENCES clause and all.
+                CREATE TABLE commitment (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    call_id INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+                    contact_id INTEGER, by_me INTEGER NOT NULL DEFAULT 0, quote TEXT NOT NULL,
+                    quote_start_ms INTEGER NOT NULL DEFAULT 0, obligation TEXT NOT NULL,
+                    deadline_raw TEXT, deadline_date TEXT, amount TEXT, currency TEXT,
+                    is_conditional INTEGER NOT NULL DEFAULT 0, status INTEGER NOT NULL DEFAULT 0,
+                    fulfilled_by_call_id INTEGER REFERENCES call(id) ON DELETE SET NULL,
+                    dismissed_by_user INTEGER NOT NULL DEFAULT 0);
+                CREATE TABLE reading_note (call_id INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+                    json TEXT NOT NULL, model_used TEXT, created_at TEXT NOT NULL);
                 """;
             create.ExecuteNonQuery();
         }
@@ -273,6 +289,138 @@ public sealed class MigrationTests : IDisposable
 
         Assert.True(ColumnExistsIn("transcript_version", "engine"));
         Assert.True(ColumnExistsIn("transcript_version", "speech_coverage"));
+
+        // v8, v9, v10: never asserted before. Backfilled so the list is complete.
+        Assert.True(ColumnExistsIn("title_binding", "unreliable"));
+        Assert.True(ColumnExistsIn("processing_run", "speech_coverage"));
+
+        using (var connection = new Database(_path).Open())
+        {
+            using var todos = connection.CreateCommand();
+            todos.CommandText = "SELECT COUNT(*) FROM todo;";
+            Assert.Equal(0L, todos.ExecuteScalar());
+        }
+
+        // v14: the pointer from a call to the transcript it shows.
+        Assert.True(ColumnExistsIn("call", "transcript_version_id"));
+
+        // v15: the derived notes know their transcript; the promise carries its stamps and the
+        // user's own columns; the flag and the suggestion carry their ruling stamp; and the
+        // verdict table exists. The commitment and reading_note ALTERs really ran here (the
+        // tables were seeded in their old shape), so a REFERENCES clause that SQLite refused
+        // would have surfaced as an exception above, not as a missing column.
+        foreach (var table in new[] { "reading_note", "deception_note", "consistency_note", "action_item", "call_summary" })
+            Assert.True(ColumnExistsIn(table, "transcript_version_id"), table);
+
+        foreach (var column in new[] { "created_at", "fulfilled_at", "decided_at", "user_deadline_date", "user_obligation", "edited_at" })
+            Assert.True(ColumnExistsIn("commitment", column), column);
+
+        Assert.True(ColumnExistsIn("flag", "decided_at"));
+        Assert.True(ColumnExistsIn("action_item", "decided_at"));
+
+        using (var connection = new Database(_path).Open())
+        {
+            // Nullable on purpose: every row from before v15 has no transcript pointer, and that
+            // must read as "bilinmiyor", never as a constraint failure on the next write.
+            using var nullable = connection.CreateCommand();
+            nullable.CommandText =
+                "SELECT \"notnull\" FROM pragma_table_info('reading_note') WHERE name = 'transcript_version_id';";
+            Assert.Equal(0L, nullable.ExecuteScalar());
+
+            using var verdicts = connection.CreateCommand();
+            verdicts.CommandText = "SELECT COUNT(*) FROM verdict;";
+            Assert.Equal(0L, verdicts.ExecuteScalar());
+
+            using var index = connection.CreateCommand();
+            index.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'ix_verdict_call';";
+            Assert.Equal(1L, index.ExecuteScalar());
+        }
+    }
+
+    /// <summary>
+    /// The general form of the test above: every table, every column, compared between a
+    /// database that walked the steps and one born fresh. The spot checks catch the column
+    /// somebody thought to assert; this catches the one they forgot — a column in the step but
+    /// not the baseline, or the other way round, which gives fresh and upgraded installations
+    /// different shapes and a bug that only the user with the older file ever sees.
+    ///
+    /// Column ORDER is allowed to differ (ALTER appends; the baseline places), so the sets are
+    /// compared by name.
+    /// </summary>
+    [Fact]
+    public void AnUpgradedDatabaseHasEveryColumnAFreshOneHas()
+    {
+        using (var connection = new Database(_path).Open())
+        {
+            using var create = connection.CreateCommand();
+            create.CommandText =
+                """
+                CREATE TABLE call (id INTEGER PRIMARY KEY AUTOINCREMENT, contact_id INTEGER,
+                    app INTEGER NOT NULL DEFAULT 0, direction INTEGER NOT NULL DEFAULT 0,
+                    kind INTEGER NOT NULL DEFAULT 0, started_at TEXT NOT NULL, ended_at TEXT,
+                    duration_ms INTEGER NOT NULL DEFAULT 0, mic_path TEXT, far_path TEXT,
+                    state INTEGER NOT NULL DEFAULT 0, failure_reason TEXT, observed_title TEXT,
+                    capture_stats TEXT, likely_no_headphones INTEGER NOT NULL DEFAULT 0,
+                    is_pinned INTEGER NOT NULL DEFAULT 0, audio_sha256 TEXT);
+                CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                INSERT INTO setting VALUES ('schema_version', '2');
+                """;
+            create.ExecuteNonQuery();
+        }
+
+        new Database(_path).Migrate();
+
+        var freshPath = Path.Combine(_root, "fresh.db");
+        var fresh = new Database(freshPath);
+        fresh.Migrate();
+
+        try
+        {
+            var upgraded = Shape(_path);
+            var born = Shape(freshPath);
+
+            var missing = born.Keys.Except(upgraded.Keys).OrderBy(k => k).ToList();
+            var extra = upgraded.Keys.Except(born.Keys).OrderBy(k => k).ToList();
+
+            Assert.True(missing.Count == 0, "Yükseltilen veritabanında olmayan sütunlar: " + string.Join(", ", missing));
+            Assert.True(extra.Count == 0, "Taze veritabanında olmayan sütunlar: " + string.Join(", ", extra));
+
+            foreach (var (key, shape) in born)
+                Assert.True(shape == upgraded[key], $"{key}: taze {shape}, yükseltilen {upgraded[key]}");
+        }
+        finally
+        {
+            fresh.ClearPool();
+        }
+    }
+
+    /// <summary>Every user table's (table.column) → "type notnull default", for the comparison above.</summary>
+    private static Dictionary<string, string> Shape(string path)
+    {
+        var shape = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        using var connection = new Database(path).Open();
+
+        using var tables = connection.CreateCommand();
+        tables.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name;";
+
+        var names = new List<string>();
+        using (var reader = tables.ExecuteReader())
+        {
+            while (reader.Read()) names.Add(reader.GetString(0));
+        }
+
+        foreach (var table in names)
+        {
+            using var columns = connection.CreateCommand();
+            columns.CommandText = $"SELECT name, type, \"notnull\", IFNULL(dflt_value, '') FROM pragma_table_info('{table}');";
+
+            using var reader = columns.ExecuteReader();
+            while (reader.Read())
+                shape[$"{table}.{reader.GetString(0)}"] = $"{reader.GetString(1)} {reader.GetInt64(2)} {reader.GetString(3)}";
+        }
+
+        return shape;
     }
 
     private bool ColumnExistsIn(string table, string column)

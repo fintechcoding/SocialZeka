@@ -219,9 +219,31 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         if (duplicates > 0)
             CoreLog.Write("cozumleme", $"gorusme #{callId}: {duplicates} tekrar eden defter satiri elendi");
 
+        // What the user ruled on, dismissed or edited survives ClearAnalysis — and the same
+        // words must not then be written a second time as a fresh, unruled row. The K4 rule, the
+        // way the consistency check already applies it to flags; before this every re-run put a
+        // kept promise back on the open list and a dismissed one back undismissed.
+        var surviving = repository.SurvivingCommitmentKeys(callId);
+        var dismissedFlags = repository.DismissedFlagKeys(callId);
+
         repository.ClearAnalysis(callId);
 
-        foreach (var commitment in commitments) repository.InsertCommitment(commitment);
+        var withheld = 0;
+
+        foreach (var commitment in commitments)
+        {
+            if (surviving.Contains((commitment.ByMe, TurkishText.NormalizeForSearch(commitment.Quote))))
+            {
+                withheld++;
+                continue;
+            }
+
+            repository.InsertCommitment(commitment);
+        }
+
+        if (withheld > 0)
+            CoreLog.Write("cozumleme", $"gorusme #{callId}: {withheld} soz kullanicinin kararini tasiyor, yeniden yazilmadi");
+
         foreach (var claim in claims) repository.InsertClaim(claim);
 
         flags.AddRange(ScamPatterns.Scan(callId, call.ContactId, segments));
@@ -246,7 +268,13 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         if (DeterministicChecks.EvasionRate(callId, call.ContactId, questions) is { } evasion)
             flags.Add(evasion);
 
-        foreach (var flag in flags) repository.InsertFlag(flag);
+        // A finding the user dismissed is a tombstone ClearAnalysis leaves in place; the same
+        // words found again must not come back beside it as a new, undismissed row.
+        foreach (var flag in flags)
+        {
+            if (dismissedFlags.Contains(((int)flag.Kind, TurkishText.NormalizeForSearch(flag.Quote)))) continue;
+            repository.InsertFlag(flag);
+        }
 
         string? summary = null;
         if (options.WriteSummary)

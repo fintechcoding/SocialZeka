@@ -52,4 +52,10 @@ public sealed record ActionItem
     public string? RoutedNote { get; init; }
     public string? ModelUsed { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>Which stored transcript it was drawn from; null when that was not recorded.</summary>
+    public long? TranscriptVersionId { get; init; }
+
+    /// <summary>When the user last ruled on it (done, hidden, routed). Null while open.</summary>
+    public DateTimeOffset? DecidedAt { get; init; }
 }

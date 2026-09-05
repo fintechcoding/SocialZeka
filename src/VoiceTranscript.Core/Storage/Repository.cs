@@ -400,13 +400,9 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>
-    /// Tables whose rows belong to a contact by way of the call they came from.
-    ///
-    /// Listed once so that adding another derived table is a single edit rather than a bug that
-    /// only appears after somebody moves a call.
-    /// </summary>
-    /// <summary>
-    /// Every table whose rows belong to a contact and must follow them.
+    /// Every table whose rows belong to a contact and must follow them. Listed once so that
+    /// adding another derived table is a single edit rather than a bug that only appears after
+    /// somebody moves a call. (verdict is not here: it has no contact_id and follows its call.)
     ///
     /// action_item is in this list because its contact_id is ON DELETE CASCADE: left behind by a
     /// merge, the rows were destroyed the moment the absorbed contact was deleted. Merging two
@@ -1198,6 +1194,7 @@ public sealed class Repository(Database database)
                 CREATE TEMP TABLE map_contact (old INTEGER PRIMARY KEY, new INTEGER NOT NULL);
                 CREATE TEMP TABLE map_call    (old INTEGER PRIMARY KEY, new INTEGER NOT NULL);
                 CREATE TEMP TABLE new_call    (old INTEGER PRIMARY KEY);
+                CREATE TEMP TABLE map_version (old INTEGER PRIMARY KEY, new INTEGER NOT NULL);
                 """,
                 transaction: transaction);
 
@@ -1235,7 +1232,16 @@ public sealed class Repository(Database database)
 
             var toContact = new Dictionary<string, string> { ["contact_id"] = "map_contact" };
 
-            var calls = Copy(connection, transaction, "call", toContact, "s.id IN (SELECT old FROM new_call)");
+            // The call's transcript pointer is a row id in the OTHER database. Copied raw it
+            // would point at whatever row happens to have that id here — or at none, which the
+            // foreign key refuses, aborting the whole import. So it is remapped through
+            // map_version, which is still empty at this point (the transcripts are copied after
+            // the calls they belong to) and therefore yields NULL; the pointers are filled in
+            // below, once the transcripts are here and the map is built.
+            var calls = Copy(
+                connection, transaction, "call",
+                new Dictionary<string, string>(toContact) { ["transcript_version_id"] = "map_version" },
+                "s.id IN (SELECT old FROM new_call)");
 
             connection.Execute(
                 """
@@ -1259,18 +1265,50 @@ public sealed class Repository(Database database)
 
             var segments = Copy(connection, transaction, "segment", toCall, ofNewCalls);
 
-            foreach (var table in new[]
-                     {
-                         "call_summary", "call_note", "call_tag", "consistency_note",
-                         "reading_note", "deception_note", "board_card", "processing_run",
-                         "transcript_version",
-                     })
+            // Transcripts first, then the map from their old ids to their new ones. A stored
+            // transcript has no key of its own beyond (call, engine, moment written), and that is
+            // enough: two transcripts of one call by one engine at the same instant do not exist.
+            Copy(connection, transaction, "transcript_version", toCall, ofNewCalls);
+
+            connection.Execute(
+                """
+                INSERT OR IGNORE INTO map_version (old, new)
+                SELECT s.id, m.id
+                  FROM gelen.transcript_version s
+                  JOIN map_call mc ON mc.old = s.call_id
+                  JOIN main.transcript_version m
+                    ON m.call_id = mc.new AND m.engine = s.engine AND m.created_at = s.created_at;
+
+                UPDATE main.call
+                   SET transcript_version_id = (
+                       SELECT mv.new
+                         FROM map_call mc
+                         JOIN gelen.call s ON s.id = mc.old
+                         JOIN map_version mv ON mv.old = s.transcript_version_id
+                        WHERE mc.new = main.call.id)
+                 WHERE transcript_version_id IS NULL
+                   AND id IN (SELECT mc.new FROM map_call mc JOIN new_call nc ON nc.old = mc.old);
+                """,
+                transaction: transaction);
+
+            var toCallAndVersion = new Dictionary<string, string>(toCall) { ["transcript_version_id"] = "map_version" };
+
+            foreach (var table in new[] { "call_summary", "consistency_note", "reading_note", "deception_note" })
+            {
+                Copy(connection, transaction, table, toCallAndVersion, ofNewCalls);
+            }
+
+            foreach (var table in new[] { "call_note", "call_tag", "board_card", "processing_run", "verdict" })
             {
                 Copy(connection, transaction, table, toCall, ofNewCalls);
             }
 
             Copy(connection, transaction, "claim", toCallAndContact, ofNewCalls);
-            Copy(connection, transaction, "action_item", toCallAndContact, ofNewCalls);
+
+            Copy(
+                connection, transaction, "action_item",
+                new Dictionary<string, string>(toCallAndContact) { ["transcript_version_id"] = "map_version" },
+                ofNewCalls);
 
             Copy(
                 connection, transaction, "commitment",
@@ -1360,6 +1398,7 @@ public sealed class Repository(Database database)
                 DROP TABLE IF EXISTS map_contact;
                 DROP TABLE IF EXISTS map_call;
                 DROP TABLE IF EXISTS new_call;
+                DROP TABLE IF EXISTS map_version;
                 """);
 
             connection.Execute("DETACH DATABASE gelen;");
@@ -1890,9 +1929,9 @@ public sealed class Repository(Database database)
             WHERE cm.status = 0
               AND cm.dismissed_by_user = 0
               AND cm.is_conditional = 0
-              AND cm.deadline_date IS NOT NULL
-              AND cm.deadline_date < @today
-            ORDER BY cm.deadline_date;
+              AND COALESCE(cm.user_deadline_date, cm.deadline_date) IS NOT NULL
+              AND COALESCE(cm.user_deadline_date, cm.deadline_date) < @today
+            ORDER BY COALESCE(cm.user_deadline_date, cm.deadline_date);
             """,
             (commitment, name) => (commitment, name),
             new { today = today.ToString("yyyy-MM-dd") },
@@ -1922,8 +1961,8 @@ public sealed class Repository(Database database)
             WHERE cm.status = 0
               AND cm.dismissed_by_user = 0
             ORDER BY
-              CASE WHEN cm.deadline_date IS NULL THEN 1 ELSE 0 END,
-              cm.deadline_date,
+              CASE WHEN COALESCE(cm.user_deadline_date, cm.deadline_date) IS NULL THEN 1 ELSE 0 END,
+              COALESCE(cm.user_deadline_date, cm.deadline_date),
               cm.id DESC
             LIMIT @limit;
             """,
@@ -1945,17 +1984,163 @@ public sealed class Repository(Database database)
     {
         using var connection = Open();
         connection.Execute(
-            "UPDATE commitment SET dismissed_by_user = 1 WHERE id = @commitmentId;",
-            new { commitmentId });
+            "UPDATE commitment SET dismissed_by_user = 1, decided_at = @now WHERE id = @commitmentId;",
+            new { commitmentId, now = Iso(DateTimeOffset.UtcNow) });
     }
 
-    /// <summary>Marks a promise as kept, so it stops appearing as outstanding.</summary>
-    public void FulfilCommitment(long commitmentId, long? byCallId = null)
+    /// <summary>Several at once — the ledger's select mode. One transaction, one ruling each.</summary>
+    public int DismissCommitments(IEnumerable<long> commitmentIds)
+    {
+        var ids = commitmentIds.Distinct().ToList();
+        if (ids.Count == 0) return 0;
+
+        using var connection = Open();
+        return connection.Execute(
+            "UPDATE commitment SET dismissed_by_user = 1, decided_at = @now WHERE id IN @ids;",
+            new { ids, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>
+    /// Takes a dismissal back. The row was never deleted — a dismissal is a tombstone, so the
+    /// same words are not found again on the next run — so bringing it back is one flag.
+    /// </summary>
+    public void RestoreCommitment(long commitmentId)
     {
         using var connection = Open();
         connection.Execute(
-            "UPDATE commitment SET status = 1, fulfilled_by_call_id = @byCallId WHERE id = @commitmentId;",
-            new { commitmentId, byCallId });
+            "UPDATE commitment SET dismissed_by_user = 0, decided_at = @now WHERE id = @commitmentId;",
+            new { commitmentId, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>
+    /// Marks a promise as kept, so it stops appearing as outstanding. Stamped: "tutuldu" was a
+    /// status with no date, and a list that says "işaretledin: 4 tutuldu" needs to know when.
+    /// </summary>
+    public void FulfilCommitment(long commitmentId, long? byCallId = null, DateTimeOffset? at = null)
+    {
+        using var connection = Open();
+        var when = Iso(at ?? DateTimeOffset.UtcNow);
+
+        connection.Execute(
+            """
+            UPDATE commitment
+               SET status = 1, fulfilled_by_call_id = @byCallId, fulfilled_at = @when, decided_at = @when
+             WHERE id = @commitmentId;
+            """,
+            new { commitmentId, byCallId, when });
+    }
+
+    /// <summary>Undoes "tutuldu" (or "tutulmadı"): back to open, the stamps cleared.</summary>
+    public void ReopenCommitment(long commitmentId)
+    {
+        using var connection = Open();
+        connection.Execute(
+            """
+            UPDATE commitment
+               SET status = 0, fulfilled_by_call_id = NULL, fulfilled_at = NULL, decided_at = @now
+             WHERE id = @commitmentId;
+            """,
+            new { commitmentId, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>
+    /// The user says it was not kept. Only the user: the machine never concludes that from a
+    /// silence, and "open past its date" is a different, weaker statement that the screens make
+    /// on their own.
+    /// </summary>
+    public void AbandonCommitment(long commitmentId)
+    {
+        using var connection = Open();
+        connection.Execute(
+            "UPDATE commitment SET status = 3, decided_at = @now WHERE id = @commitmentId;",
+            new { commitmentId, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>
+    /// The user's own deadline. The spoken one stays in deadline_date: a postponement must not
+    /// read as the other person having moved a date, which is what the deterministic check
+    /// looks for. Null clears it; edited_at follows whichever user column is still set.
+    /// </summary>
+    public void SetUserDeadline(long commitmentId, DateOnly? deadline)
+    {
+        using var connection = Open();
+        connection.Execute(
+            """
+            UPDATE commitment
+               SET user_deadline_date = @deadline,
+                   edited_at = CASE WHEN @deadline IS NULL AND user_obligation IS NULL THEN NULL ELSE @now END
+             WHERE id = @commitmentId;
+            """,
+            new { commitmentId, deadline = deadline?.ToString("yyyy-MM-dd"), now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>The user's rewording of what was promised. The quote is never touched.</summary>
+    public void SetUserObligation(long commitmentId, string? obligation)
+    {
+        var text = string.IsNullOrWhiteSpace(obligation) ? null : obligation.Trim();
+
+        using var connection = Open();
+        connection.Execute(
+            """
+            UPDATE commitment
+               SET user_obligation = @text,
+                   edited_at = CASE WHEN @text IS NULL AND user_deadline_date IS NULL THEN NULL ELSE @now END
+             WHERE id = @commitmentId;
+            """,
+            new { commitmentId, text, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>
+    /// Every promise, both directions, one query — what the Sözler page, the calendar, the
+    /// caller strip and the home screen all read, so "four copies of the same list" cannot
+    /// disagree. Status is judged in code from the row; this only narrows.
+    /// </summary>
+    public IReadOnlyList<PromiseRow> PromiseLedger(DateOnly? since = null, long? contactId = null, bool includeClosed = false)
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<CommitmentRow, string?, string, (CommitmentRow, string?, string)>(
+            """
+            SELECT cm.*, ct.name, c.started_at
+            FROM commitment cm
+            JOIN call c ON c.id = cm.call_id
+            LEFT JOIN contact ct ON ct.id = cm.contact_id
+            WHERE (@includeClosed = 1 OR (cm.status = 0 AND cm.dismissed_by_user = 0))
+              AND (@contactId IS NULL OR cm.contact_id = @contactId)
+              AND (@since IS NULL OR c.started_at >= @since)
+            ORDER BY c.started_at DESC, cm.id;
+            """,
+            (commitment, name, startedAt) => (commitment, name, startedAt),
+            new
+            {
+                includeClosed = includeClosed ? 1 : 0,
+                contactId,
+                since = since is { } day ? Iso(new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)) : null,
+            },
+            splitOn: "name,started_at");
+
+        return [.. rows.Select(r => new PromiseRow(r.Item1.ToModel(), r.Item2 ?? "Bilinmeyen", ParseIso(r.Item3)))];
+    }
+
+    /// <summary>The promises the user turned down, newest ruling first — the "Reddedilenler" chip.</summary>
+    public IReadOnlyList<(Commitment Commitment, string ContactName)> DismissedCommitments(int limit = 500)
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<CommitmentRow, string?, (CommitmentRow, string?)>(
+            """
+            SELECT cm.*, ct.name
+            FROM commitment cm
+            LEFT JOIN contact ct ON ct.id = cm.contact_id
+            WHERE cm.dismissed_by_user = 1
+            ORDER BY cm.decided_at DESC, cm.id DESC
+            LIMIT @limit;
+            """,
+            (commitment, name) => (commitment, name),
+            new { limit },
+            splitOn: "name");
+
+        return [.. rows.Select(r => (r.Item1.ToModel(), r.Item2 ?? "Bilinmeyen"))];
     }
 
     /// <summary>
@@ -2158,11 +2343,13 @@ public sealed class Repository(Database database)
         // produces is replaced on every run and nothing is lost, but a judgement thrown away is
         // work the user has to do again, and doing it again is how a ledger stops being trusted.
         //
-        // status 0 is the untouched default; anything else is somebody's decision.
+        // status 0 is the untouched default; anything else is somebody's decision. So is a
+        // postponed date or a reworded obligation: the user columns are the user's.
         connection.Execute(
             """
             DELETE FROM commitment
-             WHERE call_id = @callId AND status = 0 AND dismissed_by_user = 0;
+             WHERE call_id = @callId AND status = 0 AND dismissed_by_user = 0
+               AND edited_at IS NULL AND user_deadline_date IS NULL;
             """,
             new { callId }, transaction);
 
@@ -2216,6 +2403,157 @@ public sealed class Repository(Database database)
             .ToHashSet();
     }
 
+    /// <summary>
+    /// The promises of one conversation that ClearAnalysis leaves standing — ruled on, dismissed,
+    /// or edited — as (by whom, folded quote) keys. The K4 rule for commitments: the pipeline
+    /// checks this before inserting, so a promise the user marked kept is not written a second
+    /// time as a fresh open one, and a dismissed one does not return undismissed. Before this,
+    /// every re-run did both.
+    /// </summary>
+    public IReadOnlySet<(bool ByMe, string FoldedQuote)> SurvivingCommitmentKeys(long callId)
+    {
+        using var connection = Open();
+
+        return connection
+            .Query<(long ByMe, string Quote)>(
+                """
+                SELECT by_me, quote FROM commitment
+                 WHERE call_id = @callId
+                   AND (status <> 0 OR dismissed_by_user = 1
+                        OR edited_at IS NOT NULL OR user_deadline_date IS NOT NULL);
+                """,
+                new { callId })
+            .Select(r => (r.ByMe != 0, Text.TurkishText.NormalizeForSearch(r.Quote)))
+            .ToHashSet();
+    }
+
+    /// <summary>
+    /// Which transcript each derived note of a call was written from, against the one the call
+    /// shows now. Read by the call window to label a note stale rather than pass it off as
+    /// current; see <see cref="Domain.DerivedFreshness"/>.
+    /// </summary>
+    public DerivedFreshness DerivedFreshness(long callId)
+    {
+        using var connection = Open();
+
+        var row = connection.QuerySingleOrDefault<FreshnessRow>(
+            """
+            SELECT c.transcript_version_id AS current_version,
+                   (SELECT COUNT(*) FROM call_summary WHERE call_id = c.id) AS summary_count,
+                   (SELECT transcript_version_id FROM call_summary WHERE call_id = c.id) AS summary_version,
+                   (SELECT COUNT(*) FROM reading_note WHERE call_id = c.id) AS reading_count,
+                   (SELECT transcript_version_id FROM reading_note WHERE call_id = c.id) AS reading_version,
+                   (SELECT COUNT(*) FROM deception_note WHERE call_id = c.id) AS deception_count,
+                   (SELECT transcript_version_id FROM deception_note WHERE call_id = c.id) AS deception_version,
+                   (SELECT COUNT(*) FROM consistency_note WHERE call_id = c.id) AS consistency_count,
+                   (SELECT transcript_version_id FROM consistency_note WHERE call_id = c.id) AS consistency_version,
+                   (SELECT COUNT(*) FROM action_item WHERE call_id = c.id AND status = 0) AS action_count,
+                   (SELECT COUNT(*) FROM action_item WHERE call_id = c.id AND status = 0
+                                                       AND transcript_version_id IS NOT NULL) AS action_known,
+                   (SELECT COUNT(*) FROM action_item WHERE call_id = c.id AND status = 0
+                                                       AND transcript_version_id IS NOT NULL
+                                                       AND transcript_version_id <> c.transcript_version_id) AS action_stale
+              FROM call c
+             WHERE c.id = @callId;
+            """,
+            new { callId });
+
+        if (row is null) return new DerivedFreshness(null, Staleness.Absent, Staleness.Absent, Staleness.Absent, Staleness.Absent, Staleness.Absent);
+
+        var current = row.current_version;
+
+        // Open suggestions are many rows: stale if any was drawn from another transcript,
+        // unknown if none of them recorded one, fresh otherwise.
+        var actions = row.action_count == 0 ? Staleness.Absent
+            : current is null || row.action_known == 0 ? Staleness.Unknown
+            : row.action_stale > 0 ? Staleness.Stale
+            : Staleness.Fresh;
+
+        return new DerivedFreshness(
+            current,
+            Domain.DerivedFreshness.Judge(row.summary_count, row.summary_version, current),
+            Domain.DerivedFreshness.Judge(row.reading_count, row.reading_version, current),
+            Domain.DerivedFreshness.Judge(row.deception_count, row.deception_version, current),
+            Domain.DerivedFreshness.Judge(row.consistency_count, row.consistency_version, current),
+            actions);
+    }
+
+    // ---- verdicts (user data) -----------------------------------------------------------
+
+    /// <summary>
+    /// Records what the user heard. One verdict per moment: giving a second on the same words
+    /// at the same millisecond replaces the first, which is what "I changed my mind" means.
+    /// </summary>
+    public long SaveVerdict(Verdict verdict)
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        connection.Execute(
+            """
+            DELETE FROM verdict
+             WHERE call_id = @CallId AND kind = @Kind AND quote_folded = @QuoteFolded AND start_ms = @StartMs;
+            """,
+            new { verdict.CallId, verdict.Kind, verdict.QuoteFolded, verdict.StartMs }, transaction);
+
+        var id = connection.ExecuteScalar<long>(
+            """
+            INSERT INTO verdict (call_id, kind, target_id, quote_folded, start_ms, verdict, decided_at)
+            VALUES (@CallId, @Kind, @TargetId, @QuoteFolded, @StartMs, @Value, @DecidedAt)
+            RETURNING id;
+            """,
+            new
+            {
+                verdict.CallId,
+                verdict.Kind,
+                verdict.TargetId,
+                verdict.QuoteFolded,
+                verdict.StartMs,
+                Value = (int)verdict.Value,
+                DecidedAt = Iso(verdict.DecidedAt == default ? DateTimeOffset.UtcNow : verdict.DecidedAt),
+            }, transaction);
+
+        transaction.Commit();
+        return id;
+    }
+
+    /// <summary>The verdicts of one conversation, optionally of one kind, in the order they were about.</summary>
+    public IReadOnlyList<Verdict> Verdicts(long callId, string? kind = null)
+    {
+        using var connection = Open();
+
+        return [.. connection
+            .Query<VerdictRow>(
+                """
+                SELECT * FROM verdict
+                 WHERE call_id = @callId AND (@kind IS NULL OR kind = @kind)
+                 ORDER BY start_ms, id;
+                """,
+                new { callId, kind })
+            .Select(r => r.ToModel())];
+    }
+
+    /// <summary>How many verdicts of a kind exist, and how many of them say "correct" — the precision figure's two numbers.</summary>
+    public (int Listened, int Correct) VerdictTally(string kind, long? contactId = null)
+    {
+        using var connection = Open();
+
+        return connection.QuerySingle<(int Listened, int Correct)>(
+            """
+            SELECT COUNT(*), COALESCE(SUM(CASE WHEN v.verdict = 1 THEN 1 ELSE 0 END), 0)
+              FROM verdict v
+              JOIN call c ON c.id = v.call_id
+             WHERE v.kind = @kind AND (@contactId IS NULL OR c.contact_id = @contactId);
+            """,
+            new { kind, contactId });
+    }
+
+    public void DeleteVerdict(long verdictId)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM verdict WHERE id = @verdictId;", new { verdictId });
+    }
+
     /// <summary>Flags for one conversation, oldest first — the order the evidence happened in.</summary>
     public IReadOnlyList<Flag> FlagsOf(long callId, bool includeDismissed = false)
     {
@@ -2241,10 +2579,12 @@ public sealed class Repository(Database database)
             """
             INSERT INTO action_item (call_id, contact_id, action, reason, kind, quote,
                                      quote_start_ms, quote_is_me, deadline_raw, deadline_date,
-                                     status, routed_note, model_used, created_at)
+                                     status, routed_note, model_used, created_at,
+                                     transcript_version_id)
             VALUES (@CallId, @ContactId, @Action, @Reason, @Kind, @Quote,
                     @QuoteStartMs, @QuoteIsMe, @DeadlineRaw, @DeadlineDate,
-                    @Status, @RoutedNote, @ModelUsed, @CreatedAt)
+                    @Status, @RoutedNote, @ModelUsed, @CreatedAt,
+                    (SELECT transcript_version_id FROM call WHERE id = @CallId))
             RETURNING id;
             """,
             new
@@ -2317,9 +2657,17 @@ public sealed class Repository(Database database)
     {
         using var connection = Open();
 
+        // Stamped when it is a ruling; cleared when the row is reopened, because "open" is the
+        // absence of one.
         connection.Execute(
-            "UPDATE action_item SET status = @status, routed_note = @routedNote WHERE id = @actionId;",
-            new { actionId, status = (int)status, routedNote });
+            "UPDATE action_item SET status = @status, routed_note = @routedNote, decided_at = @decidedAt WHERE id = @actionId;",
+            new
+            {
+                actionId,
+                status = (int)status,
+                routedNote,
+                decidedAt = status == ActionStatus.Open ? null : Iso(DateTimeOffset.UtcNow),
+            });
     }
 
     /// <summary>Hidden suggestions' identities: (folded action, folded quote) — never resurrected.</summary>
@@ -2355,10 +2703,12 @@ public sealed class Repository(Database database)
 
         connection.Execute(
             """
-            INSERT INTO reading_note (call_id, json, model_used, created_at)
-            VALUES (@callId, @json, @modelUsed, @now)
+            INSERT INTO reading_note (call_id, json, model_used, created_at, transcript_version_id)
+            VALUES (@callId, @json, @modelUsed, @now,
+                    (SELECT transcript_version_id FROM call WHERE id = @callId))
             ON CONFLICT(call_id) DO UPDATE SET
-                json = excluded.json, model_used = excluded.model_used, created_at = excluded.created_at;
+                json = excluded.json, model_used = excluded.model_used, created_at = excluded.created_at,
+                transcript_version_id = excluded.transcript_version_id;
             """,
             new { callId, json, modelUsed, now = Iso(DateTimeOffset.UtcNow) });
     }
@@ -2390,10 +2740,12 @@ public sealed class Repository(Database database)
 
         connection.Execute(
             """
-            INSERT INTO deception_note (call_id, json, model_used, created_at)
-            VALUES (@callId, @json, @modelUsed, @now)
+            INSERT INTO deception_note (call_id, json, model_used, created_at, transcript_version_id)
+            VALUES (@callId, @json, @modelUsed, @now,
+                    (SELECT transcript_version_id FROM call WHERE id = @callId))
             ON CONFLICT(call_id) DO UPDATE SET
-                json = excluded.json, model_used = excluded.model_used, created_at = excluded.created_at;
+                json = excluded.json, model_used = excluded.model_used, created_at = excluded.created_at,
+                transcript_version_id = excluded.transcript_version_id;
             """,
             new { callId, json, modelUsed, now = Iso(DateTimeOffset.UtcNow) });
     }
@@ -2422,10 +2774,12 @@ public sealed class Repository(Database database)
 
         connection.Execute(
             """
-            INSERT INTO consistency_note (call_id, note, model_used, created_at)
-            VALUES (@callId, @note, @modelUsed, @now)
+            INSERT INTO consistency_note (call_id, note, model_used, created_at, transcript_version_id)
+            VALUES (@callId, @note, @modelUsed, @now,
+                    (SELECT transcript_version_id FROM call WHERE id = @callId))
             ON CONFLICT(call_id) DO UPDATE SET
-                note = excluded.note, model_used = excluded.model_used, created_at = excluded.created_at;
+                note = excluded.note, model_used = excluded.model_used, created_at = excluded.created_at,
+                transcript_version_id = excluded.transcript_version_id;
             """,
             new { callId, note, modelUsed, now = Iso(DateTimeOffset.UtcNow) });
     }
@@ -2449,10 +2803,10 @@ public sealed class Repository(Database database)
             """
             INSERT INTO commitment (call_id, contact_id, by_me, quote, quote_start_ms, obligation,
                                     deadline_raw, deadline_date, amount, currency, is_conditional,
-                                    status, fulfilled_by_call_id, dismissed_by_user)
+                                    status, fulfilled_by_call_id, dismissed_by_user, created_at)
             VALUES (@CallId, @ContactId, @ByMe, @Quote, @QuoteStartMs, @Obligation,
                     @DeadlineRaw, @DeadlineDate, @Amount, @Currency, @IsConditional,
-                    @Status, @FulfilledByCallId, 0)
+                    @Status, @FulfilledByCallId, 0, @CreatedAt)
             RETURNING id;
             """,
             new
@@ -2470,6 +2824,7 @@ public sealed class Repository(Database database)
                 IsConditional = commitment.IsConditional ? 1 : 0,
                 Status = (int)commitment.Status,
                 commitment.FulfilledByCallId,
+                CreatedAt = Iso(commitment.CreatedAt ?? DateTimeOffset.UtcNow),
             });
     }
 
@@ -2551,7 +2906,51 @@ public sealed class Repository(Database database)
     public void DismissFlag(long flagId)
     {
         using var connection = Open();
-        connection.Execute("UPDATE flag SET dismissed_by_user = 1 WHERE id = @flagId;", new { flagId });
+        connection.Execute(
+            "UPDATE flag SET dismissed_by_user = 1, decided_at = @now WHERE id = @flagId;",
+            new { flagId, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>Several at once — the ledger's select mode.</summary>
+    public int DismissFlags(IEnumerable<long> flagIds)
+    {
+        var ids = flagIds.Distinct().ToList();
+        if (ids.Count == 0) return 0;
+
+        using var connection = Open();
+        return connection.Execute(
+            "UPDATE flag SET dismissed_by_user = 1, decided_at = @now WHERE id IN @ids;",
+            new { ids, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>Takes a dismissal back; the row was a tombstone, never gone.</summary>
+    public void RestoreFlag(long flagId)
+    {
+        using var connection = Open();
+        connection.Execute(
+            "UPDATE flag SET dismissed_by_user = 0, decided_at = @now WHERE id = @flagId;",
+            new { flagId, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>The findings the user turned down, newest ruling first — the "Reddedilenler" chip.</summary>
+    public IReadOnlyList<(Flag Flag, string ContactName)> DismissedFlags(int limit = 500)
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<FlagRow, string?, (FlagRow, string?)>(
+            """
+            SELECT f.*, ct.name
+            FROM flag f
+            LEFT JOIN contact ct ON ct.id = f.contact_id
+            WHERE f.dismissed_by_user = 1
+            ORDER BY f.decided_at DESC, f.id DESC
+            LIMIT @limit;
+            """,
+            (flag, name) => (flag, name),
+            new { limit },
+            splitOn: "name");
+
+        return [.. rows.Select(r => (r.Item1.ToModel(), r.Item2 ?? "Bilinmeyen"))];
     }
 
     public IReadOnlyList<Commitment> GetOpenCommitments(long contactId)
@@ -2561,7 +2960,7 @@ public sealed class Repository(Database database)
             """
             SELECT * FROM commitment
             WHERE contact_id = @contactId AND status = 0 AND dismissed_by_user = 0
-            ORDER BY COALESCE(deadline_date, '9999-12-31');
+            ORDER BY COALESCE(user_deadline_date, deadline_date, '9999-12-31');
             """,
             new { contactId })
             .Select(r => r.ToModel())];
@@ -2599,13 +2998,15 @@ public sealed class Repository(Database database)
         using var connection = Open();
         connection.Execute(
             """
-            INSERT INTO call_summary (call_id, summary, action_items, model_used, created_at)
-            VALUES (@CallId, @Summary, @ActionItems, @ModelUsed, @CreatedAt)
+            INSERT INTO call_summary (call_id, summary, action_items, model_used, created_at, transcript_version_id)
+            VALUES (@CallId, @Summary, @ActionItems, @ModelUsed, @CreatedAt,
+                    (SELECT transcript_version_id FROM call WHERE id = @CallId))
             ON CONFLICT(call_id) DO UPDATE SET
                 summary      = excluded.summary,
                 action_items = excluded.action_items,
                 model_used   = excluded.model_used,
-                created_at   = excluded.created_at;
+                created_at   = excluded.created_at,
+                transcript_version_id = excluded.transcript_version_id;
             """,
             new
             {
@@ -2913,16 +3314,18 @@ public sealed class Repository(Database database)
             .. connection
                 .Query<(long CallId, string? Name, string Obligation, string Day)>(
                     """
-                    SELECT cm.call_id, ct.name, cm.obligation, cm.deadline_date
+                    SELECT cm.call_id, ct.name, COALESCE(cm.user_obligation, cm.obligation),
+                           COALESCE(cm.user_deadline_date, cm.deadline_date)
                     FROM commitment cm
                     LEFT JOIN contact ct ON ct.id = cm.contact_id
                     WHERE cm.by_me = 1
                       AND cm.status = 0
                       AND cm.dismissed_by_user = 0
                       AND cm.is_conditional = 0
-                      AND cm.deadline_date IS NOT NULL
-                      AND cm.deadline_date >= @from AND cm.deadline_date <= @to
-                    ORDER BY cm.deadline_date;
+                      AND COALESCE(cm.user_deadline_date, cm.deadline_date) IS NOT NULL
+                      AND COALESCE(cm.user_deadline_date, cm.deadline_date) >= @from
+                      AND COALESCE(cm.user_deadline_date, cm.deadline_date) <= @to
+                    ORDER BY COALESCE(cm.user_deadline_date, cm.deadline_date);
                     """,
                     new { from = from.ToString("yyyy-MM-dd"), to = to.ToString("yyyy-MM-dd") })
                 .Select(r => (
@@ -2948,16 +3351,18 @@ public sealed class Repository(Database database)
             .. connection
                 .Query<(long CallId, string? Name, string Obligation, string Day)>(
                     """
-                    SELECT cm.call_id, ct.name, cm.obligation, cm.deadline_date
+                    SELECT cm.call_id, ct.name, COALESCE(cm.user_obligation, cm.obligation),
+                           COALESCE(cm.user_deadline_date, cm.deadline_date)
                     FROM commitment cm
                     LEFT JOIN contact ct ON ct.id = cm.contact_id
                     WHERE cm.by_me = 0
                       AND cm.status = 0
                       AND cm.dismissed_by_user = 0
                       AND cm.is_conditional = 0
-                      AND cm.deadline_date IS NOT NULL
-                      AND cm.deadline_date >= @from AND cm.deadline_date <= @to
-                    ORDER BY cm.deadline_date;
+                      AND COALESCE(cm.user_deadline_date, cm.deadline_date) IS NOT NULL
+                      AND COALESCE(cm.user_deadline_date, cm.deadline_date) >= @from
+                      AND COALESCE(cm.user_deadline_date, cm.deadline_date) <= @to
+                    ORDER BY COALESCE(cm.user_deadline_date, cm.deadline_date);
                     """,
                     new { from = from.ToString("yyyy-MM-dd"), to = to.ToString("yyyy-MM-dd") })
                 .Select(r => (
@@ -3354,10 +3759,12 @@ public sealed class Repository(Database database)
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
 
+        // The same rule as ClearAnalysis: a row the user ruled on or edited is theirs.
         var hollow = connection.Execute(
             """
             DELETE FROM commitment
              WHERE status = 0 AND dismissed_by_user = 0
+               AND edited_at IS NULL AND user_deadline_date IS NULL
                AND (obligation IS NULL OR TRIM(obligation) = '');
             """,
             transaction: transaction);
@@ -3368,6 +3775,7 @@ public sealed class Repository(Database database)
             """
             DELETE FROM commitment
              WHERE status = 0 AND dismissed_by_user = 0
+               AND edited_at IS NULL AND user_deadline_date IS NULL
                AND id NOT IN (
                    SELECT MIN(id) FROM commitment
                     GROUP BY call_id, by_me, TRIM(LOWER(obligation)), TRIM(LOWER(quote)));
@@ -4143,6 +4551,9 @@ public sealed class Repository(Database database)
 
     private static string Iso(DateTimeOffset value) => value.UtcDateTime.ToString("O");
 
+    /// <summary>One promise as the promise screens read it: the row, whose it is, and when it was made.</summary>
+    public sealed record PromiseRow(Commitment Commitment, string ContactName, DateTimeOffset CallStartedAt);
+
     private static DateTimeOffset ParseIso(string value) =>
         DateTimeOffset.Parse(value, System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal);
@@ -4287,6 +4698,12 @@ public sealed class Repository(Database database)
         public long status { get; set; }
         public long? fulfilled_by_call_id { get; set; }
         public long dismissed_by_user { get; set; }
+        public string? created_at { get; set; }
+        public string? fulfilled_at { get; set; }
+        public string? decided_at { get; set; }
+        public string? user_deadline_date { get; set; }
+        public string? user_obligation { get; set; }
+        public string? edited_at { get; set; }
 
         public Commitment ToModel() => new()
         {
@@ -4305,6 +4722,12 @@ public sealed class Repository(Database database)
             Status = (CommitmentStatus)status,
             FulfilledByCallId = fulfilled_by_call_id,
             DismissedByUser = dismissed_by_user != 0,
+            CreatedAt = created_at is null ? null : ParseIso(created_at),
+            FulfilledAt = fulfilled_at is null ? null : ParseIso(fulfilled_at),
+            DecidedAt = decided_at is null ? null : ParseIso(decided_at),
+            UserDeadlineDate = user_deadline_date is null ? null : DateOnly.Parse(user_deadline_date),
+            UserObligation = user_obligation,
+            EditedAt = edited_at is null ? null : ParseIso(edited_at),
         };
     }
 
@@ -4360,6 +4783,7 @@ public sealed class Repository(Database database)
         public string source { get; set; } = Flag.Sources.Pipeline;
         public string? confidence { get; set; }
         public string created_at { get; set; } = "";
+        public string? decided_at { get; set; }
 
         public Flag ToModel() => new()
         {
@@ -4379,6 +4803,7 @@ public sealed class Repository(Database database)
             Source = source,
             Confidence = confidence,
             CreatedAt = ParseIso(created_at),
+            DecidedAt = decided_at is null ? null : ParseIso(decided_at),
         };
     }
 
@@ -4399,6 +4824,8 @@ public sealed class Repository(Database database)
         public string? routed_note { get; set; }
         public string? model_used { get; set; }
         public string created_at { get; set; } = "";
+        public long? transcript_version_id { get; set; }
+        public string? decided_at { get; set; }
 
         public ActionItem ToModel() => new()
         {
@@ -4417,6 +4844,8 @@ public sealed class Repository(Database database)
             RoutedNote = routed_note,
             ModelUsed = model_used,
             CreatedAt = ParseIso(created_at),
+            TranscriptVersionId = transcript_version_id,
+            DecidedAt = decided_at is null ? null : ParseIso(decided_at),
         };
     }
 
@@ -4428,6 +4857,7 @@ public sealed class Repository(Database database)
         public string? action_items { get; set; }
         public string? model_used { get; set; }
         public string created_at { get; set; } = "";
+        public long? transcript_version_id { get; set; }
 
         public CallSummary ToModel() => new()
         {
@@ -4437,6 +4867,48 @@ public sealed class Repository(Database database)
             ActionItems = action_items,
             ModelUsed = model_used,
             CreatedAt = ParseIso(created_at),
+            TranscriptVersionId = transcript_version_id,
         };
+    }
+
+    private sealed class VerdictRow
+    {
+        public long id { get; set; }
+        public long call_id { get; set; }
+        public string kind { get; set; } = "";
+        public long? target_id { get; set; }
+        public string quote_folded { get; set; } = "";
+        public long start_ms { get; set; }
+        public long verdict { get; set; }
+        public string decided_at { get; set; } = "";
+
+        public Verdict ToModel() => new()
+        {
+            Id = id,
+            CallId = call_id,
+            Kind = kind,
+            TargetId = target_id,
+            QuoteFolded = quote_folded,
+            StartMs = (int)start_ms,
+            Value = (VerdictValue)verdict,
+            DecidedAt = ParseIso(decided_at),
+        };
+    }
+
+    /// <summary>One row per call: the counts and pointers DerivedFreshness judges from.</summary>
+    private sealed class FreshnessRow
+    {
+        public long? current_version { get; set; }
+        public long summary_count { get; set; }
+        public long? summary_version { get; set; }
+        public long reading_count { get; set; }
+        public long? reading_version { get; set; }
+        public long deception_count { get; set; }
+        public long? deception_version { get; set; }
+        public long consistency_count { get; set; }
+        public long? consistency_version { get; set; }
+        public long action_count { get; set; }
+        public long action_known { get; set; }
+        public long action_stale { get; set; }
     }
 }

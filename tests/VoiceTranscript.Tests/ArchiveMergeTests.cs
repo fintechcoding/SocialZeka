@@ -217,6 +217,62 @@ public class ArchiveMergeTests : IDisposable
         Assert.All(_myRepository.ListCalls(limit: 100), c => Assert.Null(c.MicPath));
     }
 
+    /// <summary>
+    /// The transcript pointers point at rows in the OTHER database. Goes red when a merged call
+    /// or note carries the archive's row id unmapped — which either points at a stranger's
+    /// transcript here or, with foreign keys on, refuses the whole import — or when a verdict
+    /// the user gave on the other machine does not arrive.
+    /// </summary>
+    [Fact]
+    public async Task TranscriptPointersAndVerdictsAreRemappedOnTheWayIn()
+    {
+        // Something already here, so the incoming ids cannot happen to coincide with ours.
+        var mine = _myRepository.UpsertContact("Zeynep", CallApp.WhatsApp);
+        var myCall = Call(_myRepository, _mine, mine, Only.AddDays(3), ["benim", "satırlarım"]);
+        _myRepository.SaveTranscriptVersion(myCall, "large-v3", 0.7, [.. _myRepository.GetSegments(myCall)]);
+
+        var ayse = _theirRepository.UpsertContact("Ayşe", CallApp.WhatsApp);
+        var theirs = Call(_theirRepository, _theirs, ayse, Only, ["onların", "dökümü", "üç satır"]);
+
+        var lines = _theirRepository.GetSegments(theirs);
+        _theirRepository.SaveTranscriptVersion(theirs, "nova-3", 0.9, [.. lines]);
+        _theirRepository.SaveTranscriptVersion(theirs, "large-v3", 0.8, [.. lines]);
+        _theirRepository.SaveReading(theirs, "{}", "qwen");
+        _theirRepository.SaveSummary(new CallSummary { CallId = theirs, Summary = "özet" });
+        _theirRepository.InsertAction(new ActionItem { CallId = theirs, ContactId = ayse, Action = "Ara", Quote = "üç satır" });
+        _theirRepository.SaveVerdict(new Verdict
+        {
+            CallId = theirs, Kind = VerdictKind.Flag, QuoteFolded = "uc satir", StartMs = 4000, Value = VerdictValue.Correct,
+        });
+
+        var file = Path.Combine(_root, "yedek-v15.zip");
+        await _theirBackup.BackupAsync(file, includeAudio: false);
+
+        await _myBackup.ImportAsync(file);
+
+        var imported = _myRepository.ListCalls(limit: 100).Single(c => c.StartedAt == Only);
+
+        // The call shows the transcript it showed over there — the newer of the two — and it is
+        // a row of THIS database.
+        var current = _myRepository.CurrentTranscriptVersion(imported.Id);
+        Assert.NotNull(current);
+        Assert.Equal("large-v3", current!.Engine);
+        Assert.Equal(2, _myRepository.ListTranscriptVersions(imported.Id).Count);
+
+        // Every note came filed under that transcript, not under a foreign id.
+        var freshness = _myRepository.DerivedFreshness(imported.Id);
+        Assert.Equal(Staleness.Fresh, freshness.Reading);
+        Assert.Equal(Staleness.Fresh, freshness.Summary);
+        Assert.Equal(Staleness.Fresh, freshness.Actions);
+
+        // And what the user heard came with the call.
+        var verdict = Assert.Single(_myRepository.Verdicts(imported.Id));
+        Assert.Equal("uc satir", verdict.QuoteFolded);
+
+        // Ours is untouched.
+        Assert.Equal("large-v3", _myRepository.CurrentTranscriptVersion(myCall)!.Engine);
+    }
+
     [Fact]
     public async Task ImportingTheSameFileTwiceChangesNothingTheSecondTime()
     {

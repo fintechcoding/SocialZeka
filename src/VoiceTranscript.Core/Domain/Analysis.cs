@@ -40,8 +40,40 @@ public sealed record Commitment
     /// <summary>Set when the user says this is not really a commitment. Suppressed thereafter.</summary>
     public bool DismissedByUser { get; init; }
 
+    /// <summary>When the row was written. Null for rows from before this was recorded.</summary>
+    public DateTimeOffset? CreatedAt { get; init; }
+
+    /// <summary>When the user marked it kept. Null while it is not.</summary>
+    public DateTimeOffset? FulfilledAt { get; init; }
+
+    /// <summary>The user's last ruling of any kind — kept, dismissed, reopened, brought back.</summary>
+    public DateTimeOffset? DecidedAt { get; init; }
+
+    /// <summary>
+    /// The user's own deadline, when they postponed it. <see cref="DeadlineDate"/> stays what the
+    /// words said; this is what they changed it to, and it wins wherever a date is shown or
+    /// counted. A re-run never touches a row that has one — and the deterministic check for a
+    /// moved deadline reads the spoken date only, so a postponement is never held against the
+    /// other person as a slipped promise.
+    /// </summary>
+    public DateOnly? UserDeadlineDate { get; init; }
+
+    /// <summary>The user's rewording of the obligation. The quote itself is never edited.</summary>
+    public string? UserObligation { get; init; }
+
+    public DateTimeOffset? EditedAt { get; init; }
+
+    /// <summary>The date that counts: the user's, when they set one, otherwise the spoken one.</summary>
+    public DateOnly? EffectiveDeadline => UserDeadlineDate ?? DeadlineDate;
+
+    /// <summary>The wording that is shown: the user's, when they gave one.</summary>
+    public string EffectiveObligation => string.IsNullOrWhiteSpace(UserObligation) ? Obligation : UserObligation;
+
+    /// <summary>True when the user changed the date or the wording; such a row survives re-runs.</summary>
+    public bool IsEdited => EditedAt is not null;
+
     public bool IsOverdue(DateOnly today) =>
-        Status == CommitmentStatus.Open && DeadlineDate is { } due && due < today;
+        Status == CommitmentStatus.Open && EffectiveDeadline is { } due && due < today;
 }
 
 public enum CommitmentStatus
@@ -172,6 +204,9 @@ public sealed record Flag
 
     public DateTimeOffset CreatedAt { get; init; }
 
+    /// <summary>When the user last ruled on it — dismissed, or brought back. Null: never.</summary>
+    public DateTimeOffset? DecidedAt { get; init; }
+
     public static class Sources
     {
         public const string Pipeline = "pipeline";
@@ -191,4 +226,7 @@ public sealed record CallSummary
     public string? ActionItems { get; init; }
     public string? ModelUsed { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>Which stored transcript it was written from; null when that was not recorded.</summary>
+    public long? TranscriptVersionId { get; init; }
 }

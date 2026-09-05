@@ -17,7 +17,7 @@
 /// </summary>
 public static class Schema
 {
-    public const int Version = 14;
+    public const int Version = 15;
 
     public static readonly string[] Statements =
     [
@@ -243,7 +243,24 @@ public static class Schema
             is_conditional      INTEGER NOT NULL DEFAULT 0,
             status              INTEGER NOT NULL DEFAULT 0,
             fulfilled_by_call_id INTEGER REFERENCES call(id) ON DELETE SET NULL,
-            dismissed_by_user   INTEGER NOT NULL DEFAULT 0
+            dismissed_by_user   INTEGER NOT NULL DEFAULT 0,
+
+            -- When the row was written. NULL on rows from before v15: "bilinmiyor", not a guess.
+            created_at          TEXT,
+
+            -- The user's rulings, stamped. fulfilled_at is when they marked it kept; decided_at
+            -- the last ruling of any kind (kept, dismissed, reopened, brought back) — so a list
+            -- can say "işaretledin: 4 tutuldu" with dates rather than a bare status.
+            fulfilled_at        TEXT,
+            decided_at          TEXT,
+
+            -- USER COLUMNS. deadline_date and obligation stay what the words said — the machine's
+            -- reading of the quote, replaced on every re-run. These are what the user changed
+            -- them to (postponed, reworded), and a row that carries either survives every re-run:
+            -- a ruling thrown away is work the user has to do again. The quote is never edited.
+            user_deadline_date  TEXT,
+            user_obligation     TEXT,
+            edited_at           TEXT
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_commitment_contact ON commitment(contact_id, status);",
@@ -290,7 +307,10 @@ public static class Schema
             -- The model's stated confidence for consistency findings (dusuk/orta/yuksek).
             confidence            TEXT,
 
-            created_at            TEXT    NOT NULL
+            created_at            TEXT    NOT NULL,
+
+            -- When the user last ruled on it: dismissed, or brought back. NULL: never.
+            decided_at            TEXT
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_flag_contact ON flag(contact_id, dismissed_by_user);",
@@ -304,7 +324,11 @@ public static class Schema
             call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
             note       TEXT    NOT NULL,
             model_used TEXT,
-            created_at TEXT    NOT NULL
+            created_at TEXT    NOT NULL,
+
+            -- Which stored transcript this was written from. NULL on rows older than v15, which
+            -- the screen says as "bilinmiyor" and never as "bayat".
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL
         );
         """,
 
@@ -331,7 +355,12 @@ public static class Schema
             status         INTEGER NOT NULL DEFAULT 0,
             routed_note    TEXT,
             model_used     TEXT,
-            created_at     TEXT    NOT NULL
+            created_at     TEXT    NOT NULL,
+
+            -- Which stored transcript the suggestion was drawn from (NULL before v15), and when
+            -- the user last ruled on it (done, hidden, routed, reopened).
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
+            decided_at     TEXT
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_action_call ON action_item(call_id);",
@@ -341,12 +370,20 @@ public static class Schema
         // Deliberately a dead end in the data model: nothing joins on it, nothing feeds it to
         // other prompts, nothing surfaces it outside the one panel beside the evidence — a
         // subjective reading lives next to the transcript it read, and nowhere else.
+        //
+        // The one pointer it carries goes the other way: which transcript it read. A call that
+        // is transcribed again keeps its reading, and the screen can then say the reading is of
+        // an earlier text rather than pass it off as a reading of the one on screen.
         """
         CREATE TABLE IF NOT EXISTS reading_note (
             call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
             json       TEXT    NOT NULL,
             model_used TEXT,
-            created_at TEXT    NOT NULL
+            created_at TEXT    NOT NULL,
+
+            -- Which stored transcript this was written from. NULL on rows older than v15, which
+            -- the screen says as "bilinmiyor" and never as "bayat".
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL
         );
         """,
 
@@ -359,7 +396,11 @@ public static class Schema
             call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
             json       TEXT    NOT NULL,
             model_used TEXT,
-            created_at TEXT    NOT NULL
+            created_at TEXT    NOT NULL,
+
+            -- Which stored transcript this was written from. NULL on rows older than v15, which
+            -- the screen says as "bilinmiyor" and never as "bayat".
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL
         );
         """,
 
@@ -371,6 +412,10 @@ public static class Schema
             action_items TEXT,
             model_used TEXT,
             created_at TEXT    NOT NULL,
+
+            -- Which stored transcript this was written from. NULL on rows older than v15, which
+            -- the screen says as "bilinmiyor" and never as "bayat".
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
             UNIQUE(call_id)
         );
         """,
@@ -384,10 +429,9 @@ public static class Schema
 
         // What the user wrote about a conversation themselves.
         //
-        // Its own table rather than a column on `call`, and that is forced rather than preferred:
-        // Migrate() runs CREATE TABLE IF NOT EXISTS over this list and there is no ALTER TABLE
-        // machinery, so adding a column would silently do nothing on every database that already
-        // exists — which is all of them.
+        // Its own table rather than a column on `call`: it predates the migration steps (v3 and
+        // later), when a column could not be added to a database that already existed, and moving
+        // it now would be churn for nothing.
         //
         // Kept apart from the summary on purpose. Everything else the archive holds about a call
         // was produced by a machine and is replaced whenever the call is analysed again; this is
@@ -446,8 +490,8 @@ public static class Schema
         //
         // Photo and birth date are fixed columns because the application computes with them
         // (file lifecycle, upcoming-day arithmetic). Everything else is label+value rows: nobody
-        // can enumerate in advance what somebody wants to remember about an acquaintance, and
-        // with no ALTER TABLE machinery every future fixed column would cost another table anyway.
+        // can enumerate in advance what somebody wants to remember about an acquaintance, and a
+        // fixed column is a migration step each time, which a label+value row is not.
         """
         CREATE TABLE IF NOT EXISTS contact_profile (
             contact_id INTEGER PRIMARY KEY REFERENCES contact(id) ON DELETE CASCADE,
@@ -598,5 +642,37 @@ public static class Schema
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_transcript_call ON transcript_version(call_id, created_at DESC);",
+
+        // What the user heard when they listened.
+        //
+        // USER-ENTERED ONLY: nothing in the pipeline writes here, and ClearAnalysis never
+        // touches it. One table for every kind of listening verdict — a flag confirmed or
+        // refuted, a counted word that was or was not that word, a level peak that was or was
+        // not a change — because every honest figure the coaching screens will show ("14 sayımın
+        // 11'i dinlendi, 10'u doğru") is a ratio over this table, and four tables would be four
+        // ways to get it wrong.
+        //
+        // Keyed by the folded quote and the millisecond rather than by a row id alone. target_id
+        // is a convenience pointing at flag.id (later tactic_evidence.id) and means nothing after
+        // an archive merge, where ids differ; the words and the time survive a re-run and a
+        // merge, and are what a recount matches against. No foreign key on target_id, on purpose:
+        // it would make a merged archive refuse the user's own verdicts.
+        """
+        CREATE TABLE IF NOT EXISTS verdict (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id      INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+
+            -- 'flag' | 'kufur' | 'dolgu' | 'bilgi' | 'ton' | 'canli' | 'kalip'
+            kind         TEXT    NOT NULL,
+            target_id    INTEGER,
+            quote_folded TEXT    NOT NULL,
+            start_ms     INTEGER NOT NULL,
+
+            -- 1 doğru · 0 yanlış duyulmuş · 2 bu o değil · 3 uyarı isterdim · 4 gereksiz
+            verdict      INTEGER NOT NULL,
+            decided_at   TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_verdict_call ON verdict(call_id, kind);",
     ];
 }

@@ -263,5 +263,46 @@ public static class Migrations
         // Null for calls transcribed before this, which is honest: nothing recorded it then.
         new(14, "Görüşme, hangi dökümü gösterdiğini hatırlasın",
             ["ALTER TABLE call ADD COLUMN transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL;"]),
+
+        // v15 — three things the ledger could not say.
+        //
+        // Which transcript a derived note was written from: transcribing a call again replaced
+        // its lines and left the reading, the assessment, the summary and the suggestions
+        // standing on text that no longer existed, quoting words the screen no longer showed.
+        // When the user ruled on a promise or a flag, and what they changed it to: "tutuldu" was
+        // a status with no date, a postponed deadline had nowhere to go but over what was said,
+        // and a re-run erased both. And what the user heard when they listened: every precision
+        // figure the coaching screens will show is a ratio over the verdict table.
+        //
+        // All nullable, so nothing needs a default and old rows honestly read as "bilinmiyor".
+        new(15, "Türev notlar hangi dökümden; söz kararları damgalı; kulak teyidi",
+            [
+                "ALTER TABLE reading_note ADD COLUMN transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL;",
+                "ALTER TABLE deception_note ADD COLUMN transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL;",
+                "ALTER TABLE consistency_note ADD COLUMN transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL;",
+                "ALTER TABLE action_item ADD COLUMN transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL;",
+                "ALTER TABLE call_summary ADD COLUMN transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL;",
+                "ALTER TABLE commitment ADD COLUMN created_at TEXT;",
+                "ALTER TABLE commitment ADD COLUMN fulfilled_at TEXT;",
+                "ALTER TABLE commitment ADD COLUMN decided_at TEXT;",
+                "ALTER TABLE commitment ADD COLUMN user_deadline_date TEXT;",
+                "ALTER TABLE commitment ADD COLUMN user_obligation TEXT;",
+                "ALTER TABLE commitment ADD COLUMN edited_at TEXT;",
+                "ALTER TABLE flag ADD COLUMN decided_at TEXT;",
+                "ALTER TABLE action_item ADD COLUMN decided_at TEXT;",
+                """
+                CREATE TABLE IF NOT EXISTS verdict (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    call_id      INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+                    kind         TEXT    NOT NULL,
+                    target_id    INTEGER,
+                    quote_folded TEXT    NOT NULL,
+                    start_ms     INTEGER NOT NULL,
+                    verdict      INTEGER NOT NULL,
+                    decided_at   TEXT    NOT NULL
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS ix_verdict_call ON verdict(call_id, kind);",
+            ]),
     ];
 }

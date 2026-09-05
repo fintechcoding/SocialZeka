@@ -384,6 +384,55 @@ public sealed class AnalysisPipelineTests : IDisposable
     }
 
     /// <summary>
+    /// Complaint 1, at the pipeline: a promise the user reworded, postponed, kept or dismissed
+    /// used to come back as it was on the next analysis — ClearAnalysis deleted it and the
+    /// re-run wrote the same words again as a fresh open row. Goes red when a second analysis
+    /// leaves two rows for one promise, or overwrites the user's wording.
+    /// </summary>
+    [Fact]
+    public async Task ASecondAnalysisNeitherDuplicatesNorOverwritesWhatTheUserRuledOn()
+    {
+        var (call, contact) = SeedCall(CallKind.OneToOne,
+            (true, 0, "Evraklar ne zaman gelir?"),
+            (false, 24_000, "Evrakları cuma günü yollarım, söz."),
+            (false, 40_000, "Faturayı da pazartesi keserim."));
+
+        const string reply =
+            """
+            {"taahhutler":[
+               {"konusan":"KARSI","alinti":"Evrakları cuma günü yollarım","yukumluluk":"evrak gönderimi","tarih_ham":"cuma günü","kosullu":false},
+               {"konusan":"KARSI","alinti":"Faturayı da pazartesi keserim","yukumluluk":"fatura kesimi","tarih_ham":"pazartesi","kosullu":false}],
+             "iddialar":[],"sorular":[],"baski_isaretleri":[]}
+            """;
+
+        await new AnalysisPipeline(new ScriptedLlm(reply), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var first = _repo.GetOpenCommitments(contact);
+        var evrak = first.Single(c => c.Obligation == "evrak gönderimi");
+        var fatura = first.Single(c => c.Obligation == "fatura kesimi");
+
+        _repo.SetUserObligation(evrak.Id, "Evrakları göndermek (benim sözlerimle)");
+        _repo.DismissCommitment(fatura.Id);
+
+        await new AnalysisPipeline(new ScriptedLlm(reply), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var everything = _repo.PromiseLedger(contactId: contact, includeClosed: true);
+
+        // Two promises were said; two rows exist — not four.
+        Assert.Equal(2, everything.Count);
+
+        var edited = Assert.Single(everything, r => r.Commitment.Id == evrak.Id);
+        Assert.Equal("Evrakları göndermek (benim sözlerimle)", edited.Commitment.EffectiveObligation);
+
+        var dismissed = Assert.Single(everything, r => r.Commitment.Id == fatura.Id);
+        Assert.True(dismissed.Commitment.DismissedByUser);
+
+        Assert.Single(_repo.GetOpenCommitments(contact));
+    }
+
+    /// <summary>
     /// The guard that matters most. A model that paraphrases while claiming to quote would
     /// otherwise produce fabricated evidence about a real person.
     /// </summary>
