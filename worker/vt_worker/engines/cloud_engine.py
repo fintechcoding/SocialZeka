@@ -157,6 +157,9 @@ class CloudWhisperEngine(AsrEngine):
         self._model = "whisper-1"
         self._timeout = 600
 
+        # See AsrEngine.audio_events: replaced per transcribe(), filled per chunk by _to_events.
+        self.audio_events: list[dict] = []
+
         # How much audio the upload being built covers, in seconds.
         #
         # Passed on the instance rather than through _build_request, whose signature every
@@ -205,6 +208,9 @@ class CloudWhisperEngine(AsrEngine):
 
         chunks = plan_chunks(wav_path, self.max_chunk_seconds)
         workspace = self._workspace(wav_path)
+
+        # This recording's only: the same instance goes on to transcribe the other channel.
+        self.audio_events = []
 
         try:
             segments: list[Segment] = []
@@ -288,7 +294,7 @@ class CloudWhisperEngine(AsrEngine):
         if os.path.exists(cache):
             try:
                 with open(cache, encoding="utf-8") as handle:
-                    return self._to_segments(json.load(handle), chunk.start_seconds)
+                    return self._parse(json.load(handle), chunk.start_seconds)
             except (OSError, json.JSONDecodeError):
                 os.unlink(cache)  # corrupt, fetch it again
 
@@ -367,7 +373,7 @@ class CloudWhisperEngine(AsrEngine):
                 except OSError:
                     pass
 
-        segments = self._to_segments(payload, chunk.start_seconds)
+        segments = self._parse(payload, chunk.start_seconds)
 
         # What came back, beside what went out. The service reports the language it decided on, and
         # that is the one number that says whether forcing ours was the right call.
@@ -406,9 +412,22 @@ class CloudWhisperEngine(AsrEngine):
 
         return segments
 
+    def _parse(self, payload: dict, offset: float) -> list[Segment]:
+        """One chunk's answer as segments, with whatever else it carried kept on the instance."""
+        self.audio_events.extend(self._to_events(payload, offset))
+        return self._to_segments(payload, offset)
+
     def _to_segments(self, payload: dict, offset: float) -> list[Segment]:
         """The provider's response, as segments on the call timeline. OpenAI's shape by default."""
         return _to_segments(payload, offset)
+
+    def _to_events(self, payload: dict, offset: float) -> list[dict]:
+        """
+        The non-speech the provider tagged, as ``{"start_ms", "end_ms", "kind"}`` on the call
+        timeline. Nothing by default: the OpenAI shape has no such item, and a provider that
+        tags them overrides this rather than smuggling them into the segments.
+        """
+        return []
 
     def _compress(self, wav_path: str, workspace: str, suffix: str = "") -> str:
         """

@@ -13,6 +13,9 @@ chunking, resumable uploads, retry, and error classification from the OpenAI eng
 
 from __future__ import annotations
 
+import math
+import re
+import unicodedata
 import urllib.parse
 from pathlib import Path
 
@@ -61,7 +64,10 @@ class ElevenLabsEngine(CloudWhisperEngine):
         fields: dict = {
             "model_id": self._model,
             "timestamps_granularity": "word",
-            "tag_audio_events": "false",
+            # Laughter and the like come back as items of their own in the word list. They are
+            # read past by _to_segments and collected by _to_events, so the words and their
+            # timings are the same with the flag as without it.
+            "tag_audio_events": "true",
             "diarize": "false",
         }
 
@@ -78,19 +84,43 @@ class ElevenLabsEngine(CloudWhisperEngine):
 
         return url, {"xi-api-key": self._api_key, "Content-Type": content_type}, body
 
+    def _request_signature(self, options: EngineOptions) -> dict:
+        # The event flag changes what comes back, so a chunk cached before it was switched on
+        # must not be replayed as the answer to a request that asks for events.
+        return {**super()._request_signature(options), "tag_audio_events": True}
+
     def _to_segments(self, payload: dict, offset: float) -> list[Segment]:
         words = [
             Word(
                 start=float(item.get("start", 0.0)) + offset,
                 end=float(item.get("end", 0.0)) + offset,
                 text=_with_leading_space(str(item.get("text", ""))),
-                probability=_prob(item.get("logprob")),
+                probability=_from_logprob(item.get("logprob")),
             )
             for item in payload.get("words") or []
             if item.get("type", "word") == "word" and str(item.get("text", "")).strip()
         ]
 
         return _single_segment(words, str(payload.get("text", "")), offset)
+
+    def _to_events(self, payload: dict, offset: float) -> list[dict]:
+        """
+        What the service heard that was not a word — laughter, applause — beside the words.
+
+        Kept out of the segments on purpose: "(laughter)" inside a line would be quoted as
+        something somebody said. The items share the word list, so the times go through the
+        same chunk offset as the words; in whole milliseconds, because that is the unit of
+        every span the C# side stores.
+        """
+        return [
+            {
+                "start_ms": _ms(float(item.get("start", 0.0)) + offset),
+                "end_ms": _ms(float(item.get("end", 0.0)) + offset),
+                "kind": _event_kind(str(item.get("text", ""))),
+            }
+            for item in payload.get("words") or []
+            if item.get("type") == "audio_event"
+        ]
 
 
 class DeepgramEngine(CloudWhisperEngine):
@@ -152,3 +182,29 @@ def _prob(value: object) -> float | None:
         return float(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _from_logprob(value: object) -> float | None:
+    """
+    ElevenLabs' word confidence on the scale every other engine uses.
+
+    The service reports a log-probability, 0 or below; faster-whisper and Deepgram report a
+    probability, 0 to 1; all of them land in the same ``Word.probability``. Stored as it came,
+    the threshold that reads 0.6 as "sure" on the others read every ElevenLabs word as doubtful —
+    -0.1 is a confident word. exp puts it on the contract's scale, and a figure the service did
+    not give stays None rather than becoming a number.
+    """
+    logprob = _prob(value)
+    if logprob is None or math.isnan(logprob):
+        return None
+    return math.exp(min(0.0, logprob))
+
+
+def _ms(seconds: float) -> int:
+    return max(0, int(round(seconds * 1000)))
+
+
+def _event_kind(text: str) -> str:
+    """Turns "(laughter)" into "laughter": one lower-case ASCII token the C# side can switch on."""
+    folded = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "_", folded).strip("_") or "unknown"

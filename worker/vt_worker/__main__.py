@@ -12,7 +12,7 @@ Every line written to stdout is one JSON object:
 
     {"type": "hello",    "engines": [...], "cuda": {...}}
     {"type": "progress", "id": "...", "stage": "mic", "percent": 42.0}
-    {"type": "result",   "id": "...", "segments": [...], "stats": {...}}
+    {"type": "result",   "id": "...", "segments": [...], "audio_events": [...], "stats": {...}}
     {"type": "error",    "id": "...", "code": "...", "message": "..."}
 
 Diagnostics go to stderr, never stdout, so the stream stays parseable.
@@ -26,6 +26,7 @@ import json
 import sys
 import time
 import traceback
+from collections.abc import Sequence
 from typing import Any
 
 from vt_worker import artifacts, chunking, dll_paths, gpu
@@ -163,12 +164,22 @@ def _segment_to_json(segment: Segment) -> dict[str, Any]:
     }
 
 
-def _transcript_to_json(job_id: str, merged: MergedTranscript, meta: dict[str, Any]) -> dict[str, Any]:
+def _transcript_to_json(
+    job_id: str,
+    merged: MergedTranscript,
+    meta: dict[str, Any],
+    audio_events: Sequence[dict[str, Any]] = (),
+) -> dict[str, Any]:
     stats = merged.stats
     return {
         "type": "result",
         "id": job_id,
         "segments": [_segment_to_json(s) for s in merged.segments],
+        # What was heard that was not speech — laughter, applause — as
+        # {"channel", "start_ms", "end_ms", "kind"}, in time order across both channels.
+        # Always present: an empty list for every engine that does not tag them, and which
+        # engines do is the reader's knowledge, by engine name.
+        "audio_events": sorted(audio_events, key=lambda e: (e["start_ms"], e["end_ms"])),
         "duration": round(merged.duration, 3),
         "stats": {
             "mic_segments": stats.mic_segments,
@@ -221,9 +232,9 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
         weight_from: float,
         weight_to: float,
         normalize: bool | None = None,
-    ) -> list[Segment]:
+    ) -> tuple[list[Segment], list[dict[str, Any]]]:
         if not path:
-            return []
+            return [], []
 
         # Each channel is asked for on its own terms. The two sides of a call are different kinds
         # of signal — one is a live microphone with a room behind it, the other is written by the
@@ -258,6 +269,11 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
 
         raw = engine.transcribe(path, stream_options, on_progress)
 
+        # Read now, before the same instance transcribes the other channel over it. Tagged with
+        # the channel here because the engine cannot know which side it was handed, and a laugh
+        # is only worth reporting when it is known whose it was.
+        heard = [{"channel": stage, **event} for event in engine.audio_events]
+
         # First the stamps themselves, because everything below trusts them.
         #
         # A word cannot last 1.5 seconds; where one claims to, the engine has stretched it back
@@ -274,15 +290,15 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
         # timestamps and the text stop agreeing.
         cut = resegment_on_gaps(raw, max_gap=max_gap)
 
-        return artifacts.clean(cut)
+        return artifacts.clean(cut), heard
 
     # The two streams are transcribed independently and only then merged. Attribution comes
     # from which file a segment was in, so it is a fact rather than a model prediction.
     # Room left at the top for a second attempt, which is a whole channel and not a rounding
     # error. It used to be announced inside 95-96 AFTER merge had claimed 97, so the bar went
     # backwards and the longest remaining step looked like one percent of the work.
-    mic_segments = transcribe_stream(mic_path, "mic", 5.0, 45.0)
-    far_segments = transcribe_stream(far_path, "far", 45.0, 85.0)
+    mic_segments, mic_events = transcribe_stream(mic_path, "mic", 5.0, 45.0)
+    far_segments, far_events = transcribe_stream(far_path, "far", 45.0, 85.0)
 
     merged = merge_streams(mic_segments, far_segments)
 
@@ -327,7 +343,8 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
             f"ses seviyeleme {'kapalı' if first_choice else 'açık'} olarak tekrar deneniyor")
 
         try:
-            retried = transcribe_stream(path, stage, 85.0, 95.0, normalize=not first_choice)
+            retried, retried_events = transcribe_stream(
+                path, stage, 85.0, 95.0, normalize=not first_choice)
         except EngineError as e:
             log(f"{stage}: ikinci deneme yapılamadı ({e.code})")
             continue
@@ -338,10 +355,11 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
             log(f"{stage}: ikinci deneme daha iyi, %{value * 100:.0f} → %{again * 100:.0f}")
             coverage[stage] = again
 
+            # The events travel with the answer they came from — the retry's, now that it is kept.
             if stage == "mic":
-                mic_segments = retried
+                mic_segments, mic_events = retried, retried_events
             else:
-                far_segments = retried
+                far_segments, far_events = retried, retried_events
 
             # Cleared before merging again, because merge_streams only ever sets these. A segment
             # marked as echo against the answer that was just discarded would keep the mark
@@ -376,6 +394,7 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
                     stage: round(value, 3) for stage, value in coverage.items() if value is not None
                 },
             },
+            audio_events=[*mic_events, *far_events],
         )
     )
     return 0
