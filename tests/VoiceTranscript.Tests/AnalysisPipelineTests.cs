@@ -55,6 +55,25 @@ public class TurkishDatesTests
     }
 
     /// <summary>
+    /// "Cumartesi" is Saturday, and "pazartesi" is Monday, even though each contains a shorter
+    /// weekday's name.
+    ///
+    /// Red means the weekday rule went back to matching the first table entry it found inside
+    /// the text: "cumartesi" resolved to Friday, a wrong date rather than none — and a promise
+    /// for Saturday was shown as missed on Saturday morning.
+    /// </summary>
+    [Fact]
+    public void ALongerWeekdayNameWinsOverTheShorterOneInsideIt()
+    {
+        var wednesday = new DateOnly(2026, 8, 12);
+
+        Assert.Equal(new DateOnly(2026, 8, 15), TurkishDates.TryResolve("cumartesi", wednesday));
+        Assert.Equal(new DateOnly(2026, 8, 15), TurkishDates.TryResolve("cumartesiye kadar", wednesday));
+        Assert.Equal(new DateOnly(2026, 8, 17), TurkishDates.TryResolve("pazartesi", wednesday));
+        Assert.Equal(new DateOnly(2026, 8, 16), TurkishDates.TryResolve("pazar", wednesday));
+    }
+
+    /// <summary>
     /// "Gelecek hafta cuma" is the Friday of the week after the call; "gelecek hafta" alone
     /// names a week, not a day, and stays unresolved rather than guessed.
     /// </summary>

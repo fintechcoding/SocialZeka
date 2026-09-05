@@ -38,3 +38,6 @@ tools/olcum/*.json
 tools/olcum/*.html
 tools/olcum/args.txt
 tools/olcum/*.npy
+
+# Ajan çalışma ağaçları (git worktree); depoya girmez.
+.claude/worktrees/

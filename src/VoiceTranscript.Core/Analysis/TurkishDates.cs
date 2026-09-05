@@ -145,7 +145,13 @@ public static class TurkishDates
     {
         result = default;
 
-        var match = Weekdays.FirstOrDefault(w => text.Contains(w.Key, StringComparison.Ordinal));
+        // The longest name that occurs, not the first in the table: "cumartesi" contains "cuma"
+        // and "pazartesi" contains "pazar", and a substring match in table order turned Saturday
+        // into Friday — a wrong date, which is worse than none.
+        var match = Weekdays
+            .Where(w => text.Contains(w.Key, StringComparison.Ordinal))
+            .OrderByDescending(w => w.Key.Length)
+            .FirstOrDefault();
         if (match.Key is null) return false;
 
         var daysAhead = ((int)match.Value - (int)spokenOn.DayOfWeek + 7) % 7;
