@@ -120,6 +120,9 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         Playback.PositionChanged += (_, ms) => Highlight(ms);
 
+        // "Geri al" on the Defter tab re-reads the rows it shows, as the other windows do.
+        LedgerUndo.Undone += (_, _) => LoadLedger();
+
         Load();
     }
 
@@ -284,6 +287,65 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     public bool HasSummary => !string.IsNullOrWhiteSpace(Summary);
     public bool HasLedger => Commitments.Count > 0 || Claims.Count > 0 || Flags.Count > 0;
     public bool HasTurns => Turns.Count > 0;
+
+    // ---- the Defter tab's verbs ---------------------------------------------------------------
+    //
+    // The same rulings the ledger page makes, on the rows this call produced, through the same
+    // service — so a promise dismissed here is a tombstone there, and "Geri al" works the same.
+
+    private long? _contactId;
+
+    /// <summary>What was just done to a promise or a finding here, and the way back.</summary>
+    public UndoSlot LedgerUndo { get; } = new();
+
+    /// <summary>This call's open promises, its claims, and its per-call findings.</summary>
+    private void LoadLedger()
+    {
+        Commitments.Clear();
+        Claims.Clear();
+        Flags.Clear();
+
+        if (_contactId is { } contactId)
+        {
+            foreach (var c in _repository.GetOpenCommitments(contactId).Where(c => c.CallId == CallId))
+                Commitments.Add(c);
+
+            foreach (var c in _repository.GetAllClaims(contactId).Where(c => c.CallId == CallId))
+                Claims.Add(c);
+
+            foreach (var f in _repository.GetFlags(contactId).Where(f => f.CallId == CallId))
+                if (f.Source != Flag.Sources.Consistency)
+                    Flags.Add(f);
+        }
+
+        OnPropertyChanged(nameof(HasLedger));
+    }
+
+    /// <summary>The user says it was kept. Only the user ever says so.</summary>
+    [RelayCommand]
+    private void FulfilCommitment(Commitment commitment)
+        => AfterLedgerVerb(Services.LedgerActions.Fulfil(_repository, commitment));
+
+    /// <summary>The user says it was not kept.</summary>
+    [RelayCommand]
+    private void AbandonCommitment(Commitment commitment)
+        => AfterLedgerVerb(Services.LedgerActions.Abandon(_repository, commitment));
+
+    /// <summary>Not a promise after all. The words stay in the transcript.</summary>
+    [RelayCommand]
+    private void DismissCommitment(Commitment commitment)
+        => AfterLedgerVerb(Services.LedgerActions.Dismiss(_repository, commitment));
+
+    [RelayCommand]
+    private void DismissFlag(Flag flag)
+        => AfterLedgerVerb(Services.LedgerActions.Dismiss(_repository, flag));
+
+    /// <summary>Re-reads the tab and offers the way back. The edit dialog lands here too.</summary>
+    public void AfterLedgerVerb(Services.PendingUndo undo)
+    {
+        LoadLedger();
+        LedgerUndo.Offer(undo);
+    }
 
     // ---- who did the talking --------------------------------------------------
     //
@@ -511,22 +573,8 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
         Summary = _repository.GetSummary(CallId)?.Summary;
 
-        Commitments.Clear();
-        Claims.Clear();
-        Flags.Clear();
-
-        if (call.ContactId is { } contactId)
-        {
-            foreach (var c in _repository.GetOpenCommitments(contactId).Where(c => c.CallId == CallId))
-                Commitments.Add(c);
-
-            foreach (var c in _repository.GetAllClaims(contactId).Where(c => c.CallId == CallId))
-                Claims.Add(c);
-
-            foreach (var f in _repository.GetFlags(contactId).Where(f => f.CallId == CallId))
-                if (f.Source != Flag.Sources.Consistency)
-                    Flags.Add(f);
-        }
+        _contactId = call.ContactId;
+        LoadLedger();
 
         LoadActions();
         LoadReading();

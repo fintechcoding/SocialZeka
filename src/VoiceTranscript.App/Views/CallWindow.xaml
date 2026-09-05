@@ -506,6 +506,34 @@
                         </StackPanel>
 
                         <!--
+                            What was just done to a row here, and the way back.
+
+                            Said in the tab rather than as a toast: a ruling on a promise is the kind of act that
+                            must not be one click away with no way back, and for as long as this line is on screen
+                            it can be taken back with one.
+                        -->
+                        <Border Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,0,0,10"
+                                Visibility="{Binding LedgerUndo.Notice, Converter={StaticResource NullToCollapsed}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="{Binding LedgerUndo.Notice}" Style="{StaticResource Secondary}"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+                                <ui:Button Grid.Column="1" Content="{loc:T callwindow.geri-al}" Appearance="Transparent"
+                                           Margin="8,0,0,0" Command="{Binding LedgerUndo.UndoCommand}"
+                                           Visibility="{Binding LedgerUndo.CanUndo, Converter={StaticResource BoolToVisibility}}" />
+
+                                <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
+                                           Command="{Binding LedgerUndo.ClearCommand}" />
+                            </Grid>
+                        </Border>
+
+                        <!--
                             An action rather than an empty page.
 
                             A conversation with a transcript and no analysis is the ordinary state
@@ -554,48 +582,103 @@
                                 <ItemsControl ItemsSource="{Binding Commitments}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel Margin="0,4">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <!-- Whose promise this is. "Sözler" without
-                                                         an owner reads as a list of what you are
-                                                         owed; half of them may be what you owe. -->
-                                                    <Border CornerRadius="4" Padding="5,0" Margin="0,0,6,0"
-                                                            VerticalAlignment="Center">
-                                                        <Border.Style>
-                                                            <Style TargetType="Border">
-                                                                <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding ByMe}" Value="True">
-                                                                        <Setter Property="Background" Value="{DynamicResource MeBrush}" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Border.Style>
-                                                        <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="White">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Setter Property="Text" Value="O" />
+                                            <Grid Margin="0,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Grid.Column="0">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Whose promise this is. "Sözler" without an owner reads as a
+                                                             list of what you are owed; half of them may be what you owe. -->
+                                                        <Border Grid.Column="0" CornerRadius="4" Padding="5,0" Margin="0,0,6,0"
+                                                                VerticalAlignment="Center">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding ByMe}" Value="True">
-                                                                            <Setter Property="Text" Value="SEN" />
+                                                                            <Setter Property="Background" Value="{DynamicResource MeBrush}" />
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
+                                                            </Border.Style>
+                                                            <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="White">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text" Value="O" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding ByMe}" Value="True">
+                                                                                <Setter Property="Text" Value="SEN" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Border>
+
+                                                        <!-- The user's wording when they gave one, the machine's otherwise;
+                                                             the badge says which. -->
+                                                        <TextBlock Grid.Column="1" Text="{Binding EffectiveObligation}" TextWrapping="Wrap"
+                                                                   VerticalAlignment="Center" />
+                                                        <Border Grid.Column="2" Style="{StaticResource Pill}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                                Visibility="{Binding IsEdited, Converter={StaticResource BoolToVisibility}}">
+                                                            <TextBlock Style="{StaticResource PillText}" Text="{loc:T callwindow.senin-duzeltmen}" />
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <!-- The quote is the evidence; it plays. -->
+                                                    <Border Background="Transparent" Cursor="Hand" Margin="0,2,0,0"
+                                                            MouseLeftButtonUp="CommitmentQuote_Click"
+                                                            ToolTip="{loc:T callwindow.alintiyi-dinle}">
+                                                        <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                     </Border>
-                                                    <TextBlock Text="{Binding Obligation}" TextWrapping="Wrap"
-                                                               VerticalAlignment="Center" />
                                                 </StackPanel>
-                                                <!-- The quote is the evidence; it plays. -->
-                                                <Border Background="Transparent" Cursor="Hand" Margin="0,2,0,0"
-                                                        MouseLeftButtonUp="CommitmentQuote_Click"
-                                                        ToolTip="{loc:T callwindow.alintiyi-dinle}">
-                                                    <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
-                                                               TextWrapping="Wrap"
-                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                                </Border>
-                                            </StackPanel>
+
+                                                <!--
+                                                    The user's verbs, the same ones the ledger page has. Tutuldu is the one thing the
+                                                    machine never concludes; ✎ and Ertele open the same dialog; Tutulmadı waits behind ⋯
+                                                    because it is rare. Reddet stands 12 px apart — a ruling, not another look.
+                                                -->
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
+                                                    <ui:Button Content="{loc:T callwindow.tutuldu}" Appearance="Secondary" Padding="10,4"
+                                                               ToolTip="{loc:T callwindow.bu-soz-tutuldu}"
+                                                               Command="{Binding DataContext.FulfilCommitmentCommand,
+                                                                         RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}" />
+
+                                                    <ui:Button Content="✎" Appearance="Transparent" Padding="8,4" Margin="6,0,0,0"
+                                                               ToolTip="{loc:T callwindow.duzenle}" Click="PromiseEdit_Click" />
+
+                                                    <ui:DropDownButton Padding="6,4" Margin="6,0,0,0"
+                                                                       ToolTip="{loc:T callwindow.bu-sozle-ilgili-diger-kararlar}">
+                                                        <ui:DropDownButton.Icon>
+                                                            <ui:SymbolIcon Symbol="MoreHorizontal24" />
+                                                        </ui:DropDownButton.Icon>
+                                                        <ui:DropDownButton.Flyout>
+                                                            <ContextMenu>
+                                                                <MenuItem Header="{loc:T callwindow.ertele}" Click="PromiseEdit_Click" />
+                                                                <MenuItem Header="{loc:T callwindow.tutulmadi}" Click="PromiseAbandon_Click" />
+                                                            </ContextMenu>
+                                                        </ui:DropDownButton.Flyout>
+                                                    </ui:DropDownButton>
+
+                                                    <ui:Button Content="{loc:T callwindow.reddet}" Appearance="Transparent" Padding="10,4" Margin="12,0,0,0"
+                                                               ToolTip="{loc:T callwindow.bu-sozu-reddet}"
+                                                               Command="{Binding DataContext.DismissCommitmentCommand,
+                                                                         RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}" />
+                                                </StackPanel>
+                                            </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -609,15 +692,30 @@
                                 <ItemsControl ItemsSource="{Binding Flags}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel Margin="0,4">
-                                                <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
-                                                <Border Background="Transparent" Cursor="Hand" Margin="0,2,0,0"
-                                                        MouseLeftButtonUp="FlagQuote_Click"
-                                                        ToolTip="{loc:T callwindow.alintiyi-dinle}">
-                                                    <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
-                                                               TextWrapping="Wrap" />
-                                                </Border>
-                                            </StackPanel>
+                                            <Grid Margin="0,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                                                    <Border Background="Transparent" Cursor="Hand" Margin="0,2,0,0"
+                                                            MouseLeftButtonUp="FlagQuote_Click"
+                                                            ToolTip="{loc:T callwindow.alintiyi-dinle}">
+                                                        <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
+                                                                   TextWrapping="Wrap" />
+                                                    </Border>
+                                                </StackPanel>
+
+                                                <!-- A wrong finding is turned down here, and is not found again on the next run. -->
+                                                <ui:Button Grid.Column="1" Content="{loc:T callwindow.reddet}" Appearance="Transparent"
+                                                           Padding="10,4" Margin="12,0,0,0" VerticalAlignment="Top"
+                                                           ToolTip="{loc:T callwindow.bu-bulguyu-reddet}"
+                                                           Command="{Binding DataContext.DismissFlagCommand,
+                                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                           CommandParameter="{Binding}" />
+                                            </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>

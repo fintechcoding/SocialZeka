@@ -136,7 +136,6 @@ public sealed partial class ShellViewModel : ObservableObject
         // Severity travels WITH the message from here on. Page notices are ordinary news;
         // everything the orchestrator says out loud is a heads-up ("X yanıt vermedi, Y
         // deneniyor", "alıntıların %40'ı bulunamadı") — that is what its Notice event is FOR.
-        Ledger.Notice += (_, message) => OnUi(() => Post(message, Services.NoticeSeverity.Info));
         Contacts.Notice += (_, message) => OnUi(() => Post(message, Services.NoticeSeverity.Info));
         Search.OpenRequested += (_, target) => OnUi(() => OpenAt(target.ContactId, target.CallId, target.StartMs, target.IsMe));
 
@@ -144,6 +143,10 @@ public sealed partial class ShellViewModel : ObservableObject
         orchestrator.Notice += (_, message) => OnUi(() => Post(message, Services.NoticeSeverity.Warning));
         orchestrator.CallFinished += (_, _) => OnUi(RefreshAll);
         Services.CallActions.Changed += (_, _) => OnUi(RefreshAll);
+
+        // A ruling on a ledger row — dismissed, kept, brought back — is made on whichever screen
+        // shows the row, and every other screen showing it re-reads the same way.
+        Services.LedgerActions.Changed += (_, _) => OnUi(RefreshAll);
 
         // Straight through to the screen, on the UI thread. The worker reports several times a
         // second while transcribing, so this must not do anything expensive — it sets four fields.

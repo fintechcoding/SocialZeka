@@ -1,0 +1,83 @@
+<ui:FluentWindow x:Class="VoiceTranscript.App.Views.EditPromiseWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:loc="clr-namespace:VoiceTranscript.App"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="{loc:T editpromisewindow.sozu-duzenle}"
+                 Width="480" Height="600" MinWidth="420" MinHeight="520"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica">
+
+    <!--
+        The user's own reading of a promise, beside the machine's.
+
+        The words are evidence and stay as they were spoken; the date is what the words said and
+        stays too, because the check for a deadline somebody moved reads it. What the user changes
+        here lands in two columns of their own, wins wherever the row is shown or counted, and
+        survives a re-analysis — the one thing in the table a person wrote.
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="{loc:T editpromisewindow.sozu-duzenle}" ShowMinimize="False" ShowMaximize="False" />
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,8,20,4">
+                <!-- Read-only: the evidence, and what the machine made of it. -->
+                <TextBlock Text="{loc:T editpromisewindow.soylenen}" Style="{StaticResource GroupHeader}" />
+                <Border Style="{StaticResource QuoteBlock}" Margin="0,6,0,0">
+                    <TextBlock x:Name="Quote" TextWrapping="Wrap" />
+                </Border>
+                <TextBlock x:Name="MachineReading" Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap" />
+
+                <TextBlock Text="{loc:T editpromisewindow.duzenle}" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
+                <ui:TextBox x:Name="Wording" PlaceholderText="{loc:T editpromisewindow.senin-ifadenle-ne-soz-verildi}"
+                            TextWrapping="Wrap" AcceptsReturn="False" TextChanged="Wording_Changed" />
+
+                <TextBlock Text="{loc:T editpromisewindow.ertele}" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
+                <TextBlock x:Name="SpokenDate" Style="{StaticResource Caption}" Margin="0,0,0,6" TextWrapping="Wrap" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{loc:T editpromisewindow.tarih}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <DatePicker Grid.Column="1" x:Name="Day" SelectedDateChanged="Day_Changed" />
+                    <!-- A date picker has no way to say "no date of my own"; this is it. -->
+                    <ui:Button Grid.Column="2" x:Name="ClearDay" Content="✕" Appearance="Transparent" Padding="8,2"
+                               Margin="6,0,0,0" ToolTip="{loc:T editpromisewindow.tarihi-kaldir}"
+                               Visibility="Collapsed" Click="ClearDay_Click" />
+                </Grid>
+
+                <TextBlock Style="{StaticResource Caption}" Margin="0,12,0,0" TextWrapping="Wrap"
+                           Text="{loc:T editpromisewindow.soylenen-sozler-ve-tarih-saklanir}" />
+
+                <!-- What will happen, said before it does. -->
+                <TextBlock x:Name="Verdict" Style="{StaticResource Caption}" Margin="0,10,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" Margin="20,12,20,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Only offered when there is a correction to take away. -->
+            <ui:Button Grid.Column="0" x:Name="Clear" Content="{loc:T editpromisewindow.duzeltmeyi-kaldir}"
+                       Appearance="Secondary" Visibility="Collapsed"
+                       HorizontalAlignment="Left" Click="Clear_Click" />
+
+            <ui:Button Grid.Column="1" Content="{loc:T editpromisewindow.vazgec}" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <ui:Button Grid.Column="2" x:Name="Save" Content="{loc:T editpromisewindow.kaydet}" Appearance="Primary"
+                       IsDefault="True" IsEnabled="False" Click="Save_Click" />
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

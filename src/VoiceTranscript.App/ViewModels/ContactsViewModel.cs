@@ -134,6 +134,24 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
         // The transcript follows the audio. Without this somebody checking a quote has to hunt
         // for the right line by eye while the voice moves on past it.
         Playback.PositionChanged += (_, ms) => Highlight(ms);
+
+        LedgerUndo.Undone += (_, _) => ReloadFlags();
+    }
+
+    /// <summary>What was just done to a finding on the Defter tab, and the way back.</summary>
+    public UndoSlot LedgerUndo { get; } = new();
+
+    private void ReloadFlags()
+    {
+        Flags.Clear();
+
+        if (SelectedContact is { } selected)
+        {
+            foreach (var flag in repository.GetFlags(selected.Contact.Id))
+                Flags.Add(new FlagView(flag));
+        }
+
+        OnPropertyChanged(nameof(HasFlags));
     }
 
     /// <summary>Marks the line currently being heard, and clears the previous one.</summary>
@@ -637,17 +655,22 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
     private void StopPlayback() => Playback.Stop();
 
     /// <summary>
-    /// Dismisses a ledger entry for good.
+    /// Turns a finding down.
     ///
     /// Without it false positives accumulate until the ledger is noise and the user stops
-    /// reading it — at which point the real findings are lost too.
+    /// reading it — at which point the real findings are lost too. Through the shared service,
+    /// so the row is the same tombstone on the ledger page, and the card above the list offers
+    /// the way back.
     /// </summary>
     [RelayCommand]
     private void DismissFlag(FlagView flag)
     {
-        repository.DismissFlag(flag.Flag.Id);
+        var undo = Services.LedgerActions.Dismiss(repository, flag.Flag);
+
         Flags.Remove(flag);
         OnPropertyChanged(nameof(HasFlags));
+
+        LedgerUndo.Offer(undo);
     }
 
     /// <summary>

@@ -177,6 +177,8 @@ public sealed partial class ContactWindowViewModel : ObservableObject
             new System.Windows.Data.PropertyGroupDescription(nameof(ContactCall.Month)));
         CallsView = view;
 
+        LedgerUndo.Undone += (_, _) => LoadLedger();
+
         Load();
     }
 
@@ -642,6 +644,40 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         foreach (var f in _repository.GetFlags(ContactId)) Flags.Add(f);
 
         OnPropertyChanged(nameof(HasLedger));
+    }
+
+    // ---- the Defter tab's verbs ---------------------------------------------------------------
+    //
+    // The same rulings the ledger page makes, through the same service, so a promise kept or
+    // dismissed here is the same row kept or dismissed everywhere — and can be taken back.
+
+    /// <summary>What was just done to a promise or a finding here, and the way back.</summary>
+    public UndoSlot LedgerUndo { get; } = new();
+
+    /// <summary>The user says it was kept. Only the user ever says so.</summary>
+    [RelayCommand]
+    private void FulfilCommitment(Commitment commitment)
+        => AfterLedgerVerb(Services.LedgerActions.Fulfil(_repository, commitment));
+
+    /// <summary>The user says it was not kept.</summary>
+    [RelayCommand]
+    private void AbandonCommitment(Commitment commitment)
+        => AfterLedgerVerb(Services.LedgerActions.Abandon(_repository, commitment));
+
+    /// <summary>Not a promise after all. The words stay in the transcript.</summary>
+    [RelayCommand]
+    private void DismissCommitment(Commitment commitment)
+        => AfterLedgerVerb(Services.LedgerActions.Dismiss(_repository, commitment));
+
+    [RelayCommand]
+    private void DismissFlag(Flag flag)
+        => AfterLedgerVerb(Services.LedgerActions.Dismiss(_repository, flag));
+
+    /// <summary>Re-reads the tab and offers the way back. The edit dialog lands here too.</summary>
+    public void AfterLedgerVerb(Services.PendingUndo undo)
+    {
+        LoadLedger();
+        LedgerUndo.Offer(undo);
     }
 
     // ---- search -------------------------------------------------------------
