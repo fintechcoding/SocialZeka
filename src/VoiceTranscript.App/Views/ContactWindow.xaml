@@ -29,8 +29,11 @@
             No percentages, no trend arrows, no adjectives about the person. The rule this product
             rests on is that the machine remembers and the person judges — so every figure here is
             something you could count yourself from the rows below, and nothing is a verdict.
+
+            Tighter than the card's default padding: this one sits above a tab strip and a
+            list, and every pixel it keeps is one the flow below it loses.
         -->
-        <Border Grid.Row="1" Style="{StaticResource HeroCard}" Margin="20,4,20,0">
+        <Border Grid.Row="1" Style="{StaticResource HeroCard}" Margin="20,4,20,0" Padding="16,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />

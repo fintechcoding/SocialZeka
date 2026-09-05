@@ -797,5 +797,7 @@
   "ledgerpage.temizlenecek-bir-sey-yok": "Nothing to sweep — no empty or repeated entries are left in the ledger.",
   "ledgerpage.n-kayit-kaldirildi": "{0} entries removed: {1} did not say what was promised, {2} were repeats. Entries you closed or marked kept were not touched.",
   "settingswindow.tumunu-goster-n": "Show all ({0} more models)",
-  "settingswindow.yalniz-yaziya-dokme-modelleri": "Only transcription models"
+  "settingswindow.yalniz-yaziya-dokme-modelleri": "Only transcription models",
+  "callwindow.n-dokum": "{0} transcript(s)",
+  "callwindow.dalgayi-katla-ya-da-ac": "Fold or unfold the waveform"
 }
