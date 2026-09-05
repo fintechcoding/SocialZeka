@@ -332,4 +332,49 @@ public class ArchiveMergeTests : IDisposable
 
         Assert.Single(_myRepository.ListCalls(limit: 100));
     }
+
+    /// <summary>
+    /// The three v16 tables travel: the habit cache under the remapped call AND the remapped
+    /// transcript, the intent card under the remapped call, and the dictionary row by row with
+    /// what is already here winning on the folded stem. Goes red when any of them is left behind,
+    /// arrives pointing at a foreign transcript row, or overwrites the user's own dictionary row.
+    /// </summary>
+    [Fact]
+    public async Task HabitsIntentAndTheDictionaryComeWithTheArchive()
+    {
+        // Something already here, so the incoming ids cannot happen to coincide with ours; and a
+        // dictionary row of ours that the archive also has, spelled and listed differently.
+        var mine = _myRepository.UpsertContact("Zeynep", CallApp.WhatsApp);
+        Call(_myRepository, _mine, mine, Only.AddDays(3), ["benim"]);
+        _myRepository.UpsertLexeme(HabitKind.Filler, "yani", [], 0);
+
+        var ayse = _theirRepository.UpsertContact("Ayşe", CallApp.WhatsApp);
+        var theirs = Call(_theirRepository, _theirs, ayse, Only, ["onların", "dökümü"]);
+        _theirRepository.SaveTranscriptVersion(theirs, "nova-3", 0.9, [.. _theirRepository.GetSegments(theirs)]);
+        _theirRepository.SaveHabits(theirs, 7, "{\"a\":1}");
+        _theirRepository.SaveCallIntent(theirs, "kira rakamını söylemeyeceğim");
+        _theirRepository.UpsertLexeme(HabitKind.Filler, "Yani", ["ler"], 5);
+        _theirRepository.UpsertLexeme(HabitKind.Filler, "hani", [], 1);
+
+        var file = Path.Combine(_root, "yedek-v16.zip");
+        await _theirBackup.BackupAsync(file, includeAudio: false);
+
+        await _myBackup.ImportAsync(file);
+
+        var imported = _myRepository.ListCalls(limit: 100).Single(c => c.StartedAt == Only);
+
+        var habits = _myRepository.GetHabits(imported.Id);
+        Assert.NotNull(habits);
+        Assert.Equal(7, habits.LexiconVersion);
+        Assert.Equal("{\"a\":1}", habits.Json);
+        Assert.Equal(_myRepository.CurrentTranscriptVersion(imported.Id)!.Id, habits.TranscriptVersionId);
+
+        Assert.Equal("kira rakamını söylemeyeceğim", _myRepository.GetCallIntent(imported.Id)!.Value.Text);
+
+        var lexicon = _myRepository.Lexicon();
+        var ours = Assert.Single(lexicon, l => l.LexemeFolded == "yani");
+        Assert.Equal("yani", ours.Lexeme);
+        Assert.Empty(ours.Suffixes);
+        Assert.Single(lexicon, l => l.LexemeFolded == "hani");
+    }
 }

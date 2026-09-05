@@ -170,7 +170,13 @@ public static class TurkishDates
         return true;
     }
 
-    private static bool TryExplicit(string text, DateOnly spokenOn, out DateOnly result)
+    /// <summary>
+    /// A day and a month said outright — "3 mart", "15 ekim 2026" — resolved against the day
+    /// they were said. Public because the habit counters ask a narrower question of it: not
+    /// which date, only whether one was said. They pass any day and discard the result.
+    /// </summary>
+    /// <param name="text">Already folded with <see cref="TurkishText.NormalizeForSearch"/>.</param>
+    public static bool TryExplicit(string text, DateOnly spokenOn, out DateOnly result)
     {
         result = default;
 
