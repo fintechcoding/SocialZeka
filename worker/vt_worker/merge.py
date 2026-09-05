@@ -34,6 +34,17 @@ class Speaker(str, Enum):
 
 @dataclass(slots=True)
 class Word:
+    """One word and where it sits on the call timeline.
+
+    ``probability`` is how sure the engine was of this word, on one scale for every engine:
+    0..1, or None when the engine said nothing. faster-whisper and Deepgram already speak
+    that scale; ElevenLabs reports a log-probability (0 or below) and is converted with exp on
+    the way in; the OpenAI shape and ex5 carry no per-word figure and give None; whisper.cpp
+    gives no words at all. None stays None — a made-up 1.0 would read as certainty, and the
+    doubtful words are the ones the coaching layer needs to find. The scales agree on their
+    ends, not on where "doubtful" begins, so a threshold on this is still measured per engine.
+    """
+
     start: float
     end: float
     text: str

@@ -9,7 +9,7 @@ and compared, which is the only honest way to pick one.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from vt_worker.merge import Segment
@@ -83,6 +83,14 @@ class AsrEngine(ABC):
     #: differ. Without this the retry re-sent a byte-identical request and doubled the work of
     #: every local transcription that happened to score low.
     honours_normalize: bool = False
+
+    #: Non-speech the last :meth:`transcribe` heard — laughter, applause — on the call timeline,
+    #: each ``{"start_ms", "end_ms", "kind"}`` with the kind in lower-case ASCII.
+    #:
+    #: Empty unless the service tags them, which today only ElevenLabs does. The local engines
+    #: never assign it, so the shared default is an immutable empty tuple on purpose; an engine
+    #: that fills it replaces it per transcribe() rather than appending to this one.
+    audio_events: Sequence[dict] = ()
 
     @abstractmethod
     def load(self, options: EngineOptions) -> None:
