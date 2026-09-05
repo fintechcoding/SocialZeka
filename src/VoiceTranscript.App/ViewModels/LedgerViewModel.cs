@@ -11,20 +11,17 @@ using Wpf.Ui.Controls;
 
 namespace VoiceTranscript.App.ViewModels;
 
-/// <summary>Which slice of the ledger is showing.</summary>
+/// <summary>
+/// Which slice of the ledger is showing.
+///
+/// Promises are not a slice any more: they have a page of their own (Sözler), in both
+/// directions, with the verbs that belong to them. Two copies of that list disagreed on every
+/// filter one of them did not have. What stays here is what went wrong — changed figures and
+/// findings — and what the user turned down.
+/// </summary>
 public enum LedgerFilter
 {
     Everything,
-    Overdue,
-    Promises,
-
-    /// <summary>
-    /// The user's OWN open promises. Their own words, on their own page — because people
-    /// forget what they promised too, and an archive that only watches the other side is
-    /// a grievance list, not a ledger. Overdue ones graduate to Overdue, badged SEN.
-    /// </summary>
-    MyPromises,
-
     Changes,
     Flags,
 
@@ -45,7 +42,7 @@ public enum LedgerSort
     /// <summary>By the person, Turkish alphabet; within a person, by date.</summary>
     Contact,
 
-    /// <summary>Overdue, promises, own promises, changed figures, findings; within a kind, by date.</summary>
+    /// <summary>Changed figures, then findings; within a kind, by date.</summary>
     Kind,
 }
 
@@ -64,8 +61,8 @@ public enum LedgerSource
 /// <summary>
 /// One line of the ledger, whatever produced it.
 ///
-/// Promises, changed figures and flags are different rows in the database but the same thing to
-/// a person reading them: something that was said, by somebody, at a moment they can listen to.
+/// Changed figures and flags are different rows in the database but the same thing to a person
+/// reading them: something that was said, by somebody, at a moment they can listen to.
 /// Presenting them as one list is what makes the screen readable; keeping the quote and the
 /// timestamp on every single one is what makes it fair.
 /// </summary>
@@ -100,12 +97,8 @@ public sealed partial class LedgerEntry : ObservableObject
     /// <summary>Row identity in its own table, for dismissing.</summary>
     public long SourceId { get; init; }
 
-    /// <summary>True when the words are the user's own — the row wears a SEN badge and the
-    /// obligation reads as theirs to keep, not as a complaint about somebody.</summary>
+    /// <summary>True when the words are the user's own; the row says so.</summary>
     public bool ByMe { get; init; }
-
-    /// <summary>The promise behind the row, when it is one. What the verbs act on.</summary>
-    public Commitment? Commitment { get; init; }
 
     /// <summary>The finding behind the row, when it is one. What the verbs act on.</summary>
     public Flag? Flag { get; init; }
@@ -115,9 +108,6 @@ public sealed partial class LedgerEntry : ObservableObject
 
     /// <summary>When the user last ruled on it. Null: never.</summary>
     public DateTimeOffset? DecidedAt { get; init; }
-
-    /// <summary>True when the user reworded or postponed the promise; the row says so.</summary>
-    public bool IsEdited { get; init; }
 
     /// <summary>Which machinery wrote it — <see cref="Flag.Sources"/>. Promises and figures are the pipeline's.</summary>
     public string Source { get; init; } = Core.Domain.Flag.Sources.Pipeline;
@@ -155,24 +145,18 @@ public sealed partial class LedgerEntry : ObservableObject
 
     public SymbolRegular Icon => Kind switch
     {
-        LedgerFilter.Overdue => SymbolRegular.Clock24,
-        LedgerFilter.Promises => SymbolRegular.ClipboardTaskListLtr24,
-        LedgerFilter.MyPromises => SymbolRegular.Person24,
         LedgerFilter.Changes => SymbolRegular.ArrowSwap24,
         _ => SymbolRegular.Flag24,
     };
 
     public string KindLabel => Kind switch
     {
-        LedgerFilter.Overdue => Localisation.T("ledgerpage.tur-vadesi-gecti"),
-        LedgerFilter.Promises => Localisation.T("ledgerpage.tur-soz"),
-        LedgerFilter.MyPromises => Localisation.T("ledgerpage.tur-senin-sozun"),
         LedgerFilter.Changes => Localisation.T("ledgerpage.tur-degisti"),
         _ => Localisation.T("ledgerpage.tur-dikkat"),
     };
 
-    /// <summary>What the row is in the database: (is it a promise, its id). Survives a refresh.</summary>
-    internal (bool IsCommitment, long Id) Key => (Commitment is not null, SourceId);
+    /// <summary>What the row is in the database: (its kind, its id). Survives a refresh.</summary>
+    internal (LedgerFilter Kind, long Id) Key => (Kind, SourceId);
 }
 
 /// <summary>
@@ -190,8 +174,8 @@ public sealed partial class LedgerEntry : ObservableObject
 ///
 /// The verbs on a row are the user's rulings, and every one can be taken back: Reddet is a
 /// tombstone, Geri getir lifts it, and "Geri al" on the notice card undoes whichever was last.
-/// "Tutuldu" is not offered here any more — a promise is kept on the Sözler side of the product,
-/// not on the page whose job is what went wrong.
+/// Promises are not here at all any more — they are kept, postponed and refused on the Sözler
+/// page, in both directions; this page's job is what went wrong.
 /// </summary>
 public sealed partial class LedgerViewModel(Repository repository) : ObservableObject
 {
@@ -221,17 +205,13 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     private PendingUndo? _pending;
 
     /// <summary>Counts for the filter chips, so the numbers are visible before clicking.</summary>
-    [ObservableProperty] private int _overdueCount;
-    [ObservableProperty] private int _promiseCount;
-    [ObservableProperty] private int _myPromiseCount;
     [ObservableProperty] private int _changeCount;
     [ObservableProperty] private int _flagCount;
     [ObservableProperty] private int _dismissedCount;
 
     public bool HasEntries => Entries.Count > 0;
 
-    public bool HasAnything =>
-        OverdueCount + PromiseCount + MyPromiseCount + ChangeCount + FlagCount > 0;
+    public bool HasAnything => ChangeCount + FlagCount > 0;
 
     /// <summary>True while the last ruling can still be taken back.</summary>
     public bool CanUndo => _pending is not null;
@@ -267,16 +247,11 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
 
         try
         {
-            var today = DateOnly.FromDateTime(DateTime.Now);
             var all = new List<LedgerEntry>();
 
-            all.AddRange(Commitments(today));
             all.AddRange(Changes());
             all.AddRange(Flags());
 
-            OverdueCount = all.Count(e => e.Kind == LedgerFilter.Overdue);
-            PromiseCount = all.Count(e => e.Kind == LedgerFilter.Promises);
-            MyPromiseCount = all.Count(e => e.Kind == LedgerFilter.MyPromises);
             ChangeCount = all.Count(e => e.Kind == LedgerFilter.Changes);
             FlagCount = all.Count(e => e.Kind == LedgerFilter.Flags);
 
@@ -329,10 +304,9 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     }
 
     /// <summary>
-    /// Date order is the page's argument: overdue first — and among the overdue, the user's OWN
-    /// broken promises before anybody else's, because the wrong the user can fix this minute is
-    /// their own — then by how late, then newest. The other two orders group first and keep that
-    /// order inside each group.
+    /// Date order is newest first. The other two orders group first — by person in the Turkish
+    /// alphabet, or by kind with changed figures before findings — and keep newest-first inside
+    /// each group.
     /// </summary>
     private IEnumerable<LedgerEntry> Order(IEnumerable<LedgerEntry> entries)
     {
@@ -343,20 +317,13 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
             _ => entries.OrderBy(_ => 0),
         };
 
-        return grouped
-            .ThenByDescending(e => e.IsLate)
-            .ThenByDescending(e => e.IsLate && e.ByMe)
-            .ThenByDescending(e => e.DaysLate)
-            .ThenByDescending(e => e.When);
+        return grouped.ThenByDescending(e => e.When);
     }
 
     private static int KindRank(LedgerFilter kind) => kind switch
     {
-        LedgerFilter.Overdue => 0,
-        LedgerFilter.Promises => 1,
-        LedgerFilter.MyPromises => 2,
-        LedgerFilter.Changes => 3,
-        _ => 4,
+        LedgerFilter.Changes => 0,
+        _ => 1,
     };
 
     private void OnEntryChanged(object? sender, PropertyChangedEventArgs e)
@@ -369,58 +336,6 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(DismissSelectedText));
         DismissSelectedCommand.NotifyCanExecuteChanged();
-    }
-
-    private IEnumerable<LedgerEntry> Commitments(DateOnly today)
-    {
-        foreach (var (commitment, contactName) in repository.AllOpenCommitments())
-        {
-            // Both sides now. The user's own promise is still not a grievance — it gets its own
-            // chip, a SEN badge and obligation language — but hiding it entirely taught nothing:
-            // people forget what THEY promised, and this page is where a forgotten promise
-            // should be caught, not where it should be invisible.
-            //
-            // The date that counts is the user's own when they postponed it; the spoken one
-            // stays on the row for the check that looks for moved deadlines.
-            var late = commitment.EffectiveDeadline is { } due && due < today
-                ? today.DayNumber - due.DayNumber
-                : 0;
-
-            yield return Entry(commitment, contactName,
-                kind: late > 0 ? LedgerFilter.Overdue
-                    : commitment.ByMe ? LedgerFilter.MyPromises
-                    : LedgerFilter.Promises,
-                late);
-        }
-    }
-
-    private static LedgerEntry Entry(Commitment commitment, string contactName, LedgerFilter kind, int late, bool dismissed = false)
-    {
-        var caveats = new List<string>();
-        if (commitment.IsConditional) caveats.Add("koşullu");
-        if (commitment.EffectiveDeadline is null && commitment.DeadlineRaw is { } raw)
-            caveats.Add($"tarih net değil: {raw}");
-
-        return new LedgerEntry
-        {
-            Kind = kind,
-            ByMe = commitment.ByMe,
-            ContactName = contactName,
-            ContactId = commitment.ContactId,
-            CallId = commitment.CallId,
-            Headline = commitment.EffectiveObligation,
-            Quote = commitment.Quote.Trim(),
-            QuoteStartMs = commitment.QuoteStartMs,
-            // Old rows do not know when they were written; they sort after everything dated.
-            When = commitment.CreatedAt ?? commitment.DecidedAt ?? DateTimeOffset.MinValue,
-            DaysLate = late,
-            Caveat = caveats.Count > 0 ? string.Join(", ", caveats) : null,
-            SourceId = commitment.Id,
-            Commitment = commitment,
-            IsDismissed = dismissed,
-            DecidedAt = commitment.DecidedAt,
-            IsEdited = commitment.IsEdited,
-        };
     }
 
     private IEnumerable<LedgerEntry> Changes()
@@ -487,16 +402,9 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
         };
     }
 
-    /// <summary>The tombstones, newest ruling first. A dismissed promise is never "late".</summary>
+    /// <summary>The tombstones, newest ruling first. Dismissed promises are the Sözler page's.</summary>
     private IEnumerable<LedgerEntry> Dismissed()
     {
-        foreach (var (commitment, contactName) in repository.DismissedCommitments())
-        {
-            yield return Entry(commitment, contactName,
-                kind: commitment.ByMe ? LedgerFilter.MyPromises : LedgerFilter.Promises,
-                late: 0, dismissed: true);
-        }
-
         foreach (var (flag, contactName) in repository.DismissedFlags())
             yield return Entry(flag, contactName, dismissed: true);
     }
@@ -520,9 +428,7 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     {
         PendingUndo undo;
 
-        if (entry.Commitment is { } commitment)
-            undo = LedgerActions.Dismiss(repository, commitment);
-        else if (entry.Flag is { } flag)
+        if (entry.Flag is { } flag)
             undo = LedgerActions.Dismiss(repository, flag);
         else
         {
@@ -543,14 +449,9 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     [RelayCommand]
     private void Restore(LedgerEntry entry)
     {
-        PendingUndo undo;
+        if (entry.Flag is not { } flag) return;
 
-        if (entry.Commitment is { } commitment)
-            undo = LedgerActions.Restore(repository, commitment);
-        else if (entry.Flag is { } flag)
-            undo = LedgerActions.Restore(repository, flag);
-        else
-            return;
+        var undo = LedgerActions.Restore(repository, flag);
 
         Entries.Remove(entry);
         OnPropertyChanged(nameof(HasEntries));
@@ -569,7 +470,7 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
 
         var undo = LedgerActions.DismissMany(
             repository,
-            picked.Where(e => e.Commitment is not null).Select(e => e.SourceId).ToList(),
+            [],
             picked.Where(e => e.Flag is not null).Select(e => e.SourceId).ToList());
 
         IsSelecting = false;

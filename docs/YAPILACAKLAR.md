@@ -1495,9 +1495,15 @@ taslakları ve ölçüm kapıları: [`PLAN-SOSYALZEKA.md`](PLAN-SOSYALZEKA.md).
   kutunun hizasında, Sına/Bakiye kutunun altında, bulut modunda yerel blok gizli; motor kutusu
   yalnız yazıya dökme modelleri + "Tümünü göster (N)". Ölçü: 1080 C# / 156 Python yeşil;
   1920 px'te Kaydet hizası elle bakılacak (ISLEM-GUNLUGU 2026-09-05 A1).
-- [ ] **A2 — Şema v15**: bayatlık, söz kararları, `verdict`; şikâyet 1/7/8; `TryResolve(spokenOn)` → v3.0.x
-- [ ] **B — Sözler sayfası + ray düzeni** → v3.1.0
-- [ ] **C + D — Kelime güveni ölçek; Aynam (v16)** → v3.1.x (önce şive ön-ölçümü)
+- [x] **A2 — Şema v15**: bayatlık, söz kararları, `verdict`; şikâyet 1/7/8; `TryResolve(spokenOn)` → v3.0.x.
+  Şema + Repository + K4 aynası (`45db320`), tarih çözümü (`85aa95f`, `65d74b7`), dikey alan
+  297→199 px (`ba443f6`), sekme başına "önceki dökümden" uyarısı (`e9a8721`), defter fiilleri —
+  Reddet/Geri al/Geri getir/Seç/Sırala/Kaynak, söz kartlarında Tutuldu/Tutulmadı/Ertele/✎
+  (`EditPromiseWindow`), `LedgerActions` tek fiil kümesi (`81f1fcb`). Günlük: ISLEM-GUNLUGU 2026-09-05.
+- [x] **B — Sözler sayfası + ray düzeni** → v3.1.0 (`6e18ebd` + defter çiplerinin taşınması).
+  Ölçülecek: "tutuldu mu?" öneri kabul oranı (30 öneride < %30 → kapatılır).
+- [~] **C + D — Kelime güveni ölçek; Aynam (v16)** → v3.1.x (önce şive ön-ölçümü). C'nin worker
+  (`cdea035`) ve C# (`f47c584`) yarıları bitti; motor başına eşik ölçümü D ile.
 - [ ] **E — Kişi kartı, kanıt (v17)** → v3.2.0
 - [ ] **G + H (+J) — Ses düzeyi/perde, canlı ölçer, audio_event (v18)** → v3.3.x (kalibrasyon kapılı)
 - [ ] **I — Kişi kartı, modelin görüşü (v19)** → v3.4.0

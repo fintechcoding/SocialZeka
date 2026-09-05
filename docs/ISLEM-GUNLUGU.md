@@ -2327,3 +2327,15 @@ yalnız öneri (`SuggestFulfilment`: sonraki ≤5 görüşmede ≥2 ortak anlaml
 (defter fiilleri dalıyla birlikte), takvimin `PromiseLedger`'dan beslenmesi.
 
 **Doğrulama.** `VoiceTranscript.Tests.exe`: 1134 test (1129 geçti, 5 atlandı); Python 179.
+
+**Defter fiilleri** (`81f1fcb`, şikâyet 1'in arayüz yarısı; ayrı çalışma ağacında yazıldı, iki
+kesintiden sonra tamamlandı): `Services/LedgerActions` tek fiil kümesi (Dismiss/DismissMany/
+Restore/Fulfil/Reopen/Abandon/SetUserDeadline/SetUserObligation/Edit, her biri `PendingUndo`
+döndürür; `Changed` → `RefreshAll`); Defter'de satır başına Reddet, Reddedilenler çipi + Geri
+getir, Seç kipi + "Seçilenleri reddet (N)", Sırala (Tarih/Kişi — Türkçe alfabe/Tür), Kaynak
+(Kural/Denetim), sayfa içi Geri al kartı; görüşme ve kişi penceresindeki söz kartlarında
+Tutuldu / Tutulmadı / Ertele / ✎ (`EditPromiseWindow`: söylenen sözler ve tarih durur, "senin
+düzeltmen" rozeti); ContactsPage'in Reddet'i aynı yoldan. **Sonra:** söz çipleri ve satırları
+Defter'den çıktı — Sözler sayfasında; Defter yalnız değişen rakamlar + işaretler + reddedilenler
+(`LedgerPageUndoTests` işaretlerle yeniden yazıldı; `PromiseSideTests`'in iki defter testi Sözler
+testlerine devredildi). Sözler kartına ✎ bağlandı. Testler: 1137 C# (1132 geçti, 5 atlandı).

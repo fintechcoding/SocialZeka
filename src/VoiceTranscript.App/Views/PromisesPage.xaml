@@ -118,6 +118,12 @@
                                    Visibility="{Binding CanRemind, Converter={StaticResource BoolToVisibility}}"
                                    Command="{Binding DataContext.RemindCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                    CommandParameter="{Binding}" />
+                        <ui:Button Margin="0,0,6,4" Appearance="Secondary" ToolTip="{loc:T promisespage.duzenle}"
+                                   Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}"
+                                   Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}">
+                            <ui:SymbolIcon Symbol="Edit24" FontSize="14" />
+                        </ui:Button>
                         <ui:Button Content="{loc:T promisespage.yeniden-ac}" Margin="0,0,6,4" Appearance="Secondary"
                                    Visibility="{Binding CanReopen, Converter={StaticResource BoolToVisibility}}"
                                    Command="{Binding DataContext.ReopenCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"

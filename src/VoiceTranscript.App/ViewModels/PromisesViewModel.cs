@@ -175,6 +175,9 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     /// <summary>Raised when "Hatırlat" is pressed; the page opens the reminder dialog (a VM cannot).</summary>
     public event EventHandler<PromiseCard>? RemindRequested;
 
+    /// <summary>Raised when ✎ is pressed; the page opens the edit dialog (wording and date, the user's own).</summary>
+    public event EventHandler<PromiseCard>? EditRequested;
+
     public ObservableCollection<PromiseCard> Mine { get; } = [];
     public ObservableCollection<PromiseCard> Theirs { get; } = [];
 
@@ -396,6 +399,12 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     private void Remind(PromiseCard? card)
     {
         if (card is not null) RemindRequested?.Invoke(this, card);
+    }
+
+    [RelayCommand]
+    private void Edit(PromiseCard? card)
+    {
+        if (card is not null && card.IsOpen) EditRequested?.Invoke(this, card);
     }
 
     [RelayCommand]

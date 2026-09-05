@@ -13,8 +13,8 @@ namespace VoiceTranscript.Tests;
 /// row for good with no way back, "Tutuldu" was dead on half the rows, and a wrong click was a
 /// permanent loss. The repository half is pinned in <see cref="LedgerUndoTests"/>; this pins what
 /// the page does with it — every ruling can be taken back, the tombstones are listed rather than
-/// hidden, select mode touches exactly what was ticked, and the verb that does not belong here
-/// is gone.
+/// hidden, select mode touches exactly what was ticked, and the verbs that do not belong here
+/// (anything about promises) are gone with the promises themselves.
 /// </summary>
 public sealed class LedgerPageUndoTests : IDisposable
 {
@@ -63,22 +63,11 @@ public sealed class LedgerPageUndoTests : IDisposable
         return (contact, call);
     }
 
-    private long Promise(string obligation, (long Contact, long Call)? of = null) =>
-        _repository.InsertCommitment(new Commitment
+    private long Finding(string quote, (long Contact, long Call)? of = null) =>
+        _repository.InsertFlag(new Flag
         {
             CallId = of?.Call ?? _call,
             ContactId = of?.Contact ?? _contact,
-            Quote = $"{obligation} diye söz verdi",
-            QuoteStartMs = 4200,
-            Obligation = obligation,
-            Status = CommitmentStatus.Open,
-        });
-
-    private long Finding(string quote) =>
-        _repository.InsertFlag(new Flag
-        {
-            CallId = _call,
-            ContactId = _contact,
             Kind = FlagKind.PressureTactic,
             Summary = "Baskı işareti",
             Quote = quote,
@@ -86,14 +75,12 @@ public sealed class LedgerPageUndoTests : IDisposable
             CreatedAt = DateTimeOffset.UtcNow,
         });
 
-    private LedgerEntry PromiseRow(long id) => _model.Entries.Single(e => e.Commitment?.Id == id);
-
     private LedgerEntry FindingRow(long id) => _model.Entries.Single(e => e.Flag?.Id == id);
 
-    private bool Shows(long promiseId) => _model.Entries.Any(e => e.Commitment?.Id == promiseId);
+    private bool Shows(long flagId) => _model.Entries.Any(e => e.Flag?.Id == flagId);
 
-    private List<long> OpenPromises() =>
-        _repository.AllOpenCommitments().Select(r => r.Commitment.Id).Order().ToList();
+    private List<long> OpenFindings() =>
+        _repository.GetFlags(_contact).Select(f => f.Id).Order().ToList();
 
     /// <summary>
     /// Goes red when Reddet is one way again. The row leaves the list, the notice offers the way
@@ -102,22 +89,22 @@ public sealed class LedgerPageUndoTests : IDisposable
     [Fact]
     public void DismissedThenUndoneTheRowIsBack()
     {
-        var id = Promise("Sözleşmeyi göndermek");
+        var id = Finding("bugün karar vermezsen başkasına vereceğim");
         _model.Refresh();
 
-        _model.DismissCommand.Execute(PromiseRow(id));
+        _model.DismissCommand.Execute(FindingRow(id));
 
         Assert.False(Shows(id));
         Assert.True(_model.CanUndo);
         Assert.NotNull(_model.Notice);
-        Assert.DoesNotContain(id, OpenPromises());
+        Assert.DoesNotContain(id, OpenFindings());
 
         _model.UndoCommand.Execute(null);
 
         Assert.True(Shows(id));
         Assert.False(_model.CanUndo);
         Assert.Null(_model.Notice);
-        Assert.Contains(id, OpenPromises());
+        Assert.Contains(id, OpenFindings());
     }
 
     /// <summary>
@@ -128,12 +115,12 @@ public sealed class LedgerPageUndoTests : IDisposable
     [Fact]
     public void TheDismissedChipListsWhatWasTurnedDownAndBringsItBack()
     {
-        var promise = Promise("Sözleşmeyi göndermek");
-        var finding = Finding("bugün karar vermezsen başkasına vereceğim");
+        var first = Finding("bugün karar vermezsen başkasına vereceğim");
+        var second = Finding("bunu kimseye söyleme");
         _model.Refresh();
 
-        _model.DismissCommand.Execute(PromiseRow(promise));
-        _model.DismissCommand.Execute(FindingRow(finding));
+        _model.DismissCommand.Execute(FindingRow(first));
+        _model.DismissCommand.Execute(FindingRow(second));
 
         _model.Filter = LedgerFilter.Dismissed;
 
@@ -142,17 +129,17 @@ public sealed class LedgerPageUndoTests : IDisposable
         Assert.All(_model.Entries, e => Assert.True(e.IsDismissed));
         Assert.All(_model.Entries, e => Assert.False(e.CanDismiss));
 
-        _model.RestoreCommand.Execute(PromiseRow(promise));
+        _model.RestoreCommand.Execute(FindingRow(first));
 
-        Assert.Contains(promise, OpenPromises());
+        Assert.Contains(first, OpenFindings());
         Assert.True(_model.CanUndo);
 
         _model.Refresh();
         Assert.Equal(1, _model.DismissedCount);
-        Assert.NotNull(Assert.Single(_model.Entries).Flag);
+        Assert.Equal(second, Assert.Single(_model.Entries).Flag!.Id);
 
         _model.Filter = LedgerFilter.Everything;
-        Assert.True(Shows(promise));
+        Assert.True(Shows(first));
     }
 
     /// <summary>
@@ -162,18 +149,17 @@ public sealed class LedgerPageUndoTests : IDisposable
     [Fact]
     public void SelectModeDismissesExactlyTheTickedRows()
     {
-        var a = Promise("a");
-        var b = Promise("b");
-        var c = Promise("c");
-        var f = Finding("bir");
+        var a = Finding("a");
+        var b = Finding("b");
+        var c = Finding("c");
         _model.Refresh();
 
         _model.IsSelecting = true;
         Assert.All(_model.Entries, e => Assert.True(e.ShowSelector));
         Assert.False(_model.DismissSelectedCommand.CanExecute(null));
 
-        PromiseRow(a).IsSelected = true;
-        FindingRow(f).IsSelected = true;
+        FindingRow(a).IsSelected = true;
+        FindingRow(c).IsSelected = true;
 
         Assert.Equal(2, _model.SelectedCount);
         Assert.Contains("(2)", _model.DismissSelectedText);
@@ -182,36 +168,43 @@ public sealed class LedgerPageUndoTests : IDisposable
         _model.DismissSelectedCommand.Execute(null);
 
         Assert.False(_model.IsSelecting);
-        Assert.Equal([b, c], OpenPromises());
-        Assert.Empty(_repository.GetFlags(_contact));
+        Assert.Equal([b], OpenFindings());
         Assert.Equal(2, _model.DismissedCount);
 
         _model.UndoCommand.Execute(null);
 
-        Assert.Equal([a, b, c], OpenPromises());
-        Assert.Single(_repository.GetFlags(_contact));
+        Assert.Equal([a, b, c], OpenFindings());
         Assert.Equal(0, _model.DismissedCount);
     }
 
     /// <summary>
-    /// Goes red when "Tutuldu" creeps back onto the ledger. A promise is kept on the Sözler side
-    /// of the product; this page's job is what went wrong. Checked in the view model and in the
-    /// markup together, because a command with no button and a button with no command are both
-    /// the bug.
+    /// Goes red when a promise creeps back onto the ledger — as a row, a chip, or the "Tutuldu"
+    /// verb. Promises are kept, postponed and refused on the Sözler page; this page's job is what
+    /// went wrong. Checked in the view model and in the markup together, because a command with
+    /// no button and a button with no command are both the bug.
     /// </summary>
     [Fact]
-    public void TheLedgerDoesNotOfferKept()
+    public void TheLedgerHoldsNoPromises()
     {
+        _repository.InsertCommitment(new Commitment
+        {
+            CallId = _call, ContactId = _contact, Quote = "cumaya yollarım", Obligation = "Sözleşmeyi göndermek",
+        });
+        Finding("bugün karar vermezsen başkasına vereceğim");
+        _model.Refresh();
+
+        Assert.Single(_model.Entries);
+        Assert.NotNull(_model.Entries[0].Flag);
+
         Assert.Null(typeof(LedgerViewModel).GetProperty("FulfilCommand"));
-        Assert.DoesNotContain(
-            typeof(LedgerViewModel).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic),
-            m => m.Name == "Fulfil");
+        Assert.DoesNotContain(Enum.GetNames<LedgerFilter>(), n => n.Contains("Promise", StringComparison.Ordinal));
 
         var markup = File.ReadAllText(
             Path.Combine(RepositoryRoot(), "src", "VoiceTranscript.App", "Views", "LedgerPage.xaml"));
 
         Assert.DoesNotContain("FulfilCommand", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("tutuldu", markup, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("CommandParameter=\"Promises\"", markup, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -221,10 +214,10 @@ public sealed class LedgerPageUndoTests : IDisposable
     [Fact]
     public void SortedByPersonTheRowsFollowTheTurkishAlphabet()
     {
-        Promise("Aramak", Person("Zeynep"));
-        Promise("Yazmak", Person("Çetin"));
-        Promise("Göndermek", Person("Ayşe"));
-        Promise("Sözleşmeyi göndermek");
+        Finding("ara", Person("Zeynep"));
+        Finding("yaz", Person("Çetin"));
+        Finding("gönder", Person("Ayşe"));
+        Finding("sözleşmeyi gönder");
 
         _model.Sort = LedgerSort.Contact;
 

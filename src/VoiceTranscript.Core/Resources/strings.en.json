@@ -931,5 +931,6 @@
   "editpromisewindow.kaydedince-defterde-senin-ifaden-gorunur": "Once saved the ledger shows your wording and date; what was said stays in the quote.",
   "editpromisewindow.duzeltmeyi-kaldir": "Remove the correction",
   "editpromisewindow.vazgec": "Cancel",
-  "editpromisewindow.kaydet": "Save"
+  "editpromisewindow.kaydet": "Save",
+  "promisespage.duzenle": "Edit — your wording and your date; what was said stays"
 }

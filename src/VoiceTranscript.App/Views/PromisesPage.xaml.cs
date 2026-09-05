@@ -12,9 +12,30 @@ public partial class PromisesPage
         // The page owns the dialogs, as the to-do page does: a view model does not open windows.
         DataContextChanged += (_, e) =>
         {
-            if (e.OldValue is PromisesViewModel previous) previous.RemindRequested -= OnRemind;
-            if (e.NewValue is PromisesViewModel next) next.RemindRequested += OnRemind;
+            if (e.OldValue is PromisesViewModel previous)
+            {
+                previous.RemindRequested -= OnRemind;
+                previous.EditRequested -= OnEdit;
+            }
+
+            if (e.NewValue is PromisesViewModel next)
+            {
+                next.RemindRequested += OnRemind;
+                next.EditRequested += OnEdit;
+            }
         };
+    }
+
+    /// <summary>✎ goes through the one edit dialog the call and contact windows use: wording and date, the user's own.</summary>
+    private void OnEdit(object? sender, PromiseCard card)
+    {
+        if (App.Repository is not { } repository) return;
+
+        if (EditPromiseWindow.Open(Window.GetWindow(this), repository, card.Commitment) is not null
+            && DataContext is PromisesViewModel model)
+        {
+            model.Refresh();
+        }
     }
 
     /// <summary>

@@ -98,44 +98,7 @@ public sealed class PromiseSideTests : IDisposable
         Assert.Equal(call, row.CallId);
     }
 
-    // ---- ledger: both sides, own chip, own-late first ---------------------------------------
-
-    [Fact]
-    public void TheLedgerListsBothSidesAndCountsMinePromisesSeparately()
-    {
-        var (call, contact) = Seed();
-        var today = DateOnly.FromDateTime(DateTime.Today);
-
-        Promise(call, contact, byMe: true, "benim açık sözüm", today.AddDays(5));
-        Promise(call, contact, byMe: false, "onun açık sözü", today.AddDays(5));
-
-        var vm = new LedgerViewModel(_repo);
-        vm.Refresh();
-
-        Assert.Equal(1, vm.MyPromiseCount);
-        Assert.Equal(1, vm.PromiseCount);
-        Assert.Contains(vm.Entries, e => e.Kind == LedgerFilter.MyPromises && e.ByMe);
-        Assert.Contains(vm.Entries, e => e.Kind == LedgerFilter.Promises && !e.ByMe);
-    }
-
-    [Fact]
-    public void MyOverdorPromiseComesBeforeTheirsEvenWhenTheirsIsLater()
-    {
-        var (call, contact) = Seed();
-        var today = DateOnly.FromDateTime(DateTime.Today);
-
-        Promise(call, contact, byMe: false, "onun geciken sözü", today.AddDays(-10));
-        Promise(call, contact, byMe: true, "benim geciken sözüm", today.AddDays(-2));
-
-        var vm = new LedgerViewModel(_repo);
-        vm.Refresh();
-
-        // Both graduate to Overdue; mine leads despite being less late — it is the one
-        // wrong the user can fix this minute.
-        Assert.Equal(2, vm.OverdueCount);
-        Assert.True(vm.Entries[0].ByMe);
-        Assert.Equal("benim geciken sözüm", vm.Entries[0].Headline);
-    }
+    // The ledger tests that stood here moved with the promises: see PromisesPageTests.
 
     // ---- overview: the split attention cards + the calendar dot -----------------------------
 

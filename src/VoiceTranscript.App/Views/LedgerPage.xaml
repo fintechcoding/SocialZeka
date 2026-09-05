@@ -84,41 +84,6 @@
                          Content="{loc:T ledgerpage.hepsi}" />
 
             <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
-                         Command="{Binding SetFilterCommand}" CommandParameter="Overdue">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{loc:T ledgerpage.vadesi-gecti}" VerticalAlignment="Center" />
-                    <Border Style="{StaticResource CountPill}" Margin="8,0,0,0"
-                            Visibility="{Binding OverdueCount, Converter={StaticResource PositiveToVisibility}}">
-                        <TextBlock Style="{StaticResource CountPillText}" Text="{Binding OverdueCount}" />
-                    </Border>
-                </StackPanel>
-            </RadioButton>
-
-            <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
-                         Command="{Binding SetFilterCommand}" CommandParameter="Promises">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{loc:T ledgerpage.acik-sozler}" VerticalAlignment="Center" />
-                    <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
-                            Visibility="{Binding PromiseCount, Converter={StaticResource PositiveToVisibility}}">
-                        <TextBlock Style="{StaticResource PillText}" Text="{Binding PromiseCount}" />
-                    </Border>
-                </StackPanel>
-            </RadioButton>
-
-            <!-- The user's own open promises — people forget what THEY promised too, and
-                 an archive that only watches the other side is a grievance list. -->
-            <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
-                         Command="{Binding SetFilterCommand}" CommandParameter="MyPromises">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{loc:T ledgerpage.verdigim-sozler}" VerticalAlignment="Center" />
-                    <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
-                            Visibility="{Binding MyPromiseCount, Converter={StaticResource PositiveToVisibility}}">
-                        <TextBlock Style="{StaticResource PillText}" Text="{Binding MyPromiseCount}" />
-                    </Border>
-                </StackPanel>
-            </RadioButton>
-
-            <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
                          Command="{Binding SetFilterCommand}" CommandParameter="Changes">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{loc:T ledgerpage.degisenler}" VerticalAlignment="Center" />
