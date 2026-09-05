@@ -2284,3 +2284,46 @@ kendi SocialZeka ağacını açtı, ikisi SocialZeka `main`'i çekip ilerledi �
   ⋯ menüsüne, `callwindow.yeniden-cevir` anahtarı XAML'de kullanılmıyor (sonraki temizlikte).
 
 **Doğrulama.** `./test.ps1` ana dalda: C# 1090 test (1085 geçti, 5 atlandı); Python 179.
+
+## 2026-09-05 — Paket A2 çekirdeği (şema v15), bayatlık arayüzü, Paket C C# yarısı, Paket B
+
+**Şema v15** (`45db320`). `reading_note / deception_note / consistency_note / call_summary /
+action_item` → `transcript_version_id`; `Repository.DerivedFreshness` görüşmenin gösterdiği
+dökümle karşılaştırır: yok / taze / **bilinmiyor** (NULL — asla "bayat" denmez) / bayat.
+`commitment`: `created_at, fulfilled_at, decided_at` + kullanıcı sütunları `user_deadline_date,
+user_obligation, edited_at`; `flag`/`action_item`: `decided_at`; `verdict` (KULLANICI, kulak
+teyidi; anahtar katlanmış alıntı + ms, `target_id`'ye FK yok — birleştirmede id'ler değişir).
+Fiiller: `Reopen/Restore/Abandon`, `DismissCommitments/DismissFlags`, `RestoreFlag`,
+`SetUserDeadline/SetUserObligation` (söylenen tarih/söz makine sütununda kalır),
+`PromiseLedger` (tek sorgu, dört yüzey buradan), `Dismissed*`, `SaveVerdict/Verdicts/VerdictTally`.
+Koruma: `ClearAnalysis` ve `SweepLedger` düzenlenmiş satıra dokunmaz; boru hattı
+`SurvivingCommitmentKeys` + `DismissedFlagKeys` ile aynı sözü/işareti ikinci kez yazmaz (K4 —
+daha önce her yeniden çözümleme tutulmuş sözü açık, reddedilmişi reddedilmemiş geri getiriyordu).
+Kullanıcının vadesi her sayımda ve takvimde kazanır (`COALESCE`); `MovedDeadlines` yalnız
+söyleneni okur — erteleme kişiye bayrak olmaz. `MergeArchive`: `map_version` ile döküm
+işaretçileri yeniden eşlenir (önceden ham kopyalanıyordu; FK açıkken ithalatı düşürebilirdi),
+`verdict` taşınır. Testler: `MigrationTests` v15 + eksik v8/v9/v10/v14 blokları + **taze/yükseltilmiş
+sütun kümesi karşılaştırması** (her tablo, her sütun); `DerivedFreshnessTests`, `LedgerUndoTests`,
+`PromiseLedgerTests`, `VerdictTests`, `ArchiveMergeTests` v15, `AnalysisPipelineTests` ikinci
+çözümleme. Not: göç testi eskiden yalnız `call` tablosunu eski biçimde ekiyordu, ALTER'lar hiç
+koşmuyordu; `commitment` ve `reading_note` v14 biçiminde ekilince v15 ALTER'ları gerçekten koşuyor.
+
+**Bayatlık arayüzü** (`e9a8721`, şikâyet 7): görüşme penceresinde Defter/Aksiyonlar/Tutarlılık/
+Değerlendirme/Okuma sekmelerinde "önceki dökümden" uyarısı + yeniden üret / **Sil**
+(`DeleteReading/DeleteDeception` ilk kez çağrılıyor); bilinmiyor için çubuk yok; yeniden dökümden
+sonra çözümleme koşmayacaksa düzenleyici tek bildirim; sürümler penceresi geri yüklemede uyarır.
+
+**Paket C, C# yarısı** (`f47c584`): `SpokenWord.Probability`, `SegmentWords` dörtlü satır (3
+ondalık; üçlü eski satırlar aynen), `CallOrchestrator` artık düşürmüyor. Eşik yok — motor
+başına kulak teyidiyle ölçülecek (D).
+
+**Paket B** (`6e18ebd`): Sözler sayfası (Ctrl+5), ray grupları (GÖRÜŞMELER / HAFIZA / BUL, Durum
+altta), Ctrl rakamları ray sırasında ve **tek listeden** (`ActionRegistry` → tuş bağları, palet,
+Ctrl+? listesi; `ActionRegistryTests` her sayfaya bir eylem + tekil tuş), arayan şeridi iki yön
+(`PromiseLedger`), genel bakışta liste tek satıra indi (Dikkat kartları duruyor). "Tutuldu mu?"
+yalnız öneri (`SuggestFulfilment`: sonraki ≤5 görüşmede ≥2 ortak anlamlı kelime, kabul oranı
+ölçülecek: 30 öneride < %30 → kapatılır); "açık kaldı" yalnız vade sonrası görüşme olduysa
+(`CountCallsSince`); oran yok, üç sayı. Kalan B işi: Defter'deki söz çipleri ve `Fulfil`
+(defter fiilleri dalıyla birlikte), takvimin `PromiseLedger`'dan beslenmesi.
+
+**Doğrulama.** `VoiceTranscript.Tests.exe`: 1134 test (1129 geçti, 5 atlandı); Python 179.
