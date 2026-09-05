@@ -9,95 +9,41 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:LedgerViewModel}">
 
+    <UserControl.Resources>
+        <!-- The chips wrap on a narrow window, so they need room below as well as beside. -->
+        <Style x:Key="WrapChip" TargetType="RadioButton" BasedOn="{StaticResource ChipButton}">
+            <Setter Property="Margin" Value="0,0,8,8" />
+        </Style>
+
+        <!-- "Kaynak:" and "Sırala:" — a label in front of a chip group. -->
+        <Style x:Key="ChipGroupLabel" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+            <Setter Property="Margin" Value="14,0,8,8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Resources>
+
     <Grid Margin="{StaticResource PadPage}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0">
-            <TextBlock Text="{loc:T ledgerpage.defter}" Style="{StaticResource PageTitle}" />
-            <TextBlock Style="{StaticResource PageSubtitle}" Margin="0,0,0,16"
-                       Text="{loc:T ledgerpage.tutulmamis-sozler-degisen-rakamlar-ve-ceva}" />
-        </StackPanel>
-
-        <!--
-            Filter chips.
-
-            Counts are on the chips rather than discovered by clicking, because the first thing
-            somebody wants from this page is the size of the problem.
-        -->
-        <Grid Grid.Row="1" Margin="0,0,0,14">
+        <!-- Title on the left; the tools that act on the whole page on the right. -->
+        <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <RadioButton GroupName="LedgerFilter" IsChecked="True" Style="{StaticResource ChipButton}"
-                             Command="{Binding SetFilterCommand}" CommandParameter="Everything"
-                             Content="{loc:T ledgerpage.hepsi}" />
-
-                <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
-                             Command="{Binding SetFilterCommand}" CommandParameter="Overdue">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{loc:T ledgerpage.vadesi-gecti}" VerticalAlignment="Center" />
-                        <Border Style="{StaticResource CountPill}" Margin="8,0,0,0"
-                                Visibility="{Binding OverdueCount, Converter={StaticResource PositiveToVisibility}}">
-                            <TextBlock Style="{StaticResource CountPillText}" Text="{Binding OverdueCount}" />
-                        </Border>
-                    </StackPanel>
-                </RadioButton>
-
-                <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
-                             Command="{Binding SetFilterCommand}" CommandParameter="Promises">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{loc:T ledgerpage.acik-sozler}" VerticalAlignment="Center" />
-                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
-                                Visibility="{Binding PromiseCount, Converter={StaticResource PositiveToVisibility}}">
-                            <TextBlock Style="{StaticResource PillText}" Text="{Binding PromiseCount}" />
-                        </Border>
-                    </StackPanel>
-                </RadioButton>
-
-                <!-- The user's own open promises — people forget what THEY promised too, and
-                     an archive that only watches the other side is a grievance list. -->
-                <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
-                             Command="{Binding SetFilterCommand}" CommandParameter="MyPromises">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{loc:T ledgerpage.verdigim-sozler}" VerticalAlignment="Center" />
-                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
-                                Visibility="{Binding MyPromiseCount, Converter={StaticResource PositiveToVisibility}}">
-                            <TextBlock Style="{StaticResource PillText}" Text="{Binding MyPromiseCount}" />
-                        </Border>
-                    </StackPanel>
-                </RadioButton>
-
-                <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
-                             Command="{Binding SetFilterCommand}" CommandParameter="Changes">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{loc:T ledgerpage.degisenler}" VerticalAlignment="Center" />
-                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
-                                Visibility="{Binding ChangeCount, Converter={StaticResource PositiveToVisibility}}">
-                            <TextBlock Style="{StaticResource PillText}" Text="{Binding ChangeCount}" />
-                        </Border>
-                    </StackPanel>
-                </RadioButton>
-
-                <RadioButton GroupName="LedgerFilter" Style="{StaticResource ChipButton}"
-                             Command="{Binding SetFilterCommand}" CommandParameter="Flags">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{loc:T ledgerpage.dikkat}" VerticalAlignment="Center" />
-                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
-                                Visibility="{Binding FlagCount, Converter={StaticResource PositiveToVisibility}}">
-                            <TextBlock Style="{StaticResource PillText}" Text="{Binding FlagCount}" />
-                        </Border>
-                    </StackPanel>
-                </RadioButton>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{loc:T ledgerpage.defter}" Style="{StaticResource PageTitle}" />
+                <TextBlock Style="{StaticResource PageSubtitle}" Margin="0,0,0,16"
+                           Text="{loc:T ledgerpage.tutulmamis-sozler-degisen-rakamlar-ve-ceva}" />
             </StackPanel>
 
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="16,6,0,0">
                 <!-- Offered here because this is where the mess is looked at. -->
                 <ui:Button Content="{loc:T ledgerpage.temizle}" Appearance="Transparent" Margin="0,0,8,0"
                            ToolTip="{loc:T ledgerpage.bos-ve-tekrarlanan-kayitlari-kaldirir}"
@@ -113,11 +59,157 @@
                         <ui:SymbolIcon Symbol="Filter24" />
                     </ui:TextBox.Icon>
                 </ui:TextBox>
+
+                <!-- Select mode: a checkbox on every row, one verb for all of them. -->
+                <CheckBox Content="{loc:T ledgerpage.sec}" IsChecked="{Binding IsSelecting}"
+                          Margin="14,0,0,0" VerticalAlignment="Center" />
+
+                <ui:Button Content="{Binding DismissSelectedText}" Appearance="Secondary" Margin="8,0,0,0"
+                           Command="{Binding DismissSelectedCommand}"
+                           Visibility="{Binding IsSelecting, Converter={StaticResource BoolToVisibility}}" />
             </StackPanel>
         </Grid>
 
+        <!--
+            Filter chips.
+
+            Counts are on the chips rather than discovered by clicking, because the first thing
+            somebody wants from this page is the size of the problem. They wrap: three groups do
+            not fit one line on a small window, and a chip that is cut off is a filter nobody
+            finds.
+        -->
+        <WrapPanel Grid.Row="1" Margin="0,0,0,6">
+            <RadioButton GroupName="LedgerFilter" IsChecked="True" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetFilterCommand}" CommandParameter="Everything"
+                         Content="{loc:T ledgerpage.hepsi}" />
+
+            <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetFilterCommand}" CommandParameter="Overdue">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{loc:T ledgerpage.vadesi-gecti}" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource CountPill}" Margin="8,0,0,0"
+                            Visibility="{Binding OverdueCount, Converter={StaticResource PositiveToVisibility}}">
+                        <TextBlock Style="{StaticResource CountPillText}" Text="{Binding OverdueCount}" />
+                    </Border>
+                </StackPanel>
+            </RadioButton>
+
+            <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetFilterCommand}" CommandParameter="Promises">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{loc:T ledgerpage.acik-sozler}" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                            Visibility="{Binding PromiseCount, Converter={StaticResource PositiveToVisibility}}">
+                        <TextBlock Style="{StaticResource PillText}" Text="{Binding PromiseCount}" />
+                    </Border>
+                </StackPanel>
+            </RadioButton>
+
+            <!-- The user's own open promises — people forget what THEY promised too, and
+                 an archive that only watches the other side is a grievance list. -->
+            <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetFilterCommand}" CommandParameter="MyPromises">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{loc:T ledgerpage.verdigim-sozler}" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                            Visibility="{Binding MyPromiseCount, Converter={StaticResource PositiveToVisibility}}">
+                        <TextBlock Style="{StaticResource PillText}" Text="{Binding MyPromiseCount}" />
+                    </Border>
+                </StackPanel>
+            </RadioButton>
+
+            <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetFilterCommand}" CommandParameter="Changes">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{loc:T ledgerpage.degisenler}" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                            Visibility="{Binding ChangeCount, Converter={StaticResource PositiveToVisibility}}">
+                        <TextBlock Style="{StaticResource PillText}" Text="{Binding ChangeCount}" />
+                    </Border>
+                </StackPanel>
+            </RadioButton>
+
+            <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetFilterCommand}" CommandParameter="Flags">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{loc:T ledgerpage.dikkat}" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                            Visibility="{Binding FlagCount, Converter={StaticResource PositiveToVisibility}}">
+                        <TextBlock Style="{StaticResource PillText}" Text="{Binding FlagCount}" />
+                    </Border>
+                </StackPanel>
+            </RadioButton>
+
+            <!-- The tombstones. A dismissal is not a deletion, so it is not hidden either:
+                 what was turned down is listed, and can be brought back from here. -->
+            <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetFilterCommand}" CommandParameter="Dismissed">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{loc:T ledgerpage.reddedilenler}" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                            Visibility="{Binding DismissedCount, Converter={StaticResource PositiveToVisibility}}">
+                        <TextBlock Style="{StaticResource PillText}" Text="{Binding DismissedCount}" />
+                    </Border>
+                </StackPanel>
+            </RadioButton>
+
+            <!-- Which machinery wrote the row: the per-call analysis, or the consistency check. -->
+            <TextBlock Text="{loc:T ledgerpage.kaynak}" Style="{StaticResource ChipGroupLabel}" />
+
+            <RadioButton GroupName="LedgerSource" IsChecked="True" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetSourceCommand}" CommandParameter="All"
+                         Content="{loc:T ledgerpage.kaynak-hepsi}" />
+            <RadioButton GroupName="LedgerSource" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetSourceCommand}" CommandParameter="Rule"
+                         Content="{loc:T ledgerpage.kaynak-kural}" />
+            <RadioButton GroupName="LedgerSource" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetSourceCommand}" CommandParameter="Audit"
+                         Content="{loc:T ledgerpage.kaynak-denetim}" />
+
+            <TextBlock Text="{loc:T ledgerpage.sirala}" Style="{StaticResource ChipGroupLabel}" />
+
+            <RadioButton GroupName="LedgerSort" IsChecked="True" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetSortCommand}" CommandParameter="Date"
+                         Content="{loc:T ledgerpage.sirala-tarih}" />
+            <RadioButton GroupName="LedgerSort" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetSortCommand}" CommandParameter="Contact"
+                         Content="{loc:T ledgerpage.sirala-kisi}" />
+            <RadioButton GroupName="LedgerSort" Style="{StaticResource WrapChip}"
+                         Command="{Binding SetSortCommand}" CommandParameter="Kind"
+                         Content="{loc:T ledgerpage.sirala-tur}" />
+        </WrapPanel>
+
+        <!--
+            What was just done, and the way back.
+
+            A ruling on a row is said here, in the page, rather than as a toast that slides away:
+            "Reddedildi: …" stays until it is closed, and for as long as it is on screen the
+            ruling can be taken back with one click. A sweep's tally lands here too, without the
+            button — there is nothing to undo about an empty row leaving.
+        -->
+        <Border Grid.Row="2" Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,0,0,8"
+                Visibility="{Binding Notice, Converter={StaticResource NullToCollapsed}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding Notice}" Style="{StaticResource Secondary}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+                <ui:Button Grid.Column="1" Content="{loc:T ledgerpage.geri-al}" Appearance="Transparent"
+                           Margin="8,0,0,0" Command="{Binding UndoCommand}"
+                           Visibility="{Binding CanUndo, Converter={StaticResource BoolToVisibility}}" />
+
+                <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
+                           Command="{Binding ClearNoticeCommand}" />
+            </Grid>
+        </Border>
+
         <!-- Entries -->
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"
                       Visibility="{Binding HasEntries, Converter={StaticResource BoolToVisibility}}">
             <ItemsControl ItemsSource="{Binding Entries}">
                 <ItemsControl.ItemTemplate>
@@ -126,18 +218,24 @@
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <Border Grid.Column="0" Style="{StaticResource Avatar}" Margin="0,0,14,0"
+                                <!-- Select mode only, and only on rows that can be dismissed. -->
+                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalAlignment="Top"
+                                          Margin="0,4,10,0"
+                                          Visibility="{Binding ShowSelector, Converter={StaticResource BoolToVisibility}}" />
+
+                                <Border Grid.Column="1" Style="{StaticResource Avatar}" Margin="0,0,14,0"
                                         VerticalAlignment="Top"
                                         Background="{Binding ContactName, Converter={StaticResource NameBrush}}">
                                     <TextBlock Style="{StaticResource AvatarText}"
                                                Text="{Binding ContactName, Converter={StaticResource Initials}}" />
                                 </Border>
 
-                                <StackPanel Grid.Column="1">
+                                <StackPanel Grid.Column="2">
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                         <TextBlock Text="{Binding ContactName}" FontWeight="SemiBold"
                                                    FontSize="{StaticResource TextBody}" VerticalAlignment="Center" />
@@ -164,6 +262,19 @@
                                         <Border Style="{StaticResource CountPill}" Margin="8,0,0,0"
                                                 Visibility="{Binding IsLate, Converter={StaticResource BoolToVisibility}}">
                                             <TextBlock Style="{StaticResource CountPillText}" Text="{Binding LateText}" />
+                                        </Border>
+
+                                        <!-- The user reworded or postponed it: the headline is
+                                             their wording, and the row says so. -->
+                                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                                Visibility="{Binding IsEdited, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Style="{StaticResource PillText}" Text="{loc:T ledgerpage.senin-duzeltmen}" />
+                                        </Border>
+
+                                        <!-- A tombstone says when it was turned down. -->
+                                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                                Visibility="{Binding IsDismissed, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Style="{StaticResource PillText}" Text="{Binding DismissedText}" />
                                         </Border>
                                     </StackPanel>
 
@@ -202,7 +313,13 @@
                                                Visibility="{Binding HasCaveat, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top"
+                                <!--
+                                    The row's verbs. Open is a look; Reddet is a ruling, and sits
+                                    12 px apart from it so the two are not one target. A changed
+                                    figure has no Reddet — it is computed from the claims, not
+                                    stored — and a tombstone offers Geri getir instead.
+                                -->
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Top"
                                             Margin="12,0,0,0">
                                     <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T ledgerpage.gorusmeyi-ac}"
                                             Command="{Binding DataContext.OpenCommand,
@@ -211,19 +328,20 @@
                                         <ui:SymbolIcon Symbol="Open24" FontSize="15" />
                                     </Button>
 
-                                    <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T ledgerpage.tutuldu-olarak-isaretle}"
-                                            Command="{Binding DataContext.FulfilCommand,
-                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}">
-                                        <ui:SymbolIcon Symbol="Checkmark24" FontSize="15" />
-                                    </Button>
+                                    <ui:Button Content="{loc:T ledgerpage.reddet}" Appearance="Transparent"
+                                               Margin="12,0,0,0" Padding="10,4"
+                                               ToolTip="{loc:T ledgerpage.bu-satiri-kaldir}"
+                                               Command="{Binding DataContext.DismissCommand,
+                                                         RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                               CommandParameter="{Binding}"
+                                               Visibility="{Binding CanDismiss, Converter={StaticResource BoolToVisibility}}" />
 
-                                    <Button Style="{StaticResource GhostButton}" ToolTip="{loc:T ledgerpage.bu-satiri-kaldir}"
-                                            Command="{Binding DataContext.DismissCommand,
-                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}">
-                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="15" />
-                                    </Button>
+                                    <ui:Button Content="{loc:T ledgerpage.geri-getir}" Appearance="Secondary"
+                                               Margin="12,0,0,0" Padding="10,4"
+                                               Command="{Binding DataContext.RestoreCommand,
+                                                         RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                               CommandParameter="{Binding}"
+                                               Visibility="{Binding IsDismissed, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -239,7 +357,7 @@
             showing the wrong one either worries somebody who is fine or reassures somebody whose
             recorder has never run.
         -->
-        <StackPanel Grid.Row="2" Style="{StaticResource EmptyState}"
+        <StackPanel Grid.Row="3" Style="{StaticResource EmptyState}"
                     Visibility="{Binding HasEntries, Converter={StaticResource InverseBoolToVisibility}}">
             <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="42" HorizontalAlignment="Center"
                            Margin="0,0,0,16"

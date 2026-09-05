@@ -115,6 +115,39 @@ public partial class CallWindow
 
     private CallWindowViewModel? ViewModel => DataContext as CallWindowViewModel;
 
+    // ---- the Defter tab's promise verbs ----------------------------------------------------
+    //
+    // The commands on the cards bind straight to the view model. These need the window: the
+    // edit dialog wants an owner, and a flyout's menu items are not in the card's visual tree,
+    // so they cannot reach the view model by binding.
+
+    /// <summary>The promise a card's button or flyout item belongs to.</summary>
+    private static Commitment? PromiseOf(object sender)
+    {
+        if ((sender as FrameworkElement)?.DataContext is Commitment direct) return direct;
+
+        // A flyout's items hang off a ContextMenu that only knows which button opened it.
+        var menu = (sender as System.Windows.Controls.MenuItem)?.Parent as System.Windows.Controls.ContextMenu;
+        return (menu?.PlacementTarget as FrameworkElement)?.DataContext as Commitment;
+    }
+
+    /// <summary>✎ and "Ertele": the user's wording and date, kept beside the spoken ones.</summary>
+    private void PromiseEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if (PromiseOf(sender) is not { } commitment || ViewModel is not { } model) return;
+
+        if (EditPromiseWindow.Open(this, App.Repository, commitment) is { } undo)
+            model.AfterLedgerVerb(undo);
+    }
+
+    /// <summary>"Tutulmadı" — said by the user only; a silence is never read as this.</summary>
+    private void PromiseAbandon_Click(object sender, RoutedEventArgs e)
+    {
+        if (PromiseOf(sender) is not { } commitment || ViewModel is not { } model) return;
+
+        model.AbandonCommitmentCommand.Execute(commitment);
+    }
+
     // ---- following the playhead --------------------------------------------
     //
     // The line being spoken was already marked; nothing moved to it. On a ten-minute call that

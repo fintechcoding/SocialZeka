@@ -730,7 +730,35 @@
                             </StackPanel>
                         </TabItem.Header>
 <Grid Margin="0,12,0,0">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <!-- What was just turned down, and the way back — said here, above
+                                 the list it left, for as long as the line is on screen. -->
+                            <Border Grid.Row="0" Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,0,0,8"
+                                    Visibility="{Binding LedgerUndo.Notice, Converter={StaticResource NullToCollapsed}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0" Text="{Binding LedgerUndo.Notice}" Style="{StaticResource Secondary}"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+                                    <ui:Button Grid.Column="1" Content="{loc:T contactspage.geri-al}" Appearance="Transparent"
+                                               Margin="8,0,0,0" Command="{Binding LedgerUndo.UndoCommand}"
+                                               Visibility="{Binding LedgerUndo.CanUndo, Converter={StaticResource BoolToVisibility}}" />
+
+                                    <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
+                                               Command="{Binding LedgerUndo.ClearCommand}" />
+                                </Grid>
+                            </Border>
+
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                                           Visibility="{Binding HasFlags, Converter={StaticResource BoolToVisibility}}">
                                 <ItemsControl ItemsSource="{Binding Flags}">
                                     <ItemsControl.ItemTemplate>
@@ -849,7 +877,7 @@
                                 </ItemsControl>
                             </ScrollViewer>
 
-                            <StackPanel Style="{StaticResource EmptyState}"
+                            <StackPanel Grid.Row="1" Style="{StaticResource EmptyState}"
                                         Visibility="{Binding HasFlags, Converter={StaticResource InverseBoolToVisibility}}">
                                 <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="36" HorizontalAlignment="Center"
                                                Margin="0,0,0,14"

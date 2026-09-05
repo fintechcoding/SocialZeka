@@ -56,6 +56,39 @@ public partial class ContactWindow
 
     private ContactWindowViewModel? ViewModel => DataContext as ContactWindowViewModel;
 
+    // ---- the Defter tab's promise verbs ----------------------------------------------------
+    //
+    // The commands on the cards bind straight to the view model. These need the window: the
+    // edit dialog wants an owner, and a flyout's menu items are not in the card's visual tree,
+    // so they cannot reach the view model by binding.
+
+    /// <summary>The promise a card's button or flyout item belongs to.</summary>
+    private static Core.Domain.Commitment? PromiseOf(object sender)
+    {
+        if ((sender as FrameworkElement)?.DataContext is Core.Domain.Commitment direct) return direct;
+
+        // A flyout's items hang off a ContextMenu that only knows which button opened it.
+        var menu = (sender as System.Windows.Controls.MenuItem)?.Parent as System.Windows.Controls.ContextMenu;
+        return (menu?.PlacementTarget as FrameworkElement)?.DataContext as Core.Domain.Commitment;
+    }
+
+    /// <summary>✎ and "Ertele": the user's wording and date, kept beside the spoken ones.</summary>
+    private void PromiseEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if (PromiseOf(sender) is not { } commitment || ViewModel is not { } model) return;
+
+        if (EditPromiseWindow.Open(this, App.Repository, commitment) is { } undo)
+            model.AfterLedgerVerb(undo);
+    }
+
+    /// <summary>"Tutulmadı" — said by the user only; a silence is never read as this.</summary>
+    private void PromiseAbandon_Click(object sender, RoutedEventArgs e)
+    {
+        if (PromiseOf(sender) is not { } commitment || ViewModel is not { } model) return;
+
+        model.AbandonCommitmentCommand.Execute(commitment);
+    }
+
     /// <summary>Opens one of this person's conversations to read.</summary>
     private void CallRow_DoubleClick(object sender, MouseButtonEventArgs e)
     {

@@ -160,6 +160,24 @@ public class WindowSmokeTests
                 Build("Hatırlat", () => new RemindWindow(
                     repository, callId: reminded, subject: "Serdal · 12 Mart"), failures);
 
+                // The user's wording and date beside the spoken ones. Built against a row that
+                // already carries a correction, so the prefill reads every column the dialog
+                // shows and the "Düzeltmeyi kaldır" branch is drawn.
+                var promised = repository.InsertCommitment(new VoiceTranscript.Core.Domain.Commitment
+                {
+                    CallId = reminded,
+                    Quote = "cumaya sana yollarım",
+                    QuoteStartMs = 4200,
+                    Obligation = "Sözleşmeyi göndermek",
+                    DeadlineRaw = "cuma",
+                    DeadlineDate = DateOnly.FromDateTime(DateTime.Today.AddDays(2)),
+                });
+                repository.SetUserObligation(promised, "Sözleşme taslağını göndermek");
+
+                Build("Sözü düzenle", () => new EditPromiseWindow(
+                    repository,
+                    repository.PromiseLedger(includeClosed: true).Single(r => r.Commitment.Id == promised).Commitment), failures);
+
                 // Loads the definitions and renders every offered icon name through the
                 // converter, so an invalid SymbolRegular in the choices would fail here.
                 Build("Etiketler", () => new TagManagerWindow(repository), failures);
