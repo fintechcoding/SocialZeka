@@ -17,7 +17,7 @@
 /// </summary>
 public static class Schema
 {
-    public const int Version = 15;
+    public const int Version = 16;
 
     public static readonly string[] Statements =
     [
@@ -674,5 +674,77 @@ public static class Schema
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_verdict_call ON verdict(call_id, kind);",
+
+        // What the USER did while talking, counted: swear words, fillers, speech rate, talk
+        // share, and the moments they gave a piece of information away. One row per call.
+        //
+        // MACHINE CACHE, like reading_note: rebuilt from the transcript and the lexicon whenever
+        // either changes, and the two version columns say which of each it was built from. The
+        // JSON holds the report and the talk statistics together so the trend page reads a
+        // whole year in one SELECT instead of joining per call.
+        //
+        // Nothing in here is about the other party — the counters run over the user's own lines
+        // only — and nothing in here is a value: a moment where an IBAN was read out is stored
+        // as the kind "iban" and the millisecond, never the number. Storing the number would make
+        // this table a second place where the archive keeps bank details, in a backup that may
+        // not be encrypted, to answer a question that needs only the fact that it happened.
+        """
+        CREATE TABLE IF NOT EXISTS speech_habit (
+            call_id               INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
+            lexicon_version       INTEGER NOT NULL,
+            json                  TEXT    NOT NULL,
+            created_at            TEXT    NOT NULL
+        );
+        """,
+
+        // The words the counters look for.
+        //
+        // USER DATA, on the tag_def pattern: seeded once from the embedded list, then edited by
+        // the user — a stem added, a stem removed, a word ruled "bu küfür değil" landing here as
+        // an exclusion — and never touched by a recount. Re-seeding on every start would bring
+        // back what they deleted, which is the one thing a dictionary the user owns must not do.
+        //
+        // A row is a stem and the endings it may carry, not a word. Substring matching produced
+        // "klasik" and "aman" as hits; whole-token matching missed every inflected form. Turkish
+        // is agglutinative, so the rule that works is token boundary + stem + a listed suffix,
+        // and the suffix list has to be data because nobody can enumerate it in code.
+        """
+        CREATE TABLE IF NOT EXISTS habit_lexicon (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            -- 'kufur' | 'dolgu' | 'sive' | 'haric'. 'sive' is reserved and unseeded: the dialect
+            -- counter is not built until its pre-measurement passes. 'haric' rows remove hits
+            -- instead of making them.
+            kind           TEXT    NOT NULL,
+
+            -- The stem, folded with TurkishText.NormalizeForSearch — the same folding the
+            -- transcript's text_normalised carries, so the two meet in one bucket.
+            lexeme_folded  TEXT    NOT NULL,
+
+            -- The endings the stem may carry, as a JSON list of folded strings. NULL or empty
+            -- means the bare stem only.
+            suffixes       TEXT,
+            lexeme         TEXT    NOT NULL,
+            position       INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(kind, lexeme_folded)
+        );
+        """,
+
+        // What the user meant to do or not do in a conversation, in their own words, before or
+        // after it: "kira rakamını söylemeyeceğim". The Niyet card.
+        //
+        // USER DATA, like call_note: written only by the user, replaced only by the user, and
+        // untouched by every re-run. It exists because intent cannot be measured — "rol yapamama"
+        // is on the list of things this product refuses to score — and the honest substitute is
+        // to let the user write the intent down and count, afterwards, the moments they marked
+        // against it themselves.
+        """
+        CREATE TABLE IF NOT EXISTS call_intent (
+            call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+            text       TEXT    NOT NULL,
+            updated_at TEXT    NOT NULL
+        );
+        """,
     ];
 }

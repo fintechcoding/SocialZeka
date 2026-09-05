@@ -304,5 +304,43 @@ public static class Migrations
                 """,
                 "CREATE INDEX IF NOT EXISTS ix_verdict_call ON verdict(call_id, kind);",
             ]),
+
+        // v16 — Aynam: what the user did while talking, counted.
+        //
+        // Three tables and two owners. speech_habit is the machine's: one row per call, rebuilt
+        // when the transcript or the lexicon changes, carrying which of each it was built from.
+        // habit_lexicon and call_intent are the user's — the dictionary the counters read
+        // (seeded once, then theirs) and the intent they wrote down for a conversation — and no
+        // re-run may touch either. No column on an existing table changes shape.
+        new(16, "Aynam: konuşma alışkanlıkları önbelleği, sözlük ve niyet kartı",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS speech_habit (
+                    call_id               INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+                    transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
+                    lexicon_version       INTEGER NOT NULL,
+                    json                  TEXT    NOT NULL,
+                    created_at            TEXT    NOT NULL
+                );
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS habit_lexicon (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kind           TEXT    NOT NULL,
+                    lexeme_folded  TEXT    NOT NULL,
+                    suffixes       TEXT,
+                    lexeme         TEXT    NOT NULL,
+                    position       INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE(kind, lexeme_folded)
+                );
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS call_intent (
+                    call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+                    text       TEXT    NOT NULL,
+                    updated_at TEXT    NOT NULL
+                );
+                """,
+            ]),
     ];
 }

@@ -1293,12 +1293,12 @@ public sealed class Repository(Database database)
 
             var toCallAndVersion = new Dictionary<string, string>(toCall) { ["transcript_version_id"] = "map_version" };
 
-            foreach (var table in new[] { "call_summary", "consistency_note", "reading_note", "deception_note" })
+            foreach (var table in new[] { "call_summary", "consistency_note", "reading_note", "deception_note", "speech_habit" })
             {
                 Copy(connection, transaction, table, toCallAndVersion, ofNewCalls);
             }
 
-            foreach (var table in new[] { "call_note", "call_tag", "board_card", "processing_run", "verdict" })
+            foreach (var table in new[] { "call_note", "call_tag", "board_card", "processing_run", "verdict", "call_intent" })
             {
                 Copy(connection, transaction, table, toCall, ofNewCalls);
             }
@@ -1359,6 +1359,10 @@ public sealed class Repository(Database database)
 
             // Tag looks are keyed by the folded tag, so a definition already here is kept.
             Copy(connection, transaction, "tag_def");
+
+            // The habit dictionary likewise: a stem already here, by kind and folded spelling,
+            // keeps its endings and its spelling; the archive's other stems are added.
+            Copy(connection, transaction, "habit_lexicon");
 
             var arrived = connection.Query<ImportedCallRow>(
                 """
@@ -2564,6 +2568,192 @@ public sealed class Repository(Database database)
             : "SELECT * FROM flag WHERE call_id = @callId AND dismissed_by_user = 0 ORDER BY quote_start_ms, id;";
 
         return [.. connection.Query<FlagRow>(sql, new { callId }).Select(r => r.ToModel())];
+    }
+
+    // ---- speech habits: Aynam ------------------------------------------------------------
+    //
+    // Three tables, two owners. speech_habit is the machine's cache and is rewritten by every
+    // recount; habit_lexicon and call_intent are the user's and no recount touches them.
+    // ClearAnalysis leaves all three alone — the first because it is not the ledger's, the other
+    // two because they are not the machine's.
+
+    /// <summary>What is stored for one call: the payload, the dictionary it was counted with, the transcript it was counted from.</summary>
+    public sealed record StoredHabits(string Json, int LexiconVersion, long? TranscriptVersionId, DateTimeOffset CreatedAt);
+
+    /// <summary>One call's stored report as the trend reads it: whose, when, from which engine.</summary>
+    /// <param name="Engine">Of the transcript the report was counted FROM, or null when that transcript is gone or was never recorded.</param>
+    public sealed record HabitSeriesRow(
+        long CallId,
+        DateTimeOffset StartedAt,
+        long? ContactId,
+        string? Engine,
+        bool LikelyNoHeadphones,
+        int LexiconVersion,
+        string Json);
+
+    /// <summary>
+    /// Saves the counts for a conversation, replacing any earlier ones. Filed under the transcript
+    /// the call shows, like SaveReading, so a re-transcription can be told from a recount.
+    /// </summary>
+    public void SaveHabits(long callId, int lexiconVersion, string json)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO speech_habit (call_id, transcript_version_id, lexicon_version, json, created_at)
+            VALUES (@callId, (SELECT transcript_version_id FROM call WHERE id = @callId),
+                    @lexiconVersion, @json, @now)
+            ON CONFLICT(call_id) DO UPDATE SET
+                transcript_version_id = excluded.transcript_version_id,
+                lexicon_version = excluded.lexicon_version,
+                json = excluded.json,
+                created_at = excluded.created_at;
+            """,
+            new { callId, lexiconVersion, json, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    public StoredHabits? GetHabits(long callId)
+    {
+        using var connection = Open();
+
+        var row = connection.QuerySingleOrDefault<HabitRow>(
+            "SELECT json, lexicon_version, transcript_version_id, created_at FROM speech_habit WHERE call_id = @callId;",
+            new { callId });
+
+        return row?.ToModel();
+    }
+
+    public void DeleteHabits(long callId)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM speech_habit WHERE call_id = @callId;", new { callId });
+    }
+
+    /// <summary>
+    /// Every stored report since a date, oldest first, with what the trend needs beside it — one
+    /// SELECT for a year, which is the budget the mirror page has.
+    ///
+    /// The engine is the one the report was counted FROM, not the one the call shows now: the
+    /// counts belong to that text, and a call re-transcribed since keeps its dot under the old
+    /// engine until it is recounted. The date is compared at UTC midnight; a call in the small
+    /// hours of the first day may fall on either side, which for a trend over months is nothing.
+    /// </summary>
+    public IReadOnlyList<HabitSeriesRow> HabitSeries(DateOnly since, long? contactId = null, string? engine = null)
+    {
+        using var connection = Open();
+
+        var from = Iso(new DateTimeOffset(since.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero));
+
+        return [.. connection
+            .Query<HabitSeriesRaw>(
+                """
+                SELECT h.call_id, c.started_at, c.contact_id, c.likely_no_headphones,
+                       tv.engine, h.lexicon_version, h.json
+                  FROM speech_habit h
+                  JOIN call c ON c.id = h.call_id
+                  LEFT JOIN transcript_version tv ON tv.id = h.transcript_version_id
+                 WHERE c.started_at >= @from
+                   AND (@contactId IS NULL OR c.contact_id = @contactId)
+                   AND (@engine IS NULL OR tv.engine = @engine)
+                 ORDER BY c.started_at, h.call_id;
+                """,
+                new { from, contactId, engine })
+            .Select(r => r.ToModel())];
+    }
+
+    /// <summary>The dictionary, in the user's order within each kind.</summary>
+    public IReadOnlyList<HabitLexeme> Lexicon()
+    {
+        using var connection = Open();
+
+        return [.. connection
+            .Query<LexemeRow>("SELECT * FROM habit_lexicon ORDER BY kind, position, lexeme_folded;")
+            .Select(r => r.ToModel())];
+    }
+
+    /// <summary>
+    /// Creates or updates a stem. Identity is the kind and the folded stem, so two spellings of
+    /// one word are one row; the endings are folded here too, because the matcher compares them
+    /// against folded text and a stored ending with a Turkish letter in it would never match.
+    /// Returns the row's id.
+    /// </summary>
+    public long UpsertLexeme(string kind, string lexeme, IReadOnlyList<string>? suffixes = null, int position = 0)
+    {
+        var trimmed = lexeme.Trim();
+        var folded = TurkishText.NormalizeForSearch(trimmed);
+        if (folded.Length == 0) throw new ArgumentException("Lexeme cannot be empty.", nameof(lexeme));
+
+        var endings = (suffixes ?? [])
+            .Select(TurkishText.NormalizeForSearch)
+            .Where(s => s.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        using var connection = Open();
+
+        return connection.ExecuteScalar<long>(
+            """
+            INSERT INTO habit_lexicon (kind, lexeme_folded, suffixes, lexeme, position)
+            VALUES (@kind, @folded, @suffixes, @lexeme, @position)
+            ON CONFLICT(kind, lexeme_folded) DO UPDATE SET
+                suffixes = excluded.suffixes, lexeme = excluded.lexeme, position = excluded.position
+            RETURNING id;
+            """,
+            new
+            {
+                kind,
+                folded,
+                suffixes = endings.Count == 0 ? null : JsonSerializer.Serialize(endings),
+                lexeme = trimmed,
+                position,
+            });
+    }
+
+    public void DeleteLexeme(long id)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM habit_lexicon WHERE id = @id;", new { id });
+    }
+
+    /// <summary>What the user wrote they meant to do in a conversation, and when they last changed it.</summary>
+    public (string Text, DateTimeOffset UpdatedAt)? GetCallIntent(long callId)
+    {
+        using var connection = Open();
+
+        var row = connection.QuerySingleOrDefault<(string Text, string UpdatedAt)>(
+            "SELECT text, updated_at FROM call_intent WHERE call_id = @callId;",
+            new { callId });
+
+        return row == default ? null : (row.Text, ParseIso(row.UpdatedAt));
+    }
+
+    /// <summary>Saves the intent, replacing any earlier one. Blank text removes it: an empty card is no card.</summary>
+    public void SaveCallIntent(long callId, string text)
+    {
+        var trimmed = text.Trim();
+
+        if (trimmed.Length == 0)
+        {
+            DeleteCallIntent(callId);
+            return;
+        }
+
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO call_intent (call_id, text, updated_at)
+            VALUES (@callId, @text, @now)
+            ON CONFLICT(call_id) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at;
+            """,
+            new { callId, text = trimmed, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    public void DeleteCallIntent(long callId)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM call_intent WHERE call_id = @callId;", new { callId });
     }
 
     // ---- action suggestions ------------------------------------------------
@@ -4910,5 +5100,65 @@ public sealed class Repository(Database database)
         public long action_count { get; set; }
         public long action_known { get; set; }
         public long action_stale { get; set; }
+    }
+
+    private sealed class HabitRow
+    {
+        public string json { get; set; } = "";
+        public long lexicon_version { get; set; }
+        public long? transcript_version_id { get; set; }
+        public string created_at { get; set; } = "";
+
+        public StoredHabits ToModel() => new(json, (int)lexicon_version, transcript_version_id, ParseIso(created_at));
+    }
+
+    private sealed class HabitSeriesRaw
+    {
+        public long call_id { get; set; }
+        public string started_at { get; set; } = "";
+        public long? contact_id { get; set; }
+        public long likely_no_headphones { get; set; }
+        public string? engine { get; set; }
+        public long lexicon_version { get; set; }
+        public string json { get; set; } = "";
+
+        public HabitSeriesRow ToModel() => new(
+            call_id, ParseIso(started_at), contact_id, engine, likely_no_headphones != 0, (int)lexicon_version, json);
+    }
+
+    private sealed class LexemeRow
+    {
+        public long id { get; set; }
+        public string kind { get; set; } = "";
+        public string lexeme_folded { get; set; } = "";
+        public string? suffixes { get; set; }
+        public string lexeme { get; set; } = "";
+        public long position { get; set; }
+
+        public HabitLexeme ToModel() => new()
+        {
+            Id = id,
+            Kind = kind,
+            Lexeme = lexeme,
+            LexemeFolded = lexeme_folded,
+            Suffixes = Endings(suffixes),
+            Position = (int)position,
+        };
+
+        // A row whose endings do not parse is a bare stem, not a missing stem: the user's word
+        // stays in the dictionary whatever happened to the list beside it.
+        private static IReadOnlyList<string> Endings(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return [];
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<string>>(json) ?? [];
+            }
+            catch (JsonException)
+            {
+                return [];
+            }
+        }
     }
 }

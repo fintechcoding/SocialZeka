@@ -24,6 +24,12 @@
                       LogicalName="VoiceTranscript.Core.Resources.strings.tr.json" />
     <EmbeddedResource Include="Resources/strings.en.json" WithCulture="false"
                       LogicalName="VoiceTranscript.Core.Resources.strings.en.json" />
+
+    <!-- The habit counters' starting dictionary. Same ".tr." trap as above: without
+         WithCulture="false" it would be compiled into a tr\ satellite and the seed would come
+         up empty on every machine, silently. -->
+    <EmbeddedResource Include="Resources/habits.tr.json" WithCulture="false"
+                      LogicalName="VoiceTranscript.Core.Resources.habits.tr.json" />
   </ItemGroup>
 
   <ItemGroup>

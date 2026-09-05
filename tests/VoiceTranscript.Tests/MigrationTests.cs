@@ -335,6 +335,42 @@ public sealed class MigrationTests : IDisposable
             index.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'ix_verdict_call';";
             Assert.Equal(1L, index.ExecuteScalar());
         }
+
+        // v16: the habit cache, the dictionary and the intent card — by step here, by baseline
+        // for fresh files. All three empty: the dictionary's seed is the application's to write
+        // on first use, not the migration's, so a database upgraded on a machine that never
+        // opens Aynam carries no rows it did not ask for.
+        foreach (var table in new[] { "speech_habit", "habit_lexicon", "call_intent" })
+        {
+            using var connection = new Database(_path).Open();
+            using var count = connection.CreateCommand();
+            count.CommandText = $"SELECT COUNT(*) FROM {table};";
+            Assert.Equal(0L, count.ExecuteScalar());
+        }
+
+        Assert.True(ColumnExistsIn("speech_habit", "transcript_version_id"));
+        Assert.True(ColumnExistsIn("speech_habit", "lexicon_version"));
+        Assert.True(ColumnExistsIn("habit_lexicon", "suffixes"));
+        Assert.True(ColumnExistsIn("habit_lexicon", "lexeme_folded"));
+        Assert.True(ColumnExistsIn("call_intent", "text"));
+
+        using (var connection = new Database(_path).Open())
+        {
+            // The dictionary's identity is the kind and the folded stem. The same folded stem
+            // twice under one kind is the bug the constraint exists to refuse — the merge's
+            // INSERT OR IGNORE and the upsert both rest on it.
+            using var twice = connection.CreateCommand();
+            twice.CommandText =
+                """
+                INSERT INTO habit_lexicon (kind, lexeme_folded, lexeme) VALUES ('dolgu', 'yani', 'yani');
+                INSERT INTO habit_lexicon (kind, lexeme_folded, lexeme) VALUES ('dolgu', 'yani', 'Yani');
+                """;
+            Assert.ThrowsAny<SqliteException>(() => twice.ExecuteNonQuery());
+
+            using var clean = connection.CreateCommand();
+            clean.CommandText = "DELETE FROM habit_lexicon;";
+            clean.ExecuteNonQuery();
+        }
     }
 
     /// <summary>
