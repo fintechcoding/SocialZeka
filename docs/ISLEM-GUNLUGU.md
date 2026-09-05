@@ -2252,3 +2252,35 @@ gereği ikisi de sütun sayılarından çıkıyor (256 + 760 = 1016 iki yüzeyde
 
 **Sürüm.** A1 bitince ilk etiket `v3.0.0` (YOLHARITASI "yığın bitince tek sürüm"); etiket
 kullanıcı onayıyla atılır.
+
+## 2026-09-05 — Paket A2, ara durum: ön koşul ve bağımsız yarılar ana dalda
+
+Dört iş ayrı çalışma ağaçlarında paralel yürütüldü, her biri kendi commit'iyle ana dala
+birleştirildi (worktree ajanları yanlışlıkla dondurulmuş VoiceTranscript deposunda açıldı; ikisi
+kendi SocialZeka ağacını açtı, ikisi SocialZeka `main`'i çekip ilerledi — hepsi `05871a4` üstüne).
+
+- **Tarih çözümü görüşme gününe göre** (`85aa95f`): `TurkishDates.TryResolve(phrase, DateOnly spokenOn)`
+  zorunlu; `DateTime.Now` düşüşü kalktı; `AnalysisPipeline.Absorb` ve `ActionExtraction` görüşmenin
+  yerel başlangıç gününü verir; "N gün/hafta sonra" sayaç kuralı eklendi. 7 test. Ajanın bulduğu
+  ek hata (`2154f4f`→`65d74b7`): `TryWeekday` tablodaki ilk alt dizeyi alıyordu, "cumartesi" cumaya
+  çözülüyordu; en uzun ad kazanır, 1 test.
+- **Worker C+J** (`cdea035`): ElevenLabs `probability = exp(logprob)`; `tag_audio_events:"true"`;
+  olaylar segmentlerin dışında `audio_events:[{channel,start_ms,end_ms,kind}]` (kanal alanı plana ek:
+  motor hangi tarafı aldığını bilmez, Aynam "3 kez güldün" için gerekir); istek imzasına bayrak
+  girdi (eski önbellek parçaları olaysız dönmesin). 7 test.
+- **Worker G** (`5d1a663`): `prosody.py` salt numpy — 25/10 ms çerçeve, −40 dBFS konuşma kapısı
+  `speaker.py`'den içe alınır, YIN/CMND 60–400 Hz eşik 0,15 (plan sabitleri, **ölçülmedi**),
+  0,5 sn kutular `[t, dbfs, f0|null, voiced]`; `cmd_prosody`. Ölçüm: 20 dk sentetik, %90 konuşma:
+  tek kanal 2,96 s, iki kanal 5,98 s, 161 MiB (hedef ≤ 15 s). 16 test.
+- **Dikey alan** (`ba443f6`, şikâyet 8): 880×720'de dökümün üstündeki bantlar **297 → 199 px**,
+  döküm sessiz görüşmede **351 → 515 px**, oynatıcı açıkken **309 → 436 px**; oynatıcı satırı
+  ses yokken 62 → 0 px, açıkken 104 → 79 px (dalga katlanınca 47). Sekme şeridi 44 px kaldı
+  (`SegmentedTabItem` dolgusu ortak); etiketli görüşmede başlık bandı 880'de iki satıra sarıyor
+  (Hatırlat/Önemli etiketleri simgeye inmedi — bandın söylediği değişmesin diye). `LayoutTests`
+  ölçümü **çocuk süreçte** alır: WPF süreç başına tek `Application`, tema fırçaları
+  dondurulamıyor, `WindowSmokeTests` o tek iş parçacığının sahibi; ikisi aynı süreçte
+  koşunca önce başlayan kazanıyordu. Ortak UI iş parçacığı fikstürü ileride; şimdilik +2 sn.
+  `CallWindowViewModel.TranscriptVersionCount` "N döküm" rozeti için; "Yeniden çevir" düğmesi
+  ⋯ menüsüne, `callwindow.yeniden-cevir` anahtarı XAML'de kullanılmıyor (sonraki temizlikte).
+
+**Doğrulama.** `./test.ps1` ana dalda: C# 1090 test (1085 geçti, 5 atlandı); Python 179.
