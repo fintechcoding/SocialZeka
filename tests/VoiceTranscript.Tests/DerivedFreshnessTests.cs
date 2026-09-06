@@ -68,6 +68,18 @@ public sealed class DerivedFreshnessTests : IDisposable
     private long Suggest(string action) =>
         _repository.InsertAction(new ActionItem { CallId = _callId, ContactId = _contactId, Action = action, Quote = "cumaya yollarım" });
 
+    private long Find(string quote) =>
+        _repository.InsertFlag(new Flag
+        {
+            CallId = _callId,
+            ContactId = _contactId,
+            Kind = FlagKind.Contradiction,
+            Summary = "Rakam değişti",
+            Quote = quote,
+            Source = Flag.Sources.Consistency,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+
     /// <summary>
     /// Goes red when a note written after a transcription is not filed under that transcript —
     /// which is the whole mechanism: without the pointer, nothing can ever say "bayat".
@@ -172,6 +184,81 @@ public sealed class DerivedFreshnessTests : IDisposable
         Transcribe("nova-3", "Alo.", "Buyur.");
 
         Assert.Equal(Staleness.Absent, _repository.DerivedFreshness(_callId).Actions);
+    }
+
+    /// <summary>
+    /// Consistency findings are judged even when the run left no warning note.
+    ///
+    /// The note is written only when the evidence justified a warning, so a run that produced
+    /// contradictions and nothing to say over them writes no row at all. Judging the tab by that
+    /// row alone left those findings — sentences quoted out of a text a re-transcription has
+    /// replaced — reading as current, on the surface that can least afford it: each one is an
+    /// accusation about a person, and the product's whole claim is that every quote can be
+    /// played back.
+    ///
+    /// Red means that path is open again: the mechanism exists and this is the way into it.
+    /// </summary>
+    [Fact]
+    public void FindingsWithNoWarningNoteAreStillJudgedAfterARetranscription()
+    {
+        Transcribe("large-v3", "Kira on beş bin lira", "Anladım");
+        Find("Kira on beş bin lira");
+
+        Assert.Null(_repository.GetConsistencyNote(_callId));
+        Assert.Equal(Staleness.Fresh, _repository.DerivedFreshness(_callId).Consistency);
+
+        Transcribe("nova-3", "Kira on beş bin lira.", "Anladım.");
+
+        Assert.Equal(Staleness.Stale, _repository.DerivedFreshness(_callId).Consistency);
+        Assert.True(_repository.DerivedFreshness(_callId).AnyStale);
+    }
+
+    /// <summary>
+    /// A finding that never recorded which transcript it came out of is "bilinmiyor", not "bayat".
+    ///
+    /// Every flag written before v21 is in that state and none of them can be backfilled — the
+    /// run that wrote them did not record what it read. Red here means an unknown pointer has
+    /// become an accusation about a person on the strength of nothing, which is the failure §4.9
+    /// exists to forbid.
+    /// </summary>
+    [Fact]
+    public void AFindingWithoutATranscriptPointerIsUnknownNotStale()
+    {
+        Transcribe("large-v3", "Kira on beş bin lira", "Anladım");
+        Find("Kira on beş bin lira");
+
+        using (var connection = new Database(_paths.DatabaseFile).Open())
+        {
+            using var strip = connection.CreateCommand();
+            strip.CommandText = "UPDATE flag SET transcript_version_id = NULL;";
+            strip.ExecuteNonQuery();
+        }
+
+        Transcribe("nova-3", "Kira on beş bin lira.", "Anladım.");
+
+        Assert.Equal(Staleness.Unknown, _repository.DerivedFreshness(_callId).Consistency);
+        Assert.False(_repository.DerivedFreshness(_callId).AnyStale);
+    }
+
+    /// <summary>
+    /// The two halves of the consistency tab are judged together, worst first.
+    ///
+    /// A run writes a warning note and its findings from the same text, but the user's dismissals
+    /// keep findings alive across re-runs, so the two can end up under different transcripts. One
+    /// stale half is enough to warn about: the reader is one click away from a quote that is no
+    /// longer in the conversation.
+    /// </summary>
+    [Fact]
+    public void OneStaleHalfOfTheConsistencyTabIsEnoughToLabelIt()
+    {
+        Transcribe("large-v3", "Kira on beş bin lira", "Anladım");
+        Find("Kira on beş bin lira");
+
+        Transcribe("nova-3", "Kira on beş bin lira.", "Anladım.");
+        _repository.SaveConsistencyNote(_callId, "Rakamı yazılı iste.", "qwen", []);
+
+        // The note is of the text on screen; the finding it stands over is not.
+        Assert.Equal(Staleness.Stale, _repository.DerivedFreshness(_callId).Consistency);
     }
 
     /// <summary>Goes red when deleting a call leaves its verdicts, notes or pointers behind (cascade).</summary>

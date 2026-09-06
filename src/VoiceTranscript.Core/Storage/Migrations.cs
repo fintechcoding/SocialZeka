@@ -476,5 +476,23 @@ public static class Migrations
                 "CREATE INDEX IF NOT EXISTS ix_ask_call ON ask_exchange(call_id, asked_at);",
                 "CREATE INDEX IF NOT EXISTS ix_ask_asked ON ask_exchange(asked_at DESC);",
             ]),
+
+        // v21 — a paid consistency run leaves a complete trace of itself.
+        //
+        // Two columns for two halves of the same fault. The observations were produced by the
+        // most expensive click in the application, rendered once, and never written down; the
+        // findings were written down but never filed under the transcript they were read out
+        // of, so transcribing the call again left contradictions quoting sentences that are no
+        // longer on screen looking perfectly current.
+        //
+        // Both are nullable and neither is backfilled. There is no honest value to put in
+        // flag.transcript_version_id for a row already in the field — the run that wrote it did
+        // not record which text it read — and the one thing NULL must never be read as here is
+        // "stale", because that word is an accusation about a person (§4.9).
+        new(21, "Tutarlılık koşumunun gözlemleri saklanır; bulgular hangi dökümden geldiğini bilir",
+            [
+                "ALTER TABLE consistency_note ADD COLUMN observations TEXT;",
+                "ALTER TABLE flag ADD COLUMN transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL;",
+            ]),
     ];
 }

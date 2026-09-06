@@ -561,9 +561,83 @@ public sealed class ContactCardTests : IDisposable
         Assert.True(card.OpinionIsStale);
         Assert.NotNull(card.OpinionCounterReading);
 
-        // And with the hash of the history it actually covers, it is not.
-        StoreOpinion(_contact, "Aynı izlenim.", "A1", 12_000, ContactReadingAnalysis.InputHash([call]));
+        // And with the hash of the history it actually covers, it is not. Null for the transcript
+        // half: nothing in this fixture stores one, so that is what the card recomputes too.
+        StoreOpinion(_contact, "Aynı izlenim.", "A1", 12_000, ContactReadingAnalysis.InputHash([(call, null)]));
         Assert.False(Card(Access(new Core.Configuration.AppSettings { ContactReadingEnabled = true })).OpinionIsStale);
+    }
+
+    /// <summary>One transcription of one call, and the id of the text it stored.</summary>
+    private long Transcribe(long call, string engine, params string[] lines)
+    {
+        var segments = lines.Select((text, i) => new Segment
+        {
+            CallId = call, IsMe = i % 2 == 0, StartMs = i * 4_000, EndMs = i * 4_000 + 3_000, Text = text,
+        }).ToList();
+
+        _repo.ReplaceSegments(call, segments);
+        return _repo.SaveTranscriptVersion(call, engine, 0.9, segments);
+    }
+
+    /// <summary>Today's fingerprint of this person's history, as the card recomputes it.</summary>
+    private string Fingerprint()
+    {
+        var versions = _repo.TranscriptVersionsOf(_contact);
+
+        return ContactReadingAnalysis.InputHash(
+            _repo.ListCalls(_contact, limit: int.MaxValue).Select(c => (c.Id, versions.GetValueOrDefault(c.Id))));
+    }
+
+    /// <summary>
+    /// Transcribing one of the conversations again makes the stored reading old.
+    ///
+    /// The fingerprint asked one question — which conversations — and a re-transcription does not
+    /// change the answer. So the card kept a current-looking model-and-date stamp over a reading
+    /// whose every anchor had moved: pressing one played from somewhere the sentence no longer is,
+    /// which is the exact failure §4.9 exists to prevent, on the broadest claim the product makes
+    /// about a human being.
+    ///
+    /// Red means that is back: an impression presented as current over a text it never read.
+    /// </summary>
+    [Fact]
+    public void RetranscribingOneConversationMakesTheStoredOpinionOld()
+    {
+        var call = Call(daysAgo: 2);
+        Transcribe(call, "large-v3", "Cuma günü yollarım.", "Tamam.");
+
+        StoreOpinion(_contact, "Bir izlenim.", "A1", 12_000, Fingerprint());
+        Assert.False(Card(Access(new Core.Configuration.AppSettings { ContactReadingEnabled = true })).OpinionIsStale);
+
+        // Same conversation, same list of conversations, different words on screen.
+        Transcribe(call, "nova-3", "Cuma günü yollarım.", "Tamam.");
+
+        Assert.True(Card(Access(new Core.Configuration.AppSettings { ContactReadingEnabled = true })).OpinionIsStale);
+    }
+
+    /// <summary>
+    /// A reading written before the transcript half of the fingerprint existed is not called old
+    /// because of it.
+    ///
+    /// Those rows carry only the list of conversations. That is not "the same transcripts" and not
+    /// "different ones" — it was never recorded — and treating a missing half as a mismatch would
+    /// mark every reading already stored as out of date on the day the column shipped. Unknown is
+    /// never an accusation (§4.9); the old half still does its own job, and this pins both.
+    /// </summary>
+    [Fact]
+    public void AnOpinionFromBeforeTheTranscriptHalfIsNotCalledOldByIt()
+    {
+        var call = Call(daysAgo: 4);
+        Transcribe(call, "large-v3", "Cuma günü yollarım.", "Tamam.");
+
+        // What the older build wrote: the call-list half alone.
+        StoreOpinion(_contact, "Bir izlenim.", "A1", 12_000, Fingerprint().Split('.')[0]);
+
+        Assert.False(Card(Access(new Core.Configuration.AppSettings { ContactReadingEnabled = true })).OpinionIsStale);
+
+        // And the half it does carry still answers: another conversation makes it old.
+        Call(daysAgo: 1);
+
+        Assert.True(Card(Access(new Core.Configuration.AppSettings { ContactReadingEnabled = true })).OpinionIsStale);
     }
 
     /// <summary>

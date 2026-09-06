@@ -207,6 +207,15 @@ public sealed record Flag
     /// <summary>When the user last ruled on it — dismissed, or brought back. Null: never.</summary>
     public DateTimeOffset? DecidedAt { get; init; }
 
+    /// <summary>
+    /// Which stored transcript the quote was located in.
+    ///
+    /// Null when nothing recorded it — every row written before v21 — and the screen reads that
+    /// as "bilinmiyor", never as "bayat". The difference matters more here than anywhere else in
+    /// the schema: the label would be attached to an accusation about a person.
+    /// </summary>
+    public long? TranscriptVersionId { get; init; }
+
     public static class Sources
     {
         public const string Pipeline = "pipeline";

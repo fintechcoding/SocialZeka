@@ -248,7 +248,14 @@ public sealed class ConsistencyAnalysis(ILlmClient llm, Repository repository)
         var warning = Str(root, "genel_uyari");
         warning = string.IsNullOrWhiteSpace(warning) || kept.Count == 0 ? null : warning.Trim();
 
-        if (warning is not null) repository.SaveConsistencyNote(call.Id, warning, model);
+        // Both halves of what this run said about the person, written down together.
+        //
+        // The observations used to be returned and never stored, so reopening the window brought
+        // back the accusing half and silently dropped the exonerating one — from a run the user
+        // had already paid for. The row is written whenever there is either half to keep; with
+        // neither, the run log is the only trace there is to leave, and it already has one.
+        if (warning is not null || observations.Count > 0)
+            repository.SaveConsistencyNote(call.Id, warning, model, observations);
 
         bool insufficient;
         try

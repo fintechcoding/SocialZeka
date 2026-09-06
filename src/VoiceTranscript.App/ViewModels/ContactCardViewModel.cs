@@ -1019,9 +1019,11 @@ public sealed partial class ContactCardViewModel : ObservableObject
             stored.ExcerptCount,
             stored.RejectedCount);
 
-        // "Have there been conversations since?" — asked of the calls, not of the text, so a
-        // reading is old the moment the history moved under it.
-        OpinionIsStale = stored.InputHash != CurrentInputHash();
+        // "Has anything happened since?" — asked twice: of the conversations, and of the words
+        // they show. A reading is old the moment the history moves under it, and re-transcribing
+        // one of those conversations moves it just as surely as adding another: the list is
+        // unchanged while every anchor the reading rests on has shifted.
+        OpinionIsStale = !ContactReadingAnalysis.StillCurrent(stored.InputHash, CurrentInputHash());
 
         // The same threshold and the same sentence the ledger uses when a model's quotes mostly
         // cannot be found: it is the same failure, made about a person instead of a call.
@@ -1035,8 +1037,13 @@ public sealed partial class ContactCardViewModel : ObservableObject
     }
 
     /// <summary>The fingerprint of today's history, to compare with the one stored beside a reading.</summary>
-    private string CurrentInputHash() =>
-        ContactReadingAnalysis.InputHash(OneToOneCalls().Calls.Select(c => c.CallId));
+    private string CurrentInputHash()
+    {
+        var versions = _repository.TranscriptVersionsOf(ContactId);
+
+        return ContactReadingAnalysis.InputHash(
+            OneToOneCalls().Calls.Select(c => (c.CallId, versions.GetValueOrDefault(c.CallId))));
+    }
 
     private void Fill(ContactReadingReport report)
     {

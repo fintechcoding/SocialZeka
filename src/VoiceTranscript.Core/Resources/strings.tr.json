@@ -1237,5 +1237,9 @@
   "aistatuspage.asama-kisi-okumasi": "Kişi okuması",
   "aistatuspage.asama-jetonlu": "{0} çalışma · {1} giriş + {2} çıkış jeton",
   "aistatuspage.asama-jetonsuz": "{0} çalışma · jeton bildirilmedi",
-  "aistatuspage.asama-basarisiz": " · {0} başarısız"
+  "aistatuspage.asama-basarisiz": " · {0} başarısız",
+  "callwindow.denetim-kosuldu-bulgu-cikmadi": "Bu görüşme denetlendi; gösterilebilir bulgu çıkmadı — kısa ve sıradan konuşmalarda bu olağandır.",
+  "callwindow.bu-kosumun-gozlemleri-saklanmamis": "Bu koşumun dengeleyici gözlemleri saklanmamış. Görmek için denetimi yeniden çalıştır.",
+  "callwindow.aksiyon-cikmadi": "Aksiyon çıkmadı — sıradan bir konuşmada bu olağandır.",
+  "callwindow.son-cikarim-imzasi": "Son çıkarım: {0} · {1}"
 }

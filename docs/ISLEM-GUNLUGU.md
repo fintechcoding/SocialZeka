@@ -2810,3 +2810,51 @@ alındı.
 üretilmeyen çapraz görüşme bayrağı süpürülmüyor; `Repository.LastRuns` çağrısız duruyor.
 
 **Doğrulama.** 1393 C# testi (1388 geçti, 5 atlandı; taban 1384'tü) ve 179 Python testi.
+## 2026-09-06 — Paket İz: ücretli koşumun tam izi (şema v21)
+
+Altı doğrulanmış kusur, tek tema: **ücretli bir koşum eksiksiz ve doğru tarihli bir iz
+bırakmalı ki kullanıcı aynı cevaba iki kez ödemesin.**
+
+**A ve C — hiçbir şey bulmayan koşum iz bırakmıyordu.** Tutarlılık denetimi bulgu ve uyarı
+üretmediğinde hiçbir satır yazmıyor; sekme, düğmeye hiç basılmamış gibi geri geliyordu. Bu,
+uygulamanın en pahalı tek tıklaması ve kısa, sıradan bir görüşmede "bulgu yok" olağan cevap.
+Aksiyon çıkarımında aynı şekil, bir fiyat basamağı ucuz. İkisi de artık `processing_run`'ı
+okuyor: yeni `Repository.LastSuccessfulRun(callId, stage)` son BAŞARILI koşumun modelini ve
+saatini veriyor. Başarısız koşumlar dışarıda — fatura için kaydediliyorlar ama zaman aşımına
+uğramış bir isteği "denetlendi, cevap hayır" diye okumak aynı yalanın tersi.
+
+**B — ücretli koşumun dengeleyici yarısı çöpe atılıyordu.** `Observations` üretiliyor, bir kez
+gösteriliyor, hiçbir yere yazılmıyordu; pencere yeniden açıldığında kişi hakkındaki suçlayıcı
+yarım geliyor, aklayıcı yarım sessizce düşüyordu. `consistency_note.observations` (JSON dizi)
+geldi. NULL ile `[]` farklı iki cevap: NULL "saklanmamış", boş dizi "koşum lehte bir şey
+bulmadı" — ve sekme bunu ayrı cümlelerle söylüyor.
+
+**D — yeniden denetim kendi bayatlık uyarısını ekranda bırakıyordu.** `CheckConsistencyAsync`
+`RefreshFreshness()` çağırmıyordu; üç kardeşi çağırıyor. Kullanıcı "önceki dökümden" uyarısını
+görüp en pahalı düğmeye basıyor, sonuç güncelleniyor ve uyarı altındaki [Yeniden denetle] ile
+birlikte duruyordu.
+
+**E — tutarlılık bulguları uyarısız bayatlayabiliyordu.** `DerivedFreshness` yalnız
+`consistency_note` satırına bakıyordu; model bulgu üretip genel uyarı üretmediğinde o satır hiç
+yazılmıyor, yeniden dökümden sonra bulgular güncel görünüyordu. `flag.transcript_version_id`
+geldi ve sekme iki yarımı birlikte yargılıyor (`DerivedFreshness.Worst`, kötü olan kazanır).
+Sahadaki satırlar geriye doldurulmadı: onları yazan koşum ne okuduğunu kaydetmedi, ve NULL
+burada asla "bayat" okunamaz — o kelime bir kişi hakkında bir suçlama (§4.9).
+
+**F — kişinin okuması, görüşmelerinden biri yeniden döküldüğünde bayat sayılmıyordu.**
+`contact_reading.input_hash` yalnız çağrı kimliklerinin parmak iziydi. Artık iki yarım, nokta
+ile ayrılmış: hangi görüşmeler, ve her birinin hangi dökümü. Eski satırlar yalnız ilk yarımı
+taşıyor; `ContactReadingAnalysis.StillCurrent` eksik yarımı atlıyor, yani şema değişikliği
+kimsenin okumasını bir günde "eski" yapmıyor.
+
+**Şema v21** tek adım: iki sütun, ikisi de nullable, ikisi de geriye doldurulmadı. Kayıt
+yerleri: `Schema.Statements` + `Schema.Version` + yeni `Migrations.Steps` girdisi +
+`MigrationTests` bloğu + `MergeArchive`'in `flag` kopyasına `map_version` yeniden eşlemesi.
+`LedgerTables` ve `MergeContacts` gerekmedi (`flag` zaten listede, yeni kişi anahtarlı tablo yok).
+
+**Sıra notu:** şema **v21**'i bu iş aldı. `PLAN-IKINCI-TUR §2.1`'de çevreler için yazılan v21
+artık **v22**'dir; şema sürümleri tek sıradır ve sevk edilen adım düzenlenmez.
+
+**Testlerin gücü ölçüldü.** On dört mutasyon tek tek uygulandı; her birinde yalnız kendi testi
+(E ve E3'te aynı mekanizmayı iki açıdan tutan kardeş testler) kırmızıya döndü. Dalda 1398 test,
+1393 geçti, 5 atlandı (taban 1384/1379/5).

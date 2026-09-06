@@ -42,4 +42,29 @@ public sealed record DerivedFreshness(
         : noteVersion is null || current is null ? Staleness.Unknown
         : noteVersion == current ? Staleness.Fresh
         : Staleness.Stale;
+
+    /// <summary>
+    /// The same rule over many rows: stale if any of them came out of another transcript,
+    /// unknown while none of them recorded one, fresh otherwise.
+    /// </summary>
+    /// <param name="known">How many of the rows recorded which transcript they came from.</param>
+    /// <param name="stale">How many recorded one that is not the transcript on screen.</param>
+    public static Staleness JudgeMany(long count, long known, long stale, long? current) =>
+        count == 0 ? Staleness.Absent
+        : current is null || known == 0 ? Staleness.Unknown
+        : stale > 0 ? Staleness.Stale
+        : Staleness.Fresh;
+
+    /// <summary>
+    /// One answer for a tab that shows two kinds of row from the same run.
+    ///
+    /// Worst first: one stale finding is enough to warn about, because the reader is about to
+    /// click a quote that is no longer in the text. Below that, something known-fresh beats
+    /// silence — and "unknown" never climbs to "stale" on its own, which is the whole of §4.9.
+    /// </summary>
+    public static Staleness Worst(Staleness a, Staleness b) =>
+        a == Staleness.Stale || b == Staleness.Stale ? Staleness.Stale
+        : a == Staleness.Fresh || b == Staleness.Fresh ? Staleness.Fresh
+        : a == Staleness.Unknown || b == Staleness.Unknown ? Staleness.Unknown
+        : Staleness.Absent;
 }

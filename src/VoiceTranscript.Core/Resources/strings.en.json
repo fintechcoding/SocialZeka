@@ -1237,5 +1237,9 @@
   "aistatuspage.asama-kisi-okumasi": "Contact reading",
   "aistatuspage.asama-jetonlu": "{0} runs · {1} in + {2} out tokens",
   "aistatuspage.asama-jetonsuz": "{0} runs · no tokens reported",
-  "aistatuspage.asama-basarisiz": " · {0} failed"
+  "aistatuspage.asama-basarisiz": " · {0} failed",
+  "callwindow.denetim-kosuldu-bulgu-cikmadi": "This conversation was checked; nothing showable came out of it — on a short, ordinary conversation that is the usual answer.",
+  "callwindow.bu-kosumun-gozlemleri-saklanmamis": "This run's balancing observations were not kept. Run the check again to see them.",
+  "callwindow.aksiyon-cikmadi": "No actions came out — on an ordinary conversation that is usual.",
+  "callwindow.son-cikarim-imzasi": "Last extraction: {0} · {1}"
 }

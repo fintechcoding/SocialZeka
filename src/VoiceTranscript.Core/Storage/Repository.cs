@@ -1364,9 +1364,17 @@ public sealed class Repository(Database database)
                 new Dictionary<string, string>(toCallAndContact) { ["fulfilled_by_call_id"] = "map_call" },
                 ofNewCalls);
 
+            // Three identifiers, not two: the call, the person, and the transcript the quote was
+            // located in. Copied raw, that last one would point at whichever transcript happens
+            // to hold the id here — and a finding filed under a stranger's text reads as stale
+            // or as current entirely by accident.
             Copy(
                 connection, transaction, "flag",
-                new Dictionary<string, string>(toCallAndContact) { ["counter_call_id"] = "map_call" },
+                new Dictionary<string, string>(toCallAndContact)
+                {
+                    ["counter_call_id"] = "map_call",
+                    ["transcript_version_id"] = "map_version",
+                },
                 ofNewCalls);
 
             // The contact card's evidence. Both are filed against a person as well as a call, so
@@ -2762,11 +2770,23 @@ public sealed class Repository(Database database)
                                                        AND transcript_version_id IS NOT NULL) AS action_known,
                    (SELECT COUNT(*) FROM action_item WHERE call_id = c.id AND status = 0
                                                        AND transcript_version_id IS NOT NULL
-                                                       AND transcript_version_id <> c.transcript_version_id) AS action_stale
+                                                       AND transcript_version_id <> c.transcript_version_id) AS action_stale,
+
+                   -- The findings themselves, and not only the note over them. A run that
+                   -- produced contradictions but no justified warning writes no note row at
+                   -- all, so judging consistency by that row alone left those findings — quoted
+                   -- from sentences a re-transcription has taken off the screen — looking
+                   -- current, with nothing anywhere to say otherwise.
+                   (SELECT COUNT(*) FROM flag WHERE call_id = c.id AND source = @consistency) AS flag_count,
+                   (SELECT COUNT(*) FROM flag WHERE call_id = c.id AND source = @consistency
+                                                AND transcript_version_id IS NOT NULL) AS flag_known,
+                   (SELECT COUNT(*) FROM flag WHERE call_id = c.id AND source = @consistency
+                                                AND transcript_version_id IS NOT NULL
+                                                AND transcript_version_id <> c.transcript_version_id) AS flag_stale
               FROM call c
              WHERE c.id = @callId;
             """,
-            new { callId });
+            new { callId, consistency = Flag.Sources.Consistency });
 
         if (row is null) return new DerivedFreshness(null, Staleness.Absent, Staleness.Absent, Staleness.Absent, Staleness.Absent, Staleness.Absent);
 
@@ -2774,17 +2794,21 @@ public sealed class Repository(Database database)
 
         // Open suggestions are many rows: stale if any was drawn from another transcript,
         // unknown if none of them recorded one, fresh otherwise.
-        var actions = row.action_count == 0 ? Staleness.Absent
-            : current is null || row.action_known == 0 ? Staleness.Unknown
-            : row.action_stale > 0 ? Staleness.Stale
-            : Staleness.Fresh;
+        var actions = Domain.DerivedFreshness.JudgeMany(
+            row.action_count, row.action_known, row.action_stale, current);
+
+        // The consistency tab shows two things a run produced, and either can outlive its text:
+        // the warning note (one row) and the findings (many). Judged together, worst first.
+        var consistency = Domain.DerivedFreshness.Worst(
+            Domain.DerivedFreshness.Judge(row.consistency_count, row.consistency_version, current),
+            Domain.DerivedFreshness.JudgeMany(row.flag_count, row.flag_known, row.flag_stale, current));
 
         return new DerivedFreshness(
             current,
             Domain.DerivedFreshness.Judge(row.summary_count, row.summary_version, current),
             Domain.DerivedFreshness.Judge(row.reading_count, row.reading_version, current),
             Domain.DerivedFreshness.Judge(row.deception_count, row.deception_version, current),
-            Domain.DerivedFreshness.Judge(row.consistency_count, row.consistency_version, current),
+            consistency,
             actions);
     }
 
@@ -3776,6 +3800,26 @@ public sealed class Repository(Database database)
             .Select(r => r.ToModel())];
     }
 
+    /// <summary>
+    /// Which stored transcript each of a person's conversations shows right now, call id →
+    /// version id (null where the call never recorded one).
+    ///
+    /// The second half of a contact reading's fingerprint. A reading is not only OF a set of
+    /// conversations, it is of the words those conversations showed while it was being written;
+    /// transcribing one of them again moves the anchors every line of it hangs on, and the card
+    /// went on printing a current-looking stamp over quotes whose moment had shifted.
+    /// </summary>
+    public IReadOnlyDictionary<long, long?> TranscriptVersionsOf(long contactId)
+    {
+        using var connection = Open();
+
+        return connection
+            .Query<(long call_id, long? version)>(
+                "SELECT id, transcript_version_id FROM call WHERE contact_id = @contactId;",
+                new { contactId })
+            .ToDictionary(r => r.call_id, r => r.version);
+    }
+
     // ---- action suggestions ------------------------------------------------
     //
     // Machine-owned rows. Routing into the user's spaces happens only via their click, and a
@@ -4183,33 +4227,70 @@ public sealed class Repository(Database database)
         connection.Execute("DELETE FROM ask_exchange WHERE id = @id;", new { id });
     }
 
-    /// <summary>Saves the consistency check's overall note for a conversation (one per call).</summary>
-    public void SaveConsistencyNote(long callId, string note, string? modelUsed)
+    /// <summary>
+    /// What one consistency run left behind: the justified warning, and the balancing
+    /// observations beside it.
+    /// </summary>
+    /// <param name="Note">The warning, or null when the evidence earned none.</param>
+    /// <param name="Observations">
+    /// "These points held up". NULL in the database — null here — means the run's observations
+    /// were never kept, which is not the same answer as an empty list: one says nothing was
+    /// recorded, the other says the run found nothing in the person's favour.
+    /// </param>
+    public sealed record StoredConsistency(
+        string? Note, IReadOnlyList<string>? Observations, string? ModelUsed, DateTimeOffset CreatedAt);
+
+    /// <summary>
+    /// Saves what one consistency run produced besides its findings (one row per call).
+    ///
+    /// Both halves together, because they are one run: the accusing sentence and the balancing
+    /// list were paid for by the same request, and storing only the first is how a reopened
+    /// window came to show a person's contradictions with nothing on the other side.
+    ///
+    /// <paramref name="observations"/> left null writes SQL NULL — "not recorded". Callers that
+    /// ran the check pass the list they got, empty included.
+    /// </summary>
+    public void SaveConsistencyNote(
+        long callId, string? note, string? modelUsed, IReadOnlyList<string>? observations = null)
     {
         using var connection = Open();
 
         connection.Execute(
             """
-            INSERT INTO consistency_note (call_id, note, model_used, created_at, transcript_version_id)
+            INSERT INTO consistency_note (call_id, note, model_used, created_at, transcript_version_id, observations)
             VALUES (@callId, @note, @modelUsed, @now,
-                    (SELECT transcript_version_id FROM call WHERE id = @callId))
+                    (SELECT transcript_version_id FROM call WHERE id = @callId), @observations)
             ON CONFLICT(call_id) DO UPDATE SET
                 note = excluded.note, model_used = excluded.model_used, created_at = excluded.created_at,
-                transcript_version_id = excluded.transcript_version_id;
+                transcript_version_id = excluded.transcript_version_id,
+                observations = excluded.observations;
             """,
-            new { callId, note, modelUsed, now = Iso(DateTimeOffset.UtcNow) });
+            new
+            {
+                callId,
+                note = note ?? "",
+                modelUsed,
+                now = Iso(DateTimeOffset.UtcNow),
+                observations = observations is null ? null : JsonSerializer.Serialize(observations),
+            });
     }
 
-    /// <summary>The stored warning note, with which model wrote it and when. Null when none.</summary>
-    public (string Note, string? ModelUsed, DateTimeOffset CreatedAt)? GetConsistencyNote(long callId)
+    /// <summary>
+    /// The stored warning note and observations, with which model wrote them and when. Null when
+    /// the call has never had a run write anything down.
+    ///
+    /// An empty note comes back as null: the column cannot hold NULL, so "the run earned no
+    /// warning" is stored as the empty string, and the screen must not print an empty box.
+    /// </summary>
+    public StoredConsistency? GetConsistencyNote(long callId)
     {
         using var connection = Open();
 
-        var row = connection.QuerySingleOrDefault<(string Note, string? ModelUsed, string CreatedAt)>(
-            "SELECT note, model_used, created_at FROM consistency_note WHERE call_id = @callId;",
+        var row = connection.QuerySingleOrDefault<ConsistencyNoteRow>(
+            "SELECT note, model_used, created_at, observations FROM consistency_note WHERE call_id = @callId;",
             new { callId });
 
-        return row == default ? null : (row.Note, row.ModelUsed, ParseIso(row.CreatedAt));
+        return row is null ? null : row.ToModel();
     }
 
     public long InsertCommitment(Commitment commitment)
@@ -4279,10 +4360,15 @@ public sealed class Repository(Database database)
             INSERT INTO flag (call_id, contact_id, kind, summary, quote, quote_start_ms,
                               counter_quote, counter_call_id, counter_quote_start_ms,
                               low_confidence, is_heuristic, dismissed_by_user,
-                              source, confidence, created_at)
+                              source, confidence, created_at, transcript_version_id)
             VALUES (@CallId, @ContactId, @Kind, @Summary, @Quote, @QuoteStartMs,
                     @CounterQuote, @CounterCallId, @CounterQuoteStartMs,
-                    @LowConfidence, @IsHeuristic, 0, @Source, @Confidence, @CreatedAt)
+                    @LowConfidence, @IsHeuristic, 0, @Source, @Confidence, @CreatedAt,
+                    -- Which text the quote was located in, taken from the call rather than from
+                    -- the caller: the writer already verified the words against this transcript,
+                    -- and a finding that cannot say which text it came out of can never be
+                    -- labelled when that text is replaced.
+                    (SELECT transcript_version_id FROM call WHERE id = @CallId))
             RETURNING id;
             """,
             new
@@ -5728,6 +5814,36 @@ public sealed class Repository(Database database)
             new { callId, stage });
     }
 
+    /// <summary>When one paid stage last SUCCEEDED for a call, and with which model.</summary>
+    public sealed record RunStamp(string Engine, DateTimeOffset StartedAt);
+
+    /// <summary>
+    /// The trace a run leaves when it produced nothing.
+    ///
+    /// Findings, suggestions and warning notes are the ordinary evidence that a check ran, and a
+    /// check that honestly finds nothing writes none of them. Without this the tab could not
+    /// tell "never asked" from "asked, and the answer was no" — so the most expensive button in
+    /// the application looked untouched after it had been pressed, and the user pressed it again
+    /// to learn the same thing twice.
+    ///
+    /// Failed runs are excluded. They are recorded because they cost money, but calling a
+    /// timed-out request a completed check is the same lie pointing the other way.
+    /// </summary>
+    public RunStamp? LastSuccessfulRun(long callId, string stage)
+    {
+        using var connection = Open();
+
+        var row = connection.QueryFirstOrDefault<(string engine, string started_at)>(
+            """
+            SELECT engine, started_at FROM processing_run
+             WHERE call_id = @callId AND stage = @stage AND succeeded = 1
+             ORDER BY id DESC LIMIT 1;
+            """,
+            new { callId, stage });
+
+        return row == default ? null : new RunStamp(row.engine, ParseIso(row.started_at));
+    }
+
     /// <summary>
     /// How much of one call's transcript the model was unsure about.
     ///
@@ -6200,6 +6316,7 @@ public sealed class Repository(Database database)
         public string? confidence { get; set; }
         public string created_at { get; set; } = "";
         public string? decided_at { get; set; }
+        public long? transcript_version_id { get; set; }
 
         public Flag ToModel() => new()
         {
@@ -6220,6 +6337,7 @@ public sealed class Repository(Database database)
             Confidence = confidence,
             CreatedAt = ParseIso(created_at),
             DecidedAt = decided_at is null ? null : ParseIso(decided_at),
+            TranscriptVersionId = transcript_version_id,
         };
     }
 
@@ -6311,6 +6429,38 @@ public sealed class Repository(Database database)
         };
     }
 
+    /// <summary>One consistency run's stored halves, as the columns hold them.</summary>
+    private sealed class ConsistencyNoteRow
+    {
+        public string note { get; set; } = "";
+        public string? model_used { get; set; }
+        public string created_at { get; set; } = "";
+        public string? observations { get; set; }
+
+        // A JSON column this build cannot read is "not recorded" rather than a crash — the same
+        // treatment the habit cache gets, and for the same reason: a stored panel must never be
+        // the thing that stops a window opening.
+        public StoredConsistency ToModel()
+        {
+            IReadOnlyList<string>? kept = null;
+
+            if (observations is not null)
+            {
+                try
+                {
+                    kept = JsonSerializer.Deserialize<List<string>>(observations);
+                }
+                catch (JsonException)
+                {
+                    kept = null;
+                }
+            }
+
+            return new StoredConsistency(
+                string.IsNullOrWhiteSpace(note) ? null : note, kept, model_used, ParseIso(created_at));
+        }
+    }
+
     /// <summary>One row per call: the counts and pointers DerivedFreshness judges from.</summary>
     private sealed class FreshnessRow
     {
@@ -6326,6 +6476,9 @@ public sealed class Repository(Database database)
         public long action_count { get; set; }
         public long action_known { get; set; }
         public long action_stale { get; set; }
+        public long flag_count { get; set; }
+        public long flag_known { get; set; }
+        public long flag_stale { get; set; }
     }
 
     private sealed class ProsodyRow

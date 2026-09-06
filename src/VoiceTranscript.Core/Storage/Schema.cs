@@ -17,7 +17,7 @@
 /// </summary>
 public static class Schema
 {
-    public const int Version = 20;
+    public const int Version = 21;
 
     public static readonly string[] Statements =
     [
@@ -310,7 +310,18 @@ public static class Schema
             created_at            TEXT    NOT NULL,
 
             -- When the user last ruled on it: dismissed, or brought back. NULL: never.
-            decided_at            TEXT
+            decided_at            TEXT,
+
+            -- Which stored transcript the quote was located in. A finding is a sentence pulled
+            -- out of one text; transcribe the call again and the sentence may not be in the new
+            -- one, so the tab has to be able to say so. Judging that by consistency_note alone
+            -- was not enough: a run that produced findings but no justified warning writes no
+            -- note row at all, and those findings then read as current forever.
+            --
+            -- NULL on every row written before v21: "nothing recorded it", never "an older
+            -- text". Backfilling it would be inventing a fact, and the fact it would invent is
+            -- an accusation about a person.
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_flag_contact ON flag(contact_id, dismissed_by_user);",
@@ -328,7 +339,16 @@ public static class Schema
 
             -- Which stored transcript this was written from. NULL on rows older than v15, which
             -- the screen says as "bilinmiyor" and never as "bayat".
-            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
+
+            -- The balancing half of the same run: "these points held up", as a JSON array of
+            -- strings. It was produced, shown once, and thrown away — so reopening the window
+            -- brought back the accusing half about a person and not the exonerating half.
+            --
+            -- NULL and '[]' are different answers. NULL is a row written before this column
+            -- existed: the run's observations were not kept, and the tab says that rather than
+            -- implying the run found nothing in the person's favour.
+            observations TEXT
         );
         """,
 
