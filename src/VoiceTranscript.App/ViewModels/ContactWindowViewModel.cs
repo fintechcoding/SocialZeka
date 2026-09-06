@@ -256,8 +256,21 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
         Name = contact.Name;
         AppName = contact.App.ToString();
-        Note = contact.Notes ?? "";
-        NoteSaved = true;
+
+        // Only when there is nothing unsaved to lose. This window reloads on the title bar's
+        // Yenile and on tab changes, and it used to overwrite the box unconditionally and then
+        // set NoteSaved — so a note somebody was still writing vanished AND the screen said it
+        // had been saved. Of everything on this screen the note is the one field the machine
+        // never writes; losing it silently is the worst thing this window could do.
+        //
+        // The cost is that a note edited elsewhere is not picked up while an unsaved draft is
+        // open here. That is the right way round: a stale reading of the user's own sentence is
+        // recoverable, a destroyed one is not.
+        if (NoteSaved)
+        {
+            Note = contact.Notes ?? "";
+            NoteSaved = true;
+        }
 
         // Counted rather than derived from the list: ListCalls caps at two hundred rows, and the
         // people this window exists for are exactly the ones who exceed it.

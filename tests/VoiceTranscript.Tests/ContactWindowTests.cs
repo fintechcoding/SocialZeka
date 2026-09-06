@@ -239,4 +239,40 @@ public sealed class ContactWindowTests : IDisposable
         Assert.Equal(30, days.Count);
         Assert.All(days, d => Assert.True(d.IsEmpty));
     }
+
+    /// <summary>
+    /// Goes red when a refresh throws away a note somebody is still writing.
+    ///
+    /// The window reloads on the title bar's Yenile and whenever the tabs bring it back, and the
+    /// reload used to overwrite the note box from the database and then mark it saved — so the
+    /// sentence went, and the screen claimed it had been kept. This is the one field in the
+    /// product the machine never writes; losing it silently is worse than any stale reading, and
+    /// the lie about having saved it is worse than the loss.
+    /// </summary>
+    [Fact]
+    public void ARefreshDoesNotThrowAwayANoteThatWasNeverSaved()
+    {
+        var id = _repo.UpsertContact("Nadir", CallApp.WhatsApp);
+        _repo.SaveContactNote(id, "eski not");
+
+        var window = new App.ViewModels.ContactWindowViewModel(_repo, id);
+        Assert.Equal("eski not", window.Note);
+        Assert.True(window.NoteSaved);
+
+        window.Note = "hâlâ yazıyorum";
+        Assert.False(window.NoteSaved);
+
+        window.Refresh();
+
+        Assert.Equal("hâlâ yazıyorum", window.Note);
+        Assert.False(window.NoteSaved);
+
+        // And once it is saved, a refresh reads the database again — the guard protects a draft,
+        // it does not freeze the box.
+        window.SaveNoteCommand.Execute(null);
+        _repo.SaveContactNote(id, "başka yerden değişti");
+        window.Refresh();
+
+        Assert.Equal("başka yerden değişti", window.Note);
+    }
 }
