@@ -2470,3 +2470,28 @@ kalmasın diye sil-yaz). `ClearAnalysis` dokunmaz: sesle birlikte geldiler, deft
 yürütmesiyle değil.
 
 **Doğrulama.** 1310 test (1305 geçti, 5 atlandı).
+
+## 2026-09-06 — Kişi kartı arayüzü (Paket E tamam)
+
+`888ecda`. Tek `ContactCardView`, iki yerde: kişi penceresinde "Kişi kartı" sekmesi (Defter
+sekmesi kalktı — 261 satır XAML ve dört fiil onunla birlikte; kart onun işini de yapıyor) ve
+kabuktaki Kişiler sayfasının ayrıntı bölmesinde aynı denetim.
+
+**Gidişat**: görüşme sıklığı, kim aradı (bilinmeyen yön paydada değil), konuşma payın, karşı
+tarafın söz kesmesi, cevapsız kalan sorular — her satırda "N/M görüşmede ölçüldü" paydası ve
+son dönem ↔ önceki dönem oku, renksiz. **Grup görüşmeleri hem Gidişat'tan hem sorulardan
+dışarıda** ve kart "N grup görüşmesi sayılmadı" diyor. **Kalıplar**: tür × kaynak; model
+etiketli satırlar (`tactic_evidence`) kendi rozetiyle, kendi sayısıyla ve **yalnız
+"Değerlendirme" süzgecinde** — Kural ve Denetim seçildiğinde ekranda tek bir model etiketi
+yok. Rozeti belirleyen test, alıntıları getiren sorgunun kullandığı testin aynısı, böylece ikisi
+ayrışamıyor. Ret oranı %30'u geçen tür **çubuğunu kaybediyor**, alıntıları kalıyor; düşük
+güvenli satırlar gri ve ayrı sayılıyor. Her alıntıda üç kulak teyidi ve Reddet — hepsi
+`LedgerActions` üzerinden, geri alınabilir. **Rakam yolculuğu** ve **Elindeki kayıtlar** kanıt
+zemininde, tarihli ve çalınabilir; ikincisi "kullanabileceğim argümanlar" isteğinin kanıt
+karşılığı olduğunu ve uygulamanın argüman yazmadığını yazıyor. **Modelin görüşü** paneli tek
+katlanmış satır: henüz yok, varsayılan kapalı, ayrı zemin.
+
+Bir test kartın bütün genel yüzeyini ve bütün `contactcard.*` metinlerini tarayıp skor/puan/
+güven/risk/tehlike sözcüklerini reddediyor — kural sözcükten de sızamasın diye.
+
+**Doğrulama.** 1321 test (1316 geçti, 5 atlandı).

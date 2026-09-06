@@ -1508,10 +1508,12 @@ taslakları ve ölçüm kapıları: [`PLAN-SOSYALZEKA.md`](PLAN-SOSYALZEKA.md).
   tost (`47334f9`). Şive ön-ölçümü kapıdan kalktı, dedektör yazılmadı. **Bekleyen ölçüm:** motor
   başına kelime güveni eşiği ve dedektör kesinliği — kullanıcı Aynam'da dinleyip işaretleyince
   `tools/olcum/aynam-kesinlik.py` sayıyı verir (küfür %90, dolgu %85, en az 30 dinleme).
-- [~] **E — Kişi kartı, kanıt (v17)** → v3.2.0. Çekirdek bitti (`34ea0b8`): `tactic_evidence`,
-  `speech_act`, Kalıplar/Rakam yolculuğu/Elindeki kayıtlar sorguları, `ContactTrend`. Arayüz
-  ajanda.
-- [ ] **G + H (+J) — Ses düzeyi/perde, canlı ölçer, audio_event (v18)** → v3.3.x (kalibrasyon kapılı)
+- [x] **E — Kişi kartı, kanıt (v17)** → v3.2.0. Çekirdek (`34ea0b8`) + arayüz (`7d4c1e2`).
+  Ölçülecek: tür başına ret oranı 30 satır sonra ≤ %30 (aşan türün çubuğu zaten kalkıyor).
+- [x] **G + H (+J) — Ses düzeyi/perde, canlı ölçer, audio_event (v18)** → v3.3.x. Worker
+  (`5d1a663`, `cdea035`), C# (`d13ecda`, `cf54407`, `615e224`), canlı ölçer (`dceeb92`).
+  **Bekleyen ölçüm:** 60 zirve dinlenmeden zaman çizgisi ses şeridi çizilmiyor; canlı uyarı
+  "isterdim ≥ %70" kapısı geçilmeden yok. İkisi de ayar kartında yazılı.
 - [ ] **I — Kişi kartı, modelin görüşü (v19)** → v3.4.0
 - [~] **Ölçüm turları** (kod yok): Hume, canlı kelime uyarısı, F0 kararlılığı. **Şive ön-ölçümü
   bitti (6 Eylül 2026): görüşme başına 0,78 eşleşme, kapı ≥ 1 — kaldı, dedektör yazılmadı.**
