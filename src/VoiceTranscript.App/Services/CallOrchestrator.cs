@@ -2116,6 +2116,21 @@ public sealed class CallOrchestrator : IDisposable
             AppLog.Error("veri", e, $"görüşme #{call.Id} dökümü geçmişe yazılamadı");
         }
 
+        // What the service heard that was not a word — laughter, a cough — beside the words
+        // rather than inside them. Only ElevenLabs labels these; every other engine sends an
+        // empty list, and an empty list is the honest answer rather than a missing one, so it is
+        // written too: it replaces a previous engine's reading rather than leaving both.
+        try
+        {
+            _repository.ReplaceAudioEvents(
+                call.Id,
+                [.. result.AudioEvents.Select(e => (e.Channel, e.StartMs, e.EndMs, e.Kind))]);
+        }
+        catch (Exception e)
+        {
+            AppLog.Error("veri", e, $"görüşme #{call.Id} ses olayları yazılamadı");
+        }
+
         if (result.Stats?.LikelyNoHeadphones == true)
         {
             Notice?.Invoke(this,
@@ -2158,6 +2173,30 @@ public sealed class CallOrchestrator : IDisposable
             catch (Exception e)
             {
                 AppLog.Error("aynam", e, $"görüşme #{call.Id} alışkanlıkları sayılamadı");
+            }
+        }
+
+        // How it was said: level and pitch over the recording.
+        //
+        // Last, and deliberately so. It is the only step here that reads the audio again and
+        // starts a process, so it runs when the words are already safe and the call is already
+        // marked transcribed — a failure here costs a measurement, never a transcript. No GPU
+        // gate: the arithmetic is numpy on the CPU and holding the graphics card for it would
+        // delay a real transcription.
+        //
+        // Skipped when the same recording has already been measured, which is the ordinary case
+        // after a re-transcription: prosody comes out of the audio, and a better engine changes
+        // none of it.
+        if (settings.ProsodyMeasurementEnabled)
+        {
+            try
+            {
+                await Services.ProsodyMeasurer.MeasureIfStaleAsync(
+                    _repository, _worker, call.Id, cancellationToken);
+            }
+            catch (Exception e)
+            {
+                AppLog.Error("ses", e, $"görüşme #{call.Id} ses ölçümü alınamadı");
             }
         }
     }

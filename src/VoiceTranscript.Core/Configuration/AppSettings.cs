@@ -586,6 +586,23 @@ public sealed record AppSettings
     /// </summary>
     public bool LiveTalkMeterEnabled { get; init; }
 
+    /// <summary>
+    /// Measure level and pitch over each recording after it is transcribed.
+    ///
+    /// On by default, and it costs about ten seconds of one core per conversation — numpy over
+    /// samples already on this disk, no model and no network. It is on because the measurement is
+    /// what makes the next decision possible: whether a level band on the timeline tells the user
+    /// anything can only be answered by listening to sixty of its peaks, and there is nothing to
+    /// listen to until the numbers exist.
+    ///
+    /// Storing them says nothing about anybody. Nothing in this product turns a level into a mood,
+    /// a pitch into stress, or either into a claim about honesty — voice-stress lie detection
+    /// performs at chance and emotion from audio is not validated for Turkish. What is stored is
+    /// a number and a moment; the band that would draw it stays off until the measurement earns
+    /// its place.
+    /// </summary>
+    public bool ProsodyMeasurementEnabled { get; init; } = true;
+
     // ---- export -------------------------------------------------------------
 
     public bool ExportToObsidian { get; init; }

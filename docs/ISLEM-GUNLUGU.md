@@ -2435,3 +2435,38 @@ yankı şüpheli satırlar artık ikisinde de sayılmıyor.
 elle bir "render" testiyle doğrulandı ama test ağaca alınmadı — ikinci bir STA iş parçacığı
 `WindowSmokeTests`'in tek `Application`'ıyla çakışıyor (aynı sebeple `LayoutTests` çocuk süreçte
 ölçüyor). İstenirse `WindowSmokeTests`'in kendi iş parçacığının içine konur.
+
+## 2026-09-06 — Ses: canlı sessiz ölçer (H), ölçüm ve kelime olmayan sesler (G, J)
+
+**Canlı ölçer** (`605eea6`, Paket H, varsayılan **kapalı**). Kayıt şeridinde "sen %64", 6 px
+pay çubuğu ve kendi 120 saniyelik medyanına göre ▲/—/▼ oku. **Desibel sayısı ekrana çıkmıyor**
+(Windows iletişim hattı sinyali işliyor, sayı kurgu olurdu), uyarı yok, alarm yok. Mekanizma:
+yakalama olayına üçüncü abone (`SpeakerIdentifier` kalıbı), paket başına `Interlocked`
+sayaçlar ve 120 saniyelik halka; **paket başına tahsis sıfır** (ölçüldü: 10 000 pakette 0 bayt),
+kilit yok, gövde try/catch — hata ölçeri karartır, kayıt yoluna çıkmaz. Kulaklık kapısı: aynı
+10 saniyelik pencerede far kanalı da eşiğin üstündeyse o pencere sayılmaz; atılan pencere
+tutulandan çoksa pay hiç gösterilmez. Ölçülen bedel: 20 dk iki kanal (240 000 paket) **0,24 sn
+işlemci — bir çekirdeğin %0,02'si**, paket kaybı **sıfır**. `SpeakerIdentifier.IsSpeech`
+gövdesi `Dbfs`'e ayrıldı ve `IsSpeech` onu çağırıyor (kısa paket dahil davranış birebir aynı) —
+iki ekranın aynı saniye hakkında farklı şey söylememesi için tek formül, tek eşik.
+
+**Ses ölçümü** (`d13ecda`, `cf54407`, bu commit; Paket G'nin C# yarısı). Şema v18: `prosody`
+**sese göre** anahtarlı (`audio_key` = dosya adı + uzunluk) — yeniden döküm ölçümü geçersiz
+kılmaz, kırpma/yeniden kodlama kılar; `audio_event` dökümüne bağlı. `ProsodySeries` saf ve
+**kanal içi**: medyan + MAD (standart sapma değil — bağırmalar kendi ölçeğini şişirip kendini
+gizlerdi; MAD sıfıra düşerse — kutuların yarısından çoğu aynıysa, ki tam da ölçümün var olduğu
+durum — ortalama mutlak sapmaya düşülür), perde yarım ton, zirve z > 2 ve ≥ 4 ardışık kutu
+(iki saniye), üst üste konuşma ve yankı bölgeleri **ölçülür ama sayılmaz** — başkasının sesi
+üzerinden ölçülen düzey o başkasının sesidir. Orkestratör en sonda, döküm güvendeyken, GPU
+kapısı olmadan çağırıyor; hata bir ölçümü kaybettirir, görüşmeyi değil. Ayarlarda **açık**
+varsayılan, çünkü şeridin işe yarayıp yaramadığı ancak 60 zirve dinlenerek ölçülebilir ve
+dinlenecek bir şey olması için sayıların var olması gerekiyor. **Şerit çizilmiyor** ve ayar
+kartı bunu kapısıyla birlikte yazıyor.
+
+**Kelime olmayan sesler** (Paket J'nin C# yarısı). `WorkerResult.AudioEvents` → `audio_event`;
+kahkaha dökümün **yanında**, içinde değil — satır olsaydı kimsenin söylemediği bir cümle
+alıntılanırdı. Etiketlemeyen motor boş liste gönderir ve bu da yazılır (önceki motorun okuması
+kalmasın diye sil-yaz). `ClearAnalysis` dokunmaz: sesle birlikte geldiler, defterin akıl
+yürütmesiyle değil.
+
+**Doğrulama.** 1310 test (1305 geçti, 5 atlandı).

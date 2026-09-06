@@ -1639,6 +1639,41 @@
                         -->
                         <TextBlock Text="{loc:T settingswindow.ses}" Style="{StaticResource GroupHeader}" Margin="0,16,0,8" />
 
+                        <!-- On by default, unlike everything else in this group, and the caption
+                             says why: the measurement is what makes the next decision possible.
+                             Whether a level band on the timeline tells anybody anything can only
+                             be settled by listening to sixty of its peaks, and there is nothing to
+                             listen to until the numbers exist. What it is NOT is said in the same
+                             breath, because "ses ölçümü" is exactly the phrase people expect to be
+                             followed by a mood or a stress reading. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.ses-duzeyi-ve-perde-olcumu}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.ses-duzeyi-ve-perde-olcumu-aciklama}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding ProsodyMeasurementEnabled}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- The band that is not drawn yet, and the gate it has to pass. Written
+                             under the switch for the same reason the alarm's absence is written
+                             under the meter: somebody who turns the measurement on will look for
+                             where it shows, and the honest answer is "nowhere until it earns it". -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T settingswindow.zaman-cizgisinde-ses-seridi}" FontSize="{StaticResource TextBody}" />
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                           Text="{loc:T settingswindow.ses-seridi-henuz-olculmedi}" />
+                            </StackPanel>
+                        </Border>
+
                         <!-- Off by default, and more firmly than the intent card: the card shows
                              once at the start of a call, this is on screen for all of it. The
                              caption says exactly what appears and, in the same breath, that it

@@ -94,6 +94,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _habitCountingEnabled = settings.HabitCountingEnabled;
         _intentCardEnabled = settings.IntentCardEnabled;
         _liveTalkMeterEnabled = settings.LiveTalkMeterEnabled;
+        _prosodyMeasurementEnabled = settings.ProsodyMeasurementEnabled;
         _commentaryEnabled = settings.CommentaryEnabled;
         _llmRemoteModel = settings.LlmRemoteModel ?? "";
         _llmBaseUrl = settings.LlmBaseUrl ?? "";
@@ -497,6 +498,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     // Off for the same reason the intent card is, only more so: the card appears once at the
     // start, the meter is on screen for the whole conversation.
     [ObservableProperty] private bool _liveTalkMeterEnabled;
+    [ObservableProperty] private bool _prosodyMeasurementEnabled = true;
 
     [ObservableProperty] private bool _commentaryEnabled = true;
     [ObservableProperty] private string _llmRemoteModel;
@@ -979,6 +981,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         HabitCountingEnabled = HabitCountingEnabled,
         IntentCardEnabled = IntentCardEnabled,
         LiveTalkMeterEnabled = LiveTalkMeterEnabled,
+        ProsodyMeasurementEnabled = ProsodyMeasurementEnabled,
         CommentaryEnabled = CommentaryEnabled,
         LlmProvider = SelectedProvider.Kind,
         LlmModelId = SelectedLlmModel.Id,
