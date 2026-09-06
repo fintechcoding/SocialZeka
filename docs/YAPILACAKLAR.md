@@ -1535,30 +1535,6 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   zamana?" (tarihsiz söze tek tıkla vade + "tarihsiz kalsın"), S4 "bu söz değildi" (verdict
   tablosuna kind='soz'), + sütun altı dürüstlük satırı. **Neden önce:** 6 Eylül'de #99 ve #100
   yedi saniye arayla "tutuldu" işaretlendi; ikisi aynı cümleden çıkmış ve #100 söz bile değil.
-- [ ] **SK — Seçilen sözün mezar taşına takılması** (Paket S'ten çıktı, ayrı iş). `AnalysisPipeline`
-  hayatta kalan sözü `SurvivingCommitmentKeys` ile `(ByMe, katlanmış alıntı)` üzerinden tanıyor,
-  yükümlülüğüyle değil. Aynı cümleden iki söz çıkmışsa, seçilmeyenin mezar taşı seçilene de uyuyor
-  ve yeniden çözümlemede kullanıcının SEÇTİĞİ söz defterden düşüyor. Anahtarı yükümlülükle
-  daraltmak çözüm değil: model cümleyi yeniden yazınca reddedilmiş satır dirilir, ki mekanizma
-  zaten onu engellemek için var. Doğru çözüm eşleşmeyi anahtardan çıkarıp hatta taşımak.
-  Karakterizasyon testi `AnalysisPipelineTests` içinde, düzeltecek kişiye not bırakıldı.
-- [ ] **SUM — Kısmi çözümleme, tam özetin üstüne yazıyor** (Paket Harcama'dan çıktı). Bölümlerden
-  biri sağlayıcı hatası alınca kalan bölümlerin defteri korunuyor ama `SummariseAsync` yine
-  koşup `SaveSummary` ile bütün konuşmadan yazılmış özeti eziyor. Doğru çözüm kısmi koşumda eski
-  özeti bırakıp özet isteğini hiç atmamak; bu bir davranış değişikliği olduğu için sessizce
-  yapılmadı.
-- [ ] **BAYRAK-SUPURGE — Artık üretilmeyen çapraz görüşme bayrağı süpürülmüyor** (aynı paketten).
-  1 numaralı görüşme için yazılmış "vadesi geçti" bayrağı, söz tutuldu işaretlenince artık
-  üretilmiyor; ama 2 numaralı görüşmenin çözümlemesi yalnız kendi ürettiği türleri sildiği için
-  eski satır 1 numara yeniden çözümlenene kadar duruyor. Silmeyi genişletmek, koşumun hiç
-  bakmadığı bulguları silme riski taşıdığı için yapılmadı.
-- [ ] **ÖLÜ SORGU — `Repository.LastRuns(string stage)` hiçbir yerden çağrılmıyor.** Ya bir
-  tüketici kazandırılmalı ya silinmeli.
-- [ ] **STT-TEKRAR — Çözümleme sırasında çöken uygulama, sesi buluta ikinci kez yüklüyor**
-  (saklama denetimi, 21 numara). "Yalnızca yeniden çözümle" isteği bellekteki bir sözlükte
-  tutuluyor; uygulama kapanınca kayboluyor ve açılışta görüşme baştan yazıya dökülüyor.
-  Bir saatlik arama ikinci kez ödeniyor. Kural veritabanındaki gerçeğe dayanmalı: döküm
-  zaten yazılıysa yeniden dökme.
 - [x] **ARAMA-SANALLASTIRMA — Arama sonuçları sanallaştırılmıyor** (saklama denetimi, 7
   numara). Sorgu tarafı sağlam (FTS5 + LIMIT 500) ama sonuçlar iç içe iki ItemsControl ile
   çiziliyor. Arşiv 500 görüşmeye çıkınca sık kelimeler tavana dayanır ve pencere donar.
@@ -1596,3 +1572,27 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
 - [x] **İPTAL — §4.6'nın "Sözlerim çipi"** (commitment ByMe=1 → Yapılacaklar). Tasarlandı, 7,5
   ile en yüksek puanı aldı, kullanıcı reddetti: "yok düşsün demiyorum". Gerekçe ve tasarım
   PLAN-IKINCI-TUR §0.1'de; yeniden önerilmesin.
+- [x] **SK — Seçilen sözün mezar taşına takılması** — **BİTTİ** (7 Eylül, Paket Çekirdek).
+  Eşleşme anahtardan çıkıp hatta taşındı: `SurvivingCommitments` yükümlülüğü de getiriyor,
+  `AnalysisPipeline.Claimed` önce birebir yükümlülüğü, sonra kalanlar için cümleyi (en yakın
+  sözcük örtüşmesiyle) eşliyor. **Bir karar tam olarak bir okumayı karşılıyor.** Anahtarı
+  yükümlülükle daraltmak yine reddedildi — model cümleyi yeniden yazınca reddedilmiş satır
+  dirilirdi. Karakterizasyon testindeki "BİLİNEN SINIRLILIK" bloğu düştü; yanına
+  `ARewordedRefusalIsStillARefusal` eklendi.
+- [x] **SUM — Kısmi çözümleme, tam özetin üstüne yazıyor** — **BİTTİ** (7 Eylül, Paket Çekirdek).
+  Kısmi koşumda özet isteği hiç atılmıyor ve eski özet olduğu gibi kalıyor. Kullanıcıya sessiz
+  kalmasın diye `AnalysisReport.Partial` eklendi; `CallOrchestrator` tek bir bildirim yazıyor
+  (`callorchestrator.bolum-okunamadi`, iki sözlükte de).
+- [x] **BAYRAK-SUPURGE — Artık üretilmeyen çapraz görüşme bayrağı süpürülmüyor** — **BİTTİ**
+  (7 Eylül, Paket Çekirdek). Silme genişletilmedi; **kişiye** daraltıldı. Kişinin bütün defterinden
+  hesaplanan üç tür (vadesi geçti, tarih ileri alındı, rakam değişti) için `ClearPersonWideFlags`
+  koşumun gerçekten fikri olan satırları siliyor. Tek görüşmenin metninden okunan dolandırıcılık
+  kalıbı ve kaçamak oranı ile yarıda kesilebilen çelişki yargısı kapsam dışı.
+- [x] **ÖLÜ SORGU — `Repository.LastRuns(string stage)`** — **SİLİNDİ** (7 Eylül, Paket Çekirdek).
+  Tüketici uydurmak yerine kaldırıldı; şekli `Repository.cs`'te yorum olarak duruyor.
+- [x] **STT-TEKRAR — Çözümleme sırasında çöken uygulama, sesi buluta ikinci kez yüklüyor** —
+  **BİTTİ** (7 Eylül, Paket Çekirdek). Kural veritabanına dayandı: `CallOrchestrator.MustTranscribe`
+  = döküm yoksa ya da kullanıcı açıkça yeniden dökme istediyse. İstek artık ters yönde tutuluyor
+  (`_retranscribe`), çünkü onu bir çökmede kaybetmek para harcamamak yönünde hata eder.
+  Ayrıca `SaveTranscriptVersion` aynı motorun aynı metni için yeni sürüm açmıyor.
+- [ ] **Y — Yapılacaklar'ın üç kusuru** (1 gün). action_item.quote hiç okunmuyor (kanıt zemini o

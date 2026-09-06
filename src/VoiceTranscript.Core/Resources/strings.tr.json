@@ -1247,5 +1247,6 @@
   "todopage.gorusme-hatirlatmasi": "Görüşme hatırlatması",
   "todopage.kisi-yok": "Kişi yok",
   "todopage.bu-yapilacagi-bir-kisiye-bagla": "Bu yapılacağı bir kişiye bağla — isteğe bağlı",
-  "todopage.soylendigi-ani-dinle": "Bu önerinin dayandığı cümleyi, söylendiği andan dinle"
+  "todopage.soylendigi-ani-dinle": "Bu önerinin dayandığı cümleyi, söylendiği andan dinle",
+  "callorchestrator.bolum-okunamadi": "Konuşmanın bir bölümü okunamadı. Bulunanlar defterine eklendi; özet, konuşmanın tamamı okunduğunda yazılan hâliyle duruyor."
 }

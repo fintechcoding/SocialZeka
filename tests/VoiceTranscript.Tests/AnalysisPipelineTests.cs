@@ -443,10 +443,12 @@ public sealed class AnalysisPipelineTests : IDisposable
     /// sentence both survive, carrying the same words and the same millisecond. The Sözler page
     /// asks which one was meant and sends the rest down the ordinary dismissal path.
     ///
-    /// Goes red when that tombstone stops holding: <c>SurvivingCommitmentKeys</c> must carry the
-    /// dismissed reading's (by whom, folded quote) into the next run, and the pipeline must not
-    /// write the same words again beside it. Without it the sentence the user already refused
-    /// comes back on every re-analysis, and a ledger that will not stay clean stops being read.
+    /// Goes red when either half of the bargain breaks. The tombstone must hold —
+    /// <c>SurvivingCommitments</c> carries the dismissed reading into the next run and the
+    /// pipeline must not write those words again beside it, or the sentence the user already
+    /// refused comes back on every re-analysis and a ledger that will not stay clean stops being
+    /// read. And the tombstone must not spread: one ruling accounts for exactly one reading, or
+    /// the promise the user CHOSE goes down with the one they turned away.
     /// </summary>
     [Fact]
     public async Task AnUnpickedCandidateStaysDismissedAcrossAReanalysis()
@@ -490,20 +492,84 @@ public sealed class AnalysisPipelineTests : IDisposable
         Assert.DoesNotContain(after, r => !r.Commitment.DismissedByUser
                                           && r.Commitment.Obligation == "Whatsapp'tan ayırmak");
 
-        // KNOWN LIMITATION, pinned here so it is visible rather than silent.
+        // And the other half, which used to be a KNOWN LIMITATION pinned here: the promise the
+        // user CHOSE is still on the open list.
         //
-        // SurvivingCommitmentKeys identifies a surviving row by (by whom, folded quote) and not
-        // by its obligation — so the tombstone's key also matches the reading the user KEPT, and
-        // the re-run withholds that one too. ClearAnalysis had already deleted it (status 0, not
-        // dismissed, not edited), so the promise the user chose is gone from the ledger.
+        // It was not, for as long as a surviving row was identified by (by whom, folded quote)
+        // alone. Both readings carry the same words, so the tombstone's key matched the kept
+        // reading too and the re-run withheld it — while ClearAnalysis had already deleted it,
+        // because it carried no ruling of its own. The user picked one of two promises and the
+        // picking is what removed it.
         //
-        // Not fixed here. Narrowing the key to include the obligation would resurrect a refusal
-        // whenever the model rewords one on the next run, and resurrecting a refusal is the worse
-        // failure — it is the one the whole mechanism exists to prevent. The real fix is to match
-        // on the obligation first and fall back to the quote for whatever is left over, in the
-        // pipeline rather than in the key. When somebody does that, this assertion goes red and
-        // should become Assert.Single with the kept obligation.
-        Assert.DoesNotContain(after, r => !r.Commitment.DismissedByUser);
+        // The matching now lives in the pipeline instead of in the key: the obligation first, the
+        // sentence as a fallback, and one ruling accounting for exactly one reading. Narrowing
+        // the key itself was rejected — the model rewords an obligation freely, and a refusal
+        // brought back to life is the worse of the two failures.
+        var open = Assert.Single(after, r => !r.Commitment.DismissedByUser);
+        Assert.Equal("güzel bir kulaklık almak", open.Commitment.Obligation);
+    }
+
+    /// <summary>
+    /// The other side of the same bargain: the model rewords the reading the user refused, and
+    /// the refusal still holds.
+    ///
+    /// This is why the fix is NOT "put the obligation in the key". A model does not repeat its own
+    /// phrasing between runs, so a key that included the obligation would stop matching the moment
+    /// it rewrote one — and a refusal coming back to life is the worse of the two failures, the
+    /// one this whole mechanism exists to prevent. So the obligation is a preference, not a
+    /// requirement: an exact reading is claimed first, and whatever ruling is left over still
+    /// claims the sentence, nearest wording first.
+    ///
+    /// Goes red when the fallback is dropped or narrowed: the sentence the user turned down
+    /// returns as a fresh open promise, reworded, on every single re-analysis. It also goes red
+    /// if the fallback stops preferring the nearest wording and takes the kept promise instead.
+    /// </summary>
+    [Fact]
+    public async Task ARewordedRefusalIsStillARefusal()
+    {
+        var (call, contact) = SeedCall(CallKind.OneToOne,
+            (true, 51_450, "Yav bir kulaklık alacağım güzel ya. Dur Whatsapp'tan ayırayım seni bekle."));
+
+        const string first =
+            """
+            {"taahhutler":[
+               {"konusan":"BEN","alinti":"Yav bir kulaklık alacağım güzel ya","yukumluluk":"güzel bir kulaklık almak","tarih_ham":null,"kosullu":false},
+               {"konusan":"BEN","alinti":"Dur Whatsapp'tan ayırayım seni","yukumluluk":"Whatsapp'tan ayırmak","tarih_ham":null,"kosullu":false}],
+             "iddialar":[],"sorular":[],"baski_isaretleri":[]}
+            """;
+
+        await new AnalysisPipeline(new ScriptedLlm(first), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var unpicked = _repo.PromiseLedger(contactId: contact, includeClosed: true)
+            .Single(r => r.Commitment.Obligation == "Whatsapp'tan ayırmak").Commitment;
+
+        _repo.DismissCommitment(unpicked.Id);
+
+        // The same two readings, one of them said differently. Same sentence, same speaker.
+        const string reworded =
+            """
+            {"taahhutler":[
+               {"konusan":"BEN","alinti":"Yav bir kulaklık alacağım güzel ya","yukumluluk":"güzel bir kulaklık almak","tarih_ham":null,"kosullu":false},
+               {"konusan":"BEN","alinti":"Dur Whatsapp'tan ayırayım seni","yukumluluk":"Whatsapp görüşmesini sonlandırmak","tarih_ham":null,"kosullu":false}],
+             "iddialar":[],"sorular":[],"baski_isaretleri":[]}
+            """;
+
+        await new AnalysisPipeline(new ScriptedLlm(reworded), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var after = _repo.PromiseLedger(contactId: contact, includeClosed: true);
+
+        // Two rows, as before: the tombstone, and the promise the user kept. The rewording did
+        // not become a third.
+        Assert.Equal(2, after.Count);
+        Assert.DoesNotContain(after, r => r.Commitment.Obligation == "Whatsapp görüşmesini sonlandırmak");
+
+        var still = Assert.Single(after, r => r.Commitment.Id == unpicked.Id);
+        Assert.True(still.Commitment.DismissedByUser);
+
+        var open = Assert.Single(after, r => !r.Commitment.DismissedByUser);
+        Assert.Equal("güzel bir kulaklık almak", open.Commitment.Obligation);
     }
 
     /// <summary>

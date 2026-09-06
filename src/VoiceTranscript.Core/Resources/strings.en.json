@@ -1247,5 +1247,6 @@
   "todopage.gorusme-hatirlatmasi": "Call reminder",
   "todopage.kisi-yok": "No person",
   "todopage.bu-yapilacagi-bir-kisiye-bagla": "Attach this to-do to a person — optional",
-  "todopage.soylendigi-ani-dinle": "Play the sentence this suggestion rests on, from the moment it was said"
+  "todopage.soylendigi-ani-dinle": "Play the sentence this suggestion rests on, from the moment it was said",
+  "callorchestrator.bolum-okunamadi": "Part of the conversation could not be read. What was found was added to its ledger; the summary is still the one written when the whole conversation was read."
 }

@@ -310,6 +310,74 @@ public sealed class AnalysisSpendTests : IDisposable
         Assert.Equal(["evrak gönderimi", "fatura kesimi", "para transferi"], after);
     }
 
+    /// <summary>
+    /// A run that read two thirds of a conversation does not rewrite the summary of all of it,
+    /// and does not pay to find out what it would have said.
+    ///
+    /// Everything else on the partial path was taught to add rather than replace; the summary was
+    /// not, and SaveSummary replaces. So one 429 in the middle of a long call quietly swapped a
+    /// summary of the whole conversation for a summary of the part that came back — and the new
+    /// text says nothing about the part it never saw, so there is nothing on the screen to notice.
+    ///
+    /// Goes red two ways, and they are different failures. A changed summary means a partial run
+    /// is still replacing a complete one. A summary REQUEST on that run means the pipeline is
+    /// buying an answer it has already decided to throw away, which is the one rule about
+    /// spending: never pay for a result you will not keep.
+    /// </summary>
+    [Fact]
+    public async Task APartialRunKeepsTheOlderSummaryAndAsksForNoNewOne()
+    {
+        var call = Seed(DateTimeOffset.UtcNow,
+            (false, 0, "Evrakları cuma günü yollarım, söz veriyorum sana."),
+            (false, 24_000, "Faturayı da pazartesi günü keserim, merak etme."),
+            (false, 48_000, "Parayı ayın onunda hesabına geçireceğim kesinlikle."));
+
+        var summarising = new AnalysisOptions
+        {
+            Model = "test-model",
+            ChunkTokens = 1,
+            AdjudicateContradictions = false,
+            WriteSummary = true,
+        };
+
+        Turn[] whole =
+        [
+            Turn.Says(Promise("Evrakları cuma günü yollarım", "evrak gönderimi")),
+            Turn.Says(Promise("Faturayı da pazartesi günü keserim", "fatura kesimi")),
+            Turn.Says(Promise("Parayı ayın onunda hesabına geçireceğim", "para transferi")),
+        ];
+
+        await new AnalysisPipeline(
+                new Provider([.. whole, Turn.Says("Bütün konuşmadan yazılmış özet.")]), _repo)
+            .AnalyseAsync(call, summarising, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal("Bütün konuşmadan yazılmış özet.", _repo.GetSummary(call)!.Summary);
+
+        // The same run again, with the middle section refused — and a fourth reply waiting, so a
+        // summary request would succeed if one were made.
+        var provider = new Provider(
+            whole[0], Turn.Fails("429 rate limit"), whole[2],
+            Turn.Says("Yarım konuşmadan yazılmış özet."));
+
+        var report = await new AnalysisPipeline(provider, _repo)
+            .AnalyseAsync(call, summarising, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(report.Partial);
+        Assert.Null(report.Summary);
+
+        // The older summary is untouched.
+        Assert.Equal("Bütün konuşmadan yazılmış özet.", _repo.GetSummary(call)!.Summary);
+
+        // And nothing was bought to arrive at that: three sections, three requests, no fourth.
+        Assert.Equal(3, provider.Requests.Count);
+        Assert.DoesNotContain(provider.Requests,
+            r => r.SystemPrompt == ExtractionPrompt.SummarySystemPrompt
+                 || r.SystemPrompt == ExtractionPrompt.ConversationSummarySystemPrompt);
+
+        // The user is told, rather than left to compare two summaries they cannot see side by side.
+        Assert.Contains(report.Warnings, w => w.Contains("özet", StringComparison.OrdinalIgnoreCase));
+    }
+
     // ---- E: a finding belongs to the conversation it was said in -----------------------------
 
     /// <summary>
@@ -392,5 +460,69 @@ public sealed class AnalysisSpendTests : IDisposable
 
         Assert.Single(flags);
         Assert.Equal(first, flags[0].CallId);
+    }
+
+    /// <summary>
+    /// A finding whose reason has gone is swept, even though this run had nothing to put in its
+    /// place.
+    ///
+    /// "Vadesi geçti" is written against the conversation where the promise was made. Mark that
+    /// promise kept and the check stops producing it — so on the next analysis of ANY conversation
+    /// with that person there is no group of overdue findings, and the per-conversation delete is
+    /// scoped to the kinds a run produced. Nothing deleted the row. It stayed on the first
+    /// conversation, reading as current, until somebody happened to re-analyse that one.
+    ///
+    /// The sweep is honest because these three kinds are computed from the person's whole stored
+    /// ledger: the run has just read every open promise and every figure they have, so it has an
+    /// opinion about every row of those kinds, on every one of their calls.
+    ///
+    /// Goes red when the sweep is dropped — the stale warning survives — and equally when it is
+    /// widened past the person, or past the kinds these checks own: the scam pattern seeded here
+    /// belongs to a conversation this run never opened, and a run with no opinion about it must
+    /// leave it exactly where it is.
+    /// </summary>
+    [Fact]
+    public async Task AnOverdueWarningDisappearsOnceThePromiseIsMarkedKept()
+    {
+        var first = Seed(new DateTimeOffset(2024, 3, 6, 10, 0, 0, TimeSpan.Zero),
+            (false, 0, "Evrakları yarın yollarım, söz veriyorum sana."));
+
+        await new AnalysisPipeline(
+                new Provider(Turn.Says(Promise("Evrakları yarın yollarım", "evrak gönderimi", "yarın"))),
+                _repo)
+            .AnalyseAsync(first, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var overdue = Assert.Single(_repo.GetFlags(_contact), f => f.Kind == FlagKind.OverdueCommitment);
+        Assert.Equal(first, overdue.CallId);
+
+        // A finding of the first conversation that this run has no opinion about: read out of that
+        // call's own transcript, and nothing below reopens that transcript.
+        var untouchable = _repo.InsertFlag(new Flag
+        {
+            CallId = first,
+            ContactId = _contact,
+            Kind = FlagKind.ScamPattern,
+            Summary = "bilinen dolandırıcılık kalıbı",
+            Quote = "Evrakları yarın yollarım",
+            QuoteStartMs = 0,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+
+        // The user says the promise was kept. The check stops producing the warning, so nothing
+        // this run emits will collide with the row that is already there.
+        var promise = Assert.Single(_repo.GetOpenCommitments(_contact));
+        _repo.FulfilCommitment(promise.Id);
+
+        var second = Seed(new DateTimeOffset(2024, 6, 1, 10, 0, 0, TimeSpan.Zero),
+            (false, 0, "Yeni dairenin kirası on beş bin lira olmuş bu sene."));
+
+        await new AnalysisPipeline(
+                new Provider(Turn.Says(Statement("kirası on beş bin lira", "daire", "kira", "15000"))), _repo)
+            .AnalyseAsync(second, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var left = _repo.GetFlags(_contact, includeDismissed: true);
+
+        Assert.DoesNotContain(left, f => f.Kind == FlagKind.OverdueCommitment);
+        Assert.Contains(left, f => f.Id == untouchable);
     }
 }

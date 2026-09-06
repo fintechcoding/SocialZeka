@@ -253,8 +253,14 @@ public sealed class LedgerUndoTests : IDisposable
 
     /// <summary>
     /// Goes red when the identity of a surviving row is not what the pipeline checks against:
-    /// (by whom, folded quote), folded the way the pipeline folds — so "Cumaya" and "cumaya"
-    /// are one promise.
+    /// (by whom, folded quote, folded obligation), folded the way the pipeline folds — so
+    /// "Cumaya" and "cumaya" are one promise.
+    ///
+    /// The obligation travels beside the quote because one sentence can carry two promises, and
+    /// on the quote alone a tombstone cannot be told from the row next to it. It is the MACHINE's
+    /// obligation: the row edited here keeps "Düzenlenen" as its identity even though the user
+    /// now reads "Pazartesi arayacak", because the next run is the model's wording being matched
+    /// against the model's wording.
     /// </summary>
     [Fact]
     public void SurvivingRowsAreKnownByTheirWords()
@@ -266,11 +272,17 @@ public sealed class LedgerUndoTests : IDisposable
         _repo.FulfilCommitment(kept);
         _repo.SetUserObligation(edited, "Pazartesi arayacak");
 
-        var keys = _repo.SurvivingCommitmentKeys(_call);
+        var rows = _repo.SurvivingCommitments(_call);
 
-        Assert.Equal(2, keys.Count);
-        Assert.Contains((false, TurkishText.NormalizeForSearch("cumaya sana yollarım")), keys);
-        Assert.Contains((false, TurkishText.NormalizeForSearch("PAZARTESİ ARARIM")), keys);
+        Assert.Equal(2, rows.Count);
+
+        Assert.Contains(rows, r => !r.ByMe
+                                   && r.FoldedQuote == TurkishText.NormalizeForSearch("cumaya sana yollarım")
+                                   && r.FoldedObligation == TurkishText.NormalizeForSearch("TUTULAN"));
+
+        Assert.Contains(rows, r => !r.ByMe
+                                   && r.FoldedQuote == TurkishText.NormalizeForSearch("PAZARTESİ ARARIM")
+                                   && r.FoldedObligation == TurkishText.NormalizeForSearch("düzenlenen"));
     }
 
     /// <summary>Goes red when the sweep for hollow or duplicated rows takes an edited one with it.</summary>

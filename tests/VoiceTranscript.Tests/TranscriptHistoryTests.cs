@@ -248,4 +248,40 @@ public class TranscriptHistoryTests : IDisposable
 
         Assert.Empty(_repository.ListTranscriptVersions(_callId));
     }
+
+    /// <summary>
+    /// The same engine hearing the same thing twice is not two transcriptions.
+    ///
+    /// A run that ends where the last one ended has nothing to add to a table whose only question
+    /// is which engine heard this conversation better. Filed anyway it costs twice: it pushes a
+    /// genuine comparison out of the ten a call keeps, and it stamps a fresh date on text that has
+    /// not moved — which makes every note derived from that text report itself as stale and sends
+    /// the user to re-run analyses that were already current.
+    ///
+    /// Goes red when an identical re-run starts opening a version again. The rest of it goes red
+    /// the other way: two ENGINES agreeing word for word is the most interesting row this table
+    /// can hold, and folding them together would delete the finding it exists for.
+    /// </summary>
+    [Fact]
+    public void AnIdenticalRerunDoesNotOpenANewVersion()
+    {
+        Transcribe("large-v3", 0.808, Lines(("Alo ne", true), ("yapıyorsun canım", false)));
+
+        var first = Assert.Single(_repository.ListTranscriptVersions(_callId));
+
+        Transcribe("large-v3", 0.808, Lines(("Alo ne", true), ("yapıyorsun canım", false)));
+
+        var after = Assert.Single(_repository.ListTranscriptVersions(_callId));
+        Assert.Equal(first.Id, after.Id);
+        Assert.Equal(first.CreatedAt, after.CreatedAt);
+        Assert.True(after.IsCurrent);
+
+        // A different engine, saying exactly the same thing, is a row.
+        Transcribe("nova-3", 0.808, Lines(("Alo ne", true), ("yapıyorsun canım", false)));
+        Assert.Equal(2, _repository.ListTranscriptVersions(_callId).Count);
+
+        // And the same engine hearing something different is a row too.
+        Transcribe("large-v3", 0.9, Lines(("Alo, ne yapıyorsun canım?", false)));
+        Assert.Equal(3, _repository.ListTranscriptVersions(_callId).Count);
+    }
 }

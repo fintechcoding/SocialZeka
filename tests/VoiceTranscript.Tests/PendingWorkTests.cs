@@ -98,4 +98,61 @@ public sealed class PendingWorkTests : IDisposable
         Assert.Equal(0, _repo.PendingWorkCount());
         Assert.Equal(0, _repo.UnanalysedCount());
     }
+
+    /// <summary>
+    /// The application dies while a conversation is being analysed. On the next start it is not
+    /// sent back to a transcriber.
+    ///
+    /// This one is money. "Analyse again, do not transcribe again" was held in a dictionary inside
+    /// the process, so a crash took the request with it: the queue reset the call from Analysing
+    /// to Queued, the next start found nothing in memory, and an hour of audio went to a paid
+    /// transcriber a second time to produce text that was already in the database. Nothing on
+    /// screen said so — it looks exactly like ordinary processing.
+    ///
+    /// The rule is asked of the database instead, and both halves are pinned here because
+    /// separately neither is the bug: the queue really does hand the call back, and the decision
+    /// really does have to say no anyway. Goes red the moment the answer depends again on
+    /// something that did not survive the restart.
+    /// </summary>
+    [Fact]
+    public void ACrashDuringAnalysisDoesNotSendTheAudioBackToTheTranscriber()
+    {
+        var call = _repo.InsertCall(new Call
+        {
+            App = CallApp.WhatsApp,
+            StartedAt = DateTimeOffset.Parse("2026-09-07T10:00:00+03:00"),
+            State = ProcessingState.Analysing,
+        });
+
+        _repo.ReplaceSegments(call,
+        [
+            new Segment { CallId = call, IsMe = false, StartMs = 0, EndMs = 2000, Text = "Bir saatlik arama." },
+        ]);
+
+        // The restart: the queue takes back everything that was mid-flight, and nothing in memory
+        // remembers why this one was there.
+        var waiting = _repo.CallsAwaitingProcessing();
+        Assert.Contains(waiting, c => c.Id == call);
+
+        Assert.False(VoiceTranscript.App.Services.CallOrchestrator.MustTranscribe(
+            hasTranscript: _repo.CountSegments(call) > 0,
+            retranscribeRequested: false));
+    }
+
+    /// <summary>
+    /// The two cases that must still go through a transcriber: a recording nobody has read yet,
+    /// and one the user deliberately sent back with another engine.
+    ///
+    /// Goes red when the rule hardens into "never transcribe a call twice", which would leave the
+    /// reprocess dialog's engine picker with nothing to do.
+    /// </summary>
+    [Fact]
+    public void AFreshRecordingAndADeliberateRedoStillGoThrough()
+    {
+        Assert.True(VoiceTranscript.App.Services.CallOrchestrator.MustTranscribe(
+            hasTranscript: false, retranscribeRequested: false));
+
+        Assert.True(VoiceTranscript.App.Services.CallOrchestrator.MustTranscribe(
+            hasTranscript: true, retranscribeRequested: true));
+    }
 }
