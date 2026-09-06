@@ -2372,3 +2372,35 @@ düşer — çatal sonrası arşiv iki yerden birinde), `sive-onolcum.py`, `ayna
 en az 30 dinleme; v15'ten eski arşivde yığın izi yerine tek cümle). `esik.py` dondurulmuş
 depoya bakıyordu, düzeltildi. Dinleme örnekleri konuşma içeriği taşıdığı için `.gitignore`
 `tools/olcum/*.jsonl|*.wav|*.txt` satırlarıyla depo dışında.
+
+## 2026-09-06 — Kişi kartı çekirdeği (şema v17) ve bir kural değişikliği
+
+**Kural değişikliği — yazılı olarak.** `deception_note` bugüne kadar çıkmaz sokaktı: model
+şüphe düzeyini ve değerlendirme paragrafını yazar, hiçbir tablo o satıra bakmaz, hiçbir isteme
+geri beslenmezdi. Bu, düzey ve değerlendirme için **aynen duruyor**. Gevşetilen tek şey alıntı:
+sözleri döküme karşı **doğrulanmış** bir taktik satırı artık `tactic_evidence` tablosuna
+kopyalanır, böylece aynı cümle kişinin kartında sayılabilir. Neden `flag` değil: dokuz tüketici
+ve iki dışa aktarım o tabloyu kanıt sayıyor, oysa bu satırlar şüphe arayan bir görev tanımından
+çıkıyor — kartta ayrı kaynak süzgecinde ve "model etiketi" rozetiyle durur, hiçbir isteme
+girmez (test bunu bir işaret dizesiyle kanıtlıyor). Kullanıcının 5 Eylül'deki ikinci kararı
+("doğrulanmış alıntı biriksin") bunun onayıdır; plan §2 bu kaydı istiyordu.
+
+**Şema v17** (`6d6284d`): `tactic_evidence` (beyaz liste; bilinmeyen taktik **düşer**, "diger"
+yazılmaz; `dismissed_by_user` tombstone, `DismissedTacticKeys` yeniden yazılmayı engeller —
+kural iki yazıcı için de `ReplaceTacticEvidence`'ın içinde) ve `speech_act` (`sorular` artık
+kalıcı; `EvasionRate` eskisi gibi çalışıyor). İkisi de `LedgerTables`'a girdi; yeni
+`CountedLedgerTables` `speech_act`'i saymaz (bir soru defter satırı değildir). `ClearAnalysis`
+soruları ve boru hattının kendi taktik satırlarını siler, değerlendirmeninkilere dokunmaz.
+`baski_isaretleri` yazımı **`AnalysisOptions.WritePressureSigns` kapısının arkasında, varsayılan
+kapalı** — plan önce kesinlik ölçümü istiyor; doğrulanamayan alıntılar artık
+`QuotesRejected`'a sayılıyor, ölçüm bu yüzden yapılabilir.
+
+**Kart sorguları**: `ContactPatterns` (tür × kaynak; dinlenmiş/doğru `verdict`'ten, katlanmış
+alıntı + ms ile eşlenir — SQLite Türkçe katlama yapamaz, o yüzden tek sorgu + C# tarafında
+toplama), `PatternRows`, `FigureJourney` (yalnız karşı tarafın iddiaları, ≥ 2 farklı değer;
+düşük güvenli duraklar işaretiyle listelenir, atılmaz), `OwnWords`, `SpeechActs` ("N/M
+görüşmede ölçüldü" paydası), `ContactSeries`; `ContactTrend` (ay kovaları; Unknown yön paydada
+değil; konuşma payı ölçülen görüşmelerin **ortalaması**, söz kesme ölçülen dakikalar üzerinden
+**havuzlanır**; son 3 ay ↔ önceki 3 ay). 41 yeni test.
+
+**Doğrulama.** `VoiceTranscript.Tests.exe`: 1255 test (1250 geçti, 5 atlandı).
