@@ -91,6 +91,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _extractActions = settings.ExtractActions;
         _themeChoice = settings.ThemeChoice ?? "system";
         _deceptionEnabled = settings.DeceptionEnabled;
+        _habitCountingEnabled = settings.HabitCountingEnabled;
+        _intentCardEnabled = settings.IntentCardEnabled;
         _commentaryEnabled = settings.CommentaryEnabled;
         _llmRemoteModel = settings.LlmRemoteModel ?? "";
         _llmBaseUrl = settings.LlmBaseUrl ?? "";
@@ -481,6 +483,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _extractActions = true;
     [ObservableProperty] private string _themeChoice = "system";
     [ObservableProperty] private bool _deceptionEnabled;
+
+    // ---- coaching: Aynam ----
+    //
+    // Defaults are deliberately opposite: counting is free and after the fact, the intent card
+    // interrupts a call.
+    [ObservableProperty] private bool _habitCountingEnabled = true;
+    [ObservableProperty] private bool _intentCardEnabled;
+
     [ObservableProperty] private bool _commentaryEnabled = true;
     [ObservableProperty] private string _llmRemoteModel;
     [ObservableProperty] private string _llmBaseUrl;
@@ -959,6 +969,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         ExtractActions = ExtractActions,
         ThemeChoice = ThemeChoice,
         DeceptionEnabled = DeceptionEnabled,
+        HabitCountingEnabled = HabitCountingEnabled,
+        IntentCardEnabled = IntentCardEnabled,
         CommentaryEnabled = CommentaryEnabled,
         LlmProvider = SelectedProvider.Kind,
         LlmModelId = SelectedLlmModel.Id,

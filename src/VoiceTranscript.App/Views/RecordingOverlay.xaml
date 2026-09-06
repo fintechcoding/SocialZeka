@@ -72,6 +72,19 @@
             <Border Width="1" Margin="12,2,10,2" Background="#33FFFFFF" />
 
             <!--
+                What you have decided not to say, written while there is still time to act on it.
+
+                On the strip because it is the only surface visible during a call, and this note is
+                worthless afterwards. Hidden unless the setting is on: a box put in front of
+                somebody who is about to speak to another person has to have been asked for.
+            -->
+            <Button x:Name="IntentButton" Content="{loc:T recordingoverlay.niyet}" Click="Intent_Click"
+                    ToolTip="{loc:T recordingoverlay.bu-gorusmede-soylemek-istemedigin-sey}"
+                    Visibility="Collapsed"
+                    Background="Transparent" Foreground="#CCFFFFFF" BorderThickness="0"
+                    Padding="8,2" Margin="0,0,4,0" FontSize="12" Cursor="Hand" />
+
+            <!--
                 Stopping is on the strip itself, not only in the window.
 
                 Deciding not to record a conversation is a decision made *during* it, usually a

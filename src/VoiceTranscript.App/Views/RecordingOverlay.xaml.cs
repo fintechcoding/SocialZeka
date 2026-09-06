@@ -86,6 +86,14 @@ public partial class RecordingOverlay
         Label.Text = headline ?? Localisation.T("recordingoverlay.kaydediliyor");
         Elapsed.Text = Format(DateTimeOffset.Now - startedAt);
 
+        // Decided per call rather than once at construction: the setting can be turned on between
+        // two conversations, and the strip is built lazily and then reused for the rest of the
+        // session. Hidden outright rather than disabled — a greyed button on a strip this small is
+        // three seconds of somebody wondering what they did wrong.
+        IntentButton.Visibility = App.Settings.IntentCardEnabled && CallInProgress is not null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         _ticker.Start();
 
         if (!IsVisible) Show();
@@ -136,6 +144,33 @@ public partial class RecordingOverlay
             : $"{elapsed.Minutes}:{elapsed.Seconds:00}";
 
     private void Stop_Click(object sender, RoutedEventArgs e) => StopRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
+    /// The conversation being recorded right now, asked of the orchestrator rather than passed in.
+    ///
+    /// Asked rather than passed because the row exists from the instant capture starts, and the
+    /// strip is created and shown from a different place that has no reason to know about it. It
+    /// is null between calls, which is exactly when there is nothing to write a note against.
+    /// </summary>
+    private static long? CallInProgress => App.Orchestrator?.CurrentCallId;
+
+    /// <summary>
+    /// Opens the intent note for the call in progress.
+    ///
+    /// Owned by the main window rather than by the strip. The strip is deliberately never
+    /// activated (WS_EX_NOACTIVATE, above), and a modal dialog owned by a window that refuses
+    /// focus is a dialog whose text box cannot be typed into.
+    /// </summary>
+    private void Intent_Click(object sender, RoutedEventArgs e)
+    {
+        if (App.Repository is not { } repository || CallInProgress is not { } callId) return;
+
+        NiyetWindow.Open(
+            Application.Current?.MainWindow,
+            repository,
+            callId,
+            Localisation.T("niyetwindow.suren-gorusme"));
+    }
 
     /// <summary>
     /// Hides the strip without stopping the recording.

@@ -176,6 +176,7 @@ public class SettingsSurviveSavingTests
         nameof(AppSettings.IdentifySpeakers), nameof(AppSettings.PreferredName),
         nameof(AppSettings.Language), nameof(AppSettings.TranscribeGroupCalls),
         nameof(AppSettings.LogDetail),
+        nameof(AppSettings.HabitCountingEnabled), nameof(AppSettings.IntentCardEnabled),
     ];
 
     private static AppSettings RoundTrip(AppSettings original)

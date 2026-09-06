@@ -1,0 +1,63 @@
+<ui:FluentWindow x:Class="VoiceTranscript.App.Views.NiyetWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="{loc:T niyetwindow.niyet}"
+                 Width="480" Height="420" MinWidth="420" MinHeight="360"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica">
+
+    <!--
+        What you have decided not to say in this conversation, written before it happens.
+
+        A note to yourself and nothing else. Nothing reads it back to score you: whether somebody
+        kept to an intention is a claim about intent, and nothing in this application can see
+        intent — only what was said. The value is entirely in having written it down while there
+        was still time to act on it.
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="{loc:T niyetwindow.niyet}" ShowMinimize="False" ShowMaximize="False" />
+
+        <StackPanel Grid.Row="1" Margin="20,8,20,4">
+            <TextBlock x:Name="Subject" FontWeight="SemiBold" FontSize="{StaticResource TextBody}"
+                       TextWrapping="Wrap" />
+
+            <TextBlock Text="{loc:T niyetwindow.soylemek-istemedigim}" Style="{StaticResource GroupHeader}" Margin="0,16,0,6" />
+
+            <ui:TextBox x:Name="Intent" PlaceholderText="{loc:T niyetwindow.ornek}"
+                        TextWrapping="Wrap" AcceptsReturn="True" MinHeight="110" MaxHeight="180"
+                        VerticalScrollBarVisibility="Auto" />
+
+            <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                       Text="{loc:T niyetwindow.yalniz-senin-notun}" />
+
+            <TextBlock x:Name="Stamp" Style="{StaticResource Caption}" Margin="0,8,0,0"
+                       TextWrapping="Wrap" Visibility="Collapsed" />
+        </StackPanel>
+
+        <Grid Grid.Row="2" Margin="20,12,20,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Only offered when there is something to take away. -->
+            <ui:Button Grid.Column="0" x:Name="Clear" Content="{loc:T niyetwindow.kaldir}"
+                       Appearance="Secondary" Visibility="Collapsed"
+                       HorizontalAlignment="Left" Click="Clear_Click" />
+
+            <ui:Button Grid.Column="1" Content="{loc:T niyetwindow.vazgec}" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <ui:Button Grid.Column="2" Content="{loc:T niyetwindow.kaydet}" Appearance="Primary"
+                       IsDefault="True" Click="Save_Click" />
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

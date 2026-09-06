@@ -182,6 +182,17 @@ public class WindowSmokeTests
                 // converter, so an invalid SymbolRegular in the choices would fail here.
                 Build("Etiketler", () => new TagManagerWindow(repository), failures);
 
+                // Seeded first, so the three lists are really populated and every row template is
+                // really rendered — an empty ItemsControl would build cleanly and prove nothing.
+                VoiceTranscript.Core.Analysis.HabitLexicon.Seed(repository);
+                Build("Sözlükler", () => new SozlukWindow(repository), failures);
+
+                // Against a call that already carries an intent, so the prefill and the "Kaldır"
+                // branch are both drawn rather than only the empty form.
+                repository.SaveCallIntent(reminded, "rakamı ben söylemeyeceğim");
+                Build("Niyet", () => new NiyetWindow(
+                    repository, callId: reminded, subject: "Serdal · 12 Mart"), failures);
+
                 Build("Kişileri birleştir", () => new MergeContactWindow(
                     repository,
                     new VoiceTranscript.Core.Domain.Contact { Id = 1, Name = "Serdal" }), failures);
