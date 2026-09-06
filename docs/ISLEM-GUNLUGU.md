@@ -2926,3 +2926,53 @@ hiçbir zaman kırılamazdı. Düzeltildi ve mutasyon tekrarlandı.
 `At()` üzerinden `DateTimeOffset.MinValue` alıyor ve listenin en altında yıl 1 damgasıyla
 duruyor. Davranış değişikliği olacağı için bu pakette dokunulmadı; F'in sayfalaması onları
 "daha eskisini yükle" ile gerçek tarihlerine kavuşturuyor.
+
+## 2026-09-06 — Bir tık on sayfayı değil, bakılan sayfayı tazelesin
+
+`a59dea4` + `6c883a0`. Kullanıcı Yapılacaklar'da bir kutuyu işaretleyince uzun süre beklediğini
+söyledi. Sebep iki katmanlıydı; birincisi (Sözler'in her tazelemede transkript taraması ve tek
+tıkta iki kez yüklenmesi) daha önce kapandı. Bu ikincisi.
+
+`RefreshAll` on sayfayı birden, sırayla, arayüz iş parçacığında yeniden okuyordu: Genel bakış,
+Görüşmeler, Defter, Takvim, Yapılacaklar, Sözler, Aynam, Kişiler, İşlemler, Yapay zekâ durumu.
+Yani bakmadığın dokuz sayfa için de bekliyordun. Görüşmeler tek başına her seferinde iki bin
+görüşmeye kadar okuyordu.
+
+Artık: **bakılan sayfa hemen tazeleniyor, ötekiler işaretleniyor, ve o sayfaya gidince
+tazeleniyorlar.** Açılışta on sayfa okuması bire indi.
+
+**Kirlilik sayfa başına, değişiklik türü başına değil.** Kararın gerekçesi `PageRefresh`'in
+yorumunda: "hangi değişiklik hangi sayfayı ilgilendirir" tablosu, elle tutulan ikinci bir gerçek
+olurdu ve sessizce çürüyüp "düne ait veri gösteren ekran"a dönerdi. Sayfa başına tek bit yalnız
+fazla okuma yönünde hata yapabilir.
+
+**Raydaki iki rozet kendi ucuz sorgularını aldı.** Önceden Defter ve Sözler sayfalarının
+tazelenmesinin yan ürünüydüler; sayfaları tazelemeyi bırakınca bayatlarlardı. Defter sayacı,
+sayfanın kendi 200 satırlık kapağıyla **bilerek aynı** kapağı kullanıyor ki rozet ile sayfa
+birbirine ters düşmesin. Sözler sayacında "bu söz değil" işaretlileri düşürmek SQL'de yapılamıyor
+(teyit katlanmış alıntıya bağlı), o birkaç satır C# tarafında eleniyor. İkisi toplam iki bağlantı,
+ve bu bir testle çivili.
+
+**Bir sayfaya gitmenin on dört yolu tek tek sayıldı** ve hepsinin işareti temizlediği
+doğrulandı. İkisi (kişi kartından "Sözler sayfasında aç" ve kişi penceresinden aynısı) gezinme
+komutunu hiç kullanmıyordu; kanca gezinmeye takılsaydı ikisi de işaretli, tazelenmemiş bir sayfaya
+düşerdi. Bir test bütün kaynağı tarayıp sayfa alanına doğrudan yazan başka bir yer olmadığını
+kanıtlıyor.
+
+**Kayıt yoluna dokunulmadı** ve bu bir testle sabitlendi. İlerleme bildirimi ve ilerleme çubuğunun
+temizlenmesi koşulsuz kaldı — gizli bir ekranda %80'de donmuş çubuk bir yalandır. Değişen yalnız
+gizli sayfaların yeniden çizilmesi, ki o da varışta yakalanıyor.
+
+**Bilerek asimetrik bırakılan bir yer var** ve yorumda yazılı: Görüşmeler, Takvim, Yapılacaklar,
+Sözler ve Aynam her varışta koşulsuz tazeleniyor, tıpkı eskisi gibi. Pano kartları, hatırlatmalar
+ve kişi adları bu sayfalara haber vermeden ulaşıyor, ve o koşulsuz okuma bunu örtüyor.
+
+**Testlerin gücü ölçüldü: on beş mutasyon, on dördü tam kendi testini öldürdü.** İlk dördü
+birden çok testi kırıyor, çünkü aynı kuralı farklı açılardan çiviliyorlar.
+
+**Bulunan ama düzeltilmeyenler:** pano kartı, hatırlatma, niyet, sözlük ve etiket pencereleri
+değişiklik olayını hiç yaymıyor (beş sayfanın koşulsuz varış okuması onları örtüyor); Defter
+rozeti 200'de kapanıyor çünkü sayfası da öyle; Sözler'in tazelenmesi hâlâ pahalı ama artık yalnız
+o sayfa ekrandayken koşuyor.
+
+**Doğrulama.** 1431 C# testi (1426 geçti, 5 atlandı; taban 1417'ydi) ve 179 Python testi.
