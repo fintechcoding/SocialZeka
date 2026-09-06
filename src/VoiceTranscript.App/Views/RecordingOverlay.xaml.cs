@@ -44,7 +44,14 @@ public partial class RecordingOverlay
             Interval = TimeSpan.FromSeconds(1),
         };
 
-        _ticker.Tick += (_, _) => Elapsed.Text = Format(DateTimeOffset.Now - _startedAt);
+        // One timer, not two. The meter is read from the tick that was already running: a second
+        // DispatcherTimer on the same one-second cadence would be a second wake-up of the UI
+        // thread throughout every conversation, for a figure that only moves once a second.
+        _ticker.Tick += (_, _) =>
+        {
+            Elapsed.Text = Format(DateTimeOffset.Now - _startedAt);
+            ShowMeter();
+        };
 
         SourceInitialized += (_, _) =>
         {
@@ -94,6 +101,10 @@ public partial class RecordingOverlay
             ? Visibility.Visible
             : Visibility.Collapsed;
 
+        // Drawn once here as well as on every tick, so the strip does not appear a second wide
+        // and then grow when the first tick lands.
+        ShowMeter();
+
         _ticker.Start();
 
         if (!IsVisible) Show();
@@ -136,6 +147,66 @@ public partial class RecordingOverlay
 
         Left = at.X;
         Top = at.Y;
+    }
+
+    /// <summary>Width of the share bar's track, matching the Border in the markup.</summary>
+    private const double ShareBarWidth = 46;
+
+    /// <summary>
+    /// Puts the current reading on the strip, or takes the meter off it.
+    ///
+    /// Read from the orchestrator once a second rather than pushed from the capture thread. A
+    /// push would mean the audio path raising an event a hundred times a second into the
+    /// dispatcher, which is exactly the work the rule about the recording path forbids; pulling
+    /// costs the UI thread one array walk and the capture thread nothing.
+    ///
+    /// Three states and no fourth: a share, a line saying why there is no share, or nothing at
+    /// all while there is not yet anything to say. Nothing here warns, and nothing here is a
+    /// number in decibels.
+    /// </summary>
+    private void ShowMeter()
+    {
+        var meter = App.Settings.LiveTalkMeterEnabled && CallInProgress is not null
+            ? App.Orchestrator?.LiveMeter
+            : null;
+
+        if (meter is null)
+        {
+            Meter.Visibility = Visibility.Collapsed;
+            MeterNote.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var reading = meter.Read();
+
+        Meter.Visibility = reading.State == Services.TalkMeterState.Measured
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        MeterNote.Visibility = reading.State == Services.TalkMeterState.Bleeding
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        if (reading.State != Services.TalkMeterState.Measured) return;
+
+        // Rounded to whole points. A share written to a decimal place claims a precision this
+        // does not have: the gate is a level threshold and the window is a minute wide.
+        ShareText.Text = string.Format(
+            Localisation.T("recordingoverlay.sen-yuzde-n"),
+            (int)Math.Round(reading.Share * 100));
+
+        ShareFill.Width = Math.Clamp(reading.Share, 0, 1) * ShareBarWidth;
+
+        TrendMark.Text = reading.Trend switch
+        {
+            Services.TalkMeterTrend.Above => "▲",
+            Services.TalkMeterTrend.Below => "▼",
+            Services.TalkMeterTrend.Level => "—",
+
+            // No arrow at all rather than a flat one, for the first half-minute and whenever the
+            // user has not spoken enough to have a median. A flat arrow is a claim.
+            _ => " ",
+        };
     }
 
     private static string Format(TimeSpan elapsed) =>

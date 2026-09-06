@@ -69,6 +69,55 @@
                        VerticalAlignment="Center" Margin="9,0,0,0" FontSize="12"
                        FontFamily="Consolas, Cascadia Mono, Segoe UI" />
 
+            <!--
+                How much of the last minute was you.
+
+                The one live figure in this product, and it is arithmetic: a share of the speaking
+                time and an arrow against your own level a minute ago. There is no alarm, no
+                colour that means "too much", and no decibel number — Windows gains, ducks and
+                denoises the microphone before any of this is measured, so an absolute figure
+                would be describing the operating system as much as the person. An arrow survives
+                that, because both sides of the comparison went through the same processing.
+
+                Collapsed unless the setting is on and a call is running. Every part of it has a
+                fixed width so the strip does not resize itself, and jump under the pointer, as
+                the number changes.
+            -->
+            <StackPanel x:Name="Meter" Orientation="Horizontal" VerticalAlignment="Center"
+                        Visibility="Collapsed"
+                        ToolTip="{loc:T recordingoverlay.son-60-saniyede-senin-konusma-payin}">
+                <Border Width="1" Margin="12,2,10,2" Background="#33FFFFFF" />
+
+                <TextBlock x:Name="ShareText" Text="—" Foreground="#D8FFFFFF"
+                           VerticalAlignment="Center" FontSize="12" MinWidth="48" />
+
+                <!-- Six pixels: enough to read as a proportion at a glance, too little to read as
+                     a gauge with a red end. The track is always drawn, so the filled part has a
+                     length to be a fraction of. -->
+                <Border Width="46" Height="6" CornerRadius="3" VerticalAlignment="Center"
+                        Background="#33FFFFFF">
+                    <Rectangle x:Name="ShareFill" Width="0" Height="6" RadiusX="3" RadiusY="3"
+                               HorizontalAlignment="Left" Fill="#B0FFFFFF" />
+                </Border>
+
+                <TextBlock x:Name="TrendMark" Text="—" Foreground="#B0FFFFFF"
+                           VerticalAlignment="Center" Margin="9,0,0,0" FontSize="12"
+                           MinWidth="12" TextAlignment="Center" />
+            </StackPanel>
+
+            <!--
+                Said in one line rather than shown as a figure that would be wrong.
+
+                While the other party is audible in the user's own microphone their voice counts
+                as the user's, so there is no share to show. The absence is explained where the
+                number would have been: a meter that silently disappears reads as a fault, and the
+                next thing somebody does about a fault is switch the feature off.
+            -->
+            <TextBlock x:Name="MeterNote" Visibility="Collapsed"
+                       Text="{loc:T recordingoverlay.kulaklik-yok-olculmedi}"
+                       Foreground="#80FFFFFF" VerticalAlignment="Center"
+                       Margin="12,0,0,0" FontSize="12" />
+
             <Border Width="1" Margin="12,2,10,2" Background="#33FFFFFF" />
 
             <!--

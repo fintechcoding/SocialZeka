@@ -1064,5 +1064,13 @@
   "callwindow.anlar": "Anlar",
   "callwindow.dogru": "Doğru",
   "callwindow.yanlis-duyulmus": "Yanlış duyulmuş",
-  "callwindow.bu-o-degil": "Bu o değil"
+  "callwindow.bu-o-degil": "Bu o değil",
+  "recordingoverlay.sen-yuzde-n": "sen %{0}",
+  "recordingoverlay.son-60-saniyede-senin-konusma-payin": "Son 60 saniyede senin konuşma payın ve kendi düzeyine göre okun. Uyarı değil, ölçü.",
+  "recordingoverlay.kulaklik-yok-olculmedi": "kulaklık yok, ölçülmedi",
+  "settingswindow.ses": "Ses",
+  "settingswindow.canli-konusma-olceri": "Canlı konuşma ölçeri",
+  "settingswindow.canli-konusma-olceri-aciklama": "Kayıt şeridinde, son 60 saniyenin ne kadarında sen konuştun: bir yüzde, küçük bir çubuk ve kendi düzeyine göre bir ok (▲ — ▼). Hiçbir zaman uyarmaz, hiçbir zaman renk değiştirmez, hiçbir zaman dB rakamı göstermez. Karşı tarafın sesi senin mikrofonuna karıştığı sürelerde pay yanlış çıkacağı için sayılmaz ve şerit bunu yazar. Hiçbir şey saklanmaz.",
+  "settingswindow.canli-uyari": "Canlı uyarı",
+  "settingswindow.canli-uyari-henuz-olculmedi": "Yok. Konuşurken uyaran bir alarm, ancak bir ölçüm kullanıcının onu isteyeceğini gösterirse gelir: kendi arşivinde 10 ya da daha fazla ses düzeyi zirvesi işaretlenip bunların en az %70'inde \"uyarı isterdim\" denmesi gerekir. Bu ölçüm henüz yapılmadı, bu yüzden alarm da yazılmadı."
 }

@@ -1064,5 +1064,13 @@
   "callwindow.anlar": "Moments",
   "callwindow.dogru": "Correct",
   "callwindow.yanlis-duyulmus": "Misheard",
-  "callwindow.bu-o-degil": "Not that"
+  "callwindow.bu-o-degil": "Not that",
+  "recordingoverlay.sen-yuzde-n": "you {0}%",
+  "recordingoverlay.son-60-saniyede-senin-konusma-payin": "Your share of the speaking time in the last 60 seconds, and an arrow against your own level. A measure, not a warning.",
+  "recordingoverlay.kulaklik-yok-olculmedi": "no headphones, not measured",
+  "settingswindow.ses": "Sound",
+  "settingswindow.canli-konusma-olceri": "Live talk meter",
+  "settingswindow.canli-konusma-olceri-aciklama": "On the recording strip, how much of the last 60 seconds was you talking: a percentage, a small bar, and an arrow against your own level (▲ — ▼). It never warns, never changes colour, and never shows a dB figure. Stretches where the other party is audible in your microphone are not counted, because the share would be wrong, and the strip says so. Nothing is stored.",
+  "settingswindow.canli-uyari": "Live warning",
+  "settingswindow.canli-uyari-henuz-olculmedi": "None. An alarm that interrupts you while you are speaking arrives only if a measurement shows you would have wanted it: 10 or more loudness peaks marked in your own archive, with \"I would have wanted a warning\" on at least 70% of them. That measurement has not been run, so the alarm has not been built."
 }

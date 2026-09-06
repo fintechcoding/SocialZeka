@@ -1527,12 +1527,14 @@
                     <!--
                         Coaching: what the application says about how YOU speak.
 
-                        Only switches whose feature exists are here. The plan's wireframe also drew
-                        a Ses group (loudness, pitch, a live meter) and a Kişi group (evidence
-                        accumulation, the model's opinion of a contact); none of those are built,
-                        and a switch for a feature that does not exist is a lie told in a control
-                        panel — somebody turns it on, nothing happens, and every other switch on
-                        the page loses its credibility. They arrive with their features.
+                        Only switches whose feature exists are here. The Ses group holds exactly
+                        one, the live meter, because that is the one thing in it that is built; the
+                        loudness strip and the pitch measure the plan's wireframe drew beside it are
+                        not, and neither is the Kişi group (evidence accumulation, the model's
+                        opinion of a contact). A switch for a feature that does not exist is a lie
+                        told in a control panel — somebody turns it on, nothing happens, and every
+                        other switch on the page loses its credibility. They arrive with their
+                        features.
                     -->
                     <StackPanel x:Name="PageCoaching" Visibility="Collapsed">
                         <TextBlock Text="{loc:T settingswindow.kocluk}" Style="{StaticResource PageTitle}" />
@@ -1627,6 +1629,48 @@
 
                                 <TextBlock x:Name="BacklogStatus" Margin="0,8,0,0" TextWrapping="Wrap"
                                            Style="{StaticResource Caption}" Visibility="Collapsed" />
+                            </StackPanel>
+                        </Border>
+
+                        <!--
+                            Ses: the one thing this application is allowed to say, live, about how
+                            the user sounds — which is a share of the speaking time and nothing
+                            else. One switch, because one feature exists.
+                        -->
+                        <TextBlock Text="{loc:T settingswindow.ses}" Style="{StaticResource GroupHeader}" Margin="0,16,0,8" />
+
+                        <!-- Off by default, and more firmly than the intent card: the card shows
+                             once at the start of a call, this is on screen for all of it. The
+                             caption says exactly what appears and, in the same breath, that it
+                             never warns — because a meter is the shape of thing people expect to
+                             start shouting at them, and that expectation would change how they
+                             speak more than the number does. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.canli-konusma-olceri}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.canli-konusma-olceri-aciklama}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding LiveTalkMeterEnabled}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- The alarm that is not here, and the measurement that would have to
+                             come first. Written under the switch rather than left out, because
+                             "why does it not just tell me when I am shouting" is the first
+                             question this meter provokes, and the answer is a gate with a number
+                             in it that nobody has run yet. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T settingswindow.canli-uyari}" FontSize="{StaticResource TextBody}" />
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                           Text="{loc:T settingswindow.canli-uyari-henuz-olculmedi}" />
                             </StackPanel>
                         </Border>
 
