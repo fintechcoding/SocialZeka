@@ -158,7 +158,7 @@ kopyalanıyor ve `Copy` sütun listesini `PRAGMA table_info` kesişiminden kurdu
 ```
  Görüşmeler                                                    17 / 52 görüşme
  [Herkes ▾][Her zaman ▾][Hepsi ▾][Hepsi ▾][Hepsi ▾][🔍 Kişi adı] [Süzgeçleri temizle]
- Çevreler: (● Aile 35) (● İş 13) (● Arkadaş 3) (Çevresiz 1)   [Çevreleri düzenle…]
+ Çevreler: (● Aile 35) (● İş 16) (Çevresiz 1)   [Çevreleri düzenle…]
   ⓘ Aile arka planda — 35 görüşme listede yok.                          [Göster]
  ────────────────────────────────────────────────────────────────────────────
  Bugün                                                             2 görüşme
@@ -182,7 +182,7 @@ Satırda çevre işareti 8 piksellik renkli bir daire, pil değil. Sebep §2.6'd
  ┌─ Çevreler ─────────────┐ ┌─ Kişiler (çok konuşulandan aza) ──────────┐
  │ ● Aile      🏠    35   │ │ (U) Uliana     25 görüşme  [● Aile     ▾] │
  │ ● İş        💼    13   │ │ (B) Bozkurt    10 görüşme  [● Aile     ▾] │
- │ ● Arkadaş   👥     3   │ │ (S) Serdal      4 görüşme  [● İş       ▾] │
+ │                        │ │ (S) Serdal      4 görüşme  [● İş       ▾] │
  │ [+ Çevre ekle]         │ │ (S) Samet       4 görüşme  [● İş       ▾] │
  │ Ad:    [Aile        ]  │ │ (M) Mustafa     3 görüşme  [Çevresiz   ▾] │
  │ İkon:  [🏠 ▾]          │ │ (S) Sinan       2 görüşme  [Çevresiz   ▾] │
@@ -207,7 +207,7 @@ Sonrasında her yeni kişi için 2 tık (Kişiler sağ tık → Çevre ▸).
 
 | Ekran | Ne olur |
 |---|---|
-| Kişiler sayfası | Satırda renkli nokta; sağ tık → "Çevre ▸ (Aile / İş / Arkadaş / Çevresiz)" |
+| Kişiler sayfası | Satırda renkli nokta; sağ tık → "Çevre ▸ (Aile / İş / Çevresiz)" |
 | Kişi penceresi, Bilgiler | Doğum tarihinin altına "Çevre" açılır listesi; kart başlığında nokta + ad |
 | Genel bakış | Son 12 görüşme aynı arka plan kümesine uyar; gizlerse "{n} görüşme gizli · göster" |
 | Aynam | Kişi açılırı ikiye bölünür: "Herkes / ─ Çevreler ─ / Aile / İş / ─ Kişiler ─ / …" |
@@ -275,7 +275,7 @@ verisi kaybolmaz.
 - **Ad çakışması.** "Grup" kelimesi alınmış: `CallKind.Group` kod içinde on beş yerde "üç
   kişilik, deşifre edilmeyen kayıt" demek. Kavramın adı bu yüzden **çevre**; sınıf ve sütun
   adlarında `group` geçmemeli.
-- **Tohum çevreler** (Aile / İş / Arkadaş) kullanıcının yazmadığı kelimeleri ekrana koyuyor.
+- **Tohum çevreler** (Aile / İş) kullanıcının yazmadığı kelimeleri ekrana koyuyor.
   `SeedDefaultTagDefs`'in altı etiketi emsal; üçü de silinebilir ve yeniden adlandırılabilir.
   Boş liste kapsama ölçüsünü büyük olasılıkla öldürürdü, bu yüzden bilerek verildi.
 
@@ -483,12 +483,17 @@ kapatıyor. Ç ikinci, çünkü 19 tıklık bir kurulum istiyor ve kullanıcın�
 yapmadığı türden bir iş; S'in kazandırdığı güvenle gelmeli. B üçüncü, çünkü S ve Ç yeni yüzeyler
 ekleyecek ve sözleşme onları da kapsamalı — sözleşmeyi önce yazmak, iki kez düzeltmek demek.
 
+**Kullanıcının verdiği kararlar (6 Eylül 2026):**
+
+- **Paket sırası onaylandı:** S → Ç → B, Y paralel. Yukarıdaki gerekçe kabul edildi.
+- **Tohum çevreler: Aile ve İş.** Üçüncü tohum (Arkadaş) istenmedi; kullanıcı isterse
+  Çevreler penceresinden kendisi ekler. `SeedDefaultCircles` iki satır eker, ikisi de
+  silinebilir ve yeniden adlandırılabilir.
+
 **Karar bekleyenler (kullanıcıya):**
 
 1. **Sürüm etiketi.** Birinci turun A1'den I'ya kadarki paketleri hâlâ etiketsiz. Tek etiket mi,
    plandaki gibi paket paket mi?
-2. **Tohum çevre adları.** Aile / İş / Arkadaş uygun mu, yoksa boş mu başlasın?
-3. **Paket sırası.** Yukarıdaki gerekçe kabul mü, yoksa Ç önce mi?
 
 **Bu belgeye girmeyen, kullanıcıda kalan işler** `docs/YAPILACAKLAR.md §25`'te duruyor: OpenAI
 anahtarının döndürülmesi, VoiceTranscript'in dondurulması, dinleme gerektiren ölçüm kapıları.
