@@ -1507,5 +1507,7 @@ taslakları ve ölçüm kapıları: [`PLAN-SOSYALZEKA.md`](PLAN-SOSYALZEKA.md).
 - [ ] **E — Kişi kartı, kanıt (v17)** → v3.2.0
 - [ ] **G + H (+J) — Ses düzeyi/perde, canlı ölçer, audio_event (v18)** → v3.3.x (kalibrasyon kapılı)
 - [ ] **I — Kişi kartı, modelin görüşü (v19)** → v3.4.0
-- [ ] **Ölçüm turları** (kod yok): Hume, canlı kelime uyarısı, F0 kararlılığı, şive ön-ölçümü
+- [~] **Ölçüm turları** (kod yok): Hume, canlı kelime uyarısı, F0 kararlılığı. **Şive ön-ölçümü
+  bitti (6 Eylül 2026): görüşme başına 0,78 eşleşme, kapı ≥ 1 — kaldı, dedektör yazılmadı.**
+  Aynam kesinlik ölçümü (`tools/olcum/aynam-kesinlik.py`) kullanıcının dinlemesini bekliyor.
 - [ ] **EK-5 / EK-4** (varsayılan bulut servisi; `min_speech_duration_ms`) — ayrı iş emri

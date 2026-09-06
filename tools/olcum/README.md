@@ -16,6 +16,8 @@ bu klasörün yanında geçici bir yerde tutulur; `.gitignore` bunları dışar�
 | `sayfa.py`, `sayfa-motorlar.py`, `sayfa-dort.py` | Bir görüşmenin iki/üç/dört motorlu sohbet ekranını yan yana koyan HTML sayfası. Yeni bir motor (ElevenLabs, Hume yoğunluk serisi, prosody z-skoru) beşinci sütun olarak buraya eklenir. |
 | `esik.py` | `resegment_on_gaps` eşiği ölçümü (sonucu `SONUC.md`). |
 | `vad_olcum.py` | VAD açık/kapalı kapsama karşılaştırması (EK-4). |
+| `sive-onolcum.py` | Şive sayacı yazılmalı mı: kendi satırlarında işaret araması + 40 dinleme örneği (§6.1). |
+| `aynam-kesinlik.py` | Aynam sayaçlarının kesinliği: `verdict` tablosundan tür ve motor başına doğru/dinlenmiş (§6.2). |
 
 Ölçüm sonuçları `docs/ISLEM-GUNLUGU.md`'ye sayılarıyla yazılır; tutmayan özellik oradaki olumsuz
 sonuçla geri alınır. Deney protokolleri: `docs/PLAN-SOSYALZEKA.md` §6.

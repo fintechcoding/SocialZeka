@@ -18,7 +18,7 @@ import json
 import os
 import sys
 
-sys.path.insert(0, r'C:\Voice\VoiceTranscript\worker')
+sys.path.insert(0, r'C:\Voice\SocialZeka\worker')
 
 from vt_worker.merge import Segment, Speaker, Word          # noqa: E402
 from vt_worker.segmentation import resegment_on_gaps        # noqa: E402

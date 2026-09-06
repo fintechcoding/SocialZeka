@@ -2339,3 +2339,36 @@ düzeltmen" rozeti); ContactsPage'in Reddet'i aynı yoldan. **Sonra:** söz çip
 Defter'den çıktı — Sözler sayfasında; Defter yalnız değişen rakamlar + işaretler + reddedilenler
 (`LedgerPageUndoTests` işaretlerle yeniden yazıldı; `PromiseSideTests`'in iki defter testi Sözler
 testlerine devredildi). Sözler kartına ✎ bağlandı. Testler: 1137 C# (1132 geçti, 5 atlandı).
+
+## 2026-09-06 — Aynam çekirdeği (şema v16) ve şive ön-ölçümü: dedektör yazılmadı
+
+**Paket D, çekirdek yarısı** (`ab9e272`, ayrı çalışma ağacında). Şema v16: `speech_habit`
+(makine önbelleği; `transcript_version_id` + `lexicon_version` taşır, böylece bir yeniden
+döküm ile bir yeniden sayım birbirinden ayrılır), `habit_lexicon` ve `call_intent` (ikisi de
+KULLANICI tablosu; `ClearAnalysis` üçüne de dokunmaz). `habits.tr.json` gömülü tohum sözlük
+(27 küfür gövdesi + ek listeleri, 13 dolgu, boş "haric"); eşleşme **token sınırlı**: gövde
+kelimenin başında ve kalan ya boş ya izinli bir ek — "klasik" ve "şikayet" eşleşmez, "siktir"
+eşleşir. `HabitLexicon` (yükleme, ekleme, `LexiconVersion` = satırların sırasız FNV-1a özeti),
+`TalkStats` (konuşma payı ve söz kesme kuralı `CallWindowViewModel`'den birebir alındı, yankılı
+satırlar dışarıda), `SpeechHabits` (yalnız `IsMe && !SuspectedEcho`; kelime güveni eşiğin
+altındaysa ya da satır belirsizse **"belirsiz" kovası** — listelenir, sayılmaz; kulak teyidi
+"yanlış duyulmuş"/"bu o değil" derse sayımdan düşer; "verilen bilgi" yalnız **tür + zaman**,
+değer asla), `HabitTrend` (aylar **havuzlanır**, ortalanmaz: iki dakikalık bir görüşmedeki tek
+küfür, saatlik bir görüşmenin yanında ortalamaya girerse ayı olmadığı bir yere çeker) ve
+`HabitTrendLayout` (saf, testli). Payda görüşme değil: **kendi konuşma dakikan / 100 kelimen**.
+66 yeni test; toplam 1203 (1198 geçti, 5 atlandı).
+
+**Şive ön-ölçümü** (plan §6.1, `tools/olcum/sive-onolcum.py`, gerçek arşiv: 51 görüşmede
+kullanıcının kendi satırları): 40 eşleşme, 13 görüşmede, **görüşme başına 0,78**. Kapı ≥ 1
+eşleşme/görüşme idi — **kaldı**. Dedektör yazılmadı; Aynam "şive: ölçülmüyor (neden ▸)" der ve
+gerekçeyi gösterir. Örüntü dağılımı: `-yon` 24, `-yom` 5, "napıyo…" 3, "hele" 2, "gari" 2,
+"valla" 2, `-cem/-cez` 2. Kesinlik kapısı (≥ 0,6) hiç ölçülmedi: sayı zaten eşiğin altında, ve
+Whisper'ın yazı diline normalize ettiği bir şeyi saymak konuşmacıyı değil motoru ölçer. Bu
+sonuç plandaki §7-7 kararını doğruluyor.
+
+**Ölçüm tezgâhı**: `arsiv.py` (SocialZeka.Data yoksa devralınmamış VoiceTranscript.Data'ya
+düşer — çatal sonrası arşiv iki yerden birinde), `sive-onolcum.py`, `aynam-kesinlik.py`
+(`verdict` tablosundan tür ve **motor** başına doğru/dinlenmiş; kapılar küfür %90, dolgu %85,
+en az 30 dinleme; v15'ten eski arşivde yığın izi yerine tek cümle). `esik.py` dondurulmuş
+depoya bakıyordu, düzeltildi. Dinleme örnekleri konuşma içeriği taşıdığı için `.gitignore`
+`tools/olcum/*.jsonl|*.wav|*.txt` satırlarıyla depo dışında.
