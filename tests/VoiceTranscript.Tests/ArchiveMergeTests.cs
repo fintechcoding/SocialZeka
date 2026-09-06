@@ -494,4 +494,88 @@ public class ArchiveMergeTests : IDisposable
             "SELECT latest_call_id FROM contact_reading WHERE input_hash = 'gelendeki';";
         Assert.Equal(imported.Id, Convert.ToInt64(command.ExecuteScalar()));
     }
+
+    /// <summary>
+    /// Puts the database of an older build back where it belongs, and goes red the day it stops
+    /// working.
+    ///
+    /// This is the promise the product makes to anyone who used the version before this one: the
+    /// conversations you already recorded are not stranded. Every other test here builds its
+    /// incoming archive at the current schema, so nothing held that promise; this one populates
+    /// an archive and THEN pushes it back to 14 — dropping the tables the later steps own and
+    /// rewinding the stored version — which is the shape a real old backup arrives in.
+    ///
+    /// What it pins is the user-visible outcome, not one mechanism, and deliberately so: the
+    /// import is backward compatible twice over. <see cref="BackupService.ImportAsync"/> migrates
+    /// the unpacked COPY before the merge reads it, and <c>Copy</c> builds its column list from
+    /// the intersection of both databases, so a table or a column only one side knows about is
+    /// left behind rather than failing the import. Commenting either one out on its own leaves
+    /// this test green. That is belt and braces working as intended — but it means this test is
+    /// a guard on the promise, and whoever removes the second mechanism must not read its green
+    /// as proof that the first one is doing the work.
+    /// </summary>
+    [Fact]
+    public async Task ABackupFromAnOlderBuildIsBroughtForwardRatherThanRefused()
+    {
+        var kemal = _theirRepository.UpsertContact("Kemal", CallApp.WhatsApp);
+        var call = Call(_theirRepository, _theirs, kemal, Only, ["eski yedekten", "iki satır"]);
+
+        _theirRepository.InsertCommitment(new Commitment
+        {
+            CallId = call,
+            ContactId = kemal,
+            ByMe = true,
+            Quote = "yarın gönderirim",
+            Obligation = "evrağı göndermek",
+        });
+
+        // Back to 14: drop what v15 and after introduced, then rewind the recorded version. The
+        // ALTERs of v15 are idempotent, so the columns they add may stay; what must be re-created
+        // is every table the later steps own, and that is what proves they run.
+        using (var connection = new Database(_theirs.DatabaseFile).Open())
+        {
+            using var downgrade = connection.CreateCommand();
+            downgrade.CommandText =
+                """
+                DROP TABLE IF EXISTS verdict;
+                DROP TABLE IF EXISTS speech_habit;
+                DROP TABLE IF EXISTS habit_lexicon;
+                DROP TABLE IF EXISTS call_intent;
+                DROP TABLE IF EXISTS tactic_evidence;
+                DROP TABLE IF EXISTS speech_act;
+                DROP TABLE IF EXISTS prosody;
+                DROP TABLE IF EXISTS audio_event;
+                DROP TABLE IF EXISTS contact_reading;
+                UPDATE setting SET value = '14' WHERE key = 'schema_version';
+                """;
+            downgrade.ExecuteNonQuery();
+        }
+
+        new Database(_theirs.DatabaseFile).ClearPool();
+
+        var file = Path.Combine(_root, "eski-yedek.zip");
+        await _theirBackup.BackupAsync(file, includeAudio: false);
+
+        var result = await _myBackup.ImportAsync(file);
+
+        // It arrived. Refusing an old backup, or importing it half-shaped, would both be worse
+        // than saying so out loud — and neither happens.
+        Assert.Equal(1, result.Calls);
+        Assert.Equal(2, result.Segments);
+
+        var imported = _myRepository.ListCalls(limit: 100).Single(c => c.StartedAt == Only);
+        Assert.Equal(["eski yedekten", "iki satır"], _myRepository.GetSegments(imported.Id).Select(s => s.Text));
+
+        var promise = _myRepository.PromiseLedger(includeClosed: true)
+            .Single(p => p.Commitment.CallId == imported.Id)
+            .Commitment;
+
+        Assert.True(promise.ByMe);
+        Assert.Equal("evrağı göndermek", promise.Obligation);
+
+        // And the archive this installation keeps is still whole: the merge did not leave the
+        // incoming file's older shape behind in it.
+        using var connection2 = new Database(_mine.DatabaseFile).Open();
+        Assert.Equal(Schema.Version, Database.StoredVersion(connection2));
+    }
 }
