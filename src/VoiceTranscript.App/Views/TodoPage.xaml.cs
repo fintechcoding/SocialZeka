@@ -15,12 +15,14 @@ public partial class TodoPage
             if (e.OldValue is TodoViewModel previous)
             {
                 previous.OpenCallRequested -= OnOpenCall;
+                previous.PlayQuoteRequested -= OnPlayQuote;
                 previous.PropertyChanged -= OnModelPropertyChanged;
             }
 
             if (e.NewValue is TodoViewModel next)
             {
                 next.OpenCallRequested += OnOpenCall;
+                next.PlayQuoteRequested += OnPlayQuote;
                 next.PropertyChanged += OnModelPropertyChanged;
             }
         };
@@ -64,5 +66,19 @@ public partial class TodoPage
         CallWindow.Show(
             Window.GetWindow(this), callId,
             tab: entry.Kind == TodoEntryKind.Action ? CallTab.Actions : CallTab.Conversation);
+    }
+
+    /// <summary>
+    /// ▸ on a row: the conversation, opened at the millisecond the sentence was said.
+    ///
+    /// The transcript rather than the suggestions tab — the question this click asks is "what
+    /// were the words", and the words are in the conversation with what came before and after
+    /// them.
+    /// </summary>
+    private void OnPlayQuote(object? sender, TodoEntry entry)
+    {
+        if (entry.CallId is not { } callId || entry.QuoteStartMs is not { } startMs) return;
+
+        CallWindow.Show(Window.GetWindow(this), callId, startMs, entry.QuoteIsMe);
     }
 }

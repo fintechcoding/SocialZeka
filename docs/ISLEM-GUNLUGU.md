@@ -2976,3 +2976,46 @@ rozeti 200'de kapanıyor çünkü sayfası da öyle; Sözler'in tazelenmesi hâl
 o sayfa ekrandayken koşuyor.
 
 **Doğrulama.** 1431 C# testi (1426 geçti, 5 atlandı; taban 1417'ydi) ve 179 Python testi.
+
+## 2026-09-07 — Yapılacaklar'ın kanıt zemini, ve donmayan arama
+
+`paket-yapilacaklar`. İki küme kusur; ikisi de §26'da yazılıydı.
+
+**Yapılacaklar'da kanıt zemini geri geldi.** `action_item.quote` ve `quote_start_ms` şemada
+NOT NULL — her öneri gerçek, çalınabilir bir cümleye çıpalı — ama bu ekran iki sütunu da hiç
+okumuyordu. Kullanıcı "Faturayı gönder · öneri Uliana" görüyor, ne söylendiğini anlamak için
+görüşme penceresini açıp aramak zorunda kalıyordu. Artık satırın altında ürünün her yerdeki
+biçimiyle `▸ 07:12 "…"` duruyor ve ▸ görüşmeyi o milisaniyeden açıyor. **Kullanıcının kendi
+yazdığı satırda alıntı yok ve olmayacak:** alıntı çubuğunun kendisi üç zeminin arasındaki
+görünür sınır (PLAN-SOSYALZEKA §3.1); ödünç alınmış bir cümle o sınırı siler.
+
+**Yapılacağa kişi seçilebiliyor.** `todo.contact_id` ve adı getiren join yıllardır oradaydı;
+eksik olan sütunu dolduracak arayüzdü. İsteğe bağlı bırakıldı — kendine not da tam bir
+yapılacaktır — ve eklemeden sonra temizleniyor, yoksa sonraki üç not sessizce aynı kişiye
+yapışırdı.
+
+**Başlıksız hatırlatma artık kendini adlandırıyor.** Pano kartının başlığı olmayabilir; boş dize
+listeye olduğu gibi geçiyor ve kutucuk + tarih + hiçbir şeyden oluşan bir satır çiziyordu.
+
+**Üç kaynağın sayıları ayrı uzaylarda ve artık bunu söylüyor.** Hatırlatma bir satır değil,
+`board_card.remind_on` sütunu; `TodoEntry.Id` orada bir `callId`. Yani 1 numaralı not, 1 numaralı
+öneri ve 1 numaralı görüşmenin hatırlatması aynı anda ekranda olabiliyor. Şema bu pakette
+değişmediği için uzaylar birleştirilemedi; onun yerine her yazma yolu numarayı kendi tablosunun
+adıyla istiyor (`TodoId`, `ActionId`, `ReminderCallId`) ve yanlışını istisnayla söylüyor.
+**Şema olmadan kapanmayan tek kusur, bir görüşmeye ikinci hatırlatma kurulamaması**
+(`board_card.call_id` birincil anahtar); ayrı madde olarak devredildi.
+
+**Süzgeç çipleri `WrapPanel`'e taşındı.** Dördüncü çip dar pencerede kenardan taşıyordu — bir
+süzgecin ulaşılması zor olması değil, görünmez olması demek.
+
+**Arama sonuçları sanallaşıyor.** Sorgu tarafı hep dikkatliydi (FTS5, süzgeçler SQL'de, en çok
+500 satır); çizim tarafı bunu çöpe atıyordu. Sonuçlar `ScrollViewer` içinde iç içe iki
+`ItemsControl`'du, ve `ItemsControl`'ün kendi kaydırma paneli yoktur: sonsuz yükseklikle ölçülür,
+yani görünsün görünmesin her satır için kart kurar. **Ölçüldü:** 500 sonuçta kurulan satır
+**500 → 9**, görsel öğe **4744 → 240**, tek yerleşim geçişi **1149 ms → 128 ms**. Sonuçların
+görünüşü ve gruplanması değişmedi; grup kutusunun taşıdığı boşluk artık başlığın kendisinde.
+
+**Testler.** On bir yeni test, on bir mutasyon, her biri tam beklenen testi öldürdü — biri
+ikisini birden, çünkü alıntının okunması hem satırın alıntısını hem ▸'nin anını taşıyor.
+
+**Doğrulama.** 1442 C# testi (1437 geçti, 5 atlandı; taban 1431'di). Python çalıştırılmadı.

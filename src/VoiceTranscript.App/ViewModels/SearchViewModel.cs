@@ -56,7 +56,32 @@ public static class SearchPeriodExtensions
 /// <summary>One entry in the contact filter. Null identity means everybody.</summary>
 public sealed record ContactChoice(long? Id, string Name);
 
-public sealed record SearchResult(SearchHit Hit, string Query = "")
+/// <summary>
+/// One line of the results list: either a person's heading, or one matched sentence.
+///
+/// The two used to be two nested lists — an outer one for the people and an inner one for their
+/// lines. Nothing about that structure could be virtualised: an <c>ItemsControl</c> inside a
+/// <c>ScrollViewer</c> is measured with unlimited height, so pressing Enter on a common word
+/// built the visual tree for all five hundred hits before the first one appeared. Flattened to
+/// one sequence, the same rows can be drawn by a list that only builds what is on screen.
+/// </summary>
+public abstract record SearchRow;
+
+/// <summary>
+/// The heading above one person's hits: their initials, their name, how many lines matched.
+/// </summary>
+public sealed record SearchGroup(string ContactName, long? ContactId, IReadOnlyList<SearchResult> Results) : SearchRow
+{
+    public string Header => $"{ContactName} — {Results.Count} sonuç";
+
+    /// <summary>
+    /// Spacing only: every heading but the first sits under a gap, exactly as the group boxes
+    /// did. Flattening the two lists removed the box that used to carry that gap.
+    /// </summary>
+    public bool IsFirst { get; init; }
+}
+
+public sealed record SearchResult(SearchHit Hit, string Query = "") : SearchRow
 {
     /// <summary>
     /// The line, split into the part before the match, the match, and the part after.
@@ -110,6 +135,16 @@ public sealed record SearchResult(SearchHit Hit, string Query = "")
 public sealed partial class SearchViewModel(Repository repository) : ObservableObject
 {
     public ObservableCollection<SearchGroup> Groups { get; } = [];
+
+    /// <summary>
+    /// The same results as one sequence — heading, its lines, next heading — for the list that
+    /// actually draws them.
+    ///
+    /// <see cref="Groups"/> stays the model of the answer: it is what "grouped by person" means
+    /// and what the empty state counts. This is the same thing laid end to end so a virtualising
+    /// panel can hold it, because a panel can only skip what it can count in one dimension.
+    /// </summary>
+    public ObservableCollection<SearchRow> Rows { get; } = [];
 
     [ObservableProperty] private string _query = "";
     [ObservableProperty] private bool _hasSearched;
@@ -231,15 +266,32 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
         RebuildChips();
     }
 
-    public sealed record SearchGroup(string ContactName, long? ContactId, IReadOnlyList<SearchResult> Results)
+    /// <summary>
+    /// Lays the groups end to end for the list that draws them: heading, its lines, next heading.
+    ///
+    /// Called once, after the groups are complete. Doing it as they are added would mean the
+    /// first heading could not know it was the first.
+    /// </summary>
+    private void Publish()
     {
-        public string Header => $"{ContactName} — {Results.Count} sonuç";
+        Rows.Clear();
+
+        for (var i = 0; i < Groups.Count; i++)
+        {
+            var group = Groups[i];
+
+            Groups[i] = group = group with { IsFirst = i == 0 };
+
+            Rows.Add(group);
+            foreach (var result in group.Results) Rows.Add(result);
+        }
     }
 
     [RelayCommand]
     private void Search()
     {
         Groups.Clear();
+        Rows.Clear();
         Message = null;
 
         if (string.IsNullOrWhiteSpace(Query))
@@ -302,6 +354,8 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
                 group.Key.ContactId,
                 [.. group.OrderByDescending(h => h.CallStartedAt).Select(h => new SearchResult(h, Query))]));
         }
+
+        Publish();
     }
 
     /// <summary>The tag as a query: every conversation carrying it, grouped by person.</summary>
@@ -329,6 +383,8 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
                 group.Key.ContactId,
                 [.. group.Select(h => new SearchResult(h))]));
         }
+
+        Publish();
     }
 
     private void BrowseTag()
@@ -359,6 +415,8 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
                 group.Key.ContactId,
                 [.. group.Select(h => new SearchResult(h))]));
         }
+
+        Publish();
     }
 
     /// <summary>Raised when a result should be opened in the contact view, at that moment.</summary>
@@ -383,6 +441,7 @@ public sealed partial class SearchViewModel(Repository repository) : ObservableO
     {
         Query = "";
         Groups.Clear();
+        Rows.Clear();
         HasSearched = false;
         ResultCount = 0;
         Message = null;

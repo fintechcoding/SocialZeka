@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="VoiceTranscript.App.Views.TodoPage"
+<UserControl x:Class="VoiceTranscript.App.Views.TodoPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:VoiceTranscript.App"
@@ -56,6 +56,44 @@
                         <TextBlock Style="{StaticResource Caption}" Margin="0,1,0,0">
                             <Run Text="{Binding Glyph, Mode=OneWay}" /><Run Text=" " /><Run Text="{Binding SourceText, Mode=OneWay}" /><Run Text=" " /><Run Text="{Binding ContactName, Mode=OneWay}" />
                         </TextBlock>
+
+                        <!--
+                            ⌂ The sentence the suggestion rests on, and ▸ to hear it.
+
+                            Every suggestion in this product is anchored to a verbatim, verified
+                            quote and to the millisecond it was said — that is why "quote" and
+                            "quote_start_ms" are NOT NULL. This screen used to read neither, so
+                            it showed the machine's proposal with no way to check what was
+                            actually said short of opening the conversation and hunting.
+
+                            Only suggestions get this block. A note the user typed has no moment
+                            in any conversation, and a row that borrowed one would be claiming
+                            evidence it does not have — so the quoted bar is itself the boundary
+                            between the machine's ground and the user's own writing.
+                        -->
+                        <Grid Margin="0,2,0,0"
+                              Visibility="{Binding HasQuote, Converter={StaticResource BoolToVisibility}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <ui:Button Grid.Column="0" Appearance="Transparent" Padding="4,0" Margin="0,6,6,0"
+                                       VerticalAlignment="Top"
+                                       ToolTip="{loc:T todopage.soylendigi-ani-dinle}"
+                                       Command="{Binding DataContext.PlayQuoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       CommandParameter="{Binding}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Play24" FontSize="14" />
+                                    <TextBlock Text="{Binding QuoteTimestamp}" Style="{StaticResource Caption}"
+                                               Margin="4,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ui:Button>
+
+                            <Border Grid.Column="1" Style="{StaticResource QuoteBlock}">
+                                <TextBlock Style="{StaticResource QuoteText}" Text="{Binding Quote}" />
+                            </Border>
+                        </Grid>
                     </StackPanel>
 
                     <!-- Due date and verbs in one group, so the row ends where the row ends. -->
@@ -98,11 +136,12 @@
         <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitle}"
                    Text="{loc:T todopage.aciklama}" />
 
-        <!-- Writing one down. Enter adds; the date is optional. -->
+        <!-- Writing one down. Enter adds; the date and the person are both optional. -->
         <Border Grid.Row="2" Style="{StaticResource SettingCard}" Margin="0,4,0,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -114,10 +153,23 @@
                     </ui:TextBox.InputBindings>
                 </ui:TextBox>
 
-                <DatePicker Grid.Column="1" SelectedDate="{Binding NewDue}" Margin="10,0,0,0" MinWidth="140"
+                <!--
+                    Who it is about, if it is about anybody.
+
+                    The column has been there since the table was written and the list has always
+                    shown the name it joins; there was simply no way to fill it, so every note the
+                    user typed reached the list with the person's half of the row empty. Left
+                    optional: a note to self is a whole to-do.
+                -->
+                <ComboBox Grid.Column="1" ItemsSource="{Binding ContactChoices}"
+                          SelectedItem="{Binding NewContact}" DisplayMemberPath="Name"
+                          MinWidth="150" Margin="10,0,0,0" VerticalAlignment="Center"
+                          ToolTip="{loc:T todopage.bu-yapilacagi-bir-kisiye-bagla}" />
+
+                <DatePicker Grid.Column="2" SelectedDate="{Binding NewDue}" Margin="10,0,0,0" MinWidth="140"
                             VerticalAlignment="Center" />
 
-                <ui:Button Grid.Column="2" Content="{loc:T todopage.ekle}" Appearance="Primary" Margin="10,0,0,0"
+                <ui:Button Grid.Column="3" Content="{loc:T todopage.ekle}" Appearance="Primary" Margin="10,0,0,0"
                            Command="{Binding AddCommand}" VerticalAlignment="Center" />
             </Grid>
         </Border>
@@ -150,20 +202,26 @@
             </Grid>
         </Border>
 
-        <!-- Which source, for when the blended list is not the question being asked. -->
-        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,10">
-            <ui:Button Content="{loc:T todopage.hepsi}" Margin="0,0,6,0" Command="{Binding ShowAllSourcesCommand}"
+        <!--
+            Which source, for when the blended list is not the question being asked.
+
+            A WrapPanel, not a row: there are already four things here and a narrow window pushed
+            the last of them off the edge, where a filter is not merely hard to reach but
+            invisible — the page then looks like it has three filters and one of them is stuck on.
+        -->
+        <WrapPanel Grid.Row="4" Margin="0,0,0,10">
+            <ui:Button Content="{loc:T todopage.hepsi}" Margin="0,0,6,6" Command="{Binding ShowAllSourcesCommand}"
                        Appearance="{Binding Source, Converter={StaticResource FilterAppearance}, ConverterParameter=All}" />
-            <ui:Button Content="{loc:T todopage.onerilenler}" Margin="0,0,6,0" Command="{Binding ShowSuggestionsCommand}"
+            <ui:Button Content="{loc:T todopage.onerilenler}" Margin="0,0,6,6" Command="{Binding ShowSuggestionsCommand}"
                        Appearance="{Binding Source, Converter={StaticResource FilterAppearance}, ConverterParameter=Suggestions}" />
-            <ui:Button Content="{loc:T todopage.kendi-yazdiklarim}" Command="{Binding ShowMineCommand}"
+            <ui:Button Content="{loc:T todopage.kendi-yazdiklarim}" Margin="0,0,6,6" Command="{Binding ShowMineCommand}"
                        Appearance="{Binding Source, Converter={StaticResource FilterAppearance}, ConverterParameter=Mine}" />
 
             <!-- The finished section's switch belongs with the other filters, and says its count:
                  "did Yaptım leave a trace" is answered here, not at the bottom of a scrolled list. -->
             <CheckBox Content="{Binding ShowDoneText}" IsChecked="{Binding ShowDone}"
-                      Margin="18,0,0,0" VerticalAlignment="Center" />
-        </StackPanel>
+                      Margin="12,0,0,6" VerticalAlignment="Center" />
+        </WrapPanel>
 
         <ScrollViewer Grid.Row="5" VerticalScrollBarVisibility="Auto">
             <StackPanel>
