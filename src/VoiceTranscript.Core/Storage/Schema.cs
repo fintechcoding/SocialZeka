@@ -17,7 +17,7 @@
 /// </summary>
 public static class Schema
 {
-    public const int Version = 19;
+    public const int Version = 20;
 
     public static readonly string[] Statements =
     [
@@ -920,5 +920,75 @@ public static class Schema
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_contact_reading ON contact_reading(contact_id, created_at DESC);",
+
+        // What was asked, and what came back with quotes under it.
+        //
+        // Until this table the two Sor surfaces answered a question, charged for the request, and
+        // threw the answer away when the window closed. Asking the same thing tomorrow was a
+        // second paid call to arrive at the same paragraph — and the citations, which are the only
+        // reason the paragraph is allowed on screen at all, went with it.
+        //
+        // ONE TABLE, ONE ROW PER EXCHANGE, and the reason is what the asking code actually does:
+        // ArchiveQuestions is stateless. It is never shown the previous turn, so two questions in
+        // the same panel are two independent questions that happen to be stacked. A thread table
+        // would model a conversation the model never has, and it would buy nothing — while making
+        // "remove this one exchange", the only deletion the user asked for, a cascade instead of a
+        // DELETE. The panel's sequence is asked_at, which is what a sequence is here.
+        //
+        // call_id is NULLABLE and that is the point. The call window's Sor belongs to one
+        // conversation and rides its CASCADE; the shell's Sor ranges over the archive and belongs
+        // to no call, and a NOT NULL column would have had nowhere to put it. SQLite fires CASCADE
+        // only on non-NULL keys, so deleting a conversation takes its own exchanges and leaves the
+        // archive-wide ones standing.
+        //
+        // The scope columns are what the row was asked UNDER, not a filter to re-apply: the shell
+        // narrows by person and by period, and "son 7 gün" asked in March does not mean the same
+        // week in September. So the resolved instants are stored rather than the period's name.
+        //
+        // citations is the evidence, serialised. An answer stored without the excerpts it cited is
+        // a claim with nothing behind it, which is the one thing this product does not do — so the
+        // quotes travel in the row, whole, and stay clickable and playable after a restart.
+        //
+        // GROUND ≈, and stored as one. The sentence is the model's reading of the quotes below it;
+        // the quotes are evidence and the question is the user's, but the row as a whole is signed
+        // by a model and dated, deletable by the user, and — like reading_note and deception_note —
+        // a DEAD END: nothing joins on it and no prompt is ever shown a row of it. A model given
+        // its own earlier answers back would be answering out of its own prose.
+        """
+        CREATE TABLE IF NOT EXISTS ask_exchange (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            -- NULL for a question asked of the whole archive. CASCADE for one asked of a call.
+            call_id      INTEGER REFERENCES call(id) ON DELETE CASCADE,
+
+            -- Who it was narrowed to, or whose call it was. SET NULL rather than CASCADE: losing a
+            -- contact must not delete the questions somebody asked, whose quotes still resolve.
+            contact_id   INTEGER REFERENCES contact(id) ON DELETE SET NULL,
+
+            -- The period the shell was narrowed to, resolved to instants. NULL means unbounded.
+            since_at     TEXT,
+            until_at     TEXT,
+
+            question     TEXT    NOT NULL,
+            answer       TEXT    NOT NULL,
+
+            -- The numbered excerpts the answer cited, as JSON. See Analysis.StoredExcerpts.
+            citations    TEXT    NOT NULL,
+
+            -- The model said the quotes did not fully cover the question. Shown, not hidden.
+            insufficient INTEGER NOT NULL DEFAULT 0,
+
+            model_used   TEXT,
+
+            -- Which stored transcript the quotes were taken from, for a call-scoped row only. An
+            -- archive-wide answer draws on many calls at once and has no single text to be stale
+            -- against, so it carries NULL and the screen claims nothing.
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
+
+            asked_at     TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_ask_call ON ask_exchange(call_id, asked_at);",
+        "CREATE INDEX IF NOT EXISTS ix_ask_asked ON ask_exchange(asked_at DESC);",
     ];
 }

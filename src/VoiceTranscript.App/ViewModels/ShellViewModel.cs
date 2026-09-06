@@ -560,8 +560,15 @@ public sealed partial class ShellViewModel : ObservableObject
         // immediately filterable.
         if (Page == ShellPage.Search) Search.LoadContacts();
 
-        // Same reason as Search: somebody labelled five minutes ago has to be selectable now.
-        if (Page == ShellPage.Ask) Ask.LoadContacts();
+        // Same reason as Search: somebody labelled five minutes ago has to be selectable now. The
+        // stored answers are re-read for the same reason — each carries the name of whoever it was
+        // narrowed to, and a contact renamed since the page was built would still be shown under
+        // the old spelling. A database read, and no model is asked anything.
+        if (Page == ShellPage.Ask)
+        {
+            Ask.LoadContacts();
+            Ask.LoadHistory();
+        }
 
         // Re-read on arrival: a reminder set moments ago must already be on the month.
         if (Page == ShellPage.Calendar) Calendar.Refresh();
