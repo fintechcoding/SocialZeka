@@ -7,6 +7,7 @@ using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Llm;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -50,6 +51,16 @@ public sealed record DayBar(string Label, double Minutes, double Share, int Runs
         ? $"{Label}: kayıt işlenmedi"
         : $"{Label}: {Runs} görüşme · {Minutes:0} dk ses";
 }
+
+/// <summary>
+/// One paid stage, as one line: what it is called, and what it has cost.
+///
+/// A row only exists when the stage has runs behind it, so this never says "0". Zero tokens on a
+/// row that did run means the provider reported nothing, which is a different fact from free —
+/// hence the separate sentence rather than a printed zero, the same rule the per-model list
+/// already follows.
+/// </summary>
+public sealed record StageLine(string Name, string Detail);
 
 /// <summary>One service in a chain, with its place in the order.</summary>
 /// <param name="Order">1-based. The order they will actually be tried in.</param>
@@ -384,6 +395,33 @@ public sealed partial class AiStatusViewModel(
     [ObservableProperty] private UsageTotals _analyseUsage = new();
     [ObservableProperty] private UsageTotals _askUsage = new();
 
+    /// <summary>
+    /// The five paid readings that are neither transcription nor the ledger, in the order they
+    /// are shown.
+    ///
+    /// <c>processing_run</c> has carried eight stages for some time and this screen read three of
+    /// them, so more than half of what the application spends was recorded and never displayed —
+    /// and a check or an assessment that failed on every attempt was invisible, because its
+    /// failures were not counted either.
+    ///
+    /// Three headings rather than eight blocks. Transcription is billed by the minute and has a
+    /// speed worth its own paragraph; analysis and the questions asked of it are the per-call
+    /// ledger work and are itemised by model; and these five are secondary readings the user
+    /// turns on one at a time, so they are one line each and a stage that has never run takes no
+    /// space at all.
+    /// </summary>
+    private static readonly (string Stage, string Key)[] SecondaryStages =
+    [
+        (ProcessingStage.Consistency, "aistatuspage.asama-tutarlilik"),
+        (ProcessingStage.Action, "aistatuspage.asama-aksiyon"),
+        (ProcessingStage.Reading, "aistatuspage.asama-okuma"),
+        (ProcessingStage.Deception, "aistatuspage.asama-degerlendirme"),
+        (ProcessingStage.ContactReading, "aistatuspage.asama-kisi-okumasi"),
+    ];
+
+    /// <summary>One line per secondary stage that has actually run. Empty is the normal case.</summary>
+    public ObservableCollection<StageLine> SecondaryUsage { get; } = [];
+
     /// <summary>Per-engine transcription figures, so a local model and a hosted one can be compared.</summary>
     public ObservableCollection<EngineUsage> Engines { get; } = [];
 
@@ -429,7 +467,14 @@ public sealed partial class AiStatusViewModel(
         OnPropertyChanged(nameof(HasChart));
     }
 
-    public bool HasUsage => TranscribeUsage.Runs > 0 || AnalyseUsage.Runs > 0 || AskUsage.Runs > 0;
+    /// <summary>
+    /// Whether anything at all has been measured — every stage, not the three that used to be read.
+    ///
+    /// Somebody whose only paid work has been an opt-in reading was told "henüz ölçülecek bir iş
+    /// yapılmadı" on a screen that was holding the record of what they had paid for.
+    /// </summary>
+    public bool HasUsage =>
+        TranscribeUsage.Runs > 0 || AnalyseUsage.Runs > 0 || AskUsage.Runs > 0 || SecondaryUsage.Count > 0;
 
     public string TranscribeLine => TranscribeUsage.Runs == 0
         ? "Bu aralıkta hiçbir görüşme yazıya dökülmedi."
@@ -474,15 +519,27 @@ public sealed partial class AiStatusViewModel(
               ? $"{Tokens(AskUsage.PromptTokens)} giriş + {Tokens(AskUsage.CompletionTokens)} çıkış jeton"
               : "jeton bildirilmedi");
 
+    /// <summary>
+    /// Every failure the database holds, not the three stages that used to be added up.
+    ///
+    /// A consistency check or an assessment that fails on every attempt spends money and leaves
+    /// nothing on any screen; counting only transcription, analysis and questions made it
+    /// invisible. <see cref="SecondaryFailures"/> is summed from the same rows the lines above
+    /// are built from, so the total and the itemisation cannot disagree.
+    /// </summary>
     public string FailureLine
     {
         get
         {
-            var failures = TranscribeUsage.Failures + AnalyseUsage.Failures + AskUsage.Failures;
+            var failures = TranscribeUsage.Failures + AnalyseUsage.Failures + AskUsage.Failures
+                           + SecondaryFailures;
 
             return failures == 0 ? "" : $"{failures} deneme başarısız oldu.";
         }
     }
+
+    /// <summary>What the five secondary readings failed at, over the window in view.</summary>
+    private int SecondaryFailures { get; set; }
 
     [RelayCommand]
     private void SwitchWindow() => RecentOnly = !RecentOnly;
@@ -498,6 +555,20 @@ public sealed partial class AiStatusViewModel(
         TranscribeUsage = repository.Usage(ProcessingStage.Transcribe, since);
         AnalyseUsage = repository.Usage(ProcessingStage.Analyse, since);
         AskUsage = repository.Usage(ProcessingStage.Ask, since);
+
+        // The rest of what the application charges for. A stage with no runs is left out rather
+        // than shown as a zero: this screen says what happened, not what could have.
+        SecondaryUsage.Clear();
+        SecondaryFailures = 0;
+
+        foreach (var (stage, key) in SecondaryStages)
+        {
+            var totals = repository.Usage(stage, since);
+            if (totals.Runs == 0) continue;
+
+            SecondaryFailures += totals.Failures;
+            SecondaryUsage.Add(new StageLine(Localisation.T(key), StageDetail(totals)));
+        }
 
         Engines.Clear();
         foreach (var engine in repository.UsageByEngine(ProcessingStage.Transcribe, since))
@@ -519,10 +590,36 @@ public sealed partial class AiStatusViewModel(
             nameof(WindowName), nameof(HasUsage), nameof(HasChart),
             nameof(TranscribeLine), nameof(SpeedLine), nameof(SpeedIsPoor),
             nameof(AnalyseLine), nameof(AskLine), nameof(FailureLine),
+            nameof(HasSecondaryUsage),
         })
         {
             OnPropertyChanged(name);
         }
+    }
+
+    /// <summary>Whether any of the secondary readings has run, which decides if the heading shows.</summary>
+    public bool HasSecondaryUsage => SecondaryUsage.Count > 0;
+
+    /// <summary>
+    /// One stage's figures as a sentence: how many times, what it cost, and what it lost.
+    ///
+    /// Zero tokens is written out as "jeton bildirilmedi" rather than printed as a number,
+    /// because a provider that reports no usage is not the same as work that was free — the rule
+    /// the per-model list already follows. The failures are named here as well as in the total
+    /// below, so a check that fails every single time says so on its own line instead of
+    /// disappearing into one number at the bottom of the screen.
+    /// </summary>
+    private static string StageDetail(UsageTotals totals)
+    {
+        var detail = totals.HasTokens
+            ? string.Format(
+                Localisation.T("aistatuspage.asama-jetonlu"),
+                totals.Runs, Tokens(totals.PromptTokens), Tokens(totals.CompletionTokens))
+            : string.Format(Localisation.T("aistatuspage.asama-jetonsuz"), totals.Runs);
+
+        return totals.Failures == 0
+            ? detail
+            : detail + string.Format(Localisation.T("aistatuspage.asama-basarisiz"), totals.Failures);
     }
 
     /// <summary>Durations in the units people say them in — never "0.03 saat".</summary>

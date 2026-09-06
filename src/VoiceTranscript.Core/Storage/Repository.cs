@@ -43,6 +43,23 @@ public sealed record SearchHit(
     string Text);
 
 /// <summary>
+/// One conversation's stored ledger, reduced to the keys the pipeline compares on.
+///
+/// Folded rather than raw, because "Tamam ayarlarım" and "tamam ayarlarım" are the same sentence
+/// and a model does not reliably pick one of them — the same normalisation the pipeline's own
+/// de-duplication uses, so the two cannot disagree about what counts as already written.
+/// </summary>
+public sealed record StoredLedgerKeys(
+    IReadOnlySet<(bool ByMe, string FoldedQuote)> Commitments,
+    IReadOnlySet<(string Entity, string Attribute, string Value, string FoldedQuote)> Claims)
+{
+    /// <summary>Nothing stored — what a run that is about to clear everything compares against.</summary>
+    public static readonly StoredLedgerKeys None = new(
+        new HashSet<(bool ByMe, string FoldedQuote)>(),
+        new HashSet<(string Entity, string Attribute, string Value, string FoldedQuote)>());
+}
+
+/// <summary>
 /// All database access.
 ///
 /// Normalised columns are filled here and nowhere else. If a caller could write `text` without
@@ -2621,6 +2638,33 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>
+    /// Deletes one conversation's own pipeline findings of the named kinds, dismissals kept.
+    ///
+    /// Narrower than <see cref="ClearAnalysis"/> in both directions, and both directions matter.
+    /// It reaches a call OTHER than the one being analysed, because the deterministic checks read
+    /// the whole person and file each finding against the conversation it was said in — so a run
+    /// over one call rewrites rows belonging to another, and scoping the delete to the analysed
+    /// call added a duplicate row on every run. And it touches only the kinds that run is
+    /// actually replacing, so a finding read from the other call itself — a scam pattern, an
+    /// evasion rate — is not deleted by a run that never looked at that call's transcript.
+    /// </summary>
+    /// <returns>How many rows were removed.</returns>
+    public int ClearPipelineFlags(long callId, IReadOnlyCollection<int> kinds)
+    {
+        if (kinds.Count == 0) return 0;
+
+        using var connection = Open();
+
+        return connection.Execute(
+            """
+            DELETE FROM flag
+             WHERE call_id = @callId AND dismissed_by_user = 0
+               AND source = @source AND kind IN @kinds;
+            """,
+            new { callId, source = Flag.Sources.Pipeline, kinds });
+    }
+
+    /// <summary>
     /// The dismissed findings' identities for one conversation: (kind, folded quote) pairs.
     /// What a consistency re-run checks before inserting, so a judgement the user rejected
     /// once is never resurrected by the next run finding the same thing.
@@ -2659,6 +2703,38 @@ public sealed class Repository(Database database)
                 new { callId })
             .Select(r => (r.ByMe != 0, Text.TurkishText.NormalizeForSearch(r.Quote)))
             .ToHashSet();
+    }
+
+    /// <summary>
+    /// Every promise and figure already stored for one conversation, folded the way the pipeline
+    /// de-duplicates.
+    ///
+    /// Read by an analysis that could not read the whole conversation. Such a run must not clear
+    /// — the sections it never saw are only in the database — so it adds, and to add without
+    /// adding a second copy of what an earlier fuller run wrote it has to know what is there.
+    /// </summary>
+    public StoredLedgerKeys LedgerKeysOf(long callId)
+    {
+        using var connection = Open();
+
+        var commitments = connection
+            .Query<(long ByMe, string Quote)>(
+                "SELECT by_me, quote FROM commitment WHERE call_id = @callId;", new { callId })
+            .Select(r => (r.ByMe != 0, Text.TurkishText.NormalizeForSearch(r.Quote)))
+            .ToHashSet();
+
+        var claims = connection
+            .Query<(string Entity, string Attribute, string Value, string Quote)>(
+                "SELECT entity, attribute, value, quote FROM claim WHERE call_id = @callId;",
+                new { callId })
+            .Select(r => (
+                Text.TurkishText.NormalizeForSearch(r.Entity),
+                Text.TurkishText.NormalizeForSearch(r.Attribute),
+                Text.TurkishText.NormalizeForSearch(r.Value),
+                Text.TurkishText.NormalizeForSearch(r.Quote)))
+            .ToHashSet();
+
+        return new StoredLedgerKeys(commitments, claims);
     }
 
     /// <summary>

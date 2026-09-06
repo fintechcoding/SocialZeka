@@ -1228,5 +1228,14 @@
   "settingswindow.model-inmedi": "Not downloaded",
   "settingswindow.kisi-karti-yerel-model-uyarisi": "On a local model it will not work for most people: the context window is 24 thousand characters against 400 thousand in the cloud. The reading is first tried with a smaller packet; for anyone with a long history even that does not fit, and the panel answers with an honest refusal.",
   "ledgerpage.yolculuk": "Journey",
-  "ledgerpage.yolculuk-aciklama": "Open this figure's journey on the contact card: every value, with the date it was named and the moment it can be heard at."
+  "ledgerpage.yolculuk-aciklama": "Open this figure's journey on the contact card: every value, with the date it was named and the moment it can be heard at.",
+  "aistatuspage.diger-okumalar": "Other readings",
+  "aistatuspage.asama-tutarlilik": "Consistency",
+  "aistatuspage.asama-aksiyon": "Suggested actions",
+  "aistatuspage.asama-okuma": "Free reading",
+  "aistatuspage.asama-degerlendirme": "Assessment",
+  "aistatuspage.asama-kisi-okumasi": "Contact reading",
+  "aistatuspage.asama-jetonlu": "{0} runs · {1} in + {2} out tokens",
+  "aistatuspage.asama-jetonsuz": "{0} runs · no tokens reported",
+  "aistatuspage.asama-basarisiz": " · {0} failed"
 }

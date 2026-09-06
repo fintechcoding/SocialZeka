@@ -2331,18 +2331,23 @@ public sealed class CallOrchestrator : IDisposable
             $"başlıyor: görüşme #{callId} · {_repository.CountSegments(callId)} satır · "
             + $"{routeProvider.DisplayName} @ {route.BaseUrl} · model {settings.ResolvedModelName}");
 
-        // The pipeline records its own successful run, tokens and all. A failure has to be
-        // recorded from out here, because the pipeline throws rather than returning — and without
-        // this the usage screen could only ever report zero failures, which reads as a clean
-        // history rather than as a counter that was never wired to anything.
+        // The pipeline records the runs it finishes, tokens and all — including the one where
+        // nothing parsed, which it files as a failure. A run that THROWS has to be recorded from
+        // out here, because the pipeline never reaches its own bookkeeping — and without this the
+        // usage screen could only ever report zero failures, which reads as a clean history
+        // rather than as a counter that was never wired to anything.
         var analysisStartedAt = DateTimeOffset.UtcNow;
         var analysisClock = System.Diagnostics.Stopwatch.StartNew();
+
+        // Held in a variable rather than built inline, so the failure below can ask it what it
+        // spent before it threw.
+        var pipeline = new AnalysisPipeline(client, _repository);
 
         AnalysisReport report;
 
         try
         {
-            report = await new AnalysisPipeline(client, _repository).AnalyseAsync(
+            report = await pipeline.AnalyseAsync(
                 callId,
                 new AnalysisOptions
                 {
@@ -2366,6 +2371,16 @@ public sealed class CallOrchestrator : IDisposable
             AppLog.Error("çözümleme", e,
                 $"görüşme #{callId} çözümlenemedi ({analysisClock.Elapsed.TotalSeconds:0} sn sonra)");
 
+            // With the tokens it had already burned when it threw.
+            //
+            // Recorded without them, a failure reported everything spent up to that point as
+            // zero — and a run that dies on the last section of a long conversation has spent
+            // nearly all of it. Against a provider that fails intermittently the screen's total
+            // drifted steadily below the real invoice, which is the one thing it must not do.
+            // Read off the pipeline rather than estimated: a token count nobody can reconcile
+            // against a bill is worse than none.
+            var spent = pipeline.TokensSpent;
+
             _repository.RecordRun(
                 callId,
                 ProcessingStage.Analyse,
@@ -2373,6 +2388,8 @@ public sealed class CallOrchestrator : IDisposable
                 analysisStartedAt,
                 analysisClock.Elapsed,
                 audio: TimeSpan.Zero,
+                promptTokens: (int)spent.Prompt,
+                completionTokens: (int)spent.Completion,
                 succeeded: false);
 
             throw;

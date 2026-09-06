@@ -117,6 +117,16 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
     private readonly Metered _llm = new(llm);
 
+    /// <summary>
+    /// What this pipeline has spent so far, prompt and completion.
+    ///
+    /// Public because a run that throws never reaches its own bookkeeping: the caller records
+    /// that failure, and it could only ever report zeros. Everything burned before the throw
+    /// then read as free, and against a provider that fails intermittently the usage screen's
+    /// total drifted steadily below the invoice — which is the one thing that screen must not do.
+    /// </summary>
+    public (long Prompt, long Completion) TokensSpent => _llm.Reading;
+
     public async Task<AnalysisReport> AnalyseAsync(
         long callId,
         AnalysisOptions options,
@@ -191,6 +201,31 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
         progress?.Report("Karşılaştırmalar yapılıyor");
 
+        // What this run cost, filed however it ends.
+        //
+        // A local function rather than one line at the bottom, because there are now two ways
+        // out of here and only one of them used to write anything down. Differenced rather than
+        // read absolutely: one pipeline instance can analyse several calls, and attributing the
+        // running total to whichever call happened to be last would make the per-call figures
+        // nonsense.
+        void RecordSpend(bool succeeded)
+        {
+            clock.Stop();
+
+            var after = _llm.Reading;
+
+            repository.RecordRun(
+                callId,
+                ProcessingStage.Analyse,
+                options.Model,
+                startedAt,
+                clock.Elapsed,
+                audio: TimeSpan.Zero,
+                promptTokens: (int)(after.Prompt - before.Prompt),
+                completionTokens: (int)(after.Completion - before.Completion),
+                succeeded: succeeded);
+        }
+
         // Whatever a previous analysis of this call left behind goes first.
         //
         // Without this, analysing a call twice appended a second full copy of the person's
@@ -212,8 +247,34 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
                 "Hiçbir bölüm çözümlenemedi; önceki defter olduğu gibi korundu. " +
                 "Model ya da servis erişilebilir olduğunda yeniden deneyebilirsin.");
 
+            // Nothing usable came back, but the requests were made and the money is spent.
+            //
+            // This path used to return here without writing anything down, so a twelve-section
+            // conversation that had just burned twelve paid requests left the usage screen
+            // reading "0 çalışma, 0 jeton, 0 başarısız" — a clean history, for exactly the case
+            // the screen exists to describe. A model that refuses the schema, or thinks and
+            // returns nothing, is when the user most needs to be told what it cost.
+            //
+            // The unload goes with it. It was skipped along with the bookkeeping, so a local
+            // backend kept the GPU that Whisper needs back after a run that produced nothing.
+            if (options.UnloadWhenDone)
+                await _llm.UnloadAsync(options.Model, cancellationToken);
+
+            RecordSpend(succeeded: false);
+
             return new AnalysisReport(0, 0, rejected, [], null, warnings);
         }
+
+        // Some sections were read and some were not — a partial reading of the conversation.
+        //
+        // A provider error partway through used to escape the loop entirely and throw away the
+        // sections already paid for; now it counts as a section that would not parse, and what
+        // the others produced is kept. But a partial reading must not be allowed to replace a
+        // complete one: the promises and figures of the sections this run never saw are only in
+        // the database, and clearing on the strength of a run that did not read them would
+        // delete them. So a partial run adds instead of replacing, and compares what it found
+        // against what is stored so nothing is written twice.
+        var partial = failedChunks > 0;
 
         // One conversation, one entry per thing said.
         //
@@ -245,13 +306,24 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         var surviving = repository.SurvivingCommitmentKeys(callId);
         var dismissedFlags = repository.DismissedFlagKeys(callId);
 
-        repository.ClearAnalysis(callId);
+        // The clear belongs to a run that read the whole conversation, and only to that run.
+        //
+        // Clearing is right when the replacement is better than what was there. After a provider
+        // error partway through it is not: the sections that failed were never read, so their
+        // rows are not in the lists below and the clear would delete them for good. A partial run
+        // therefore keeps everything and treats what is already stored as its own de-duplication
+        // key — the ledger grows by what this run managed to read and by nothing else.
+        var stored = partial ? repository.LedgerKeysOf(callId) : StoredLedgerKeys.None;
+
+        if (!partial) repository.ClearAnalysis(callId);
 
         var withheld = 0;
 
         foreach (var commitment in commitments)
         {
-            if (surviving.Contains((commitment.ByMe, TurkishText.NormalizeForSearch(commitment.Quote))))
+            var key = (commitment.ByMe, TurkishText.NormalizeForSearch(commitment.Quote));
+
+            if (surviving.Contains(key) || stored.Commitments.Contains(key))
             {
                 withheld++;
                 continue;
@@ -263,7 +335,18 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         if (withheld > 0)
             CoreLog.Write("cozumleme", $"gorusme #{callId}: {withheld} soz kullanicinin kararini tasiyor, yeniden yazilmadi");
 
-        foreach (var claim in claims) repository.InsertClaim(claim);
+        foreach (var claim in claims)
+        {
+            var key = (
+                TurkishText.NormalizeForSearch(claim.Entity),
+                TurkishText.NormalizeForSearch(claim.Attribute),
+                TurkishText.NormalizeForSearch(claim.Value),
+                TurkishText.NormalizeForSearch(claim.Quote));
+
+            if (stored.Claims.Contains(key)) continue;
+
+            repository.InsertClaim(claim);
+        }
 
         flags.AddRange(ScamPatterns.Scan(callId, call.ContactId, segments));
 
@@ -287,24 +370,62 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         if (DeterministicChecks.EvasionRate(callId, call.ContactId, questions) is { } evasion)
             flags.Add(evasion);
 
-        // A finding the user dismissed is a tombstone ClearAnalysis leaves in place; the same
-        // words found again must not come back beside it as a new, undismissed row.
-        foreach (var flag in flags)
+        // A finding belongs to the conversation it was said in, not to the one being analysed.
+        //
+        // The deterministic checks read the whole person: an overdue promise is filed against the
+        // call where it was made, a moved deadline and a changed figure against the call where
+        // the newer words were said. So analysing the second conversation with somebody emits
+        // rows that belong to the first — and both the dismissal check and the delete were scoped
+        // to the call being analysed. The user's ruling on the first conversation was undone, and
+        // because the delete never reached that call a second copy of the same row was added
+        // every time, compounding silently. K4: a re-run never touches a row the user ruled on.
+        //
+        // So each conversation's findings are settled against that conversation — its own
+        // dismissals, and its own delete. The delete is narrowed to the kinds this run is
+        // actually replacing, so a finding read from the other call's own transcript (a scam
+        // pattern, an evasion rate) is not removed by a run that never looked at it.
+        foreach (var group in flags.GroupBy(f => f.CallId))
         {
-            if (dismissedFlags.Contains(((int)flag.Kind, TurkishText.NormalizeForSearch(flag.Quote)))) continue;
-            repository.InsertFlag(flag);
+            var dismissed = group.Key == callId
+                ? dismissedFlags
+                : repository.DismissedFlagKeys(group.Key);
+
+            // ClearAnalysis has already emptied this call's own pipeline findings — but only
+            // when it ran, and a partial run does not let it run.
+            if (group.Key != callId || partial)
+                repository.ClearPipelineFlags(group.Key, [.. group.Select(f => (int)f.Kind).Distinct()]);
+
+            foreach (var flag in group)
+            {
+                // A finding the user dismissed is a tombstone the delete leaves in place; the
+                // same words found again must not come back beside it as a new, undismissed row.
+                if (dismissed.Contains(((int)flag.Kind, TurkishText.NormalizeForSearch(flag.Quote)))) continue;
+
+                repository.InsertFlag(flag);
+            }
         }
 
         // The questions, kept past the end of this run. Written AFTER ClearAnalysis, which
         // emptied the table for this call — written before it, they would be deleted by the run
         // that produced them.
-        repository.ReplaceSpeechActs(callId, speechActs);
+        //
+        // A partial run merges instead: the questions of the sections it could not read are
+        // already stored and are not in its list, and replacing would shrink the denominator the
+        // contact card divides by ("7 görüşmede ölçüldü") because a server returned 429.
+        repository.ReplaceSpeechActs(
+            callId, partial ? Merge(repository.SpeechActsOf(callId), speechActs) : speechActs);
 
         // And the pressure signs, only where the user has turned the gate on. Left off, nothing
         // is written and ClearAnalysis has already removed whatever an earlier run with the gate
         // on left behind — except the rows the user dismissed, which are tombstones.
         if (options.WritePressureSigns)
-            repository.ReplaceTacticEvidence(callId, TacticEvidence.Sources.Pipeline, pressureSigns);
+        {
+            var signs = partial
+                ? Merge(repository.TacticEvidenceOf(callId), pressureSigns)
+                : pressureSigns;
+
+            repository.ReplaceTacticEvidence(callId, TacticEvidence.Sources.Pipeline, signs);
+        }
 
         string? summary = null;
         if (options.WriteSummary)
@@ -327,38 +448,95 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         if (options.UnloadWhenDone)
             await _llm.UnloadAsync(options.Model, cancellationToken);
 
-        clock.Stop();
-
-        // Differenced rather than read absolutely: one pipeline instance can analyse several
-        // calls, and attributing the running total to whichever call happened to be last would
-        // make the per-call figures nonsense.
-        var after = _llm.Reading;
-
-        repository.RecordRun(
-            callId,
-            ProcessingStage.Analyse,
-            options.Model,
-            startedAt,
-            clock.Elapsed,
-            audio: TimeSpan.Zero,
-            promptTokens: (int)(after.Prompt - before.Prompt),
-            completionTokens: (int)(after.Completion - before.Completion));
+        // A partial run still counts as a run that produced something: it built a ledger and the
+        // warnings say which sections are missing from it. "Başarısız" is kept for the run that
+        // produced nothing at all, so the failure counter on the usage screen keeps one meaning.
+        RecordSpend(succeeded: true);
 
         return new AnalysisReport(commitments.Count, claims.Count, rejected, flags, summary, warnings);
+    }
+
+    /// <summary>
+    /// What is stored plus what this run found, minus the overlap.
+    ///
+    /// Folded on (whose, kind, quote) with the same normalisation the ledger de-duplicates with,
+    /// so a question a partial run re-read is recognised as the one already on file rather than
+    /// written beside it.
+    /// </summary>
+    private static List<SpeechAct> Merge(IReadOnlyList<SpeechAct> stored, List<SpeechAct> found)
+    {
+        var seen = stored
+            .Select(a => (a.ByMe, a.Kind, Quote: TurkishText.NormalizeForSearch(a.Quote)))
+            .ToHashSet();
+
+        var merged = new List<SpeechAct>(stored);
+
+        foreach (var act in found)
+        {
+            if (seen.Add((act.ByMe, act.Kind, TurkishText.NormalizeForSearch(act.Quote))))
+                merged.Add(act);
+        }
+
+        return merged;
+    }
+
+    /// <summary>
+    /// The same merge for the pressure signs. Only this machinery's own rows are carried over —
+    /// the opt-in assessment's were paid for by a different button and ReplaceTacticEvidence
+    /// leaves them alone, so folding them in here would file them twice under the wrong source.
+    /// </summary>
+    private static List<TacticEvidence> Merge(
+        IReadOnlyList<TacticEvidence> stored, List<TacticEvidence> found)
+    {
+        var mine = stored.Where(t => t.Source == TacticEvidence.Sources.Pipeline).ToList();
+
+        var seen = mine
+            .Select(t => (t.Tactic, Quote: TurkishText.NormalizeForSearch(t.Quote)))
+            .ToHashSet();
+
+        var merged = new List<TacticEvidence>(mine);
+
+        foreach (var sign in found)
+        {
+            if (seen.Add((sign.Tactic, TurkishText.NormalizeForSearch(sign.Quote))))
+                merged.Add(sign);
+        }
+
+        return merged;
     }
 
     private async Task<JsonNode?> ExtractAsync(
         TranscriptChunk chunk, string context, AnalysisOptions options, CancellationToken cancellationToken)
     {
-        var response = await _llm.CompleteAsync(new LlmRequest
+        LlmResponse response;
+
+        try
         {
-            Model = options.Model,
-            SystemPrompt = ExtractionPrompt.SystemPrompt,
-            UserPrompt = ExtractionPrompt.BuildUserPrompt(chunk.Segments, context),
-            JsonSchema = ExtractionPrompt.Schema,
-            Temperature = 0.2,
-            MaxTokens = 2048,
-        }, cancellationToken);
+            response = await _llm.CompleteAsync(new LlmRequest
+            {
+                Model = options.Model,
+                SystemPrompt = ExtractionPrompt.SystemPrompt,
+                UserPrompt = ExtractionPrompt.BuildUserPrompt(chunk.Segments, context),
+                JsonSchema = ExtractionPrompt.Schema,
+                Temperature = 0.2,
+                MaxTokens = 2048,
+            }, cancellationToken);
+        }
+        catch (LlmException e)
+        {
+            // A provider error costs this section, not the sections already paid for.
+            //
+            // Uncaught, a 429 or an insufficient_quota on section five escaped the loop and took
+            // sections one to four with it — read, parsed, verified, and never written. On the
+            // retry after a top-up the user pays for those four a second time. This is not
+            // hypothetical: the account behind this build hit insufficient_quota mid-run.
+            //
+            // Treated as a section that would not parse, which is what it is from here: the loop
+            // counts it failed, the others keep what they produced, and the tokens spent are
+            // recorded either way. Cancellation is not an LlmException, so stopping still stops.
+            CoreLog.Write("çözümleme", $"bölüm istenemedi ({e.Message}) — bölüm atlanıyor");
+            return null;
+        }
 
         // A schema guarantees the shape of what was produced, not that generation finished.
         // Output cut off at the token limit is valid so far and still unparseable.

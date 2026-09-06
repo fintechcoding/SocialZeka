@@ -1228,5 +1228,14 @@
   "settingswindow.model-inmedi": "İnmedi",
   "settingswindow.kisi-karti-yerel-model-uyarisi": "Yerel bir modelde çoğu kişi için çalışmaz: bağlam penceresi 24 bin karakter, bulutta 400 bin. Okuma önce küçültülmüş bir paketle denenir; uzun geçmişli kişilerde o da sığmaz ve panel dürüst bir retle karşılık verir.",
   "ledgerpage.yolculuk": "Yolculuk",
-  "ledgerpage.yolculuk-aciklama": "Bu rakamın yolculuğunu kişi kartında aç: her değeri, söylendiği tarihle ve dinlenebilir anıyla."
+  "ledgerpage.yolculuk-aciklama": "Bu rakamın yolculuğunu kişi kartında aç: her değeri, söylendiği tarihle ve dinlenebilir anıyla.",
+  "aistatuspage.diger-okumalar": "Diğer okumalar",
+  "aistatuspage.asama-tutarlilik": "Tutarlılık",
+  "aistatuspage.asama-aksiyon": "Aksiyon önerileri",
+  "aistatuspage.asama-okuma": "Serbest okuma",
+  "aistatuspage.asama-degerlendirme": "Değerlendirme",
+  "aistatuspage.asama-kisi-okumasi": "Kişi okuması",
+  "aistatuspage.asama-jetonlu": "{0} çalışma · {1} giriş + {2} çıkış jeton",
+  "aistatuspage.asama-jetonsuz": "{0} çalışma · jeton bildirilmedi",
+  "aistatuspage.asama-basarisiz": " · {0} başarısız"
 }
