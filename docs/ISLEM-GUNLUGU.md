@@ -2654,3 +2654,50 @@ de açılır" sözünü hiçbir şey tutmuyordu. Yeni test arşivi önce dolduru
 Testin gücü ölçüldü: `archive.Migrate()` satırı geçici olarak kapatıldığında test **yeşil
 kalıyor**, çünkü ikinci mekanizma tek başına yetiyor. Bu, kemer ve askı olarak çalışıyor demek;
 testin yorumu bunu açıkça söylüyor ki yeşili birinin tek başına çalıştığının kanıtı sayılmasın.
+
+## 2026-09-06 — Sorulan soru ve alınan cevap artık saklanıyor (şema v20)
+
+`3a9d017` + `1ea4d5a`. Kullanıcı görüşme detaylarındaki sonuçların saklanmadığını fark etti ve
+haklıydı: Sor sekmesinde ve Sor sayfasında cevap yalnız bellekteki koleksiyona giriyordu.
+Pencereyi kapatınca cevap da alıntıları da gidiyordu; aynı soruyu yarın sormak aynı faturayı
+ikinci kez ödemek demekti. `ArchiveQuestions` önbelleğe de bakmıyor, yani aynı oturumda ikinci
+kez sormak da para harcıyordu.
+
+**Tek tablo, `ask_exchange`.** İki soru arasında bağ yok, çünkü `ArchiveQuestions` durumsuz:
+modele önceki tur hiç gösterilmiyor. İplik tablosu var olmayan bir sohbeti modellerdi ve "şu tek
+alışverişi kaldır" bir DELETE yerine bir çağlayana dönerdi.
+
+**`call_id` boş bırakılabilir.** SQLite CASCADE'i yalnız NULL olmayan anahtarda tetikliyor, yani
+bir görüşme kendi sorularını götürüyor, arşiv geneline sorulanlar ayakta kalıyor. `contact_id`
+ise SET NULL: kişiyi kaybetmek, alıntıları hâlâ çözülen soruları silmemeli. Dönem süzgeci ad
+olarak değil **çözülmüş an** olarak saklanıyor — martta sorulan "son 7 gün" eylülün haftası
+değildir.
+
+**Alıntılar JSON sütununda**, ev usulü. Bir cevabın denetlenebilmesi için gereken her alan
+duruyor: numara, görüşme, kişi adı, görüşmenin başlangıcı, `start_ms`, konuşan, metin. Saklanmış
+bir cevabın çıpaları hâlâ gösterdiği anı çalıyor. Okunamayan bir yük, çıpasız cevap sayılıyor,
+istisna fırlatmıyor.
+
+**Zemin: ≈ modelin görüşü.** Soru kullanıcının, alıntılar kanıt, ama satırın bütünü modelin o
+günkü okuması. Ölü uç: hiçbir sorgu join atmıyor, hiçbir isteme satır gösterilmiyor. Kaldırma
+fiili **Kaldır**, Reddet değil — kullanıcının kendi malzemesi.
+
+**Bayatlık yalnız görüşmeye bağlı cevaplarda.** Tek bir görüşme, yeniden dökümün iki yanında
+yazılmış cevaplar taşıyabilir, o yüzden yargı `DerivedFreshness` yerine alışveriş başına
+veriliyor. Arşiv geneline sorulan bir cevapta bayatlık **iddia edilmiyor**: kırk görüşmeden
+birinin yeniden dökülmesi neredeyse her cevaba uyarı koyardı ve karşılığında hiçbir şey
+söylemezdi.
+
+**`RecordRun` zaten vardı** — hem başarı hem `LlmException` yolunda. Kullanım ekranı bu aşamayı
+okuyor.
+
+**Yol boyunca bir yarış düzeltildi.** Yeni test sınıfı xunit'in sıralamasını kaydırınca
+`OpusArchiveTests` tutarlı biçimde kırılmaya başladı. Sebep önceden vardı: iki sınıf da süreç
+genelindeki `AudioMaterialiser.CacheDirectory`'yi kurucuda kurup `Dispose`'da null'lıyordu, yani
+paralelde birinin yıkımı ötekinin değerini testin ortasında siliyordu. İkisi tek koleksiyona
+alındı.
+
+**Doğrulama.** 1373 C# testi (1368 geçti, 5 atlandı; taban 1358'di) ve 179 Python testi.
+
+**Sıra notu:** şema **v20**'yi bu iş aldı. `PLAN-IKINCI-TUR`'da çevreler için yazılan v20
+**v21**'e kaydırıldı; şema sürümleri tek sıradır ve sevk edilen adım düzenlenmez.

@@ -123,7 +123,7 @@ kuruldu (§2.5).
 seçer, Görüşmeler ekranı o çevreyi arka plana alır; aynı çevre Kişiler, Genel bakış, kişi kartı
 ve Aynam'da da aynı biçimde görünür.
 
-### 2.1 Şema v20
+### 2.1 Şema v21
 
 ```sql
 CREATE TABLE IF NOT EXISTS contact_circle (    -- KULLANICI: kendi kelimesi; boru hattı asla yazmaz
@@ -145,7 +145,7 @@ CASCADE`'i var, ve `MergeContacts` ile `MergeArchive` onu zaten ele alıyor.
 farklıdır ve bir `map_circle` eşlemesi gerekirdi; metin kimlik iki arşivde kendiliğinden aynıdır.
 `call_tag` ↔ `tag_def` ikilisi bu sorunu zaten böyle çözmüş; karar icat değil kopya.
 
-**Kayıt yerleri:** `Schema.Statements` + `Schema.Version` 19→20 + `Migrations.Steps`'e `new(20, …)`
+**Kayıt yerleri:** `Schema.Statements` + `Schema.Version` 20→21 + `Migrations.Steps`'e `new(21, …)`
 + `MigrationTests` bloğu + `MergeArchive`'a tek satır `Copy(connection, transaction,
 "contact_circle")` + `MergeContacts`'ın `contact_profile` `ON CONFLICT` bloğuna
 `circle_folded = COALESCE(contact_profile.circle_folded, excluded.circle_folded)`.
@@ -260,7 +260,7 @@ verisi kaybolmaz.
   arıyor. Gizleme SQL'de uygulanırsa "gizle" sessizce "ara"yı da bozar. **Bu yüzden gizleme
   yalnız bellekteki `Filter`'da uygulanır**, `ListCalls` imzasına dokunulmaz, `Total` arşivin
   sayısı kalır. İki test sırf bunun için: `SecilenKisiGizlemeyiYener`, `AramaKutusuGizlemeyiYener`.
-- **Tek değerli çevre**, hem kuzenin hem iş ortağın olan kişiyi zorlar. v21'de
+- **Tek değerli çevre**, hem kuzenin hem iş ortağın olan kişiyi zorlar. v22'de
   `contact_circle_map` tablosuna geçiş yolu açık; sütun aynı göçte düşürülmez. Tek yönlü kapı
   değil ama bir sürüm boyunca yanlış model.
 - **2000'lik sessiz tavan çözülmüyor.** `ListCalls(limit: 2000)` bütün arşivi belleğe okuyup
@@ -468,12 +468,22 @@ ve tek başlarına düzeltilmeye değer.
 
 ---
 
+## 4.3 Şema sırası değişti (6 Eylül 2026)
+
+**v20'yi Sor aldı.** Kullanıcı görüşme detaylarındaki sonuçların saklanmadığını fark etti; Sor
+sekmesindeki ve Sor sayfasındaki cevaplar gerçekten hiçbir yere yazılmıyordu ve aynı soru her
+seferinde yeni bir ücretli istek oluyordu. Düzeltme `ask_exchange` tablosunu getirdi ve sırada
+önce olduğu için **v20** oldu. Bu belgede çevreler için yazılan **v20 artık v21'dir**; yukarıdaki
+§2.1 buna göre güncellendi. Şema sürümleri tek sıradır ve sevk edilen adım düzenlenmez.
+
+---
+
 ## 5. Sıra, efor, karar bekleyenler
 
 | Sıra | Paket | İçerik | Efor | Şema |
 |---|---|---|---|---|
 | 1 | **S** | Sözün tabanı: S1 etraf, S2 tek cümle iki söz, S3 ne zamana, S4 bu söz değildi, + dürüstlük satırı | 2–3 gün | yok |
-| 2 | **Ç** | Çevreler: v20, çip şeridi, Çevreler penceresi, dört ekran | 2–3 gün | v20 |
+| 2 | **Ç** | Çevreler: v21, çip şeridi, Çevreler penceresi, dört ekran | 2–3 gün | v21 |
 | 3 | **B** | Bütünlük sözleşmesi: K1–K10 sert sıfır, K11/K12 çivilenir | 3–4 gün | yok |
 | ∥ | **Y** | Yapılacaklar'ın üç kusuru (§4.2) | 1 gün | yok |
 
