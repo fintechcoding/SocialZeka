@@ -390,5 +390,35 @@ public static class Migrations
                 """,
                 "CREATE INDEX IF NOT EXISTS ix_speech_act_contact ON speech_act(contact_id, kind);",
             ]),
+
+        // v18 — how it was said, and what was not a word.
+        //
+        // Two tables that come out of the audio rather than out of the words. Prosody is keyed by
+        // the recording (a new transcript does not invalidate it; a trimmed file does), audio
+        // events by the transcript that reported them. Neither carries an interpretation, and
+        // nothing in the product turns either into one.
+        new(18, "Ses düzeyi ve perde ölçümü; kelime olmayan sesler",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS prosody (
+                    call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+                    audio_key  TEXT    NOT NULL,
+                    json       TEXT    NOT NULL,
+                    created_at TEXT    NOT NULL
+                );
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS audio_event (
+                    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                    call_id               INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+                    transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
+                    channel               TEXT    NOT NULL,
+                    start_ms              INTEGER NOT NULL,
+                    end_ms                INTEGER NOT NULL,
+                    kind                  TEXT    NOT NULL
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS ix_audio_event_call ON audio_event(call_id, start_ms);",
+            ]),
     ];
 }

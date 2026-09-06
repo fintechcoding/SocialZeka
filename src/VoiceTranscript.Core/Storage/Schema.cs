@@ -17,7 +17,7 @@
 /// </summary>
 public static class Schema
 {
-    public const int Version = 17;
+    public const int Version = 18;
 
     public static readonly string[] Statements =
     [
@@ -830,5 +830,50 @@ public static class Schema
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_speech_act_contact ON speech_act(contact_id, kind);",
+
+        // Level and pitch over time, as the worker measured them.
+        //
+        // Keyed by the AUDIO rather than by the transcript, and that is the whole design. Nothing
+        // here comes from the words: transcribing the same recording again with a better engine
+        // changes not one of these numbers, and re-running a minute of CPU over the audio to
+        // rediscover that would be work for nothing. What does invalidate a row is the recording
+        // itself changing — silence trimmed, a file re-encoded — which is what audio_key catches.
+        //
+        // The measurement is stored; the reading is not. Whether a stretch "stands out" depends on
+        // a threshold that is a guess until sixty peaks have been listened to (PLAN-SOSYALZEKA
+        // §6.3), and when that number moves nothing should have to touch the audio again.
+        //
+        // No interpretation reaches this table and none may be derived from it elsewhere: a peak
+        // is a place to listen. Voice-stress lie detection performs at chance, and emotion from
+        // audio is not validated for Turkish — neither is offered anywhere in this product.
+        """
+        CREATE TABLE IF NOT EXISTS prosody (
+            call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
+            audio_key  TEXT    NOT NULL,
+            json       TEXT    NOT NULL,
+            created_at TEXT    NOT NULL
+        );
+        """,
+
+        // What the transcription service heard that was not a word: laughter, a cough, a long
+        // silence. ElevenLabs labels them when asked; every other engine says nothing, and a call
+        // transcribed by one of those simply has no rows here — which the screen says rather than
+        // drawing an empty timeline as if nothing had happened.
+        //
+        // Filed against the transcript that produced them, so a re-transcription replaces them
+        // wholesale. ClearAnalysis does not touch them: they came out of the audio with the words,
+        // not out of the ledger's reasoning.
+        """
+        CREATE TABLE IF NOT EXISTS audio_event (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id               INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
+            channel               TEXT    NOT NULL,
+            start_ms              INTEGER NOT NULL,
+            end_ms                INTEGER NOT NULL,
+            kind                  TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_audio_event_call ON audio_event(call_id, start_ms);",
     ];
 }

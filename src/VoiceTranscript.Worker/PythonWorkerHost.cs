@@ -178,6 +178,40 @@ public sealed partial class PythonWorkerHost(PythonWorkerOptions options)
         return result ?? throw new WorkerException("no_result", "Ses izi alınamadı.");
     }
 
+    /// <summary>
+    /// Measures level and pitch over one call's audio.
+    ///
+    /// Cheap and local: numpy over the samples, no model, no network, seconds rather than minutes.
+    /// It still runs in the worker rather than in C# because the arithmetic is already written
+    /// there and vectorised, and because a process that ends returns its memory.
+    /// </summary>
+    public async Task<WorkerProsody> AnalyseProsodyAsync(
+        ProsodyRequest request,
+        IProgress<WorkerProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        WorkerProsody? result = null;
+        WorkerFailure? failure = null;
+
+        await RunAsync(
+            "prosody",
+            WorkerProtocol.Serialise(request),
+            onEvent: e =>
+            {
+                switch (e)
+                {
+                    case WorkerProsody p: result = p; break;
+                    case WorkerProgress p: progress?.Report(p); break;
+                    case WorkerFailure f: failure = f; break;
+                }
+            },
+            cancellationToken);
+
+        if (failure is not null) throw new WorkerException(failure.Code, failure.Message);
+
+        return result ?? throw new WorkerException("no_result", "Ses ölçümü alınamadı.");
+    }
+
     /// <summary>Transcribes one call. Progress is reported as it arrives.</summary>
     public async Task<WorkerResult> TranscribeAsync(
         TranscriptionRequest request,

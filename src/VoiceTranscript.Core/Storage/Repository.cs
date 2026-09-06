@@ -1341,6 +1341,17 @@ public sealed class Repository(Database database)
 
             Copy(connection, transaction, "speech_act", toCallAndContact, ofNewCalls);
 
+            // Measured from the audio, so they travel with the call that carries it. The events
+            // remember which transcript reported them; the measurement remembers which recording
+            // it was made from, and that key is a file name and a length — it survives the move
+            // because the recording does.
+            Copy(connection, transaction, "prosody", toCall, ofNewCalls);
+
+            Copy(
+                connection, transaction, "audio_event",
+                new Dictionary<string, string>(toCall) { ["transcript_version_id"] = "map_version" },
+                ofNewCalls);
+
             // Things that hang off a person rather than a call. What is here wins in every case:
             // a photo, a voiceprint or a set of fields already on a contact is this machine's.
             Copy(connection, transaction, "contact_profile", toContact);
@@ -2726,6 +2737,94 @@ public sealed class Repository(Database database)
                 created_at = excluded.created_at;
             """,
             new { callId, lexiconVersion, json, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    // ---- how it was said, and what was not a word ---------------------------------------
+
+    /// <summary>A stored measurement and the audio it was made from.</summary>
+    public sealed record StoredProsody(string Json, string AudioKey, DateTimeOffset CreatedAt);
+
+    /// <summary>
+    /// Saves one call's level and pitch measurement, replacing any earlier one.
+    ///
+    /// Filed under the AUDIO rather than the transcript: nothing here came from the words, so a
+    /// re-transcription leaves it valid and re-measuring would be a minute of CPU spent to
+    /// rediscover the same numbers. What invalidates it is the recording changing, which is what
+    /// the key describes.
+    /// </summary>
+    public void SaveProsody(long callId, string audioKey, string json)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO prosody (call_id, audio_key, json, created_at)
+            VALUES (@callId, @audioKey, @json, @now)
+            ON CONFLICT(call_id) DO UPDATE SET
+                audio_key = excluded.audio_key,
+                json = excluded.json,
+                created_at = excluded.created_at;
+            """,
+            new { callId, audioKey, json, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    public StoredProsody? GetProsody(long callId)
+    {
+        using var connection = Open();
+
+        return connection.QueryFirstOrDefault<ProsodyRow>(
+            "SELECT json, audio_key, created_at FROM prosody WHERE call_id = @callId;",
+            new { callId })?.ToModel();
+    }
+
+    public void DeleteProsody(long callId)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM prosody WHERE call_id = @callId;", new { callId });
+    }
+
+    /// <summary>One thing the transcription service heard that was not a word.</summary>
+    public sealed record AudioEvent(long Id, long CallId, string Channel, int StartMs, int EndMs, string Kind);
+
+    /// <summary>
+    /// Replaces a call's non-word events with what the transcript just reported.
+    ///
+    /// Replace rather than merge: these belong to one transcript, and a second engine's laughter
+    /// beside a first engine's would be two readings of one moment presented as two moments.
+    /// </summary>
+    public int ReplaceAudioEvents(long callId, IReadOnlyList<(string Channel, int StartMs, int EndMs, string Kind)> events)
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        connection.Execute("DELETE FROM audio_event WHERE call_id = @callId;", new { callId }, transaction);
+
+        var written = 0;
+
+        foreach (var (channel, startMs, endMs, kind) in events)
+        {
+            if (string.IsNullOrWhiteSpace(kind)) continue;
+
+            written += connection.Execute(
+                """
+                INSERT INTO audio_event (call_id, transcript_version_id, channel, start_ms, end_ms, kind)
+                VALUES (@callId, (SELECT transcript_version_id FROM call WHERE id = @callId),
+                        @channel, @startMs, @endMs, @kind);
+                """,
+                new { callId, channel, startMs, endMs, kind }, transaction);
+        }
+
+        transaction.Commit();
+        return written;
+    }
+
+    public IReadOnlyList<AudioEvent> AudioEventsOf(long callId)
+    {
+        using var connection = Open();
+
+        return [.. connection.Query<AudioEventRow>(
+            "SELECT id, call_id, channel, start_ms, end_ms, kind FROM audio_event WHERE call_id = @callId ORDER BY start_ms;",
+            new { callId }).Select(r => r.ToModel())];
     }
 
     public StoredHabits? GetHabits(long callId)
@@ -5841,6 +5940,27 @@ public sealed class Repository(Database database)
         public long action_count { get; set; }
         public long action_known { get; set; }
         public long action_stale { get; set; }
+    }
+
+    private sealed class ProsodyRow
+    {
+        public string json { get; set; } = "";
+        public string audio_key { get; set; } = "";
+        public string created_at { get; set; } = "";
+
+        public StoredProsody ToModel() => new(json, audio_key, ParseIso(created_at));
+    }
+
+    private sealed class AudioEventRow
+    {
+        public long id { get; set; }
+        public long call_id { get; set; }
+        public string channel { get; set; } = "";
+        public long start_ms { get; set; }
+        public long end_ms { get; set; }
+        public string kind { get; set; } = "";
+
+        public AudioEvent ToModel() => new(id, call_id, channel, (int)start_ms, (int)end_ms, kind);
     }
 
     private sealed class HabitRow

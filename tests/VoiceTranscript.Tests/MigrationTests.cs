@@ -424,6 +424,34 @@ public sealed class MigrationTests : IDisposable
     }
 
     /// <summary>
+    /// v18: how it was said, and what was not a word.
+    ///
+    /// Two tables that come out of the audio rather than the words. Goes red when either is
+    /// missing from an upgraded database, when the prosody row stops being keyed by the call, or
+    /// when an audio event loses its pointer to the transcript that reported it.
+    /// </summary>
+    [Fact]
+    public void TheEighteenthStepAddsTheAudioMeasurements()
+    {
+        new Database(_path).Migrate();
+
+        Assert.True(ColumnExistsIn("prosody", "audio_key"));
+        Assert.True(ColumnExistsIn("prosody", "json"));
+        Assert.True(ColumnExistsIn("audio_event", "transcript_version_id"));
+        Assert.True(ColumnExistsIn("audio_event", "channel"));
+
+        using var connection = new Database(_path).Open();
+
+        using var events = connection.CreateCommand();
+        events.CommandText = "SELECT COUNT(*) FROM audio_event;";
+        Assert.Equal(0L, events.ExecuteScalar());
+
+        using var index = connection.CreateCommand();
+        index.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'ix_audio_event_call';";
+        Assert.Equal(1L, index.ExecuteScalar());
+    }
+
+    /// <summary>
     /// The general form of the test above: every table, every column, compared between a
     /// database that walked the steps and one born fresh. The spot checks catch the column
     /// somebody thought to assert; this catches the one they forgot — a column in the step but

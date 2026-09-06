@@ -48,6 +48,7 @@ public static class WorkerProtocol
                 "downloaded" => trimmed.Deserialize<WorkerDownloaded>(),
                 "selftest" => trimmed.Deserialize<WorkerSelfTest>(),
                 "voiceprint" => trimmed.Deserialize<WorkerVoiceprint>(),
+                "prosody" => trimmed.Deserialize<WorkerProsody>(),
                 _ => null,
             };
         }
@@ -238,6 +239,44 @@ public sealed class WorkerVoiceprint : WorkerEvent
     public string? Reason { get; init; }
 
     public bool Usable => Vector is { Length: > 0 };
+}
+
+/// <summary>
+/// What `vt_worker prosody` measured: level and pitch over time, per channel.
+///
+/// The two channels arrive separately and stay separate. They are different signals with
+/// different gains — one is a microphone, the other is whatever the far end's application sent —
+/// and putting them on one scale would invent a comparison neither supports.
+/// </summary>
+public sealed class WorkerProsody : WorkerEvent
+{
+    /// <summary>The bin width the worker used, in seconds. Milliseconds are recovered from it.</summary>
+    public double BinSeconds { get; init; }
+
+    /// <summary>Keyed "mic" and "far"; a channel that was not recorded arrives as null.</summary>
+    public Dictionary<string, WorkerProsodyChannel?> Channels { get; init; } = [];
+
+    public double ElapsedS { get; init; }
+}
+
+/// <summary>One channel's measurements. Bins are [start s, dBFS, pitch Hz or null, voiced 0..1].</summary>
+public sealed class WorkerProsodyChannel
+{
+    public double FloorDbfs { get; init; }
+    public double SpeechSeconds { get; init; }
+    public double?[][] Bins { get; init; } = [];
+}
+
+/// <summary>The job handed to `vt_worker prosody`: one call, up to two files.</summary>
+public sealed class ProsodyRequest
+{
+    public required string Id { get; init; }
+
+    /// <summary>The user's own channel, or null when it was not recorded.</summary>
+    public string? MicPath { get; init; }
+
+    /// <summary>The far end, or null.</summary>
+    public string? FarPath { get; init; }
 }
 
 /// <summary>The job handed to `vt_worker speaker`: one recording, one voice.</summary>
