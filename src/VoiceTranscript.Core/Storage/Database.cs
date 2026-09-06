@@ -23,11 +23,27 @@ public sealed class Database(string path)
         Pooling = true,
     }.ToString();
 
+    /// <summary>
+    /// How many connections this database has handed out.
+    ///
+    /// Every repository call opens exactly one, and every open pays for the pragma batch below,
+    /// so this is the honest unit of "how much did that screen just ask the archive for". It is
+    /// here because the counting had to be somewhere: a page that reads a transcript per promise
+    /// and a page that reads none look identical from the outside, and the only thing that keeps
+    /// such a fix from being undone by the next helpful loop is a test that can see the
+    /// difference. Read-only; nothing in the application looks at it.
+    /// </summary>
+    public long ConnectionsOpened => Interlocked.Read(ref _opened);
+
+    private long _opened;
+
     public SqliteConnection Open()
     {
         var connection = new SqliteConnection(_connectionString);
 
         connection.Open();
+
+        Interlocked.Increment(ref _opened);
 
         using var pragmas = connection.CreateCommand();
         pragmas.CommandText =

@@ -77,6 +77,30 @@ public sealed class LedgerPageUndoTests : IDisposable
 
     private LedgerEntry FindingRow(long id) => _model.Entries.Single(e => e.Flag?.Id == id);
 
+    /// <summary>
+    /// Runs a ruling with the page wired the way the shell wires it.
+    ///
+    /// The verbs do not re-read this page themselves: LedgerActions writes the row and announces
+    /// the change, and the shell answers that by re-reading every page once. Bare, the assertions
+    /// below would be looking at the list as it stood before the ruling — which is what the
+    /// screen would show if the announcement or the shell's listener were ever taken out.
+    /// </summary>
+    private void Ruling(Action verb)
+    {
+        void Refresh(object? sender, EventArgs e) => _model.Refresh();
+
+        VoiceTranscript.App.Services.LedgerActions.Changed += Refresh;
+
+        try
+        {
+            verb();
+        }
+        finally
+        {
+            VoiceTranscript.App.Services.LedgerActions.Changed -= Refresh;
+        }
+    }
+
     private bool Shows(long flagId) => _model.Entries.Any(e => e.Flag?.Id == flagId);
 
     private List<long> OpenFindings() =>
@@ -99,7 +123,7 @@ public sealed class LedgerPageUndoTests : IDisposable
         Assert.NotNull(_model.Notice);
         Assert.DoesNotContain(id, OpenFindings());
 
-        _model.UndoCommand.Execute(null);
+        Ruling(() => _model.UndoCommand.Execute(null));
 
         Assert.True(Shows(id));
         Assert.False(_model.CanUndo);
@@ -165,13 +189,13 @@ public sealed class LedgerPageUndoTests : IDisposable
         Assert.Contains("(2)", _model.DismissSelectedText);
         Assert.True(_model.DismissSelectedCommand.CanExecute(null));
 
-        _model.DismissSelectedCommand.Execute(null);
+        Ruling(() => _model.DismissSelectedCommand.Execute(null));
 
         Assert.False(_model.IsSelecting);
         Assert.Equal([b], OpenFindings());
         Assert.Equal(2, _model.DismissedCount);
 
-        _model.UndoCommand.Execute(null);
+        Ruling(() => _model.UndoCommand.Execute(null));
 
         Assert.Equal([a, b, c], OpenFindings());
         Assert.Equal(0, _model.DismissedCount);

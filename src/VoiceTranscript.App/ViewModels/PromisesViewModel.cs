@@ -51,11 +51,13 @@ public sealed partial class PromiseCard : ObservableObject
 {
     private readonly DateOnly _today;
 
+    private readonly Func<Repository.FulfilmentHint?> _findHint;
+
     public PromiseCard(
         Repository.PromiseRow row,
         DateOnly today,
         int callsSince,
-        Repository.FulfilmentHint? hint,
+        Func<Repository.FulfilmentHint?> findHint,
         IReadOnlyList<PromiseLine> around,
         VerdictValue? judgement,
         bool keepsUndated)
@@ -64,7 +66,7 @@ public sealed partial class PromiseCard : ObservableObject
         ContactName = row.ContactName;
         CallStartedAt = row.CallStartedAt;
         CallsSince = callsSince;
-        Hint = hint;
+        _findHint = findHint;
         Around = around;
         Judgement = judgement;
         KeepsUndated = keepsUndated;
@@ -78,7 +80,34 @@ public sealed partial class PromiseCard : ObservableObject
     /// <summary>Calls with this person after the deadline — the "was there a chance" figure.</summary>
     public int CallsSince { get; }
 
-    public Repository.FulfilmentHint? Hint { get; }
+    /// <summary>
+    /// The "tutuldu mu?" offer — looked up the first time this card is asked for it, and never
+    /// for a card nobody asks.
+    ///
+    /// One lookup is a query for the promise, a query for the next five conversations with that
+    /// person, a full read of each of those transcripts and every one of their lines through the
+    /// archive-question tokeniser. The page builds a card for every promise the ledger holds and
+    /// draws a handful of them, so computing this while the rows were being built paid that price
+    /// for cards behind a chip nobody had clicked, for the members folded inside a group, and
+    /// once more on every refresh of a page the user was not even looking at — measured on the
+    /// live archive as eleven scans of fifty-five transcript lines each, per refresh, growing
+    /// with the archive. Bindings ask; the counts, the tallies and the grouping never do.
+    /// </summary>
+    public Repository.FulfilmentHint? Hint
+    {
+        get
+        {
+            if (_hintAsked) return _hint;
+
+            _hintAsked = true;
+            _hint = _findHint();
+
+            return _hint;
+        }
+    }
+
+    private Repository.FulfilmentHint? _hint;
+    private bool _hintAsked;
 
     public long Id => Commitment.Id;
     public bool ByMe => Commitment.ByMe;
@@ -401,19 +430,27 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
                 ? repository.CountCallsSince(contactId, due)
                 : 0;
 
-            var hint = open && !c.IsConditional ? repository.SuggestFulfilment(c.Id) : null;
+            var folded = TurkishText.NormalizeForSearch(c.Quote);
+            var given = rulings[c.CallId];
+            var judgement = Ruling(given, VerdictKind.Promise, folded, c.QuoteStartMs);
+
+            // The "tutuldu mu?" offer is not looked up here — it is handed to the card as the way
+            // to find it, and the card looks once, if it is ever drawn. The condition is the one
+            // the card's own HintText uses: a moment the user has said is not a promise cannot
+            // carry the question, so it must not pay for one either.
+            var canBeAsked = open && !c.IsConditional && judgement != VerdictValue.NotThat;
+
+            Func<Repository.FulfilmentHint?> findHint = canBeAsked
+                ? () => repository.SuggestFulfilment(c.Id)
+                : static () => null;
 
             var around = repository
                 .SegmentsAround(c.CallId, c.QuoteStartMs)
                 .Select(s => new PromiseLine(c.ContactId, s.CallId, s.StartMs, s.IsMe, Clip(s.Text)))
                 .ToList();
 
-            var folded = TurkishText.NormalizeForSearch(c.Quote);
-            var given = rulings[c.CallId];
-
             cards.Add(new PromiseCard(
-                row, today, callsSince, hint, around,
-                Ruling(given, VerdictKind.Promise, folded, c.QuoteStartMs),
+                row, today, callsSince, findHint, around, judgement,
                 Ruling(given, VerdictKind.PromiseDeadline, folded, c.QuoteStartMs) is not null));
         }
 
@@ -815,14 +852,15 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (_pending is not { } pending) return;
 
+        // The notice is taken down before the inverse is written, not after: writing it announces
+        // the change, the shell re-reads this page inside that announcement, and a refresh that
+        // ran while the notice still stood would draw the "Geri al" bar over rows that had
+        // already come back.
         _pending = null;
         Notice = null;
+        OnPropertyChanged(nameof(CanUndo));
 
         pending.Undo();
-
-        OnPropertyChanged(nameof(CanUndo));
-        Refresh();
-        CallActions.NotifyChanged();
     }
 
     [RelayCommand]
@@ -837,6 +875,15 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     /// Shows what a verb did and keeps its inverse ready. Every verb on this page hands one of
     /// these back — including the edit dialog's, whose undo used to be dropped on the floor and
     /// left ✎ as the only ruling here that could not be taken back.
+    ///
+    /// It does not re-read the page and it does not announce anything. Both used to happen here,
+    /// and both were already done: every verb goes through <see cref="LedgerActions"/>, which
+    /// writes the row and raises its own Changed, and the shell answers that by re-reading all
+    /// ten pages — this one among them — before the verb has even returned. So one "Tutuldu"
+    /// re-read the promises page three times and the other nine twice, and each of those extra
+    /// passes carried the whole page: the ledger query, a verdict query per conversation and the
+    /// "tutuldu mu?" scan. If a verb is ever added here that writes without going through
+    /// LedgerActions, it announces the change itself — not by refreshing this one page.
     /// </summary>
     public void Offer(PendingUndo undo)
     {
@@ -844,10 +891,5 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
         Notice = undo.Sentence;
 
         OnPropertyChanged(nameof(CanUndo));
-        Refresh();
-
-        // Every other list holding promises — the calendar, the home screen, the caller strip's
-        // next appearance — learns of the ruling the way it learns of a deleted call.
-        CallActions.NotifyChanged();
     }
 }

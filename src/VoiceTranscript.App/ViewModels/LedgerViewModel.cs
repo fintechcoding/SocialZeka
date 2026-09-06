@@ -498,15 +498,16 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
         var picked = Entries.Where(e => e.IsSelected && e.CanDismiss).ToList();
         if (picked.Count == 0) return;
 
-        var undo = LedgerActions.DismissMany(
+        // Select mode is left BEFORE the ruling is written, because writing it announces the
+        // change and the shell re-reads this page inside that announcement. Leaving it after
+        // meant the one refresh saw a page still in select mode and a second one had to be run
+        // to undo that — the whole ledger read twice for one click.
+        IsSelecting = false;
+
+        Offer(LedgerActions.DismissMany(
             repository,
             [],
-            picked.Where(e => e.Flag is not null).Select(e => e.SourceId).ToList());
-
-        IsSelecting = false;
-        Refresh();
-
-        Offer(undo);
+            picked.Where(e => e.Flag is not null).Select(e => e.SourceId).ToList()));
     }
 
     /// <summary>Takes the last ruling back, whatever it was.</summary>
@@ -515,12 +516,13 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     {
         if (_pending is not { } pending) return;
 
+        // Same order, same reason: the notice comes down first, then the inverse is written and
+        // announced, and the single refresh that follows sees the page as it will be.
         _pending = null;
         Notice = null;
         OnPropertyChanged(nameof(CanUndo));
 
         pending.Undo();
-        Refresh();
     }
 
     [RelayCommand]
@@ -567,7 +569,9 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
             return;
         }
 
-        Refresh();
+        // The sweep writes without going through LedgerActions, so it announces the change
+        // itself; the announcement is what re-reads this page and the nine others. It used to
+        // re-read this one first and then announce, which read the whole ledger twice.
         LedgerActions.NotifyChanged();
 
         Say(string.Format(Localisation.T("ledgerpage.n-kayit-kaldirildi"), swept.Total, swept.Hollow, swept.Duplicates));

@@ -472,7 +472,12 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
 
         var contactName = SpeakerText.Other(SelectedContact?.Name);
 
-        foreach (var segment in repository.GetSegments(value.Call.Id))
+        // Read once and used twice: the rows below and the talk share underneath them are the
+        // same transcript. Arrowing down the call list used to read every conversation from the
+        // database twice, once for each. Same pattern as the call window's own Load().
+        var segments = repository.GetSegments(value.Call.Id);
+
+        foreach (var segment in segments)
         {
             Transcript.Add(new TranscriptLine(
                 segment.IsMe ? SpeakerText.Self : contactName,
@@ -487,7 +492,7 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
         Summary = repository.GetSummary(value.Call.Id)?.Summary;
         OnPropertyChanged(nameof(HasTranscript));
 
-        ComputeTalkStats(repository.GetSegments(value.Call.Id));
+        ComputeTalkStats(segments);
 
         // The waveform is read off the UI thread; an hour of audio is over a hundred megabytes.
         _ = Playback.LoadAsync(value.Call.MicPath, value.Call.FarPath, value.Call.Duration);

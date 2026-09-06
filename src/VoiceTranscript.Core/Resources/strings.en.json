@@ -1241,5 +1241,7 @@
   "callwindow.denetim-kosuldu-bulgu-cikmadi": "This conversation was checked; nothing showable came out of it — on a short, ordinary conversation that is the usual answer.",
   "callwindow.bu-kosumun-gozlemleri-saklanmamis": "This run's balancing observations were not kept. Run the check again to see them.",
   "callwindow.aksiyon-cikmadi": "No actions came out — on an ordinary conversation that is usual.",
-  "callwindow.son-cikarim-imzasi": "Last extraction: {0} · {1}"
+  "callwindow.son-cikarim-imzasi": "Last extraction: {0} · {1}",
+  "contactwindow.akis-en-yeni-n-gorusme": "This flow was built from the newest {0} conversations; there are older ones.",
+  "contactwindow.daha-eski-akisi-yukle": "Load older flow"
 }
