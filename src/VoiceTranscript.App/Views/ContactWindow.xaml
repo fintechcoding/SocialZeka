@@ -4,6 +4,7 @@
              xmlns:loc="clr-namespace:VoiceTranscript.App"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+                 xmlns:views="clr-namespace:VoiceTranscript.App.Views"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  mc:Ignorable="d"
@@ -150,6 +151,15 @@
                         <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T contactwindow.bu-kisiyle-henuz-bir-akis-yok}" />
                     </StackPanel>
                 </Grid>
+            </TabItem>
+
+            <!-- ================= the card =================
+                 Where the read-only Defter tab used to be, and the reason it is gone: the same
+                 promises and findings, plus the trend, the figure journeys and the person's own
+                 words, in one control the shell's contact page hosts as well. Two surfaces
+                 answering "what has piled up about this person" would drift within a release. -->
+            <TabItem Header="{loc:T contactwindow.kisi-karti}">
+                <views:ContactCardView DataContext="{Binding Card}" Margin="0,4,0,0" />
             </TabItem>
 
             <!-- ================= the conversations ================= -->
@@ -525,267 +535,6 @@
                     </Grid>
                 </Grid>
                 </Grid>
-            </TabItem>
-
-            <!-- ================= the ledger ================= -->
-            <TabItem Header="{loc:T contactwindow.defter}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
-                    <StackPanel>
-                        <!--
-                            What was just done to a row here, and the way back.
-
-                            Said in the tab rather than as a toast: a ruling on a promise is the kind of act that
-                            must not be one click away with no way back, and for as long as this line is on screen
-                            it can be taken back with one.
-                        -->
-                        <Border Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,0,0,10"
-                                Visibility="{Binding LedgerUndo.Notice, Converter={StaticResource NullToCollapsed}}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0" Text="{Binding LedgerUndo.Notice}" Style="{StaticResource Secondary}"
-                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-
-                                <ui:Button Grid.Column="1" Content="{loc:T contactwindow.geri-al}" Appearance="Transparent"
-                                           Margin="8,0,0,0" Command="{Binding LedgerUndo.UndoCommand}"
-                                           Visibility="{Binding LedgerUndo.CanUndo, Converter={StaticResource BoolToVisibility}}" />
-
-                                <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
-                                           Command="{Binding LedgerUndo.ClearCommand}" />
-                            </Grid>
-                        </Border>
-
-                        <StackPanel Visibility="{Binding HasLedger, Converter={StaticResource BoolToVisibility}}">
-                            <!-- Two owners, two groups — yours first: the obligation you can
-                                 act on this minute is your own, and people forget what THEY
-                                 promised at least as often as what they were promised. -->
-                            <TextBlock Text="{loc:T contactwindow.senin-sozlerin}" Style="{StaticResource GroupHeader}"
-                                       Visibility="{Binding MyCommitments.Count, Converter={StaticResource CountToVisibility}}" />
-                            <ItemsControl ItemsSource="{Binding MyCommitments}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Style="{StaticResource SettingCard}" Padding="14,12">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <StackPanel Grid.Column="0">
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto" />
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <Border Grid.Column="0" CornerRadius="4" Padding="6,1" Margin="0,0,8,0"
-                                                                Background="{DynamicResource MeBrush}" VerticalAlignment="Center">
-                                                            <TextBlock Text="{loc:T contactwindow.sen}" FontSize="10" FontWeight="SemiBold"
-                                                                       Foreground="White" />
-                                                        </Border>
-
-                                                        <!-- The user's wording when they gave one, the machine's otherwise;
-                                                             the badge says which. -->
-                                                        <TextBlock Grid.Column="1" Text="{Binding EffectiveObligation}" TextWrapping="Wrap"
-                                                                   FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <Border Grid.Column="2" Style="{StaticResource Pill}" Margin="8,0,0,0" VerticalAlignment="Center"
-                                                                Visibility="{Binding IsEdited, Converter={StaticResource BoolToVisibility}}">
-                                                            <TextBlock Style="{StaticResource PillText}" Text="{loc:T contactwindow.senin-duzeltmen}" />
-                                                        </Border>
-                                                    </Grid>
-
-                                                    <Border Style="{StaticResource QuoteBlock}" Margin="0,8,0,0"
-                                                            BorderBrush="{DynamicResource MeBrush}">
-                                                        <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" />
-                                                    </Border>
-                                                </StackPanel>
-
-                                                <!--
-                                                    The user's verbs, the same ones the ledger page has. Tutuldu is the one thing the
-                                                    machine never concludes; ✎ and Ertele open the same dialog; Tutulmadı waits behind ⋯
-                                                    because it is rare. Reddet stands 12 px apart — a ruling, not another look.
-                                                -->
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
-                                                    <ui:Button Content="{loc:T contactwindow.tutuldu}" Appearance="Secondary" Padding="10,4"
-                                                               ToolTip="{loc:T contactwindow.bu-soz-tutuldu}"
-                                                               Command="{Binding DataContext.FulfilCommitmentCommand,
-                                                                         RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                               CommandParameter="{Binding}" />
-
-                                                    <ui:Button Content="✎" Appearance="Transparent" Padding="8,4" Margin="6,0,0,0"
-                                                               ToolTip="{loc:T contactwindow.duzenle}" Click="PromiseEdit_Click" />
-
-                                                    <ui:DropDownButton Padding="6,4" Margin="6,0,0,0"
-                                                                       ToolTip="{loc:T contactwindow.bu-sozle-ilgili-diger-kararlar}">
-                                                        <ui:DropDownButton.Icon>
-                                                            <ui:SymbolIcon Symbol="MoreHorizontal24" />
-                                                        </ui:DropDownButton.Icon>
-                                                        <ui:DropDownButton.Flyout>
-                                                            <ContextMenu>
-                                                                <MenuItem Header="{loc:T contactwindow.ertele}" Click="PromiseEdit_Click" />
-                                                                <MenuItem Header="{loc:T contactwindow.tutulmadi}" Click="PromiseAbandon_Click" />
-                                                            </ContextMenu>
-                                                        </ui:DropDownButton.Flyout>
-                                                    </ui:DropDownButton>
-
-                                                    <ui:Button Content="{loc:T contactwindow.reddet}" Appearance="Transparent" Padding="10,4" Margin="12,0,0,0"
-                                                               ToolTip="{loc:T contactwindow.bu-sozu-reddet}"
-                                                               Command="{Binding DataContext.DismissCommitmentCommand,
-                                                                         RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                               CommandParameter="{Binding}" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <TextBlock Text="{loc:T contactwindow.onun-sozleri}" Style="{StaticResource GroupHeader}"
-                                       Margin="0,10,0,0"
-                                       Visibility="{Binding TheirCommitments.Count, Converter={StaticResource CountToVisibility}}" />
-                            <ItemsControl ItemsSource="{Binding TheirCommitments}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Style="{StaticResource SettingCard}" Padding="14,12">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <StackPanel Grid.Column="0">
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <!-- The user's wording when they gave one, the machine's otherwise;
-                                                             the badge says which. -->
-                                                        <TextBlock Grid.Column="0" Text="{Binding EffectiveObligation}" TextWrapping="Wrap"
-                                                                   FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <Border Grid.Column="1" Style="{StaticResource Pill}" Margin="8,0,0,0" VerticalAlignment="Center"
-                                                                Visibility="{Binding IsEdited, Converter={StaticResource BoolToVisibility}}">
-                                                            <TextBlock Style="{StaticResource PillText}" Text="{loc:T contactwindow.senin-duzeltmen}" />
-                                                        </Border>
-                                                    </Grid>
-
-                                                    <Border Style="{StaticResource QuoteBlock}" Margin="0,8,0,0">
-                                                        <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" />
-                                                    </Border>
-                                                </StackPanel>
-
-                                                <!--
-                                                    The user's verbs, the same ones the ledger page has. Tutuldu is the one thing the
-                                                    machine never concludes; ✎ and Ertele open the same dialog; Tutulmadı waits behind ⋯
-                                                    because it is rare. Reddet stands 12 px apart — a ruling, not another look.
-                                                -->
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
-                                                    <ui:Button Content="{loc:T contactwindow.tutuldu}" Appearance="Secondary" Padding="10,4"
-                                                               ToolTip="{loc:T contactwindow.bu-soz-tutuldu}"
-                                                               Command="{Binding DataContext.FulfilCommitmentCommand,
-                                                                         RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                               CommandParameter="{Binding}" />
-
-                                                    <ui:Button Content="✎" Appearance="Transparent" Padding="8,4" Margin="6,0,0,0"
-                                                               ToolTip="{loc:T contactwindow.duzenle}" Click="PromiseEdit_Click" />
-
-                                                    <ui:DropDownButton Padding="6,4" Margin="6,0,0,0"
-                                                                       ToolTip="{loc:T contactwindow.bu-sozle-ilgili-diger-kararlar}">
-                                                        <ui:DropDownButton.Icon>
-                                                            <ui:SymbolIcon Symbol="MoreHorizontal24" />
-                                                        </ui:DropDownButton.Icon>
-                                                        <ui:DropDownButton.Flyout>
-                                                            <ContextMenu>
-                                                                <MenuItem Header="{loc:T contactwindow.ertele}" Click="PromiseEdit_Click" />
-                                                                <MenuItem Header="{loc:T contactwindow.tutulmadi}" Click="PromiseAbandon_Click" />
-                                                            </ContextMenu>
-                                                        </ui:DropDownButton.Flyout>
-                                                    </ui:DropDownButton>
-
-                                                    <ui:Button Content="{loc:T contactwindow.reddet}" Appearance="Transparent" Padding="10,4" Margin="12,0,0,0"
-                                                               ToolTip="{loc:T contactwindow.bu-sozu-reddet}"
-                                                               Command="{Binding DataContext.DismissCommitmentCommand,
-                                                                         RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                               CommandParameter="{Binding}" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- The claims were loaded on every open and never drawn — a third
-                                 of the ledger invisible, and HasLedger counting rows the tab
-                                 could not show. A changed number IS the product's business. -->
-                            <TextBlock Text="{loc:T contactwindow.degisen-rakamlar}" Style="{StaticResource GroupHeader}" Margin="0,16,0,0"
-                                       Visibility="{Binding Claims.Count, Converter={StaticResource CountToVisibility}}" />
-                            <ItemsControl ItemsSource="{Binding Claims}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Style="{StaticResource SettingCard}" Padding="14,12">
-                                            <StackPanel>
-                                                <TextBlock TextWrapping="Wrap" FontWeight="SemiBold">
-                                                    <Run Text="{Binding Entity, Mode=OneWay}" /><Run Text=" · " /><Run
-                                                        Text="{Binding Attribute, Mode=OneWay}" /><Run Text=": " /><Run
-                                                        Text="{Binding Value, Mode=OneWay}" />
-                                                </TextBlock>
-                                                <Border Style="{StaticResource QuoteBlock}" Margin="0,8,0,0">
-                                                    <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" />
-                                                </Border>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <TextBlock Text="{loc:T contactwindow.isaretler}" Style="{StaticResource GroupHeader}" Margin="0,16,0,0"
-                                       Visibility="{Binding Flags.Count, Converter={StaticResource CountToVisibility}}" />
-                            <ItemsControl ItemsSource="{Binding Flags}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Style="{StaticResource SettingCard}" Padding="14,12">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <StackPanel Grid.Column="0">
-                                                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap"
-                                                               FontWeight="SemiBold" />
-                                                    <Border Style="{StaticResource QuoteBlock}" Margin="0,8,0,0">
-                                                        <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" />
-                                                    </Border>
-                                                </StackPanel>
-
-                                                <!-- A wrong finding is turned down here, and is not found again on the next run. -->
-                                                <ui:Button Grid.Column="1" Content="{loc:T contactwindow.reddet}" Appearance="Transparent"
-                                                           Padding="10,4" Margin="12,0,0,0" VerticalAlignment="Top"
-                                                           ToolTip="{loc:T contactwindow.bu-bulguyu-reddet}"
-                                                           Command="{Binding DataContext.DismissFlagCommand,
-                                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                           CommandParameter="{Binding}" />
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-
-                        <StackPanel Style="{StaticResource EmptyState}"
-                                    Visibility="{Binding HasLedger, Converter={StaticResource InverseBoolToVisibility}}">
-                            <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T contactwindow.defter-bos}" />
-                            <TextBlock Style="{StaticResource EmptyBody}" Margin="0,6,0,0"
-                                       Text="{loc:T contactwindow.sozler-degisen-rakamlar-ve-isaretler-cozum}" />
-                        </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
             </TabItem>
 
             <!-- ================= notes about the person ================= -->

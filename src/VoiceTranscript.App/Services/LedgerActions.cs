@@ -88,6 +88,47 @@ public static class LedgerActions
             });
     }
 
+    /// <summary>
+    /// Turns a tactic quote down — the contact card's "Kalıplar" rows that carry a model's label.
+    ///
+    /// Its own table and its own two calls, but the same verb: the row becomes a tombstone rather
+    /// than a deletion, the ruling is announced to every screen showing it, and it comes back the
+    /// way a flag does. Routing it anywhere else would give the card a dismissal no other surface
+    /// hears about.
+    /// </summary>
+    /// <param name="id">The <c>tactic_evidence</c> row.</param>
+    /// <param name="quote">The words, for the notice — the bare label would not identify the row.</param>
+    public static PendingUndo DismissTactic(Repository repository, long id, string quote)
+    {
+        repository.DismissTacticEvidence(id);
+        NotifyChanged();
+
+        return new PendingUndo(
+            LedgerVerb.Dismiss,
+            string.Format(Localisation.T("ledgeractions.reddedildi-n"), Shorten(quote)),
+            () =>
+            {
+                repository.RestoreTacticEvidence(id);
+                NotifyChanged();
+            });
+    }
+
+    /// <summary>Brings a dismissed tactic quote back. It was a tombstone, never gone.</summary>
+    public static PendingUndo RestoreTactic(Repository repository, long id, string quote)
+    {
+        repository.RestoreTacticEvidence(id);
+        NotifyChanged();
+
+        return new PendingUndo(
+            LedgerVerb.Restore,
+            string.Format(Localisation.T("ledgeractions.geri-getirildi-n"), Shorten(quote)),
+            () =>
+            {
+                repository.DismissTacticEvidence(id);
+                NotifyChanged();
+            });
+    }
+
     /// <summary>Several at once — the ledger's select mode. One ruling, one undo.</summary>
     public static PendingUndo DismissMany(
         Repository repository, IReadOnlyCollection<long> commitmentIds, IReadOnlyCollection<long> flagIds)

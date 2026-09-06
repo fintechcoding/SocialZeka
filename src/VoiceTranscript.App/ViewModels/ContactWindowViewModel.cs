@@ -177,7 +177,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
             new System.Windows.Data.PropertyGroupDescription(nameof(ContactCall.Month)));
         CallsView = view;
 
-        LedgerUndo.Undone += (_, _) => LoadLedger();
+        Card = new ContactCardViewModel(repository, contactId);
 
         Load();
     }
@@ -187,18 +187,17 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
     public long ContactId { get; }
 
+    /// <summary>
+    /// The "Kişi kartı" tab, which replaced the read-only Defter one.
+    ///
+    /// Built once and refreshed with the window, not rebuilt per visit: it holds the user's
+    /// expanded quote rows and its own undo notice, and both would be thrown away by a tab
+    /// switch. The same control and the same view model type serve the shell's contact page.
+    /// </summary>
+    public ContactCardViewModel Card { get; }
+
     public ObservableCollection<ContactCall> Calls { get; } = [];
     public ObservableCollection<ContactHit> Hits { get; } = [];
-    public ObservableCollection<Commitment> Commitments { get; } = [];
-
-    /// <summary>The user's own open promises to this person — listed FIRST on the tab, because
-    /// the obligation you can act on immediately is your own.</summary>
-    public ObservableCollection<Commitment> MyCommitments { get; } = [];
-
-    /// <summary>The other side's open promises. What "Açık sözler" always meant.</summary>
-    public ObservableCollection<Commitment> TheirCommitments { get; } = [];
-    public ObservableCollection<Claim> Claims { get; } = [];
-    public ObservableCollection<Flag> Flags { get; } = [];
 
     [ObservableProperty] private string _name = "";
     [ObservableProperty] private string _subtitle = "";
@@ -247,7 +246,6 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
     public bool HasCalls => Calls.Count > 0;
     public bool HasHits => Hits.Count > 0;
-    public bool HasLedger => Commitments.Count > 0 || Claims.Count > 0 || Flags.Count > 0;
 
     private void Load()
     {
@@ -272,7 +270,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
         LoadProfile();
         LoadCalls();
-        LoadLedger();
+        Card.Refresh();
         LoadFlow();
     }
 
@@ -624,60 +622,6 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
         OnPropertyChanged(nameof(FlowView));
         OnPropertyChanged(nameof(HasFlow));
-    }
-
-    private void LoadLedger()
-    {
-        Commitments.Clear();
-        MyCommitments.Clear();
-        TheirCommitments.Clear();
-        Claims.Clear();
-        Flags.Clear();
-
-        foreach (var c in _repository.GetOpenCommitments(ContactId))
-        {
-            Commitments.Add(c);
-            (c.ByMe ? MyCommitments : TheirCommitments).Add(c);
-        }
-
-        foreach (var c in _repository.GetAllClaims(ContactId)) Claims.Add(c);
-        foreach (var f in _repository.GetFlags(ContactId)) Flags.Add(f);
-
-        OnPropertyChanged(nameof(HasLedger));
-    }
-
-    // ---- the Defter tab's verbs ---------------------------------------------------------------
-    //
-    // The same rulings the ledger page makes, through the same service, so a promise kept or
-    // dismissed here is the same row kept or dismissed everywhere — and can be taken back.
-
-    /// <summary>What was just done to a promise or a finding here, and the way back.</summary>
-    public UndoSlot LedgerUndo { get; } = new();
-
-    /// <summary>The user says it was kept. Only the user ever says so.</summary>
-    [RelayCommand]
-    private void FulfilCommitment(Commitment commitment)
-        => AfterLedgerVerb(Services.LedgerActions.Fulfil(_repository, commitment));
-
-    /// <summary>The user says it was not kept.</summary>
-    [RelayCommand]
-    private void AbandonCommitment(Commitment commitment)
-        => AfterLedgerVerb(Services.LedgerActions.Abandon(_repository, commitment));
-
-    /// <summary>Not a promise after all. The words stay in the transcript.</summary>
-    [RelayCommand]
-    private void DismissCommitment(Commitment commitment)
-        => AfterLedgerVerb(Services.LedgerActions.Dismiss(_repository, commitment));
-
-    [RelayCommand]
-    private void DismissFlag(Flag flag)
-        => AfterLedgerVerb(Services.LedgerActions.Dismiss(_repository, flag));
-
-    /// <summary>Re-reads the tab and offers the way back. The edit dialog lands here too.</summary>
-    public void AfterLedgerVerb(Services.PendingUndo undo)
-    {
-        LoadLedger();
-        LedgerUndo.Offer(undo);
     }
 
     // ---- search -------------------------------------------------------------

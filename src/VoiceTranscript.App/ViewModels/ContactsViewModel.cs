@@ -141,6 +141,21 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
     /// <summary>What was just done to a finding on the Defter tab, and the way back.</summary>
     public UndoSlot LedgerUndo { get; } = new();
 
+    // ---- the "Kişi kartı" tab ------------------------------------------------------------------
+    //
+    // The same UserControl the contact window hosts, so the shell answers "what has piled up
+    // about this person" with exactly the same surface. Rebuilt when the selection changes: its
+    // view model reads one contact and holds that person's expanded rows and undo notice.
+
+    /// <summary>The selected person's card, or null while nobody is selected.</summary>
+    [ObservableProperty] private ContactCardViewModel? _card;
+
+    /// <summary>The card's ▸ asking for a conversation at a moment. The page opens it.</summary>
+    public event EventHandler<(long CallId, int StartMs, bool IsMe)>? CardOpenRequested;
+
+    /// <summary>The card's "Sözler sayfasında aç". The page navigates the shell.</summary>
+    public event EventHandler? CardPromisesRequested;
+
     private void ReloadFlags()
     {
         Flags.Clear();
@@ -383,6 +398,15 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
         SelectedCall = null;
 
         OnPropertyChanged(nameof(HasSelection));
+
+        // Built for this person and thrown away with them: the card holds one contact's rows.
+        Card = value is null ? null : new ContactCardViewModel(repository, value.Contact.Id);
+
+        if (Card is { } card)
+        {
+            card.OpenRequested += (_, target) => CardOpenRequested?.Invoke(this, target);
+            card.PromisesRequested += (_, _) => CardPromisesRequested?.Invoke(this, EventArgs.Empty);
+        }
 
         if (value is null) return;
 

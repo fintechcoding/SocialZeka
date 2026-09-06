@@ -8,7 +8,45 @@ namespace VoiceTranscript.App.Views;
 
 public partial class ContactsPage
 {
-    public ContactsPage() => InitializeComponent();
+    public ContactsPage()
+    {
+        InitializeComponent();
+
+        // The "Kişi kartı" tab hosts the same control the contact window does, and it cannot open
+        // a window or move the shell for itself. Its view model asks; this page answers.
+        DataContextChanged += (_, e) =>
+        {
+            if (e.OldValue is ContactsViewModel previous)
+            {
+                previous.CardOpenRequested -= OnCardOpen;
+                previous.CardPromisesRequested -= OnCardPromises;
+            }
+
+            if (e.NewValue is ContactsViewModel next)
+            {
+                next.CardOpenRequested += OnCardOpen;
+                next.CardPromisesRequested += OnCardPromises;
+            }
+        };
+    }
+
+    /// <summary>
+    /// A ▸ on the card: the conversation it came from, at the moment it was said.
+    ///
+    /// Opened as its own window rather than seeked in this pane's player. The card lists findings
+    /// from every conversation with this person, so the row being clicked usually belongs to a
+    /// different call from the one selected — and audio from the wrong conversation offered as
+    /// proof is worse than no audio at all.
+    /// </summary>
+    private void OnCardOpen(object? sender, (long CallId, int StartMs, bool IsMe) target)
+        => CallWindow.Show(Window.GetWindow(this), target.CallId, target.StartMs, target.IsMe);
+
+    /// <summary>"Sözler sayfasında aç": this page is inside the shell, so it just changes page.</summary>
+    private void OnCardPromises(object? sender, EventArgs e)
+    {
+        if (Window.GetWindow(this)?.DataContext is ShellViewModel shell)
+            shell.Page = ShellPage.Promises;
+    }
 
     private ContactsViewModel? ViewModel => DataContext as ContactsViewModel;
 

@@ -131,11 +131,21 @@ public class WindowSmokeTests
                     new VoiceTranscript.App.ViewModels.CallWindowViewModel(
                         repository, () => settings, http, callId: 1)), failures);
 
-                // Four tabs, a search list, a ledger and a notes editor — and it reaches the
+                // Six tabs, a search list, the card and a notes editor — and it reaches the
                 // database on construction, so this also proves the queries behind it run.
                 Build("Kişi penceresi", () => new ContactWindow(
                     new VoiceTranscript.App.ViewModels.ContactWindowViewModel(
                         repository, contactId: 1)), failures);
+
+                // The card on its own, with its own view model. One UserControl hosted by two
+                // screens, so a resource key it gets wrong breaks both at once — and its five
+                // sections are the densest markup added since the call window. Every query
+                // behind it runs on construction.
+                Build("Kişi kartı", () => new ContactCardView
+                {
+                    DataContext = new VoiceTranscript.App.ViewModels.ContactCardViewModel(
+                        repository, contactId: 1),
+                }, failures);
 
                 // Builds both of its lists from the catalogue and from measured usage, so this
                 // covers the queries behind the speed column as well as the markup.
