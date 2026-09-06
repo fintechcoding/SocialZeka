@@ -13,6 +13,13 @@ namespace VoiceTranscript.Core.Analysis;
 /// about verdicts: every tactic must anchor to a quote that verifies against the transcript
 /// (an STT ghost must not brand anyone), tone-of-voice claims stay impossible by nature,
 /// and the output is packaged as opinion — a level and an argument, never a fact.
+///
+/// The tactic label is an enum of eight, with no "diger" in it. A verified line is now copied
+/// to tactic_evidence and counted on the person's card, so the label became a name a screen
+/// reads out — and a free-text bucket called "other" would accumulate whatever a model felt
+/// like typing and then show it as a pattern in somebody's history. Anything the enum does not
+/// cover is meant to go unwritten; a model that answers without the schema and invents a label
+/// anyway is dropped in code, not filed under a catch-all.
 /// </summary>
 public static class DeceptionPrompt
 {
@@ -32,11 +39,12 @@ public static class DeceptionPrompt
           konuş ama kesinlik taslama ("kesinlikle yalan söylüyor" değil, "yalan söylüyor
           olabileceğini düşündüren şey şu: ...").
         - "taktikler": Metinde GÖRDÜĞÜN manipülasyon taktikleri, en fazla 6. Her biri:
-          - "taktik": "baski" (aceleye getirme, dayatma) | "sucluluk" (suçluluk yükleme) |
-            "kacamak" (soruyu cevaplamadan geçiştirme) | "geri_yazim" (daha önce söyleneni
-            başka türlü anlatma) | "asiri_iltifat" (yumuşatma amaçlı abartılı övgü) |
-            "aciliyet" (yapay zaman baskısı) | "tehdit_imasi" (üstü örtülü gözdağı) |
-            "celiski_ortme" (çelişki yakalanınca konuyu değiştirme) | "diger"
+          - "taktik": ŞU SEKİZDEN BİRİ, başkasını yazma: "baski" (aceleye getirme, dayatma) |
+            "sucluluk" (suçluluk yükleme) | "kacamak" (soruyu cevaplamadan geçiştirme) |
+            "geri_yazim" (daha önce söyleneni başka türlü anlatma) | "asiri_iltifat"
+            (yumuşatma amaçlı abartılı övgü) | "aciliyet" (yapay zaman baskısı) |
+            "tehdit_imasi" (üstü örtülü gözdağı) | "celiski_ortme" (çelişki yakalanınca
+            konuyu değiştirme). Hiçbiri uymuyorsa o maddeyi hiç yazma.
           - "konusan": "BEN" veya "KARSI" — İKİ TARAFI DA incele; kullanıcının taktiklerini
             yazmak da görevinin parçası, yağcılık değil dürüstlük borçlusun.
           - "alinti": Taktiğin geçtiği cümle, metinde AYNEN. Makine doğrular; bulunamazsa
@@ -73,7 +81,11 @@ public static class DeceptionPrompt
                 "type": "object", "additionalProperties": false,
                 "required": ["taktik", "konusan", "alinti", "gerekce"],
                 "properties": {
-                  "taktik": { "type": "string" },
+                  "taktik": {
+                    "type": "string",
+                    "enum": ["baski", "sucluluk", "kacamak", "geri_yazim",
+                             "asiri_iltifat", "aciliyet", "tehdit_imasi", "celiski_ortme"]
+                  },
                   "konusan": { "type": "string", "enum": ["BEN", "KARSI"] },
                   "alinti": { "type": "string" },
                   "gerekce": { "type": "string" }

@@ -20,6 +20,21 @@ public sealed record AnalysisOptions
     public bool AdjudicateContradictions { get; init; } = true;
 
     public bool WriteSummary { get; init; } = true;
+
+    /// <summary>
+    /// Keep the extraction's "baski_isaretleri" as tactic evidence on the person's card.
+    ///
+    /// OFF until the precision is measured. The field has been in the schema all along and the
+    /// pipeline has always thrown it away, so nobody knows how many of these signs survive quote
+    /// verification — let alone how many a person listening would call correct. Turning it on
+    /// before that would fill a card with a kind of row nobody has ever checked, and the whole
+    /// argument of the card is that every row on it can be checked.
+    ///
+    /// What it waits for: run it over a handful of conversations, listen to what comes out, and
+    /// keep it only if the hit rate holds up. Questions and the opt-in assessment's tactics are
+    /// unaffected — those are written either way.
+    /// </summary>
+    public bool WritePressureSigns { get; init; }
 }
 
 public sealed record AnalysisReport(
@@ -131,6 +146,8 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         List<Commitment> commitments = [];
         List<Claim> claims = [];
         List<(string quote, int startMs, bool evaded)> questions = [];
+        List<SpeechAct> speechActs = [];
+        List<TacticEvidence> pressureSigns = [];
         List<Flag> flags = [];
         var rejected = 0;
 
@@ -160,7 +177,9 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
                 continue;
             }
 
-            Absorb(extraction, callId, call.ContactId, spokenOn, segments, commitments, claims, questions, ref rejected);
+            Absorb(
+                extraction, callId, call.ContactId, spokenOn, segments,
+                commitments, claims, questions, speechActs, pressureSigns, ref rejected);
         }
 
         if (rejected > 0)
@@ -275,6 +294,17 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
             if (dismissedFlags.Contains(((int)flag.Kind, TurkishText.NormalizeForSearch(flag.Quote)))) continue;
             repository.InsertFlag(flag);
         }
+
+        // The questions, kept past the end of this run. Written AFTER ClearAnalysis, which
+        // emptied the table for this call — written before it, they would be deleted by the run
+        // that produced them.
+        repository.ReplaceSpeechActs(callId, speechActs);
+
+        // And the pressure signs, only where the user has turned the gate on. Left off, nothing
+        // is written and ClearAnalysis has already removed whatever an earlier run with the gate
+        // on left behind — except the rows the user dismissed, which are tombstones.
+        if (options.WritePressureSigns)
+            repository.ReplaceTacticEvidence(callId, TacticEvidence.Sources.Pipeline, pressureSigns);
 
         string? summary = null;
         if (options.WriteSummary)
@@ -434,6 +464,8 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         List<Commitment> commitments,
         List<Claim> claims,
         List<(string quote, int startMs, bool evaded)> questions,
+        List<SpeechAct> speechActs,
+        List<TacticEvidence> pressureSigns,
         ref int rejected)
     {
         foreach (var node in Array(extraction, "taahhutler"))
@@ -516,6 +548,54 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
             var status = Str(node, "cevap_durumu");
             questions.Add((located.Text, located.StartMs, status is "kacamak" or "savusturuldu"));
+
+            // The same question, kept.
+            //
+            // The list above lives for the length of this run and produces one ratio for this
+            // call; the row below is what lets the person's card say "measured in 7 of 31
+            // conversations" instead of quietly computing a rate over whichever calls happen to
+            // have been analysed since this was written.
+            speechActs.Add(new SpeechAct
+            {
+                CallId = callId,
+                ContactId = contactId,
+                // Read off the recorded stream, never off the model's "soran" field: whose
+                // question it was decides whose answering is being counted.
+                ByMe = located.IsMe,
+                Kind = SpeechAct.Kinds.Question,
+                AnswerStatus = SpeechAct.Statuses.Recognise(status),
+                Quote = located.Text,
+                QuoteStartMs = located.StartMs,
+                LowConfidence = located.LowConfidence,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+        }
+
+        // The pressure signs the extraction has always been asked for and never kept.
+        //
+        // Collected on every run and written only behind AnalysisOptions.WritePressureSigns, so
+        // the precision can be measured on real conversations before anything appears on a card.
+        // A sign whose label this build does not know is dropped here rather than filed under a
+        // catch-all, the same rule the assessment's tactics follow.
+        foreach (var node in Array(extraction, "baski_isaretleri"))
+        {
+            var located = QuoteVerifier.Locate(Str(node, "alinti"), segments);
+            if (located is null) { rejected++; continue; }
+
+            if (TacticEvidence.Recognise(Str(node, "tur")) is not { } tactic) continue;
+
+            pressureSigns.Add(new TacticEvidence
+            {
+                CallId = callId,
+                ContactId = contactId,
+                Source = TacticEvidence.Sources.Pipeline,
+                Tactic = tactic,
+                ByMe = located.IsMe,
+                Quote = located.Text,
+                QuoteStartMs = located.StartMs,
+                LowConfidence = located.LowConfidence,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
         }
     }
 

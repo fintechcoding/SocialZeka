@@ -880,4 +880,115 @@ public sealed class AnalysisPipelineTests : IDisposable
         Assert.Equal(0, report.CommitmentsFound);
         Assert.Contains(report.Warnings, w => w.Contains("çözümlenemedi"));
     }
+
+    /// <summary>
+    /// The questions survive the run that found them, and the evasion flag still fires.
+    ///
+    /// Red one way means the stored questions are gone and the contact card has lost the
+    /// denominator that makes its rate honest; red the other way means the in-memory list the
+    /// evasion ratio reads was refactored away, and a flag the ledger has always raised has
+    /// quietly stopped appearing.
+    /// </summary>
+    [Fact]
+    public async Task QuestionsArePersistedAndTheEvasionFlagStillFires()
+    {
+        var (call, contact) = SeedCall(CallKind.OneToOne,
+            (true, 0, "Sözleşme ne zaman gelir?"),
+            (false, 6_000, "Onu sonra konuşuruz abi."),
+            (true, 12_000, "Peki ücret ne olacak?"),
+            (false, 18_000, "Şimdi ona girmeyelim."),
+            (true, 24_000, "Yazılı gönderir misin?"),
+            (false, 30_000, "Tamam, yarın yollarım."));
+
+        var llm = new ScriptedLlm(
+            """
+            {"taahhutler":[],"iddialar":[],
+             "sorular":[
+               {"soran":"BEN","alinti":"Sözleşme ne zaman gelir","cevap_durumu":"kacamak"},
+               {"soran":"BEN","alinti":"Peki ücret ne olacak","cevap_durumu":"savusturuldu"},
+               {"soran":"BEN","alinti":"Yazılı gönderir misin","cevap_durumu":"cevaplandi"}],
+             "baski_isaretleri":[]}
+            """);
+
+        var report = await new AnalysisPipeline(llm, _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        // The ratio the ledger has always computed is unchanged.
+        Assert.Contains(report.Flags, f => f.Kind == FlagKind.EvadedQuestion);
+
+        var stored = _repo.SpeechActsOf(call);
+        Assert.Equal(3, stored.Count);
+        Assert.All(stored, a => Assert.True(a.ByMe));
+        Assert.All(stored, a => Assert.Equal(SpeechAct.Kinds.Question, a.Kind));
+        Assert.Equal(SpeechAct.Statuses.Evasive, stored[0].AnswerStatus);
+        Assert.Equal(0, stored[0].QuoteStartMs);
+
+        var counts = _repo.SpeechActs(contact).Calls.Single(c => c.CallId == call);
+        Assert.True(counts.Measured);
+        Assert.Equal(3, counts.Asked);
+        Assert.Equal(2, counts.Unanswered);
+
+        // A second run replaces rather than doubles.
+        await new AnalysisPipeline(new ScriptedLlm(
+                """
+                {"taahhutler":[],"iddialar":[],
+                 "sorular":[{"soran":"BEN","alinti":"Sözleşme ne zaman gelir","cevap_durumu":"cevaplandi"}],
+                 "baski_isaretleri":[]}
+                """), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var again = Assert.Single(_repo.SpeechActsOf(call));
+        Assert.Equal(SpeechAct.Statuses.Answered, again.AnswerStatus);
+    }
+
+    /// <summary>
+    /// The pressure signs are collected on every run and written only behind their own gate.
+    ///
+    /// Red with the gate shut means a kind of row whose precision nobody has measured has begun
+    /// appearing on people's cards. Red with it open means the measurement cannot be taken at
+    /// all, and the field goes on being asked for and thrown away as it has been for a year.
+    /// </summary>
+    [Fact]
+    public async Task PressureSignsAreWrittenOnlyWhenTheGateIsOpen()
+    {
+        var (call, contact) = SeedCall(CallKind.OneToOne,
+            (false, 4_000, "Bugün karar vermezsen bu fiyat yarın yok."),
+            (false, 10_000, "Ben bu işi yirmi yıldır yapıyorum, bana güvenmiyor musun?"));
+
+        const string reply =
+            """
+            {"taahhutler":[],"iddialar":[],"sorular":[],
+             "baski_isaretleri":[
+               {"tur":"aciliyet","alinti":"Bugün karar vermezsen bu fiyat yarın yok"},
+               {"tur":"otorite","alinti":"Ben bu işi yirmi yıldır yapıyorum"}]}
+            """;
+
+        Assert.False(Options.WritePressureSigns);
+
+        await new AnalysisPipeline(new ScriptedLlm(reply), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Empty(_repo.TacticEvidenceOf(call));
+
+        await new AnalysisPipeline(new ScriptedLlm(reply), _repo)
+            .AnalyseAsync(
+                call, Options with { WritePressureSigns = true },
+                cancellationToken: TestContext.Current.CancellationToken);
+
+        var written = _repo.TacticEvidenceOf(call);
+        Assert.Equal(2, written.Count);
+        Assert.All(written, r => Assert.Equal(TacticEvidence.Sources.Pipeline, r.Source));
+
+        // Read off the stream the quote was found in, never off the model.
+        Assert.All(written, r => Assert.False(r.ByMe));
+        Assert.Contains(written, r => r.Tactic == "aciliyet" && r.QuoteStartMs == 4_000);
+        Assert.Contains(written, r => r.Tactic == "otorite");
+        Assert.Equal(2, _repo.ContactPatterns(contact).Count);
+
+        // Closing the gate again takes them off the card: ClearAnalysis owns the pipeline's rows.
+        await new AnalysisPipeline(new ScriptedLlm(reply), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Empty(_repo.TacticEvidenceOf(call));
+    }
 }

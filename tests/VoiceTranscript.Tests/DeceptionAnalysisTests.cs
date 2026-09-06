@@ -162,4 +162,63 @@ public sealed class DeceptionAnalysisTests : IDisposable
 
         Assert.Equal(DeceptionAnalysis.MaxTactics, report.Tactics.Count);
     }
+
+    /// <summary>
+    /// A line that failed quote verification is not on the person's card either.
+    ///
+    /// The one rule the opt-in never loosened is that an unverifiable quote brands nobody, and
+    /// the card is where branding now accumulates. Red means a sentence the model made up has
+    /// become a counted pattern in somebody's history.
+    /// </summary>
+    [Fact]
+    public async Task AnUnverifiableQuoteReachesNeitherTheNoteNorTheCard()
+    {
+        var call = Seed((false, 4_000, "Fiyatı sonra konuşuruz."));
+
+        var report = await Run(call, Reply("orta",
+            """
+            {"taktik":"baski","konusan":"KARSI","alinti":"bu cümle hiç kurulmadı","gerekce":"Uydurma"}
+            """));
+
+        Assert.Empty(report.Tactics);
+        Assert.Equal(0, report.EvidenceDropped);
+        Assert.Empty(_repo.TacticEvidenceOf(call));
+    }
+
+    /// <summary>
+    /// The uncertainty of the audio travels with the quote.
+    ///
+    /// Red means a sentence the transcriber marked unclear is counted on the card as if it had
+    /// been heard plainly, and the grey row that says otherwise has nothing to go on.
+    /// </summary>
+    [Fact]
+    public async Task UncertainAudioIsMarkedOnTheEvidence()
+    {
+        var contact = _repo.UpsertContact("Serdal", CallApp.WhatsApp);
+        var call = _repo.InsertCall(new Call
+        {
+            ContactId = contact,
+            App = CallApp.WhatsApp,
+            StartedAt = DateTimeOffset.UtcNow,
+            State = ProcessingState.Analysed,
+        });
+        _repo.AssignContact(call, contact);
+
+        _repo.ReplaceSegments(call,
+        [
+            new Segment
+            {
+                CallId = call, IsMe = false, StartMs = 6_000, EndMs = 9_000,
+                Text = "Bugün karar vermezsen fiyat değişir.", LowConfidence = true,
+            },
+        ]);
+
+        var report = await Run(call, Reply("orta",
+            """
+            {"taktik":"aciliyet","konusan":"KARSI","alinti":"Bugün karar vermezsen fiyat değişir","gerekce":"Aciliyet"}
+            """));
+
+        Assert.True(Assert.Single(report.Tactics).LowConfidence);
+        Assert.True(Assert.Single(_repo.TacticEvidenceOf(call)).LowConfidence);
+    }
 }

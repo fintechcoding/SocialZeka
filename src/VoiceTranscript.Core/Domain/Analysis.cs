@@ -215,6 +215,159 @@ public sealed record Flag
 }
 
 /// <summary>
+/// One labelled tactic quote, verified against the transcript, filed under the person it was
+/// said to. What the contact card counts under "Kalıplar".
+///
+/// The row is a label and a sentence somebody actually said, and that is the whole of it. The
+/// assessment's suspicion level and its written argument are NOT here and never will be: they
+/// stay in deception_note, which nothing joins. Nor does anything in this table go back into a
+/// prompt — a run that could read its own earlier labels would be building a case on itself
+/// rather than on the conversation.
+///
+/// <see cref="ByMe"/> comes from the stream the quote was found in, never from a field a model
+/// filled in. Naming the wrong party as the manipulative one is the worst single output this
+/// application can produce.
+/// </summary>
+public sealed record TacticEvidence
+{
+    public long Id { get; init; }
+    public required long CallId { get; init; }
+    public long? ContactId { get; init; }
+
+    /// <summary>Which stored transcript the quote was verified against. Null when unrecorded.</summary>
+    public long? TranscriptVersionId { get; init; }
+
+    /// <summary>One of <see cref="Sources"/>. Ownership, like <see cref="Flag.Source"/>.</summary>
+    public string Source { get; init; } = Sources.Deception;
+
+    /// <summary>One of <see cref="Whitelist"/>. Anything else is dropped rather than filed.</summary>
+    public required string Tactic { get; init; }
+
+    /// <summary>Read off the recorded stream, not off the model's "konusan" field.</summary>
+    public bool ByMe { get; init; }
+
+    /// <summary>Verbatim words, located in the transcript before the row was written.</summary>
+    public required string Quote { get; init; }
+
+    public int QuoteStartMs { get; init; }
+
+    /// <summary>Carried from the located line: uncertain audio is shown greyed, never counted silently.</summary>
+    public bool LowConfidence { get; init; }
+
+    public string? ModelUsed { get; init; }
+
+    /// <summary>A tombstone: the row stays so the next run cannot put the same sentence back.</summary>
+    public bool DismissedByUser { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    public static class Sources
+    {
+        /// <summary>The opt-in assessment's verified tactic lines.</summary>
+        public const string Deception = "deception";
+
+        /// <summary>The extraction's pressure signs, behind their own gate until measured.</summary>
+        public const string Pipeline = "pipeline";
+    }
+
+    /// <summary>
+    /// The eight labels the opt-in assessment may use — the enum in its schema, ASCII so the
+    /// stored value is the same string on every machine and in every export.
+    /// </summary>
+    public static readonly string[] AssessmentTactics =
+    [
+        "baski", "sucluluk", "kacamak", "geri_yazim",
+        "asiri_iltifat", "aciliyet", "tehdit_imasi", "celiski_ortme",
+    ];
+
+    /// <summary>
+    /// The extraction's own pressure vocabulary that has no equivalent above. "aciliyet" is
+    /// shared; "suclama", "tehdit" and "iltifat" are kept apart from "sucluluk",
+    /// "tehdit_imasi" and "asiri_iltifat" rather than folded into them, because the card
+    /// counts by (label, source) and folding two vocabularies into one would make a row that
+    /// pools two different questions asked of two different prompts.
+    /// </summary>
+    public static readonly string[] PressureSigns =
+    [
+        "kitlik", "otorite", "suclama", "tehdit", "iltifat",
+    ];
+
+    /// <summary>Every label that may be stored. "diger" is deliberately not one of them.</summary>
+    public static readonly IReadOnlySet<string> Whitelist =
+        new HashSet<string>([.. AssessmentTactics, .. PressureSigns], StringComparer.Ordinal);
+
+    /// <summary>
+    /// The label if it is one this code knows, null otherwise — and null means the line is
+    /// dropped, not filed under a catch-all. Counting an unrecognised word as a pattern on
+    /// somebody's card is the failure this refuses.
+    /// </summary>
+    public static string? Recognise(string? tactic)
+    {
+        var trimmed = tactic?.Trim().ToLowerInvariant();
+        return trimmed is not null && Whitelist.Contains(trimmed) ? trimmed : null;
+    }
+}
+
+/// <summary>
+/// One thing said that the conversation turns on: today, a direct question and what happened to
+/// it. The extraction has always found these; until now they lived for the length of one run.
+///
+/// Machine evidence with the same rules as everything else here — a verified quote, the moment
+/// it was said, and the stream it was found in. <see cref="AnswerStatus"/> is one of four words
+/// or null; it is not a score, and nothing in this table is ever fed back to a model.
+/// </summary>
+public sealed record SpeechAct
+{
+    public long Id { get; init; }
+    public required long CallId { get; init; }
+    public long? ContactId { get; init; }
+
+    /// <summary>True when the user asked it. The contact was asked whenever this is true.</summary>
+    public bool ByMe { get; init; }
+
+    /// <summary>One of <see cref="Kinds"/>. Only questions are written today.</summary>
+    public string Kind { get; init; } = Kinds.Question;
+
+    /// <summary>One of <see cref="Statuses"/>, or null when the model said nothing recognisable.</summary>
+    public string? AnswerStatus { get; init; }
+
+    public required string Quote { get; init; }
+    public int QuoteStartMs { get; init; }
+    public bool LowConfidence { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>True when the question got no real answer — the two words the card counts.</summary>
+    public bool WentUnanswered => AnswerStatus is Statuses.Evasive or Statuses.Deflected;
+
+    public static class Kinds
+    {
+        public const string Question = "soru";
+    }
+
+    public static class Statuses
+    {
+        public const string Answered = "cevaplandi";
+        public const string Partial = "kismi";
+        public const string Evasive = "kacamak";
+        public const string Deflected = "savusturuldu";
+
+        public static readonly IReadOnlySet<string> All =
+            new HashSet<string>([Answered, Partial, Evasive, Deflected], StringComparer.Ordinal);
+
+        /// <summary>
+        /// The status if it is one of the four, null otherwise. A word this code does not know
+        /// is stored as "not recorded" rather than rounded to the nearest one — the question
+        /// itself is evidence, the guess about its answer would not be.
+        /// </summary>
+        public static string? Recognise(string? status)
+        {
+            var trimmed = status?.Trim().ToLowerInvariant();
+            return trimmed is not null && All.Contains(trimmed) ? trimmed : null;
+        }
+    }
+}
+
+/// <summary>
 /// A short per-contact summary of one call, written by the model from the extracted structure
 /// rather than from the raw transcript.
 /// </summary>

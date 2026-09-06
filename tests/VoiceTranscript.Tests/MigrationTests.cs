@@ -371,6 +371,56 @@ public sealed class MigrationTests : IDisposable
             clean.CommandText = "DELETE FROM habit_lexicon;";
             clean.ExecuteNonQuery();
         }
+
+        // v17: the contact card's evidence — the verified tactic quotes and the questions.
+        // Both empty, both indexed the way the card reads them, and both cascading with the call
+        // and the contact they belong to: a person deleted must not leave sentences behind.
+        foreach (var table in new[] { "tactic_evidence", "speech_act" })
+        {
+            using var connection = new Database(_path).Open();
+            using var count = connection.CreateCommand();
+            count.CommandText = $"SELECT COUNT(*) FROM {table};";
+            Assert.Equal(0L, count.ExecuteScalar());
+        }
+
+        foreach (var column in new[]
+                 {
+                     "call_id", "contact_id", "transcript_version_id", "source", "tactic",
+                     "by_me", "quote", "quote_start_ms", "low_confidence", "model_used",
+                     "dismissed_by_user", "created_at",
+                 })
+        {
+            Assert.True(ColumnExistsIn("tactic_evidence", column), column);
+        }
+
+        foreach (var column in new[]
+                 {
+                     "call_id", "contact_id", "by_me", "kind", "answer_status",
+                     "quote", "quote_start_ms", "low_confidence", "created_at",
+                 })
+        {
+            Assert.True(ColumnExistsIn("speech_act", column), column);
+        }
+
+        using (var connection = new Database(_path).Open())
+        {
+            // The two indexes the card's reads depend on. A missing one is not a wrong answer,
+            // it is a contact page that gets slower every year without anybody noticing why.
+            using var indexes = connection.CreateCommand();
+            indexes.CommandText =
+                """
+                SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'index' AND name IN ('ix_tactic_contact', 'ix_speech_act_contact');
+                """;
+            Assert.Equal(2L, indexes.ExecuteScalar());
+
+            // answer_status is nullable on purpose: a word the extraction invented is stored as
+            // "not recorded", never rounded to the nearest of the four.
+            using var nullable = connection.CreateCommand();
+            nullable.CommandText =
+                "SELECT \"notnull\" FROM pragma_table_info('speech_act') WHERE name = 'answer_status';";
+            Assert.Equal(0L, nullable.ExecuteScalar());
+        }
     }
 
     /// <summary>
