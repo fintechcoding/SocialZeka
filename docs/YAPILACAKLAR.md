@@ -1524,3 +1524,26 @@ taslakları ve ölçüm kapıları: [`PLAN-SOSYALZEKA.md`](PLAN-SOSYALZEKA.md).
   bitti (6 Eylül 2026): görüşme başına 0,78 eşleşme, kapı ≥ 1 — kaldı, dedektör yazılmadı.**
   Aynam kesinlik ölçümü (`tools/olcum/aynam-kesinlik.py`) kullanıcının dinlemesini bekliyor.
 - [ ] **EK-5 / EK-4** (varsayılan bulut servisi; `min_speech_duration_ms`) — ayrı iş emri
+
+## 26. İkinci tur — çevreler, sözün tabanı, arayüz bütünlüğü — 6 Eylül 2026
+
+Kullanıcının üç isteği. Planın tamamı, ölçülen sayılar, tel çerçeveler, ölçü ve geri alma
+koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
+
+- [ ] **S — Sözün tabanı** (şema yok, 2-3 gün). S1 sözün etrafı (alıntının öncesi ve sonrası iki
+  döküm satırı), S2 tek cümle iki söz (aynı alıntıyı paylaşan satırlar tek kartta), S3 "ne
+  zamana?" (tarihsiz söze tek tıkla vade + "tarihsiz kalsın"), S4 "bu söz değildi" (verdict
+  tablosuna kind='soz'), + sütun altı dürüstlük satırı. **Neden önce:** 6 Eylül'de #99 ve #100
+  yedi saniye arayla "tutuldu" işaretlendi; ikisi aynı cümleden çıkmış ve #100 söz bile değil.
+- [ ] **Ç — Çevreler (şema v20)** (2-3 gün). `contact_circle` sözlüğü + `contact_profile`a
+  `circle_folded`; Görüşmeler'de çip şeridi, Çevreler penceresi, Kişiler/Genel bakış/kişi
+  kartı/Aynam'da aynı kavram. **Risk:** kullanıcı bu üründe hiç elle sınıflandırma yapmadı
+  (call_tag 0, board_card 0, contact_field 0, is_pinned 0, todo 0) — kapsama ölçüsü iki hafta.
+- [ ] **B — Arayüz bütünlük sözleşmesi** (3-4 gün, şema yok). 12 kural, 12 test; K1-K10 sert
+  sıfır (63 nokta), K11 (40 tarih çağrısı / 14 biçim) ve K12 (422 gömülü dize) çivilenir.
+- [ ] **Y — Yapılacaklar'ın üç kusuru** (1 gün). action_item.quote hiç okunmuyor (kanıt zemini o
+  ekranda tamamen kayıp); yapılacağa kişi seçilemiyor; hatırlatma board_card.remind_on olduğu
+  için bir görüşmeye ikinci hatırlatma kurulamıyor ve başlıksız kart metinsiz satır gösteriyor.
+- [x] **İPTAL — §4.6'nın "Sözlerim çipi"** (commitment ByMe=1 → Yapılacaklar). Tasarlandı, 7,5
+  ile en yüksek puanı aldı, kullanıcı reddetti: "yok düşsün demiyorum". Gerekçe ve tasarım
+  PLAN-IKINCI-TUR §0.1'de; yeniden önerilmesin.

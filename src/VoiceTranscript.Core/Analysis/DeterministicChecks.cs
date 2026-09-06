@@ -33,7 +33,13 @@ public static class DeterministicChecks
             if (commitment.DismissedByUser || commitment.IsConditional) continue;
             if (!commitment.IsOverdue(today)) continue;
 
-            var daysLate = today.DayNumber - commitment.DeadlineDate!.Value.DayNumber;
+            // The same date the gate above judged. IsOverdue reads EffectiveDeadline — the
+            // user's postponement when there is one, the machine's date otherwise — so reading
+            // the raw column here was a crash waiting for the first postponed undated promise:
+            // the gate opened on the user's date and this line dereferenced a null. Twelve of
+            // the thirteen promises in the real archive carry no machine date and the Sözler
+            // page offers Ertele on every one of them, so the wait would not have been long.
+            var daysLate = today.DayNumber - commitment.EffectiveDeadline!.Value.DayNumber;
 
             // Who owes: "the date passed" is a different sentence when the promise was the
             // user's own — and hiding that turned their forgotten obligations into someone

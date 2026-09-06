@@ -185,6 +185,69 @@ public class DeterministicChecksTests
         => Assert.Empty(DeterministicChecks.OverdueCommitments(
             [Promise(1, "evrak", new DateOnly(2026, 8, 1), conditional: true)], new DateOnly(2026, 8, 18)));
 
+    /// <summary>
+    /// Goes red — with a crash rather than a failed assertion — when the overdue check judges a
+    /// promise by one date and then counts the days from another.
+    ///
+    /// This is a real defect's shape. The gate reads <c>EffectiveDeadline</c>, so a promise the
+    /// conversation never dated becomes overdue as soon as the user's own postponement passes;
+    /// the line counting the days read the spoken column and found nothing there. Twelve of the
+    /// thirteen promises in the real archive carry no spoken date and the Sözler page offers
+    /// Ertele on every one of them, so this fired on ordinary use and every later analysis of
+    /// that person's conversations died.
+    /// </summary>
+    [Fact]
+    public void APostponedPromiseWithNoSpokenDateIsCountedFromTheUsersDate()
+    {
+        var promise = Promise(1, "evrak gönderimi", deadline: null) with
+        {
+            UserDeadlineDate = new DateOnly(2026, 8, 1),
+        };
+
+        var flag = Assert.Single(DeterministicChecks.OverdueCommitments([promise], new DateOnly(2026, 8, 18)));
+
+        Assert.Equal(FlagKind.OverdueCommitment, flag.Kind);
+        Assert.Contains("17 gün", flag.Summary);
+    }
+
+    /// <summary>
+    /// Goes red when the user's postponement is honoured by the gate but ignored by the count,
+    /// which would report a promise as later than the user's own date says it is.
+    /// </summary>
+    [Fact]
+    public void TheUsersPostponementIsTheDateTheDaysAreCountedFrom()
+    {
+        var promise = Promise(1, "evrak gönderimi", new DateOnly(2026, 8, 1)) with
+        {
+            UserDeadlineDate = new DateOnly(2026, 8, 15),
+        };
+
+        var flag = Assert.Single(DeterministicChecks.OverdueCommitments([promise], new DateOnly(2026, 8, 18)));
+
+        Assert.Contains("3 gün", flag.Summary);
+        Assert.DoesNotContain("17 gün", flag.Summary);
+    }
+
+    /// <summary>
+    /// The other half of the rule, and the reason the count above is the only place that changed:
+    /// a moved deadline is a fact about what was SAID, so the user's own postponement must never
+    /// surface as a slipped promise held against the other person.
+    /// </summary>
+    [Fact]
+    public void APostponementIsNeverHeldAgainstTheOtherPersonAsASlippedDeadline()
+    {
+        List<Commitment> history =
+        [
+            Promise(1, "evrak gönderimi", new DateOnly(2026, 8, 1), quote: "birinci söz"),
+            Promise(2, "evrak gönderimi", new DateOnly(2026, 8, 1)) with
+            {
+                UserDeadlineDate = new DateOnly(2026, 9, 30),
+            },
+        ];
+
+        Assert.Empty(DeterministicChecks.MovedDeadlines(history));
+    }
+
     [Fact]
     public void DetectsADeadlineThatKeepsMovingAndTotalsTheSlip()
     {

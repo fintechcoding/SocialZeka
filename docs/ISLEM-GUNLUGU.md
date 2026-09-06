@@ -2542,3 +2542,57 @@ veren [Katılmıyorum] işaretlerini sessizce yok etmek olurdu.
 **Doğrulama.** 1338 C# testi (1333 geçti, 5 atlandı) ve 179 Python testi. Yeni sınıf
 `ContactReadingAnalysisTests` (9 test), `ContactCardTests` +4, `MigrationTests` v19,
 `ArchiveMergeTests` +1, `SchemaStrictnessTests` şemayı kendiliğinden yakaladı (+2).
+
+## 2026-09-06 — Bitiş denetimi: ertelenen tarihsiz söz çözümlemeyi çökertiyordu
+
+Program bitti denildikten sonra dokuz denetçi bütün paketleri planın kabul ölçütlerine karşı
+koda bakarak sınadı; 45 ciddi bulgunun her biri onu çürütmekle görevli ayrı bir ajana verildi.
+19'u çürütüldü, **26'sı doğrulandı**. İkisi kırık, kalanı eksik ya da tutarsızlık.
+
+**Kırık 1, bugün düzeltildi.** `DeterministicChecks.OverdueCommitments` kapıyı
+`commitment.IsOverdue(today)` ile açıyor; o da `EffectiveDeadline`'ı, yani
+`UserDeadlineDate ?? DeadlineDate`'i okuyor. Bir satır aşağıda gün sayısı ham `DeadlineDate`'ten
+hesaplanıyordu. Konuşmadan tarih çıkmamış ama kullanıcının ertelediği bir söz kapıdan geçiyor ve
+o satır **null'u açıyordu**: `InvalidOperationException`, ve o kişiyle yapılan her yeni
+görüşmenin çözümlemesi ölüyordu.
+
+Bu teorik değildi. Gerçek arşivde on üç sözün on ikisinde konuşmadan çıkmış tarih yok ve Sözler
+sayfası hepsinde Ertele düğmesini gösteriyor. Düzeltme tek satır: sayım artık kapının yargıladığı
+tarihi okuyor. `MovedDeadlines` bilerek dokunulmadı — o, konuşmada söylenen tarihi okur, çünkü
+kullanıcının kendi ertelemesi karşı tarafa kaydırılmış vade diye yazılamaz; kapısı zaten
+`DeadlineDate: not null` süzüyor.
+
+Üç test: tarihsiz ertelenmiş söz çökmeden sayılıyor; kullanıcının tarihi gün sayısını belirliyor;
+erteleme karşı tarafa kaydırılmış vade olarak geçmiyor.
+
+**Kırık 2, sıraya alındı.** Kişi kartında "yetersiz kayıt" reddi ekrana hiç ulaşmıyor:
+`ContactReadingAnalysis` üç görüşmeden azını dürüstçe reddediyor ama `ContactCardViewModel`
+`report.Insufficient` dalını okumadığı için [Yeniden sor] sessiz kalıyor. Dokuz kişinin çoğunda
+üçten az görüşme var, yani düğme çoğu kartta hiçbir şey yapmıyor gibi görünüyor.
+
+Kalan 24 bulgu `PLAN-IKINCI-TUR.md`'nin arkasına, paket paket kapatılmak üzere yazıldı. En
+görünür olanları: `ReprocessWindow`'da "indirildi" rozeti hiç yazılmamış; şikâyet 2'nin kendi
+ölçüsü ("Yaptım" sonrası Yapılacaklar aynı anda güncel) hiçbir testle korunmuyor, yani üç
+`NotifyChanged` çağrısından biri silinse bütün takım yeşil kalır; `fulfilled_by_call_id` hâlâ
+her yolda null; Sözler sayfası A2'de "tek fiil kümesi" diye kaydedilen `LedgerActions`'ı
+atlıyor; Kalıplar'ın üçüncü kaynağı (`tutarli_gozlemler`) ne saklanıyor ne sayılıyor.
+
+**Doğrulama.** 1341 C# testi (1336 geçti, 5 atlandı; taban 1338'di) ve 179 Python testi.
+
+## 2026-09-06 — İkinci tur planı
+
+`docs/PLAN-IKINCI-TUR.md`. Kullanıcının üç isteği üç pakete ayrıldı: **Ç** çevreler (kişiye bir
+kez yazılan aidiyet, şema v20), **S** sözün tabanı (dört yüzey, şema yok), **B** arayüz bütünlük
+sözleşmesi (12 kural, 12 test). Üç ayrı çok ajanlı turdan sentezlendi; her sayı canlı arşivden
+ölçüldü.
+
+Planın dayandığı iki ölçüm. Birincisi: kullanıcı 6 Eylül 12:23'te **#99 ve #100'ü yedi saniye
+arayla "tutuldu" işaretledi**; ikisi aynı görüşmenin aynı milisaniyesinden, tek cümleden çıkmış
+ve #100 ("Dur Whatsapp'tan ayırayım seni bekle") bir söz bile değil. İkincisi: bu üründe elle
+sınıflandırma sunan beş yüzeyin beşi de bugüne kadar hiç kullanılmamış (`call_tag` 0,
+`board_card` 0, `contact_field` 0, `is_pinned` 0, `todo` 0). İlki S paketinin sırasını, ikincisi
+Ç paketinin risk cümlesini ve kapsama ölçüsünü belirledi.
+
+Plan §4.6'nın "Sözlerim çipi" maddesi **iptal edildi**: tasarlandı, 7,5 ile turun en yüksek
+puanını aldı, kullanıcı reddetti ("yok düşsün demiyorum"). Gerekçesiyle birlikte
+PLAN-IKINCI-TUR §0.1'de duruyor ki yeniden önerilmesin.
