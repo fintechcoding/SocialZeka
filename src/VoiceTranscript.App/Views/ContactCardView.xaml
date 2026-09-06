@@ -1,0 +1,540 @@
+<UserControl x:Class="VoiceTranscript.App.Views.ContactCardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:ContactCardViewModel}">
+
+    <!--
+        One person's card, shared by the contact window and the shell's detail pane.
+
+        The whole surface is evidence: counts, dates and sentences somebody said, each of them
+        playable. There is no score anywhere on it and no colour that means good or bad — the
+        arrows in Gidişat are glyphs, and which direction a reader wants is theirs to decide.
+
+        Where a model put the label rather than a deterministic check, the row wears "model
+        etiketi ≈" and sits under its own source filter. The two grounds share a list, because a
+        person reads one list; they never share a number.
+    -->
+
+    <UserControl.Resources>
+
+        <!-- One quote under a Kalıplar row: the words, the moment, and the user's verbs. -->
+        <DataTemplate x:Key="PatternQuoteTemplate" DataType="{x:Type vm:PatternQuoteRow}">
+            <Border Padding="0,6,0,2" Margin="18,0,0,0">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:Button Grid.Column="0" Appearance="Transparent" Padding="4,0" Margin="0,0,6,0"
+                                   ToolTip="{loc:T contactcard.bu-ani-dinle}"
+                                   Command="{Binding DataContext.PlayQuoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Play24" FontSize="14" />
+                                <TextBlock Text="{Binding When}" Style="{StaticResource Caption}"
+                                           Margin="4,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ui:Button>
+
+                        <Border Grid.Column="1" Style="{StaticResource QuoteBlock}">
+                            <TextBlock Style="{StaticResource QuoteText}" Text="{Binding Text}" />
+                        </Border>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <!-- A model's label says so on every row, not only in the section heading. -->
+                        <Border Style="{StaticResource Pill}" Margin="0,0,6,0"
+                                Visibility="{Binding IsModelLabel, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Style="{StaticResource PillText}" Text="{loc:T contactcard.model-etiketi}" />
+                        </Border>
+
+                        <!-- Uncertain audio is listed, greyed, and says why. Never counted silently. -->
+                        <TextBlock Text="{loc:T contactcard.ses-net-degil}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"
+                                   Visibility="{Binding LowConfidence, Converter={StaticResource BoolToVisibility}}" />
+
+                        <TextBlock Text="{Binding VerdictText}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"
+                                   Visibility="{Binding VerdictText, Converter={StaticResource NullToCollapsed}}" />
+                    </StackPanel>
+
+                    <!-- The three listening verdicts and the refusal. User data, all four. -->
+                    <WrapPanel Margin="0,4,0,0">
+                        <ui:Button Content="{loc:T contactcard.dogru}" Margin="0,0,6,4" Padding="8,3" Appearance="Secondary"
+                                   ToolTip="{loc:T contactcard.dinledim-oyleydi}"
+                                   Command="{Binding DataContext.CorrectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                        <ui:Button Content="{loc:T contactcard.yanlis-duyulmus}" Margin="0,0,6,4" Padding="8,3" Appearance="Secondary"
+                                   Command="{Binding DataContext.MisheardCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                        <ui:Button Content="{loc:T contactcard.bu-o-degil}" Margin="0,0,6,4" Padding="8,3" Appearance="Secondary"
+                                   Command="{Binding DataContext.NotThatCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                        <ui:Button Content="{loc:T contactcard.reddet}" Margin="10,0,0,4" Padding="8,3" Appearance="Transparent"
+                                   ToolTip="{loc:T contactcard.reddedersen-bir-daha-gelmez}"
+                                   Command="{Binding DataContext.DismissQuoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- One counted pattern. The bar is the only part that can be taken away. -->
+        <DataTemplate x:Key="PatternRowTemplate" DataType="{x:Type vm:PatternRow}">
+            <Border BorderThickness="0,0,0,1" Padding="0,8"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="170" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:Button Grid.Column="0" Appearance="Transparent" Padding="4,0" Margin="0,0,4,0"
+                                   Content="▸" ToolTip="{loc:T contactcard.alintilari-ac}"
+                                   Command="{Binding DataContext.ToggleQuotesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Border Style="{StaticResource Pill}" Margin="6,0,0,0"
+                                    Visibility="{Binding IsModelLabel, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Style="{StaticResource PillText}" Text="{loc:T contactcard.model-etiketi}" />
+                            </Border>
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="2" Text="{Binding CountText}" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                        <!-- The bar. Only confident rows size it, and a kind the user has turned
+                             down more than three times in ten does not get one at all. -->
+                        <Border Grid.Column="3" Height="6" CornerRadius="3" HorizontalAlignment="Left"
+                                Width="{Binding BarWidth}" VerticalAlignment="Center"
+                                Background="{DynamicResource TextFillColorTertiaryBrush}"
+                                Visibility="{Binding HasBar, Converter={StaticResource BoolToVisibility}}" />
+
+                        <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CallsText}" Style="{StaticResource Caption}" Margin="0,0,10,0" />
+                            <TextBlock Text="{Binding ListenedText}" Style="{StaticResource Caption}" Margin="0,0,10,0" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="5" Text="{Binding LastText}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding HasLast, Converter={StaticResource BoolToVisibility}}" />
+                    </Grid>
+
+                    <TextBlock Text="{Binding LowConfidenceText}" Style="{StaticResource Caption}" Margin="26,3,0,0"
+                               Visibility="{Binding HasLowConfidence, Converter={StaticResource BoolToVisibility}}" />
+
+                    <TextBlock Text="{Binding BarDroppedText}" Style="{StaticResource Caption}" Margin="26,3,0,0"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding HasBarDropped, Converter={StaticResource BoolToVisibility}}" />
+
+                    <ItemsControl ItemsSource="{Binding Quotes}" ItemTemplate="{StaticResource PatternQuoteTemplate}"
+                                  Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- One stop on a figure's journey: the value, when it was said, and ▸ to hear it. -->
+        <DataTemplate x:Key="JourneyStopTemplate" DataType="{x:Type vm:JourneyStop}">
+            <StackPanel Orientation="Horizontal" Margin="0,0,6,0">
+                <ui:Button Appearance="Transparent" Padding="4,0"
+                           ToolTip="{loc:T contactcard.bu-ani-dinle}"
+                           Command="{Binding DataContext.PlayStopCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                           CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Value}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding When}" Style="{StaticResource Caption}"
+                                   Margin="5,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T contactcard.ses-net-degil}" Style="{StaticResource Caption}"
+                                   Margin="5,0,0,0" VerticalAlignment="Center"
+                                   Visibility="{Binding LowConfidence, Converter={StaticResource BoolToVisibility}}" />
+                        <ui:SymbolIcon Symbol="Play24" FontSize="12" Margin="5,0,0,0" />
+                    </StackPanel>
+                </ui:Button>
+
+                <TextBlock Text="{Binding Separator}" Style="{StaticResource Caption}"
+                           VerticalAlignment="Center" Margin="4,0,0,0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="JourneyRowTemplate" DataType="{x:Type vm:JourneyRow}">
+            <Border BorderThickness="0,0,0,1" Padding="0,8"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="{Binding Subject}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Grid.Column="1" Text="{Binding DistinctText}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding Stops}" ItemTemplate="{StaticResource JourneyStopTemplate}"
+                                  Margin="0,4,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- One thing the person said, dated and playable. -->
+        <DataTemplate x:Key="OwnWordTemplate" DataType="{x:Type vm:OwnWordRow}">
+            <Grid Margin="0,4,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ui:Button Grid.Column="0" Appearance="Transparent" Padding="4,0" Margin="0,0,6,0"
+                           ToolTip="{loc:T contactcard.bu-ani-dinle}"
+                           Command="{Binding DataContext.PlayWordCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                           CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Play24" FontSize="14" />
+                        <TextBlock Text="{Binding When}" Style="{StaticResource Caption}"
+                                   Margin="4,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ui:Button>
+
+                <Border Grid.Column="1" Style="{StaticResource QuoteBlock}" Margin="0">
+                    <TextBlock Style="{StaticResource QuoteText}" Text="{Binding Text}" />
+                </Border>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
+                    <Border Style="{StaticResource Pill}" Margin="0,0,4,0"
+                            Visibility="{Binding IsPromise, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Style="{StaticResource PillText}" Text="{loc:T contactcard.soz}" />
+                    </Border>
+                    <TextBlock Text="{Binding DeadlineText}" Style="{StaticResource Caption}"
+                               Visibility="{Binding HasDeadline, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{loc:T contactcard.ses-net-degil}" Style="{StaticResource Caption}" Margin="4,0,0,0"
+                               Visibility="{Binding LowConfidence, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="OwnWordsGroupTemplate" DataType="{x:Type vm:OwnWordsRow}">
+            <Border BorderThickness="0,0,0,1" Padding="0,8"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding Words}" ItemTemplate="{StaticResource OwnWordTemplate}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- One overdue promise. Two verbs, both the user's. -->
+        <DataTemplate x:Key="CardPromiseTemplate" DataType="{x:Type vm:CardPromise}">
+            <Border BorderThickness="0,0,0,1" Padding="0,8"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                <StackPanel>
+                    <TextBlock Text="{Binding HeadText}" Style="{StaticResource Caption}" />
+                    <TextBlock Text="{Binding Obligation}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,0" />
+
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:Button Grid.Column="0" Appearance="Transparent" Padding="4,0" Margin="0,0,6,0"
+                                   ToolTip="{loc:T contactcard.bu-ani-dinle}"
+                                   Command="{Binding DataContext.PlayPromiseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}">
+                            <ui:SymbolIcon Symbol="Play24" FontSize="14" />
+                        </ui:Button>
+
+                        <Border Grid.Column="1" Style="{StaticResource QuoteBlock}" Margin="0">
+                            <TextBlock Style="{StaticResource QuoteText}" Text="{Binding Quote}" />
+                        </Border>
+                    </Grid>
+
+                    <WrapPanel Margin="0,6,0,0">
+                        <ui:Button Content="{loc:T contactcard.tutuldu}" Margin="0,0,6,0" Padding="8,3"
+                                   Command="{Binding DataContext.FulfilCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                        <ui:Button Content="{loc:T contactcard.reddet}" Margin="0,0,6,0" Padding="8,3" Appearance="Transparent"
+                                   ToolTip="{loc:T contactcard.reddedersen-bir-daha-gelmez}"
+                                   Command="{Binding DataContext.DismissPromiseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- One Gidişat metric: a line, two numbers, an arrow with no colour, a denominator. -->
+        <DataTemplate x:Key="TrendRowTemplate" DataType="{x:Type vm:TrendRow}">
+            <Border BorderThickness="0,0,0,1" Padding="0,8"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="110" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" TextWrapping="Wrap" />
+
+                    <!-- The months, drawn from the points the view model laid out. Months nothing
+                         measured are absent rather than plotted at zero. -->
+                    <Polyline Grid.Column="1" Points="{Binding Points}" VerticalAlignment="Center"
+                              Width="96" Height="18" StrokeThickness="1.4"
+                              Stroke="{DynamicResource TextFillColorTertiaryBrush}"
+                              Visibility="{Binding HasLine, Converter={StaticResource BoolToVisibility}}" />
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                        <TextBlock Text="{Binding Previous}" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Arrow}" Style="{StaticResource Caption}"
+                                   Margin="6,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Recent}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}" Margin="0,0,10,0"
+                                   Visibility="{Binding HasDetail, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Text="{Binding Denominator}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding HasDenominator, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
+            <StackPanel>
+
+                <!-- ================= Gidişat ================= -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{loc:T contactcard.gidisat}" Style="{StaticResource GroupHeader}"
+                               Margin="0,0,0,8" VerticalAlignment="Center" />
+
+                    <!-- The chips move the line, not the pair. The caption below says so. -->
+                    <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <ui:Button Margin="6,0,0,0" Padding="10,3" Content="{loc:T contactcard.3-ay}"
+                                   Command="{Binding SetPeriodCommand}" CommandParameter="Months3"
+                                   Appearance="{Binding Period, Converter={StaticResource FilterAppearance}, ConverterParameter=Months3}" />
+                        <ui:Button Margin="6,0,0,0" Padding="10,3" Content="{loc:T contactcard.6-ay}"
+                                   Command="{Binding SetPeriodCommand}" CommandParameter="Months6"
+                                   Appearance="{Binding Period, Converter={StaticResource FilterAppearance}, ConverterParameter=Months6}" />
+                        <ui:Button Margin="6,0,0,0" Padding="10,3" Content="{loc:T contactcard.1-yil}"
+                                   Command="{Binding SetPeriodCommand}" CommandParameter="Months12"
+                                   Appearance="{Binding Period, Converter={StaticResource FilterAppearance}, ConverterParameter=Months12}" />
+                        <ui:Button Margin="6,0,0,0" Padding="10,3" Content="{loc:T contactcard.hepsi}"
+                                   Command="{Binding SetPeriodCommand}" CommandParameter="All"
+                                   Appearance="{Binding Period, Converter={StaticResource FilterAppearance}, ConverterParameter=All}" />
+                    </WrapPanel>
+                </Grid>
+
+                <Border Style="{StaticResource Panel}">
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding Trend}" ItemTemplate="{StaticResource TrendRowTemplate}"
+                                      Visibility="{Binding HasTrend, Converter={StaticResource BoolToVisibility}}" />
+
+                        <TextBlock Text="{loc:T contactcard.gidisat-bos}" Style="{StaticResource Secondary}"
+                                   Visibility="{Binding HasTrend, Converter={StaticResource InverseBoolToVisibility}}" />
+
+                        <TextBlock Text="{loc:T contactcard.her-sayi-son-donem-onceki-donem}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" Margin="0,10,0,0" />
+
+                        <!-- Where a reader would look for a "findings per month" line, and why
+                             there is not one: §7-11. -->
+                        <TextBlock Text="{loc:T contactcard.bulgu-yogunlugu-serisi-yok}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" Margin="0,4,0,0" />
+
+                        <TextBlock Text="{Binding GroupCallsNote}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Visibility="{Binding GroupCallsNote, Converter={StaticResource NullToCollapsed}}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ================= Sözler ================= -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{loc:T contactcard.sozler}" Style="{StaticResource GroupHeader}"
+                               VerticalAlignment="Center" />
+
+                    <ui:HyperlinkButton Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                        Content="{loc:T contactcard.sozler-sayfasinda-ac}"
+                                        Command="{Binding OpenPromisesCommand}" />
+                </Grid>
+
+                <Border Style="{StaticResource Panel}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding PromiseTally}" Style="{StaticResource Secondary}" TextWrapping="Wrap" />
+
+                        <ItemsControl ItemsSource="{Binding Promises}" ItemTemplate="{StaticResource CardPromiseTemplate}"
+                                      Margin="0,6,0,0"
+                                      Visibility="{Binding HasPromises, Converter={StaticResource BoolToVisibility}}" />
+
+                        <TextBlock Text="{loc:T contactcard.vadesi-gecmis-soz-yok}" Style="{StaticResource Caption}"
+                                   Margin="0,6,0,0"
+                                   Visibility="{Binding HasPromises, Converter={StaticResource InverseBoolToVisibility}}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ================= Kalıplar ================= -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{loc:T contactcard.kaliplar}" Style="{StaticResource GroupHeader}"
+                               VerticalAlignment="Center" />
+
+                    <!--
+                        The source filter. "Kural" and "Denetim" are deterministic checks over the
+                        transcript; "Değerlendirme" is every row a model labelled. Choosing one of
+                        the first two puts no model label on screen at all — which is the rule
+                        about the two grounds, made operable rather than merely written down.
+                    -->
+                    <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <TextBlock Text="{loc:T contactcard.kaynak}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <ui:Button Margin="6,0,0,0" Padding="10,3" Content="{loc:T contactcard.kaynak-hepsi}"
+                                   Command="{Binding SetSourceCommand}" CommandParameter="Hepsi"
+                                   Appearance="{Binding SourceFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Hepsi}" />
+                        <ui:Button Margin="6,0,0,0" Padding="10,3" Content="{loc:T contactcard.kaynak-kural}"
+                                   Command="{Binding SetSourceCommand}" CommandParameter="Kural"
+                                   Appearance="{Binding SourceFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Kural}" />
+                        <ui:Button Margin="6,0,0,0" Padding="10,3" Content="{loc:T contactcard.kaynak-denetim}"
+                                   Command="{Binding SetSourceCommand}" CommandParameter="Denetim"
+                                   Appearance="{Binding SourceFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Denetim}" />
+                        <ui:Button Margin="6,0,0,0" Padding="10,3" Content="{loc:T contactcard.kaynak-degerlendirme}"
+                                   Command="{Binding SetSourceCommand}" CommandParameter="Degerlendirme"
+                                   Appearance="{Binding SourceFilter, Converter={StaticResource FilterAppearance}, ConverterParameter=Degerlendirme}" />
+                    </WrapPanel>
+                </Grid>
+
+                <Border Style="{StaticResource Panel}">
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding Patterns}" ItemTemplate="{StaticResource PatternRowTemplate}"
+                                      Visibility="{Binding HasPatterns, Converter={StaticResource BoolToVisibility}}" />
+
+                        <TextBlock Text="{loc:T contactcard.kalip-yok}" Style="{StaticResource Secondary}"
+                                   Visibility="{Binding HasPatterns, Converter={StaticResource InverseBoolToVisibility}}" />
+
+                        <TextBlock Text="{Binding DismissedNote}" Style="{StaticResource Caption}" Margin="0,8,0,0"
+                                   Visibility="{Binding DismissedNote, Converter={StaticResource NullToCollapsed}}" />
+
+                        <TextBlock Text="{loc:T contactcard.ret-orani-kurali}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" Margin="0,4,0,0" />
+
+                        <TextBlock Text="{loc:T contactcard.model-etiketi-aciklama}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ================= Rakam yolculuğu ================= -->
+                <TextBlock Text="{loc:T contactcard.rakam-yolculugu}" Style="{StaticResource GroupHeader}" />
+
+                <Border Style="{StaticResource Panel}">
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding Journeys}" ItemTemplate="{StaticResource JourneyRowTemplate}"
+                                      Visibility="{Binding HasJourneys, Converter={StaticResource BoolToVisibility}}" />
+
+                        <TextBlock Text="{loc:T contactcard.rakam-yolculugu-bos}" Style="{StaticResource Secondary}"
+                                   Visibility="{Binding HasJourneys, Converter={StaticResource InverseBoolToVisibility}}" />
+
+                        <TextBlock Text="{loc:T contactcard.rakam-yolculugu-aciklama}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ================= Elindeki kayıtlar ================= -->
+                <TextBlock Text="{loc:T contactcard.elindeki-kayitlar}" Style="{StaticResource GroupHeader}" />
+
+                <Border Style="{StaticResource Panel}">
+                    <StackPanel>
+                        <!-- What this list is, said plainly: the evidence answer to "what can I
+                             use", and the reason the product writes no arguments (§7-5). -->
+                        <TextBlock Text="{loc:T contactcard.elindeki-kayitlar-aciklama}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" Margin="0,0,0,6" />
+
+                        <ItemsControl ItemsSource="{Binding OwnWords}" ItemTemplate="{StaticResource OwnWordsGroupTemplate}"
+                                      Visibility="{Binding HasOwnWords, Converter={StaticResource BoolToVisibility}}" />
+
+                        <TextBlock Text="{loc:T contactcard.elindeki-kayitlar-bos}" Style="{StaticResource Secondary}"
+                                   Visibility="{Binding HasOwnWords, Converter={StaticResource InverseBoolToVisibility}}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ================= the model's opinion ================= -->
+                <!--
+                    Not built here. One collapsed line rather than nothing, so a reader who has
+                    heard the panel exists learns where it lives and that it is off — and so the
+                    card says out loud that the ground below this point is a different one.
+                -->
+                <Border Style="{StaticResource SettingCard}" Padding="14,10" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{loc:T contactcard.modelin-gorusu}" Style="{StaticResource SectionHeading}"
+                                   Margin="0" />
+                        <TextBlock Text="{loc:T contactcard.modelin-gorusu-kapali}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- What was just ruled on, and the way back. -->
+        <Border Grid.Row="1" Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,8,10,0"
+                Visibility="{Binding Undo.Notice, Converter={StaticResource NullToCollapsed}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding Undo.Notice}" Style="{StaticResource Secondary}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+                <ui:Button Grid.Column="1" Content="{loc:T contactcard.geri-al}" Appearance="Transparent"
+                           Margin="8,0,0,0" Command="{Binding Undo.UndoCommand}"
+                           Visibility="{Binding Undo.CanUndo, Converter={StaticResource BoolToVisibility}}" />
+
+                <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
+                           Command="{Binding Undo.ClearCommand}" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

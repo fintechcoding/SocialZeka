@@ -36,7 +36,29 @@ public partial class ContactWindow
         Left = (SystemParameters.WorkArea.Width - Width) / 2 + offset;
         Top = Math.Max(0, (SystemParameters.WorkArea.Height - Height) / 2 + offset);
 
+        // The card cannot open a window or move the shell, so it asks. This window answers with
+        // the conversation, the way its own search hits do.
+        model.Card.OpenRequested += (_, target) => OpenCall(target.CallId, target.StartMs, target.IsMe);
+        model.Card.PromisesRequested += (_, _) => ShowPromisesPage();
+
         Closed += (_, _) => Open.Remove(model.ContactId);
+    }
+
+    /// <summary>
+    /// "Sözler sayfasında aç": the main window's own page, raised in front.
+    ///
+    /// This window is not inside the shell, so it cannot navigate itself there — it asks the main
+    /// window to change page and brings it forward. When there is no main window (the smoke test
+    /// builds this one on its own) nothing happens, which is the right nothing.
+    /// </summary>
+    private static void ShowPromisesPage()
+    {
+        if (Application.Current?.MainWindow is not { } main) return;
+
+        if (main.DataContext is ViewModels.ShellViewModel shell)
+            shell.Page = ViewModels.ShellPage.Promises;
+
+        main.Activate();
     }
 
     /// <summary>Opens this person, or raises the window already showing them.</summary>
@@ -56,38 +78,9 @@ public partial class ContactWindow
 
     private ContactWindowViewModel? ViewModel => DataContext as ContactWindowViewModel;
 
-    // ---- the Defter tab's promise verbs ----------------------------------------------------
-    //
-    // The commands on the cards bind straight to the view model. These need the window: the
-    // edit dialog wants an owner, and a flyout's menu items are not in the card's visual tree,
-    // so they cannot reach the view model by binding.
-
-    /// <summary>The promise a card's button or flyout item belongs to.</summary>
-    private static Core.Domain.Commitment? PromiseOf(object sender)
-    {
-        if ((sender as FrameworkElement)?.DataContext is Core.Domain.Commitment direct) return direct;
-
-        // A flyout's items hang off a ContextMenu that only knows which button opened it.
-        var menu = (sender as System.Windows.Controls.MenuItem)?.Parent as System.Windows.Controls.ContextMenu;
-        return (menu?.PlacementTarget as FrameworkElement)?.DataContext as Core.Domain.Commitment;
-    }
-
-    /// <summary>✎ and "Ertele": the user's wording and date, kept beside the spoken ones.</summary>
-    private void PromiseEdit_Click(object sender, RoutedEventArgs e)
-    {
-        if (PromiseOf(sender) is not { } commitment || ViewModel is not { } model) return;
-
-        if (EditPromiseWindow.Open(this, App.Repository, commitment) is { } undo)
-            model.AfterLedgerVerb(undo);
-    }
-
-    /// <summary>"Tutulmadı" — said by the user only; a silence is never read as this.</summary>
-    private void PromiseAbandon_Click(object sender, RoutedEventArgs e)
-    {
-        if (PromiseOf(sender) is not { } commitment || ViewModel is not { } model) return;
-
-        model.AbandonCommitmentCommand.Execute(commitment);
-    }
+    // The read-only Defter tab's promise verbs used to live here. They went with the tab: the
+    // card shows the same promises and rules on them through the same service, and the two or
+    // three most overdue are the ones this window was actually opened to see.
 
     /// <summary>Opens one of this person's conversations to read.</summary>
     private void CallRow_DoubleClick(object sender, MouseButtonEventArgs e)

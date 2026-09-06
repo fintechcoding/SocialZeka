@@ -5,6 +5,7 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
              xmlns:controls="clr-namespace:VoiceTranscript.App.Controls"
+             xmlns:views="clr-namespace:VoiceTranscript.App.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -718,6 +719,18 @@
                                 -->
                             </Grid>
                         </Grid>
+                    </TabItem>
+
+                    <!-- the card: the same UserControl the contact window hosts -->
+                    <TabItem>
+                        <TabItem.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="PersonNote24" FontSize="16" Margin="0,0,8,0"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T contactspage.kisi-karti}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </TabItem.Header>
+                        <views:ContactCardView DataContext="{Binding Card}" Margin="0,12,0,0" />
                     </TabItem>
 
                     <!-- ledger -->
