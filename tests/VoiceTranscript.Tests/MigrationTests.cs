@@ -555,6 +555,104 @@ public sealed class MigrationTests : IDisposable
     }
 
     /// <summary>
+    /// v21: a paid consistency run leaves a complete trace of itself.
+    ///
+    /// Goes red when an upgraded database cannot keep a run's balancing observations, or cannot
+    /// say which transcript a finding was read out of. Both are what the tab needs in order to
+    /// stop showing one side of a judgement about a person, and to stop showing quotes from a
+    /// text that has since been replaced as though they were still on screen.
+    ///
+    /// Red too if either column stops being nullable or acquires a default. Neither is backfilled
+    /// and neither honestly could be — no run already in the field recorded what it read — so
+    /// NULL has to keep meaning "bilinmiyor". A NOT NULL default would turn every row on disk into
+    /// either a false accusation or a false reassurance.
+    /// </summary>
+    [Fact]
+    public void TheTwentyFirstStepKeepsTheObservationsAndFilesTheFindings()
+    {
+        // Both tables already exist here, in their v20 shape. That is the case the step is FOR:
+        // the baseline's CREATE IF NOT EXISTS walks past a table that is already there, so on a
+        // database with history only the ALTER can add the two columns.
+        using (var connection = new Database(_path).Open())
+        {
+            using var create = connection.CreateCommand();
+            create.CommandText =
+                """
+                CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                INSERT INTO setting VALUES ('schema_version', '20');
+
+                CREATE TABLE consistency_note (
+                    call_id    INTEGER PRIMARY KEY,
+                    note       TEXT    NOT NULL,
+                    model_used TEXT,
+                    created_at TEXT    NOT NULL,
+                    transcript_version_id INTEGER);
+
+                CREATE TABLE flag (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    call_id           INTEGER NOT NULL,
+                    contact_id        INTEGER,
+                    kind              INTEGER NOT NULL,
+                    summary           TEXT    NOT NULL,
+                    quote             TEXT    NOT NULL,
+                    quote_start_ms    INTEGER NOT NULL DEFAULT 0,
+                    counter_quote     TEXT,
+                    counter_call_id   INTEGER,
+                    counter_quote_start_ms INTEGER,
+                    low_confidence    INTEGER NOT NULL DEFAULT 0,
+                    is_heuristic      INTEGER NOT NULL DEFAULT 0,
+                    dismissed_by_user INTEGER NOT NULL DEFAULT 0,
+                    source            TEXT    NOT NULL DEFAULT 'pipeline',
+                    confidence        TEXT,
+                    created_at        TEXT    NOT NULL,
+                    decided_at        TEXT);
+
+                INSERT INTO consistency_note (call_id, note, created_at)
+                     VALUES (1, 'Rakamı yazılı iste.', '2026-06-01T09:00:00+00:00');
+
+                INSERT INTO flag (call_id, kind, summary, quote, source, created_at)
+                     VALUES (1, 0, 'Rakam değişti', 'Kira on beş bin lira', 'consistency',
+                             '2026-06-01T09:00:00+00:00');
+                """;
+            create.ExecuteNonQuery();
+        }
+
+        new Database(_path).Migrate();
+
+        Assert.True(ColumnExistsIn("consistency_note", "observations"));
+        Assert.True(ColumnExistsIn("flag", "transcript_version_id"));
+
+        using var upgraded = new Database(_path).Open();
+
+        foreach (var (table, column) in new[]
+                 {
+                     ("consistency_note", "observations"),
+                     ("flag", "transcript_version_id"),
+                 })
+        {
+            using var nullable = upgraded.CreateCommand();
+            nullable.CommandText =
+                $"SELECT \"notnull\" FROM pragma_table_info('{table}') WHERE name = '{column}';";
+            Assert.Equal(0L, nullable.ExecuteScalar());
+
+            using var blank = upgraded.CreateCommand();
+            blank.CommandText =
+                $"SELECT IFNULL(dflt_value, '') FROM pragma_table_info('{table}') WHERE name = '{column}';";
+            Assert.Equal("", blank.ExecuteScalar());
+        }
+
+        // The rows already on disk keep everything they had, and neither new column is invented
+        // for them: "bilinmiyor" is the only honest value, and it is the one they get.
+        using var kept = upgraded.CreateCommand();
+        kept.CommandText =
+            """
+            SELECT (SELECT COUNT(*) FROM consistency_note WHERE observations IS NULL)
+                 + (SELECT COUNT(*) FROM flag WHERE transcript_version_id IS NULL);
+            """;
+        Assert.Equal(2L, kept.ExecuteScalar());
+    }
+
+    /// <summary>
     /// The general form of the test above: every table, every column, compared between a
     /// database that walked the steps and one born fresh. The spot checks catch the column
     /// somebody thought to assert; this catches the one they forgot — a column in the step but

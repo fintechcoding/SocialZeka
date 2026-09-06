@@ -499,6 +499,63 @@ public class ArchiveMergeTests : IDisposable
     }
 
     /// <summary>
+    /// A consistency run arrives whole: the finding filed under the transcript it was read out
+    /// of, and the balancing observations beside the warning.
+    ///
+    /// The pointer is the part a merge can quietly ruin. Copied raw it names whichever transcript
+    /// row happens to hold that id on this machine — a foreign text — and the tab then calls the
+    /// finding stale or current entirely by accident. Both answers are wrong, and both are about
+    /// an accusation against a person.
+    ///
+    /// Red also when the observations are dropped on the way in, which would land the imported
+    /// conversation in exactly the state the storage was added to end: the accusing half here,
+    /// the exonerating half nowhere.
+    /// </summary>
+    [Fact]
+    public async Task AConsistencyRunArrivesWithItsTranscriptPointerAndItsObservations()
+    {
+        // Ours first, so the incoming transcript ids cannot happen to coincide with ours.
+        var mine = _myRepository.UpsertContact("Zeynep", CallApp.WhatsApp);
+        var myCall = Call(_myRepository, _mine, mine, Only.AddDays(3), ["benim", "satırlarım"]);
+        _myRepository.SaveTranscriptVersion(myCall, "large-v3", 0.7, [.. _myRepository.GetSegments(myCall)]);
+
+        var ayse = _theirRepository.UpsertContact("Ayşe", CallApp.WhatsApp);
+        var theirs = Call(_theirRepository, _theirs, ayse, Only, ["onların", "dökümü", "üç satır"]);
+        _theirRepository.SaveTranscriptVersion(theirs, "nova-3", 0.9, [.. _theirRepository.GetSegments(theirs)]);
+
+        _theirRepository.InsertFlag(new Flag
+        {
+            CallId = theirs,
+            ContactId = ayse,
+            Kind = FlagKind.Contradiction,
+            Summary = "Rakam değişti",
+            Quote = "onların dökümü",
+            Source = Flag.Sources.Consistency,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+
+        _theirRepository.SaveConsistencyNote(
+            theirs, "Rakamı yazılı iste.", "qwen", ["Tarihler baştan sona tutarlı"]);
+
+        var file = Path.Combine(_root, "yedek-v21.zip");
+        await _theirBackup.BackupAsync(file, includeAudio: false);
+        await _myBackup.ImportAsync(file);
+
+        var imported = _myRepository.ListCalls(limit: 100).Single(c => c.StartedAt == Only);
+
+        var finding = Assert.Single(_myRepository.FlagsOf(imported.Id));
+        Assert.Equal(Flag.Sources.Consistency, finding.Source);
+        Assert.Equal(_myRepository.CurrentTranscriptVersion(imported.Id)!.Id, finding.TranscriptVersionId);
+
+        // Which is what lets the imported conversation be judged at all.
+        Assert.Equal(Staleness.Fresh, _myRepository.DerivedFreshness(imported.Id).Consistency);
+
+        var note = _myRepository.GetConsistencyNote(imported.Id);
+        Assert.NotNull(note);
+        Assert.Equal("Tarihler baştan sona tutarlı", Assert.Single(note.Observations!));
+    }
+
+    /// <summary>
     /// The model's reading of a person travels, remapped onto this machine's identifiers, and a
     /// reading already here is left alone.
     ///

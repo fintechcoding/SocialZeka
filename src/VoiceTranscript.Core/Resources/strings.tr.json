@@ -1228,5 +1228,9 @@
   "settingswindow.model-inmedi": "İnmedi",
   "settingswindow.kisi-karti-yerel-model-uyarisi": "Yerel bir modelde çoğu kişi için çalışmaz: bağlam penceresi 24 bin karakter, bulutta 400 bin. Okuma önce küçültülmüş bir paketle denenir; uzun geçmişli kişilerde o da sığmaz ve panel dürüst bir retle karşılık verir.",
   "ledgerpage.yolculuk": "Yolculuk",
-  "ledgerpage.yolculuk-aciklama": "Bu rakamın yolculuğunu kişi kartında aç: her değeri, söylendiği tarihle ve dinlenebilir anıyla."
+  "ledgerpage.yolculuk-aciklama": "Bu rakamın yolculuğunu kişi kartında aç: her değeri, söylendiği tarihle ve dinlenebilir anıyla.",
+  "callwindow.denetim-kosuldu-bulgu-cikmadi": "Bu görüşme denetlendi; gösterilebilir bulgu çıkmadı — kısa ve sıradan konuşmalarda bu olağandır.",
+  "callwindow.bu-kosumun-gozlemleri-saklanmamis": "Bu koşumun dengeleyici gözlemleri saklanmamış. Görmek için denetimi yeniden çalıştır.",
+  "callwindow.aksiyon-cikmadi": "Aksiyon çıkmadı — sıradan bir konuşmada bu olağandır.",
+  "callwindow.son-cikarim-imzasi": "Son çıkarım: {0} · {1}"
 }

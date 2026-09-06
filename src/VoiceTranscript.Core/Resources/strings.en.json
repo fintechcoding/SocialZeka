@@ -1228,5 +1228,9 @@
   "settingswindow.model-inmedi": "Not downloaded",
   "settingswindow.kisi-karti-yerel-model-uyarisi": "On a local model it will not work for most people: the context window is 24 thousand characters against 400 thousand in the cloud. The reading is first tried with a smaller packet; for anyone with a long history even that does not fit, and the panel answers with an honest refusal.",
   "ledgerpage.yolculuk": "Journey",
-  "ledgerpage.yolculuk-aciklama": "Open this figure's journey on the contact card: every value, with the date it was named and the moment it can be heard at."
+  "ledgerpage.yolculuk-aciklama": "Open this figure's journey on the contact card: every value, with the date it was named and the moment it can be heard at.",
+  "callwindow.denetim-kosuldu-bulgu-cikmadi": "This conversation was checked; nothing showable came out of it — on a short, ordinary conversation that is the usual answer.",
+  "callwindow.bu-kosumun-gozlemleri-saklanmamis": "This run's balancing observations were not kept. Run the check again to see them.",
+  "callwindow.aksiyon-cikmadi": "No actions came out — on an ordinary conversation that is usual.",
+  "callwindow.son-cikarim-imzasi": "Last extraction: {0} · {1}"
 }

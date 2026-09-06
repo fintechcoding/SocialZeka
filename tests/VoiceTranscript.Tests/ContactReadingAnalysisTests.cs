@@ -333,15 +333,17 @@ public sealed class ContactReadingAnalysisTests : IDisposable
         await Run(new ScriptedLlm(Reply()));
 
         var stored = _repo.LatestContactReading(_contact)!;
+        var versions = _repo.TranscriptVersionsOf(_contact);
+
         var before = ContactReadingAnalysis.InputHash(
-            _repo.ListCalls(_contact, limit: 100).Select(c => c.Id));
+            _repo.ListCalls(_contact, limit: 100).Select(c => (c.Id, versions.GetValueOrDefault(c.Id))));
 
         Assert.Equal(stored.InputHash, before);
 
         Call(daysAgo: 0, lines: 4);
 
         var after = ContactReadingAnalysis.InputHash(
-            _repo.ListCalls(_contact, limit: 100).Select(c => c.Id));
+            _repo.ListCalls(_contact, limit: 100).Select(c => (c.Id, versions.GetValueOrDefault(c.Id))));
 
         Assert.NotEqual(stored.InputHash, after);
     }

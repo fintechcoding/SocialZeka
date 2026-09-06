@@ -169,17 +169,49 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
         verdicts.Count >= NegativeStreak && verdicts.Take(NegativeStreak).All(v => v == Disagree);
 
     /// <summary>
-    /// A fingerprint of the conversations a reading was built from.
+    /// A fingerprint of the conversations a reading was built from, and of the transcripts they
+    /// showed at the time. Two halves separated by a dot.
     ///
     /// Not of the prompt: the point is to answer "has anything happened since", and a new call
     /// with this person changes the answer whether or not it changed a single excerpt. Stored
     /// beside the reading, recomputed when the card opens, and the panel says the reading is old
     /// when the two differ.
+    ///
+    /// The second half exists because "has anything happened" was being asked only of the list of
+    /// conversations. Transcribe one of them again and the list is identical while every anchor
+    /// in the reading has moved — the card kept a current-looking stamp over quotes that play
+    /// from somewhere the sentence no longer is.
     /// </summary>
-    public static string InputHash(IEnumerable<long> callIds)
+    public static string InputHash(IEnumerable<(long CallId, long? VersionId)> calls)
     {
-        var joined = string.Join(",", callIds.OrderBy(id => id));
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(joined)))[..16];
+        var ordered = calls.OrderBy(c => c.CallId).ToList();
+
+        // "-" for a call that never recorded which transcript it shows: a stable token for
+        // "unknown", so an old recording does not make the half change from one open to the next.
+        return $"{Fold(string.Join(",", ordered.Select(c => c.CallId)))}"
+             + $".{Fold(string.Join(",", ordered.Select(c => c.VersionId?.ToString() ?? "-")))}";
+    }
+
+    private static string Fold(string text) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)))[..16];
+
+    /// <summary>
+    /// Whether a stored fingerprint still describes today's history.
+    ///
+    /// Compared half by half rather than as one string, because a reading written before the
+    /// transcript half existed carries only the first one. That row's transcripts are not "the
+    /// same" and not "different" — they were never recorded — and §4.9's rule is that unknown is
+    /// never read as an accusation. So the missing half is skipped, and such a reading goes old
+    /// for the reason it always did: a conversation was added or removed.
+    /// </summary>
+    public static bool StillCurrent(string stored, string current)
+    {
+        var was = stored.Split('.');
+        var now = current.Split('.');
+
+        if (was[0] != now[0]) return false;
+
+        return was.Length < 2 || now.Length < 2 || was[1] == now[1];
     }
 
     public async Task<ContactReadingReport> RunAsync(
@@ -318,6 +350,10 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
         var group = calls.Where(c => c.Kind == CallKind.Group).Select(c => c.Id).ToHashSet();
         var counted = calls.Where(c => !group.Contains(c.Id)).ToList();
 
+        // Which text each of those conversations shows right now — the second half of the
+        // fingerprint stored beside the reading.
+        var versions = repository.TranscriptVersionsOf(contactId);
+
         var when = calls.ToDictionary(c => c.Id, c => c.StartedAt);
 
         List<ContactReadingExcerpt> ledger = [];
@@ -389,7 +425,7 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
             Figures(counted, ledger.Count, excerpts.Count),
             counted.Count,
             counted.Count == 0 ? null : counted.MaxBy(c => c.StartedAt)?.Id,
-            InputHash(counted.Select(c => c.Id)));
+            InputHash(counted.Select(c => (c.Id, versions.GetValueOrDefault(c.Id)))));
     }
 
     /// <summary>

@@ -796,30 +796,38 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         foreach (var f in _repository.FlagsOf(CallId).Where(f => f.Source == Flag.Sources.Consistency))
             ConsistencyFindings.Add(new ConsistencyRow(f, _repository));
 
-        if (_repository.GetConsistencyNote(CallId) is { } stored)
-        {
-            ConsistencyWarning = stored.Note;
-            ConsistencyStamp =
-                $"{stored.ModelUsed ?? "model"} · {stored.CreatedAt.ToLocalTime():d MMMM yyyy}";
-        }
-        else
-        {
-            ConsistencyWarning = null;
-            ConsistencyStamp = ConsistencyFindings.Count > 0 ? "önceki koşum" : null;
-        }
+        var stored = _repository.GetConsistencyNote(CallId);
 
-        // The observations are not stored — only the findings and the note are — so a reopened
-        // window used to show the accusatory half of a consistency run with its balancing half
-        // silently missing, and nothing said so. The reader saw findings against a person and
-        // no observations in their favour, and had no way to know the run had produced any.
+        // The one record that knows a check happened even when it wrote nothing down — which is
+        // the ordinary case on a short, clean conversation, and precisely the case where the tab
+        // used to look as though the button had never been pressed. It is the application's most
+        // expensive single click; a screen that forgets it happened is a screen that sells it
+        // twice.
+        var lastRun = _repository.LastSuccessfulRun(CallId, ProcessingStage.Consistency);
+
+        ConsistencyWarning = stored?.Note;
+
+        ConsistencyStamp =
+            lastRun is { } run ? $"{run.Engine} · {run.StartedAt.ToLocalTime():d MMMM yyyy}"
+            : stored is { } note ? $"{note.ModelUsed ?? "model"} · {note.CreatedAt.ToLocalTime():d MMMM yyyy}"
+            : ConsistencyFindings.Count > 0 ? "önceki koşum"
+            : null;
+
+        // The balancing half, back from storage. Before it was kept, a reopened window showed the
+        // accusing half of a paid run about a person and dropped the exonerating one in silence.
         ConsistencyObservations.Clear();
+        foreach (var observation in stored?.Observations ?? []) ConsistencyObservations.Add(observation);
 
-        if (ConsistencyFindings.Count > 0)
-        {
-            ConsistencyMessage =
-                "Önceki koşumun bulguları. Gözlemler saklanmaz; dengeleyici gözlemleri görmek " +
-                "için denetimi yeniden çalıştır.";
-        }
+        ConsistencyMessage =
+            ConsistencyFindings.Count == 0 && lastRun is not null
+                ? Localisation.T("callwindow.denetim-kosuldu-bulgu-cikmadi")
+
+                // A stored row whose observations column is NULL is one written before they were
+                // kept. Say that, rather than let an absence read as "this run found nothing in
+                // the person's favour" — and say it only where there is a row to prove it.
+                : ConsistencyFindings.Count > 0 && stored is { Observations: null }
+                    ? Localisation.T("callwindow.bu-kosumun-gozlemleri-saklanmamis")
+                    : null;
 
         OnPropertyChanged(nameof(HasConsistencyRun));
         RefreshAttention();
@@ -1411,6 +1419,13 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
             OnPropertyChanged(nameof(HasConsistencyRun));
             RefreshAttention();
+
+            // The bar that sent the user here was "this check is of an earlier transcript", and
+            // the check has just been run again against the one on screen. Without this the
+            // warning stayed up over its own fix, with a [Yeniden denetle] button under it — an
+            // invitation to pay for the most expensive click in the application a second time.
+            // The reading, the assessment and the extraction all do this; only this one did not.
+            RefreshFreshness();
         }
         catch (Exception e)
         {
@@ -1432,6 +1447,9 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _isExtractingActions;
     [ObservableProperty] private string? _actionsMessage;
 
+    /// <summary>When the extraction last ran and with which model. Null while it never has.</summary>
+    [ObservableProperty] private string? _actionsStamp;
+
     public bool HasActions => Actions.Count > 0;
 
     private void LoadActions()
@@ -1441,6 +1459,20 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             Actions.Add(new ActionRow(action));
 
         OnPropertyChanged(nameof(HasActions));
+
+        // The same fault as the consistency tab, one price band cheaper: an extraction that
+        // proposes nothing writes no rows, so the tab came back looking untouched and the button
+        // was pressed again. The run log is the only thing that remembers, so the tab reads it.
+        var lastRun = _repository.LastSuccessfulRun(CallId, ProcessingStage.Action);
+
+        ActionsStamp = lastRun is { } run
+            ? string.Format(
+                Localisation.T("callwindow.son-cikarim-imzasi"),
+                run.Engine, run.StartedAt.ToLocalTime().ToString("d MMMM yyyy"))
+            : null;
+
+        if (Actions.Count == 0 && lastRun is not null)
+            ActionsMessage = Localisation.T("callwindow.aksiyon-cikmadi");
 
         // Extracted again after a new transcript: the suggestions are of the new text now.
         if (Freshness is not null) RefreshFreshness();
@@ -1491,7 +1523,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             LoadActions();
 
             ActionsMessage = report.Actions.Count == 0
-                ? "Aksiyon çıkmadı — sıradan bir konuşmada bu olağandır."
+                ? Localisation.T("callwindow.aksiyon-cikmadi")
                 : report.RejectedCount > 0
                     ? $"{report.RejectedCount} öneri, alıntısı dökümde bulunamadığı için elendi."
                     : null;
@@ -1719,6 +1751,17 @@ public sealed record ActionRow(ActionItem Item)
         "hazirlik" => "hazırlık",
         _ => "adım",
     };
+
+    /// <summary>
+    /// Which model proposed this, and when.
+    ///
+    /// Both were already stored and neither was ever shown, so a suggestion made three months
+    /// ago by a model since replaced looked exactly like one made yesterday — and the row it sits
+    /// next to may well be from a different run. A date on the card is the difference between
+    /// "still worth doing" and "this was about a deadline that has passed".
+    /// </summary>
+    public string Stamp =>
+        $"{Item.ModelUsed ?? "model"} · {Item.CreatedAt.ToLocalTime():d MMMM yyyy}";
 
     public bool HasDeadline => Item.DeadlineDate is not null || Item.DeadlineRaw is not null;
 
