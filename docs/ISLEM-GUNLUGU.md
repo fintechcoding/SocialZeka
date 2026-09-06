@@ -2764,3 +2764,49 @@ sonra **1384 test, 1379 geçti, 5 atlandı**.
 (`mirrorpage.neden-rol`) benim tarafımı korudu, yani 22 numaralı bulgunun düzeltmesi
 sessizce geri alınmış oldu. Onu yazan test hemen kırmızıya döndü. Çözüm üç yönlü yapıldı:
 yalnız bir taraf değiştirdiyse o taraf kazanır, ikisi de değiştirdiyse çatışma bildirilir.
+
+## 2026-09-06 — Harcama dürüst görünsün, ve kaldırılan işaret geri gelmesin
+
+`27074f3` + `c81f8e5`. Beş bulgu, hepsi "para" ya da "kayıp" sınıfından.
+
+**Bütün bölümleri düşen bir çözümleme artık kayıt bırakıyor.** On iki bölümlük bir görüşmede on
+iki ücretli istek yanıp gidiyor ve Kullanım ekranı "0 koşum, 0 jeton, 0 başarısızlık" diyordu.
+Şemayı kabul etmeyen ya da düşünüp boş dönen bir modelde ekranın konuşması tam da gereken andı.
+Artık `succeeded: false` ve harcanan jetonla yazılıyor, `UnloadWhenDone` da o yolda uygulanıyor;
+iki çıkışın ayrışmaması için kayıt tek bir yerel fonksiyonda.
+
+**Başarısızlık satırı artık gerçek jetonu bildiriyor.** Önceden fırlatmadan önce harcanan her şey
+sıfır olarak geçiyordu. Sayı sayaçtan okunuyor, tahmin edilmiyor.
+
+**Kredi ortada bitince ödenmiş bölümler korunuyor.** Beşinci bölümdeki bir 429, bir ile dördün
+sonucunu da götürüyordu; kullanıcı kredi yükleyince aynı dördü ikinci kez ödüyordu. Artık
+sağlayıcı hatası, ayrıştırılamayan bölüm gibi sayılıyor.
+
+**Kısmi koşumun tam defteri ezmemesi ayrıca kuruldu**, çünkü asıl tehlike buydu. Kısmi koşumda
+`ClearAnalysis` hiç çağrılmıyor; bunun yerine saklı defter anahtarları okunup zaten duran satır
+atlanıyor, konuşma edimleri ve baskı işaretleri değiştirilmek yerine birleştiriliyor, bayraklar
+ise yalnız o koşumun ürettiği türlerle sınırlı dar bir silmeyle temizleniyor. Tam koşumun
+davranışı harfi harfine eskisi.
+
+**Kullanım ekranı sekiz aşamanın hepsini okuyor.** Üçünü okuyordu, yani harcamanın yarısından
+fazlası kayıtlı ama görünmezdi. Sekiz blok yerine üç başlık: yazıya dökme, çözümleme, ve yeni
+"diğer okumalar" satırı — aşama başına ad, koşum, jeton ve varsa hata. Hiç koşmamış aşama hiç
+görünmüyor; jeton bildirilmemişse sıfır yazılmıyor, "bildirilmedi" yazılıyor.
+
+**Kaldırılan bir işaret artık geri gelmiyor ve çoğalmıyor.** Deterministik denetimler, çözümlenen
+görüşmeden BAŞKA görüşmelere de bayrak üretiyor — vadesi geçen söz, verildiği konuşmaya aittir.
+Ama hem "kullanıcı bunu kaldırmıştı" listesi hem silme, çözümlenen görüşmeye göre daraltılmıştı.
+Sonuç: aynı kişiyle ikinci görüşme çözümlenince birinci görüşmenin bayrağı yeniden yazılıyor,
+kullanıcının kararı geri alınıyor, ve silme yanlış görüşmeye baktığı için her seferinde bir kopya
+daha ekleniyordu. K4 kuralının doğrudan ihlaliydi ve sessizce birikiyordu. Artık bayraklar kendi
+`call_id`'lerine göre gruplanıyor; her grup kendi görüşmesinin kaldırılmışlarını ve kendi
+silmesini kullanıyor.
+
+**Testlerin gücü ölçüldü.** On bir mutasyon tek tek uygulandı; her biri yalnız kendi testini
+kırmızıya döndürdü, ikisi dürüstçe iki-üç testi (aynı özelliği kaldırdıkları için). Hepsi geri
+alındı.
+
+**Kapatılmayan üç şey YAPILACAKLAR'a yazıldı:** kısmi koşum hâlâ tam özetin üstüne yazıyor; artık
+üretilmeyen çapraz görüşme bayrağı süpürülmüyor; `Repository.LastRuns` çağrısız duruyor.
+
+**Doğrulama.** 1393 C# testi (1388 geçti, 5 atlandı; taban 1384'tü) ve 179 Python testi.

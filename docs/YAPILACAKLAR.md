@@ -1542,6 +1542,18 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   daraltmak çözüm değil: model cümleyi yeniden yazınca reddedilmiş satır dirilir, ki mekanizma
   zaten onu engellemek için var. Doğru çözüm eşleşmeyi anahtardan çıkarıp hatta taşımak.
   Karakterizasyon testi `AnalysisPipelineTests` içinde, düzeltecek kişiye not bırakıldı.
+- [ ] **SUM — Kısmi çözümleme, tam özetin üstüne yazıyor** (Paket Harcama'dan çıktı). Bölümlerden
+  biri sağlayıcı hatası alınca kalan bölümlerin defteri korunuyor ama `SummariseAsync` yine
+  koşup `SaveSummary` ile bütün konuşmadan yazılmış özeti eziyor. Doğru çözüm kısmi koşumda eski
+  özeti bırakıp özet isteğini hiç atmamak; bu bir davranış değişikliği olduğu için sessizce
+  yapılmadı.
+- [ ] **BAYRAK-SUPURGE — Artık üretilmeyen çapraz görüşme bayrağı süpürülmüyor** (aynı paketten).
+  1 numaralı görüşme için yazılmış "vadesi geçti" bayrağı, söz tutuldu işaretlenince artık
+  üretilmiyor; ama 2 numaralı görüşmenin çözümlemesi yalnız kendi ürettiği türleri sildiği için
+  eski satır 1 numara yeniden çözümlenene kadar duruyor. Silmeyi genişletmek, koşumun hiç
+  bakmadığı bulguları silme riski taşıdığı için yapılmadı.
+- [ ] **ÖLÜ SORGU — `Repository.LastRuns(string stage)` hiçbir yerden çağrılmıyor.** Ya bir
+  tüketici kazandırılmalı ya silinmeli.
 - [ ] **Ç — Çevreler (şema v20)** (2-3 gün). `contact_circle` sözlüğü + `contact_profile`a
   `circle_folded`; Görüşmeler'de çip şeridi, Çevreler penceresi, Kişiler/Genel bakış/kişi
   kartı/Aynam'da aynı kavram. **Risk:** kullanıcı bu üründe hiç elle sınıflandırma yapmadı
