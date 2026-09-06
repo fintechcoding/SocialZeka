@@ -84,6 +84,18 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly CallOrchestrator _orchestrator;
 
     /// <summary>
+    /// Held for the two rail badges, which are now counted rather than harvested off two whole
+    /// pages. See <see cref="RefreshBadges"/>.
+    /// </summary>
+    private readonly Repository _repository;
+
+    /// <summary>
+    /// Which pages still need re-reading. The rule and the reasons are in <see cref="PageRefresh"/>;
+    /// this class supplies the one thing it cannot know, which is how to re-read a page.
+    /// </summary>
+    private readonly PageRefresh _refresh;
+
+    /// <summary>
     /// The UI thread, captured at construction.
     ///
     /// The recorder watches audio sessions on a background thread, so every event it raises
@@ -102,6 +114,7 @@ public sealed partial class ShellViewModel : ObservableObject
         AppPaths paths)
     {
         _orchestrator = orchestrator;
+        _repository = repository;
         Health = health;
 
         Overview = new OverviewViewModel(repository, settings, paths);
@@ -129,6 +142,10 @@ public sealed partial class ShellViewModel : ObservableObject
         // local transcription works on this machine.
         AiStatus = new AiStatusViewModel(
             settings, App.HttpClient, repository, () => orchestrator.LocalTranscriptionUsable);
+
+        // Built here, after the pages it re-reads and before anything that could ask it to. The
+        // first thing that can is the RefreshAll at the end of this constructor.
+        _refresh = new PageRefresh(Reload);
 
         // The service is fetched through a function rather than captured, because it is built
         // after the window exists — the startup check runs on a delay so it cannot hold up the
@@ -187,19 +204,35 @@ public sealed partial class ShellViewModel : ObservableObject
 
             // Once per call, not per percent: the first screen's row moves from "Sırada" to
             // "Yazıya dökülüyor" when the worker picks it up, and that is all it needs.
+            //
+            // Touched rather than refreshed outright, because this fires while a transcription is
+            // running and the first screen is usually not the one on the user's screen. Nothing
+            // the recorder or the worker does waits on this: what is skipped is a redraw of a
+            // hidden page, and that page is re-read the moment it is opened.
             if (p.CallId != _lastProgressCall)
             {
                 _lastProgressCall = p.CallId;
-                Overview.Refresh();
+                Touch(ShellPage.Overview);
             }
         });
 
         orchestrator.CallProcessed += (_, processed) => OnUi(() =>
         {
+            // Unconditional, and not a page read: the progress bar is live state, and leaving it
+            // frozen at 80% because Durum happened to be hidden would be a lie on the one screen
+            // that answers "is it still working".
             Processing.ClearProgress();
-            Processing.Refresh();
-            AiStatus.Refresh();
-            Overview.Refresh();
+
+            // Durum's two tabs and the first screen. Same reasoning as above: a call finishing
+            // must change what these say, and it does — now, if the user is on them, and on
+            // arrival if not. Previously all three were rebuilt whatever the user was looking at.
+            Touch(ShellPage.Health);
+            Touch(ShellPage.Overview);
+
+            // The badges, though, are counted whatever page is showing. A finished analysis is
+            // exactly when new findings and new promises appear, and both numbers are read from
+            // the rail on every screen.
+            RefreshBadges();
 
             // "Ne oldu?" — the end of processing told as one sentence, with the suggestion
             // count as a plain number. The summary itself already passed the pipeline's
@@ -329,7 +362,14 @@ public sealed partial class ShellViewModel : ObservableObject
         _ => Core.Configuration.AppPaths.ApplicationName,
     };
 
-    partial void OnPageChanged(ShellPage value) => OnPropertyChanged(nameof(WindowTitle));
+    partial void OnPageChanged(ShellPage value)
+    {
+        OnPropertyChanged(nameof(WindowTitle));
+
+        // Every arrival, whichever route it came by. See Arrive.
+        Arrive(value);
+    }
+
     [ObservableProperty] private string _statusText = Localisation.T("mainwindow.izleniyor");
     [ObservableProperty] private string _statusDetail = Localisation.T("mainwindow.gorusme-baslayinca-otomatik-kaydedilecek");
     [ObservableProperty] private bool _isRecording;
@@ -554,70 +594,148 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private void Navigate(string page)
     {
-        Page = Enum.TryParse<ShellPage>(page, out var parsed) ? parsed : ShellPage.Overview;
+        var target = Enum.TryParse<ShellPage>(page, out var parsed) ? parsed : ShellPage.Overview;
 
-        // The contact filter has to reflect who exists now, not who existed when the window
-        // opened. Refreshing on arrival is cheap and means a call labelled five minutes ago is
-        // immediately filterable.
-        if (Page == ShellPage.Search) Search.LoadContacts();
+        // Whether this is a move or a re-press of the page already open. The arriving is done by
+        // OnPageChanged, and that does not fire when nothing changed — but pressing Görüşmeler
+        // while on Görüşmeler has always meant "reload this", and still does.
+        var alreadyHere = Page == target;
 
-        // Same reason as Search: somebody labelled five minutes ago has to be selectable now. The
-        // stored answers are re-read for the same reason — each carries the name of whoever it was
-        // narrowed to, and a contact renamed since the page was built would still be shown under
-        // the old spelling. A database read, and no model is asked anything.
-        if (Page == ShellPage.Ask)
-        {
-            Ask.LoadContacts();
-            Ask.LoadHistory();
-        }
+        Page = target;
 
-        // Re-read on arrival: a reminder set moments ago must already be on the month.
-        if (Page == ShellPage.Calendar) Calendar.Refresh();
-
-        // The archive re-reads on arrival too: it is the cheapest way to be current.
-        if (Page == ShellPage.Calls) Calls.Refresh();
-
-        // Same: a suggestion produced a minute ago belongs on the list now.
-        if (Page == ShellPage.Todo) Todo.Refresh();
-
-        // And a promise marked from a call window a moment ago.
-        if (Page == ShellPage.Promises) Promises.Refresh();
-
-        // The mirror re-reads its people too: the person filter has to hold whoever exists now,
-        // and a call counted since the window opened belongs in the figures.
-        if (Page == ShellPage.Mirror)
-        {
-            Mirror.LoadContacts();
-            Mirror.Refresh();
-        }
-
-        // Checked on arrival rather than on a timer: the answers involve reading the disk and
-        // starting a Python process, which is not something to do every minute in the background
-        // of a machine that is also on a call.
-        if (Page == ShellPage.Health) _ = Health.RefreshAsync();
+        if (alreadyHere) Arrive(target);
     }
 
+    // ---- the refresh layer --------------------------------------------------
+    //
+    // The rule and the reasons behind it live in PageRefresh, which can be built in a test where
+    // this class cannot. What is left here is the half only the shell knows: which view model
+    // answers for which page, and what a page needs on arrival beyond its own rows.
+
+    /// <summary>
+    /// Re-reads one page. The single place that knows which view model answers for which page, so
+    /// the mark and the arrival cannot come to disagree about what "Defter" means.
+    /// </summary>
+    private void Reload(ShellPage page)
+    {
+        switch (page)
+        {
+            case ShellPage.Overview: Overview.Refresh(); break;
+            case ShellPage.Calls: Calls.Refresh(); break;
+            case ShellPage.Ledger: Ledger.Refresh(); break;
+            case ShellPage.Calendar: Calendar.Refresh(); break;
+
+            // The to-do page was once the one list RefreshAll did not re-read, so "Yaptım" on a
+            // call window or the home screen left it showing the suggestion as still open.
+            case ShellPage.Todo: Todo.Refresh(); break;
+
+            case ShellPage.Promises: Promises.Refresh(); break;
+            case ShellPage.Mirror: Mirror.Refresh(); break;
+            case ShellPage.Contacts: Contacts.Refresh(); break;
+
+            // Durum is one page with two tabs, and both are visible whenever it is — the nearest
+            // thing in this window to "visible but not current". Health itself is not re-read
+            // here: it reads the disk and starts a Python process, so it is asked on arrival only.
+            case ShellPage.Health:
+                Processing.Refresh();
+                AiStatus.Refresh();
+                break;
+        }
+    }
+
+    /// <summary>One page has news. See <see cref="PageRefresh.Touch"/>.</summary>
+    private void Touch(ShellPage page) => _refresh.Touch(page, Page);
+
+    /// <summary>
+    /// The user has landed on a page: everything that has to be true before they read it.
+    ///
+    /// Here rather than in <see cref="Navigate"/> because Navigate is not the only way in. The
+    /// rail buttons, the command palette and the digit shortcuts go through it — but OpenContact,
+    /// OpenFigureJourney, OpenAt, OpenCall and the two "Sözler sayfasında aç" buttons (the contact
+    /// pane's and the contact window's) set Page directly, and so does the first screen's own
+    /// "Göster". Wiring the arrival to the command would leave those routes showing yesterday,
+    /// and a screen that is silently out of date is worse than a slow one.
+    /// </summary>
+    private void Arrive(ShellPage page)
+    {
+        // First, the lists that are not the page's own rows: who can be filtered by, what has
+        // been asked before, and a health check that reads the disk. Unconditional, and before
+        // the re-read — Aynam's contact list resets the selection, and its figures are read for
+        // whoever is selected.
+        switch (page)
+        {
+            // The contact filter has to reflect who exists now, not who existed when the window
+            // opened, so that a call labelled five minutes ago is immediately filterable.
+            case ShellPage.Search:
+                Search.LoadContacts();
+                break;
+
+            // Same reason, plus the stored answers: each carries the name of whoever it was
+            // narrowed to, and a contact renamed since would still be shown under the old
+            // spelling. A database read, and no model is asked anything.
+            case ShellPage.Ask:
+                Ask.LoadContacts();
+                Ask.LoadHistory();
+                break;
+
+            case ShellPage.Mirror:
+                Mirror.LoadContacts();
+                break;
+
+            // Checked on arrival rather than on a timer: the answers involve reading the disk and
+            // starting a Python process, which is not something to do every minute in the
+            // background of a machine that is also on a call.
+            case ShellPage.Health:
+                _ = Health.RefreshAsync();
+                break;
+        }
+
+        // And then the page's own rows, if the mark or the page's standing rule says so.
+        _refresh.Arrive(page);
+    }
+
+    /// <summary>
+    /// Something in the archive changed: re-read what the user is looking at, now, and mark every
+    /// other page as needing it. See <see cref="PageRefresh"/> for what this used to cost.
+    ///
+    /// Still named for what it promises rather than for what it does in this instant, because the
+    /// promise is still kept: every page WILL be re-read from the archive before it is next shown.
+    /// What it no longer does is rebuild nine hidden screens while the user waits for the row
+    /// under their finger to move. That is also why F5 can still be called "Her sayfayı yeniden
+    /// yükle" without lying.
+    ///
+    /// Not an arrival: the extra loading in <see cref="Arrive"/> — contact lists, stored answers,
+    /// the health check — is what a page needs when it is opened, and this is not an opening. The
+    /// sweep never did it either.
+    /// </summary>
     [RelayCommand]
     public void RefreshAll()
     {
-        Overview.Refresh();
-        Calls.Refresh();
-        Ledger.Refresh();
-        Calendar.Refresh();
-        // The to-do page was the one list this did not re-read, so "Yaptım" on a call window or
-        // the home screen left it showing the suggestion as still open.
-        Todo.Refresh();
-        Promises.Refresh();
-        Mirror.Refresh();
-        Contacts.Refresh();
-        Processing.Refresh();
-        AiStatus.Refresh();
+        _refresh.Everything(Page);
+        RefreshBadges();
+    }
 
-        // Two badges, two questions. Defter counts the findings that want a look; Sözler counts
-        // the promises past their date. Each counts what actually needs attention rather than
-        // everything on its page: a badge that never reaches zero stops being read.
-        OpenFlagCount = Ledger.FlagCount;
-        OverduePromiseCount = Promises.OverdueCount;
+    /// <summary>
+    /// The two numbers on the rail, counted rather than harvested.
+    ///
+    /// They used to be a by-product of the sweep: OpenFlagCount was <c>Ledger.FlagCount</c> and
+    /// OverduePromiseCount was <c>Promises.OverdueCount</c>, which meant the only way to keep two
+    /// small numbers honest was to rebuild both of those pages in full on every ruling made
+    /// anywhere. That was a large part of what one tick cost.
+    ///
+    /// They cannot be allowed to go stale with the pages they came from, because they are read
+    /// from every screen: a Defter badge still saying 6 after the sixth finding was refused is the
+    /// rail lying about the one thing it is there to say. So they are two counting queries now,
+    /// run on every change, whichever page the user happens to be on.
+    ///
+    /// Two badges, two questions. Defter counts the findings that want a look; Sözler counts the
+    /// promises past their date. Each counts what actually needs attention rather than everything
+    /// on its page: a badge that never reaches zero stops being read.
+    /// </summary>
+    private void RefreshBadges()
+    {
+        OpenFlagCount = _repository.OpenFlagCount();
+        OverduePromiseCount = _repository.OverduePromiseCount(DateOnly.FromDateTime(DateTime.Today));
     }
 
     /// <summary>Opens a contact from anywhere — a search result, or an overview row.</summary>
