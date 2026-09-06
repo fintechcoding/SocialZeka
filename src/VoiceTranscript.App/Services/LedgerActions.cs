@@ -16,6 +16,12 @@ public enum LedgerVerb
     Postpone,
     Reword,
     Edit,
+
+    /// <summary>The user's ear on a moment: it is that / was misheard / is not that.</summary>
+    Judge,
+
+    /// <summary>One sentence held two readings; the user said which one they meant.</summary>
+    Pick,
 }
 
 /// <summary>
@@ -316,6 +322,141 @@ public static class LedgerActions
                 repository.SetUserDeadline(commitment.Id, deadlineBefore);
                 NotifyChanged();
             });
+    }
+
+    // ---- the ear, on a promise ---------------------------------------------------------------
+
+    /// <summary>
+    /// The user listened to the moment a promise was drawn from and said what it is: the promise
+    /// the machine read, a mishearing, or not a promise at all.
+    ///
+    /// The same verdict table and the same key as Aynam's ear confirmation — the words folded and
+    /// the millisecond — so the ruling outlives the row it was given on. A re-run deletes and
+    /// rewrites the commitment; the judgement is still there, still matching, and the sentence
+    /// the user already refused does not come back as a fresh promise.
+    /// </summary>
+    public static PendingUndo JudgePromise(Repository repository, Commitment commitment, VerdictValue value)
+    {
+        var sentence = value switch
+        {
+            VerdictValue.Correct => Localisation.T("ledgeractions.soz-dogrulandi-n"),
+            VerdictValue.Misheard => Localisation.T("ledgeractions.soz-yanlis-duyulmus-n"),
+            _ => Localisation.T("ledgeractions.soz-degil-n"),
+        };
+
+        return WriteJudgement(repository, commitment, VerdictKind.Promise, value,
+            string.Format(sentence, Label(commitment)));
+    }
+
+    /// <summary>
+    /// "İkisi de kalsın" — one sentence really did carry both promises.
+    ///
+    /// The same record as [Doğru], because it is the same statement: the machine read this moment
+    /// correctly. It is what stops the two rows being asked about again on the next visit.
+    /// </summary>
+    public static PendingUndo KeepAllCandidates(Repository repository, Commitment commitment) =>
+        WriteJudgement(repository, commitment, VerdictKind.Promise, VerdictValue.Correct,
+            string.Format(Localisation.T("ledgeractions.hepsi-kalsin-n"), Label(commitment)));
+
+    /// <summary>
+    /// "Tarihsiz kalsın" — the promise has no date and that is the answer, not a gap.
+    ///
+    /// Recorded as a verdict rather than in a commitment column for two reasons. It is a ruling
+    /// about the moment, which is what that table is for; and it must not be written into
+    /// <c>user_deadline_date</c>, whose NULL already means "the user has not said" — using the
+    /// same cell for "the user said there is none" would make the two indistinguishable and the
+    /// strip would go on asking. Its own kind ("vade") so it cannot collide with the ruling on
+    /// whether the sentence is a promise at all.
+    /// </summary>
+    public static PendingUndo KeepUndated(Repository repository, Commitment commitment) =>
+        WriteJudgement(repository, commitment, VerdictKind.PromiseDeadline, VerdictValue.Correct,
+            string.Format(Localisation.T("ledgeractions.tarihsiz-kalsin-n"), Label(commitment)));
+
+    /// <summary>Lifts a ruling on the moment — the way back from "bu söz değil" and from "tarihsiz kalsın".</summary>
+    public static PendingUndo ClearPromiseJudgement(Repository repository, Commitment commitment, string? kind = null)
+    {
+        var standing = Standing(repository, commitment, kind ?? VerdictKind.Promise);
+
+        if (standing is not null) repository.DeleteVerdict(standing.Id);
+        NotifyChanged();
+
+        return new PendingUndo(
+            LedgerVerb.Restore,
+            string.Format(Localisation.T("ledgeractions.soz-isareti-kaldirildi-n"), Label(commitment)),
+            () =>
+            {
+                if (standing is not null) repository.SaveVerdict(standing);
+                NotifyChanged();
+            });
+    }
+
+    /// <summary>
+    /// One sentence, two promises: the user says which one they meant.
+    ///
+    /// The unpicked readings go down the ordinary dismissal path — they become tombstones, so the
+    /// next analysis of that call does not write them again — and a single "Geri al" lifts all of
+    /// them at once, because the user answered one question and must be able to unanswer it with
+    /// one click. Nothing is written to the chosen row: its text was the machine's and stays the
+    /// machine's.
+    /// </summary>
+    public static PendingUndo PickCommitment(
+        Repository repository, Commitment chosen, IReadOnlyCollection<Commitment> unpicked)
+    {
+        var ids = unpicked.Select(c => c.Id).Where(id => id != chosen.Id).Distinct().ToList();
+
+        foreach (var id in ids) repository.DismissCommitment(id);
+        NotifyChanged();
+
+        return new PendingUndo(
+            LedgerVerb.Pick,
+            string.Format(Localisation.T("ledgeractions.soz-secildi-n"), Label(chosen)),
+            () =>
+            {
+                foreach (var id in ids) repository.RestoreCommitment(id);
+                NotifyChanged();
+            });
+    }
+
+    /// <summary>Writes one verdict on a promise's moment and hands back the way to the state before it.</summary>
+    private static PendingUndo WriteJudgement(
+        Repository repository, Commitment commitment, string kind, VerdictValue value, string sentence)
+    {
+        var before = Standing(repository, commitment, kind);
+
+        var id = repository.SaveVerdict(new Verdict
+        {
+            CallId = commitment.CallId,
+            Kind = kind,
+            TargetId = commitment.Id,
+            QuoteFolded = TurkishText.NormalizeForSearch(commitment.Quote),
+            StartMs = commitment.QuoteStartMs,
+            Value = value,
+            DecidedAt = DateTimeOffset.UtcNow,
+        });
+
+        NotifyChanged();
+
+        return new PendingUndo(
+            LedgerVerb.Judge,
+            sentence,
+            () =>
+            {
+                // SaveVerdict replaces by key, so the row that was standing before this ruling is
+                // already gone; putting it back is what "geri al" means when the user changes a
+                // judgement rather than making a first one.
+                repository.DeleteVerdict(id);
+                if (before is not null) repository.SaveVerdict(before);
+                NotifyChanged();
+            });
+    }
+
+    /// <summary>The ruling of a kind standing on this promise's moment, if the user has given one.</summary>
+    private static Verdict? Standing(Repository repository, Commitment commitment, string kind)
+    {
+        var folded = TurkishText.NormalizeForSearch(commitment.Quote);
+
+        return repository.Verdicts(commitment.CallId, kind)
+            .FirstOrDefault(v => v.QuoteFolded == folded && v.StartMs == commitment.QuoteStartMs);
     }
 
     // ---- wording -----------------------------------------------------------------------------

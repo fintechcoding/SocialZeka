@@ -1845,6 +1845,53 @@ public sealed class Repository(Database database)
             .Select(r => r.ToModel())];
     }
 
+    /// <summary>
+    /// The lines around a moment in one conversation — what was said just before it and just
+    /// after, in the order they were said.
+    ///
+    /// The Sözler page's "sözün etrafı". A sentence quoted alone reads as a commitment far more
+    /// often than it is one, because the sentence that provoked it is missing: "yav bir kulaklık
+    /// alacağım güzel ya" is a promise on a card and an answer to "sesim çok kötü geliyor" in the
+    /// conversation. Two lines either side is enough to tell the two apart, and it is raw
+    /// transcript — no label, no reading, nothing this method decides.
+    ///
+    /// The moment's own line is left out: the card already carries the quote. Both halves are
+    /// ordered walks over <c>ix_segment_call(call_id, start_ms)</c> with a LIMIT, so a call with
+    /// two thousand lines costs what one with ten costs, and a moment at either edge of the call
+    /// simply returns fewer rows than were asked for.
+    /// </summary>
+    /// <param name="startMs">The moment. Lines starting exactly here are the quote's own.</param>
+    public IReadOnlyList<Segment> SegmentsAround(long callId, int startMs, int before = 2, int after = 2)
+    {
+        if (before <= 0 && after <= 0) return [];
+
+        using var connection = Open();
+
+        IEnumerable<SegmentRow> earlier = before <= 0
+            ? []
+            : connection.Query<SegmentRow>(
+                """
+                SELECT * FROM segment
+                 WHERE call_id = @callId AND start_ms < @startMs
+                 ORDER BY start_ms DESC
+                 LIMIT @before;
+                """,
+                new { callId, startMs, before }).Reverse();
+
+        IEnumerable<SegmentRow> later = after <= 0
+            ? []
+            : connection.Query<SegmentRow>(
+                """
+                SELECT * FROM segment
+                 WHERE call_id = @callId AND start_ms > @startMs
+                 ORDER BY start_ms
+                 LIMIT @after;
+                """,
+                new { callId, startMs, after });
+
+        return [.. earlier.Concat(later).Select(r => r.ToModel())];
+    }
+
     // ---- search -------------------------------------------------------------
 
     /// <summary>

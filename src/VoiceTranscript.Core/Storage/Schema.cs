@@ -670,7 +670,7 @@ public static class Schema
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             call_id      INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
 
-            -- 'flag' | 'kufur' | 'dolgu' | 'bilgi' | 'ton' | 'canli' | 'kalip'
+            -- 'flag' | 'kufur' | 'dolgu' | 'bilgi' | 'ton' | 'canli' | 'kalip' | 'soz' | 'vade'
             kind         TEXT    NOT NULL,
             target_id    INTEGER,
             quote_folded TEXT    NOT NULL,

@@ -26,15 +26,23 @@ public partial class PromisesPage
         };
     }
 
-    /// <summary>✎ goes through the one edit dialog the call and contact windows use: wording and date, the user's own.</summary>
+    /// <summary>
+    /// ✎ goes through the one edit dialog the call and contact windows use: wording and date, the
+    /// user's own.
+    ///
+    /// The dialog hands back what it wrote together with the way back, and this page offers it in
+    /// the same notice card as every other verb. It used to throw the undo away and merely
+    /// re-read the list, which left the user's own correction as the single ruling on the page
+    /// that could not be taken back — the one place where a mis-click cost work.
+    /// </summary>
     private void OnEdit(object? sender, PromiseCard card)
     {
         if (App.Repository is not { } repository) return;
 
-        if (EditPromiseWindow.Open(Window.GetWindow(this), repository, card.Commitment) is not null
+        if (EditPromiseWindow.Open(Window.GetWindow(this), repository, card.Commitment) is { } undo
             && DataContext is PromisesViewModel model)
         {
-            model.Refresh();
+            model.Offer(undo);
         }
     }
 
