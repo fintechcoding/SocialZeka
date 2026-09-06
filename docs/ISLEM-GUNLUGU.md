@@ -2404,3 +2404,34 @@ değil; konuşma payı ölçülen görüşmelerin **ortalaması**, söz kesme ö
 **havuzlanır**; son 3 ay ↔ önceki 3 ay). 41 yeni test.
 
 **Doğrulama.** `VoiceTranscript.Tests.exe`: 1255 test (1250 geçti, 5 atlandı).
+
+## 2026-09-06 — Aynam arayüzü: sayfa, görüşme sekmesi, üç sayılık tost
+
+**Sayfa** (`dcc6bf7`, Ctrl+8, rayda yeni KOÇLUK grubu). Altı kart: küfür/dk, dolgu/100 kelime,
+hız k/dk, konuşma payın, söz kesme/10 dk, istemeden verilen bilgi. Her kartın altında **aynı
+uzunluktaki önceki dönem** ve ▲/▼/— oku — renk yok, yargı sözcüğü yok. Pencere içindeki sayılar
+**havuzlanır** (pay ve payda görüşmeler boyunca toplanır), ortalamaların ortalaması alınmaz.
+Paydası olmayan kart tire gösterir ve nedenini yazar — bugünkü arşivde "hız" böyle: hiçbir döküm
+kelime zamanı taşımıyor. Eğri `HabitTrend` + `HabitTrendLayout`'tan geliyor; motor değişimi
+kesik çizgi, kulaklıksız görüşme içi boş nokta, noktaya tıklayınca o görüşme açılıyor. Anlar
+listesinde üç kulak teyidi düğmesi (Doğru / Yanlış duyulmuş / Bu o değil) `verdict`'e yazıyor ve
+sayım anında düşüyor; "belirsiz" anlar listelenip sayılmıyor. Kesinlik satırı dinlenen ve doğru
+çıkan sayısını söylüyor. **Şive kart olarak yok** — ölçüldü, kapıdan kalktı, sayfa nedenini
+"neden ▸" ile açıklıyor (dün yazılan ölçüm sonucu).
+
+**Görüşme penceresinde Aynam sekmesi**: bu görüşmenin altı sayısı, anlar, niyet satırı (yalnız
+kullanıcı yazdıysa), "hesaplandı · döküm" damgası, ve döküm yenilenmişse bayatlık uyarısı +
+"Yeniden say". Karşı taraf sayılmıyor; ekran bunu yazıyor.
+
+**"Ne oldu?" tostu**: "sen %61 · küfür 3 · 2 açık söz" — sayılmamış görüşmede parça atlanıyor,
+"sen %0" yazılmıyor. Tıklayınca görüşme Aynam sekmesinde açılıyor; bildirim mekanizmasına bu
+yüzden tıklama eylemi eklendi (`Post(..., onClick)`), `NoticeSeverity` ile aynı yoldan.
+
+**Temizlik**: konuşma payı/söz kesme hesabının iki elle yazılmış kopyası (`CallWindowViewModel`,
+`ContactsViewModel`) silindi, ikisi de `Core.Analysis.TalkStats`'ı çağırıyor. Davranış farkı:
+yankı şüpheli satırlar artık ikisinde de sayılmıyor.
+
+**Doğrulama.** 1277 test (1272 geçti, 5 atlandı). Ajanın notu: bağlamaların gerçekten çözüldüğü
+elle bir "render" testiyle doğrulandı ama test ağaca alınmadı — ikinci bir STA iş parçacığı
+`WindowSmokeTests`'in tek `Application`'ıyla çakışıyor (aynı sebeple `LayoutTests` çocuk süreçte
+ölçüyor). İstenirse `WindowSmokeTests`'in kendi iş parçacığının içine konur.

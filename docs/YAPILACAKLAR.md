@@ -1502,9 +1502,15 @@ taslakları ve ölçüm kapıları: [`PLAN-SOSYALZEKA.md`](PLAN-SOSYALZEKA.md).
   (`EditPromiseWindow`), `LedgerActions` tek fiil kümesi (`81f1fcb`). Günlük: ISLEM-GUNLUGU 2026-09-05.
 - [x] **B — Sözler sayfası + ray düzeni** → v3.1.0 (`6e18ebd` + defter çiplerinin taşınması).
   Ölçülecek: "tutuldu mu?" öneri kabul oranı (30 öneride < %30 → kapatılır).
-- [~] **C + D — Kelime güveni ölçek; Aynam (v16)** → v3.1.x (önce şive ön-ölçümü). C'nin worker
-  (`cdea035`) ve C# (`f47c584`) yarıları bitti; motor başına eşik ölçümü D ile.
-- [ ] **E — Kişi kartı, kanıt (v17)** → v3.2.0
+- [x] **C + D — Kelime güveni ölçek; Aynam (v16)** → v3.1.x. C: worker (`cdea035`) + C#
+  (`f47c584`). D: çekirdek (`ab9e272` — sözlük, TalkStats, SpeechHabits, HabitTrend), Koçluk
+  ayarları + Sözlük/Niyet pencereleri + sayım kancası (`026f983`), sayfa + görüşme sekmesi +
+  tost (`47334f9`). Şive ön-ölçümü kapıdan kalktı, dedektör yazılmadı. **Bekleyen ölçüm:** motor
+  başına kelime güveni eşiği ve dedektör kesinliği — kullanıcı Aynam'da dinleyip işaretleyince
+  `tools/olcum/aynam-kesinlik.py` sayıyı verir (küfür %90, dolgu %85, en az 30 dinleme).
+- [~] **E — Kişi kartı, kanıt (v17)** → v3.2.0. Çekirdek bitti (`34ea0b8`): `tactic_evidence`,
+  `speech_act`, Kalıplar/Rakam yolculuğu/Elindeki kayıtlar sorguları, `ContactTrend`. Arayüz
+  ajanda.
 - [ ] **G + H (+J) — Ses düzeyi/perde, canlı ölçer, audio_event (v18)** → v3.3.x (kalibrasyon kapılı)
 - [ ] **I — Kişi kartı, modelin görüşü (v19)** → v3.4.0
 - [~] **Ölçüm turları** (kod yok): Hume, canlı kelime uyarısı, F0 kararlılığı. **Şive ön-ölçümü
