@@ -1243,5 +1243,6 @@
   "callwindow.aksiyon-cikmadi": "No actions came out — on an ordinary conversation that is usual.",
   "callwindow.son-cikarim-imzasi": "Last extraction: {0} · {1}",
   "contactwindow.akis-en-yeni-n-gorusme": "This flow was built from the newest {0} conversations; there are older ones.",
-  "contactwindow.daha-eski-akisi-yukle": "Load older flow"
+  "contactwindow.daha-eski-akisi-yukle": "Load older flow",
+  "callorchestrator.bolum-okunamadi": "Part of the conversation could not be read. What was found was added to its ledger; the summary is still the one written when the whole conversation was read."
 }

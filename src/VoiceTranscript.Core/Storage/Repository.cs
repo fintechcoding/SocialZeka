@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Text.Json;
 using Dapper;
 using Microsoft.Data.Sqlite;
@@ -58,6 +58,22 @@ public sealed record StoredLedgerKeys(
         new HashSet<(bool ByMe, string FoldedQuote)>(),
         new HashSet<(string Entity, string Attribute, string Value, string FoldedQuote)>());
 }
+
+/// <summary>
+/// One promise a re-analysis is not allowed to touch, and enough of it to recognise which of the
+/// run's findings it is.
+///
+/// A list rather than a set of keys, and the obligation is carried beside the quote, because one
+/// sentence can hold two promises: <see cref="QuoteVerifier"/> hands back the whole segment for a
+/// quote found inside it, so both readings arrive with the same words and the same millisecond.
+/// Reduced to (whose, quote) they are indistinguishable, and the pipeline used the tombstone of
+/// the one the user turned down to withhold the one they kept.
+///
+/// The obligation stored here is the MACHINE's — the model's own wording. A rewording the user
+/// typed is theirs and lives in another column; matching a model's next reading against it would
+/// be comparing the model with the user.
+/// </summary>
+public sealed record SurvivingCommitment(bool ByMe, string FoldedQuote, string FoldedObligation);
 
 /// <summary>
 /// All database access.
@@ -1399,10 +1415,56 @@ public sealed class Repository(Database database)
                 new Dictionary<string, string>(toCall) { ["transcript_version_id"] = "map_version" },
                 ofNewCalls);
 
-            // Things that hang off a person rather than a call. What is here wins in every case:
-            // a photo, a voiceprint or a set of fields already on a contact is this machine's.
-            Copy(connection, transaction, "contact_profile", toContact);
+            // What the user wrote about a person, field by field rather than row by row.
+            //
+            // This table is keyed by the contact, so the ordinary INSERT OR IGNORE meant that a
+            // person known to both machines kept this one's row and the incoming one was dropped
+            // WHOLE — the birthday typed on the other computer, the photo chosen there, and (once
+            // circles land in this table) which circle that machine put them in. The user moves
+            // archives between two computers, so this was not a theoretical loss; it happened on
+            // every import, silently, to every person who exists on both sides.
+            //
+            // The rule is the one §7.2 of the two-machine plan writes down: WRITING INTO AN EMPTY
+            // PLACE IS A MOVE, NOT A MERGE. Nothing here is a judgement about which machine is
+            // right, so nothing here needs the user to arbitrate: a field this machine left blank
+            // takes the incoming value, and a field this machine has filled keeps it and is never
+            // overwritten. Two filled fields that disagree are not reconciled — the local one
+            // stands, because a merge that silently replaces what somebody typed is the failure
+            // this whole operation exists to avoid.
+            //
+            // Column by column at run time rather than by name, for the same reason Copy reads
+            // its columns: the next schema step adds a field here, and a hand-written list is a
+            // field that quietly stops travelling between the two machines.
+            MergeFields(connection, transaction, "contact_profile", "contact_id", toContact,
+                stamps: ["updated_at"]);
+
+            // The voiceprint is not merged the same way and stays "what is here wins" whole. It
+            // is not something the user typed: it is measured from this machine's own recordings,
+            // and half of one machine's vector beside half of another's is not a voice.
             Copy(connection, transaction, "contact_voice", toContact);
+
+            // The note about the person, which lives on the contact row itself rather than in the
+            // profile table. Same rule, same reason: a contact already here keeps their row, so
+            // before this the note written on the other machine never arrived. Filled only where
+            // there is nothing here to lose.
+            connection.Execute(
+                """
+                UPDATE main.contact
+                   SET notes = (
+                       SELECT s.notes
+                         FROM gelen.contact s
+                         JOIN map_contact mc ON mc.old = s.id
+                        WHERE mc.new = main.contact.id
+                          AND s.notes IS NOT NULL AND TRIM(s.notes) <> '')
+                 WHERE (notes IS NULL OR TRIM(notes) = '')
+                   AND EXISTS (
+                       SELECT 1
+                         FROM gelen.contact s
+                         JOIN map_contact mc ON mc.old = s.id
+                        WHERE mc.new = main.contact.id
+                          AND s.notes IS NOT NULL AND TRIM(s.notes) <> '');
+                """,
+                transaction: transaction);
 
             // The model's readings of a person. Filed against the contact, and pointing at the
             // newest call they covered, so both identifiers are rewritten — left on the contact
@@ -1570,6 +1632,76 @@ public sealed class Repository(Database database)
         return connection.Execute(sql, transaction: transaction);
     }
 
+    /// <summary>
+    /// Copies one table whose key is a thing rather than a row — a person — so that a row present
+    /// on both machines is combined instead of one of the two being thrown away.
+    ///
+    /// <see cref="Copy"/> answers a collision with INSERT OR IGNORE, and for the tables it is used
+    /// on that is right: they are keyed by a call, a folded tag, a quote, and a collision there
+    /// means the same thing is already recorded. It is wrong for a table keyed by the CONTACT,
+    /// because the two rows are not two copies of one fact — they are the halves of one person's
+    /// card, filled in on two different computers.
+    ///
+    /// So the row is merged column by column, and the rule is asymmetric on purpose:
+    ///
+    ///   * blank here → the incoming value is written. Writing into an empty place is a move, not
+    ///     a merge: nothing is displaced, so there is nothing to ask the user about.
+    ///   * filled here → what is here stays, whatever the other machine says. Two filled fields
+    ///     that disagree are a conflict, and quietly picking a winner is how a merge loses data
+    ///     that somebody typed. The local value is kept and the difference is not acted on.
+    ///
+    /// Blank means NULL or empty text, because the two are the same thing on a screen and only
+    /// one of them is what a never-filled field actually holds. NULLIF against '' is a no-op on a
+    /// numeric column, so the rule reads the same for every column type.
+    ///
+    /// <paramref name="stamps"/> names the columns that are bookkeeping rather than content —
+    /// "when was this row last written" — and they take the later of the two, because after this
+    /// statement the row genuinely carries what both machines knew.
+    /// </summary>
+    /// <returns>How many rows were inserted or merged.</returns>
+    private static int MergeFields(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string table,
+        string key,
+        IReadOnlyDictionary<string, string> remap,
+        IReadOnlyCollection<string> stamps)
+    {
+        var mine = ColumnsOf(connection, transaction, "main", table);
+        var theirs = ColumnsOf(connection, transaction, "gelen", table);
+
+        var shared = mine.Where(theirs.Contains).Where(c => c != "id" || c == key).ToList();
+        if (!shared.Contains(key)) return 0;
+
+        string Source(string column) =>
+            remap.TryGetValue(column, out var map)
+                ? $"(SELECT new FROM {map} WHERE old = s.\"{column}\")"
+                : $"s.\"{column}\"";
+
+        var assignments = shared
+            .Where(c => c != key)
+            .Select(c => stamps.Contains(c)
+                ? $"\"{c}\" = MAX(\"{table}\".\"{c}\", excluded.\"{c}\")"
+                : $"\"{c}\" = COALESCE(NULLIF(\"{table}\".\"{c}\", ''), excluded.\"{c}\", \"{table}\".\"{c}\")")
+            .ToList();
+
+        // Nothing to merge into: the table is a key and nothing else. Then a plain copy is the
+        // whole of the operation.
+        var update = assignments.Count == 0
+            ? "DO NOTHING"
+            : "DO UPDATE SET " + string.Join(", ", assignments);
+
+        // A contact that has no mapping would insert a NULL key, and on this table the key is the
+        // rowid — SQLite would invent an id and file somebody's birthday against nobody.
+        var sql =
+            $"INSERT INTO main.\"{table}\" ({string.Join(", ", shared.Select(c => $"\"{c}\""))}) "
+            + $"SELECT {string.Join(", ", shared.Select(Source))} FROM gelen.\"{table}\" s "
+            + $"WHERE {Source(key)} IS NOT NULL "
+            + $"ON CONFLICT(\"{key}\") {update};";
+
+        return connection.Execute(sql, transaction: transaction);
+    }
+
     private static HashSet<string> ColumnsOf(
         SqliteConnection connection, SqliteTransaction transaction, string schema, string table) =>
         [.. connection
@@ -1612,6 +1744,33 @@ public sealed class Repository(Database database)
             SuspectedEcho = s.SuspectedEcho,
             Words = SegmentWords.Write(s.Words),
         }));
+
+        // The same engine, hearing the same thing it heard before, is not a new transcription.
+        //
+        // The history exists to answer one question — which engine heard this conversation better
+        // — and a second identical row by the same engine answers nothing while pushing a genuine
+        // comparison out of the ten the call keeps. It also puts a fresh "yeniden döküldü" date on
+        // text that has not moved, which makes every derived note look stale and sends the user
+        // to re-run analyses that were already current.
+        //
+        // The engine is part of the identity, and deliberately so: two engines that agree word for
+        // word is the most interesting row the comparison can hold, and folding them together
+        // would delete exactly the finding the table was built for.
+        var unchanged = connection.ExecuteScalar<long?>(
+            """
+            SELECT v.id
+              FROM transcript_version v
+              JOIN call c ON c.transcript_version_id = v.id
+             WHERE c.id = @callId AND v.engine = @engine AND v.segments = @segments;
+            """,
+            new { callId, engine, segments = payload },
+            transaction);
+
+        if (unchanged is { } already)
+        {
+            transaction.Commit();
+            return already;
+        }
 
         var id = connection.ExecuteScalar<long>(
             """
@@ -2758,6 +2917,45 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>
+    /// Deletes one PERSON's pipeline findings of the named kinds, across every conversation with
+    /// them, dismissals kept. What the deterministic checks clear before writing their answer.
+    ///
+    /// The kinds this reaches are the ones computed from the whole person rather than from one
+    /// transcript — an overdue promise, a deadline that moved, a figure that changed. Those
+    /// checks read every open commitment and every claim of the contact, so a run that performs
+    /// them has an opinion about every row of those kinds the person has, on every one of their
+    /// calls. Scoping the delete to the kinds a run happened to PRODUCE was the hole: a finding
+    /// that stops being produced — the overdue promise the user has since marked kept — is
+    /// exactly the row with no group to be deleted by, so it survived on the other conversation
+    /// until that conversation was itself re-analysed, and it read as current the whole time.
+    ///
+    /// It is not widened past that. A scam pattern or an evasion rate is read out of one call's
+    /// own transcript, and a run that never opened that transcript has no opinion about it; the
+    /// contradiction check is a paid model call that can fail halfway, so a run that ended early
+    /// would erase judgements it simply never got to. Those keep the per-call delete.
+    /// </summary>
+    /// <returns>How many rows were removed.</returns>
+    public int ClearPersonWideFlags(long contactId, IReadOnlyCollection<int> kinds)
+    {
+        if (kinds.Count == 0) return 0;
+
+        using var connection = Open();
+
+        // Both halves of "belongs to this person", because they can disagree. The flag carries a
+        // contact of its own, and a call carries one too; a conversation whose person was named
+        // after it was analysed has findings filed under nobody.
+        return connection.Execute(
+            """
+            DELETE FROM flag
+             WHERE dismissed_by_user = 0
+               AND source = @source AND kind IN @kinds
+               AND (contact_id = @contactId
+                    OR call_id IN (SELECT id FROM call WHERE contact_id = @contactId));
+            """,
+            new { contactId, source = Flag.Sources.Pipeline, kinds });
+    }
+
+    /// <summary>
     /// The dismissed findings' identities for one conversation: (kind, folded quote) pairs.
     /// What a consistency re-run checks before inserting, so a judgement the user rejected
     /// once is never resurrected by the next run finding the same thing.
@@ -2776,26 +2974,35 @@ public sealed class Repository(Database database)
 
     /// <summary>
     /// The promises of one conversation that ClearAnalysis leaves standing — ruled on, dismissed,
-    /// or edited — as (by whom, folded quote) keys. The K4 rule for commitments: the pipeline
-    /// checks this before inserting, so a promise the user marked kept is not written a second
-    /// time as a fresh open one, and a dismissed one does not return undismissed. Before this,
-    /// every re-run did both.
+    /// or edited. The K4 rule for commitments: the pipeline compares its findings against these
+    /// before inserting, so a promise the user marked kept is not written a second time as a
+    /// fresh open one, and a dismissed one does not return undismissed. Before this, every re-run
+    /// did both.
+    ///
+    /// Rows rather than a set of keys, and the obligation comes with them. See
+    /// <see cref="SurvivingCommitment"/> for why: two promises out of one sentence share a key,
+    /// and a set cannot tell the pipeline that one tombstone accounts for exactly one of them.
     /// </summary>
-    public IReadOnlySet<(bool ByMe, string FoldedQuote)> SurvivingCommitmentKeys(long callId)
+    public IReadOnlyList<SurvivingCommitment> SurvivingCommitments(long callId)
     {
         using var connection = Open();
 
-        return connection
-            .Query<(long ByMe, string Quote)>(
-                """
-                SELECT by_me, quote FROM commitment
-                 WHERE call_id = @callId
-                   AND (status <> 0 OR dismissed_by_user = 1
-                        OR edited_at IS NOT NULL OR user_deadline_date IS NOT NULL);
-                """,
-                new { callId })
-            .Select(r => (r.ByMe != 0, Text.TurkishText.NormalizeForSearch(r.Quote)))
-            .ToHashSet();
+        return
+        [
+            .. connection
+                .Query<(long ByMe, string Quote, string Obligation)>(
+                    """
+                    SELECT by_me, quote, obligation FROM commitment
+                     WHERE call_id = @callId
+                       AND (status <> 0 OR dismissed_by_user = 1
+                            OR edited_at IS NOT NULL OR user_deadline_date IS NOT NULL);
+                    """,
+                    new { callId })
+                .Select(r => new SurvivingCommitment(
+                    r.ByMe != 0,
+                    Text.TurkishText.NormalizeForSearch(r.Quote),
+                    Text.TurkishText.NormalizeForSearch(r.Obligation))),
+        ];
     }
 
     /// <summary>
@@ -5846,39 +6053,15 @@ public sealed class Repository(Database database)
         }
     }
 
-    /// <summary>
-    /// The most recent run of one stage for every call that has had one.
-    ///
-    /// One query rather than one per row: the processing screen lists up to two thousand calls, and
-    /// asking the database once per row is how a screen that opens instantly becomes one that
-    /// hangs for a second every time it refreshes.
-    ///
-    /// Latest is taken by identity rather than by timestamp — the column is an autoincrement, and
-    /// two runs of the same call in the same second are otherwise a coin toss.
-    /// </summary>
-    public IReadOnlyDictionary<long, CallRun> LastRuns(string stage)
-    {
-        using var connection = Open();
-
-        return connection.Query<CallRun>(
-            """
-            SELECT r.call_id    AS CallId,
-                   r.engine     AS Engine,
-                   r.elapsed_ms AS ElapsedMs,
-                   r.audio_ms   AS AudioMs,
-                   r.succeeded  AS Succeeded,
-                   r.speech_coverage AS SpeechCoverage
-            FROM processing_run r
-            JOIN (
-                SELECT MAX(id) AS id
-                FROM processing_run
-                WHERE stage = @stage AND call_id IS NOT NULL
-                GROUP BY call_id
-            ) latest ON latest.id = r.id;
-            """,
-            new { stage })
-            .ToDictionary(r => r.CallId);
-    }
+    // LastRuns(stage) — the last run of one stage for EVERY call in one query — was deleted here
+    // on 7 September 2026. It was written for a screen that ended up asking a different question:
+    // the processing list reads its engine and its figures from the call itself, and the one place
+    // that wants a run reads exactly one, through LastRun below. Nothing in src/ or tests/ ever
+    // called it.
+    //
+    // Removed rather than given a consumer, because inventing a caller for a query is how a
+    // feature nobody asked for gets shipped. It is small and its shape is in this comment if the
+    // per-row need ever turns up.
 
     /// <summary>
     /// One row per day for one stage, oldest first, with empty days filled in.

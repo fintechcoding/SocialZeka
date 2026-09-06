@@ -156,6 +156,62 @@ public class ArchiveMergeTests : IDisposable
         Assert.Single(_myRepository.FindContacts("Veli"));
     }
 
+    /// <summary>
+    /// A person known to both computers: their card is combined field by field, and neither half
+    /// is thrown away.
+    ///
+    /// Goes red the moment the profile is copied as a ROW again. The table is keyed by the
+    /// contact and the ordinary copy is INSERT OR IGNORE, so a person who exists here at all made
+    /// the incoming row lose in its entirety — the birthday typed on the other machine, the photo
+    /// chosen there, everything. The user moves archives between two computers, so that was real
+    /// data disappearing on every import.
+    ///
+    /// Both directions are pinned, because only one of them is obviously right. What is BLANK
+    /// here takes the incoming value: writing into an empty place displaces nothing, so there is
+    /// nothing to ask about. What is FILLED here stays filled with what it had, even when the
+    /// other machine disagrees: quietly picking a winner between two things a person typed is the
+    /// loss this whole operation exists to prevent.
+    ///
+    /// Also goes red when the note about a person is dropped. It lives on the contact row rather
+    /// than in the profile table, and a contact already here keeps that row.
+    /// </summary>
+    [Fact]
+    public async Task AnImportedProfileFillsTheBlanksAndOverwritesNothing()
+    {
+        var theirAyse = _theirRepository.UpsertContact("Ayşe", CallApp.WhatsApp);
+        _theirRepository.SetBirthDate(theirAyse, new DateOnly(1984, 3, 9));
+        _theirRepository.SetContactPhoto(theirAyse, "oteki-makine.jpg");
+        _theirRepository.SaveContactNote(theirAyse, "Öteki makinede yazılan not");
+
+        var theirVeli = _theirRepository.UpsertContact("Veli", CallApp.WhatsApp);
+        _theirRepository.SetBirthDate(theirVeli, new DateOnly(1990, 7, 1));
+        _theirRepository.SaveContactNote(theirVeli, "Bütünüyle yeni kişi");
+
+        var file = Path.Combine(_root, "yedek-profil.zip");
+        await _theirBackup.BackupAsync(file, includeAudio: false);
+
+        // Here: the same person, with a photo of our own and no birthday and no note.
+        var ayse = _myRepository.UpsertContact("Ayşe", CallApp.WhatsApp);
+        _myRepository.SetContactPhoto(ayse, "burada.jpg");
+
+        await _myBackup.ImportAsync(file);
+
+        var profile = _myRepository.GetProfile(ayse);
+        Assert.NotNull(profile);
+
+        // Blank here, so the other machine's answer is simply taken.
+        Assert.Equal(new DateOnly(1984, 3, 9), profile.BirthDate);
+        Assert.Equal("Öteki makinede yazılan not", _myRepository.GetContact(ayse)!.Notes);
+
+        // Filled here, so it stands. The disagreement is not resolved and not acted on.
+        Assert.Equal("burada.jpg", profile.PhotoFile);
+
+        // And a person this machine had never heard of arrives whole.
+        var veli = Assert.Single(_myRepository.FindContacts("Veli"));
+        Assert.Equal(new DateOnly(1990, 7, 1), _myRepository.GetProfile(veli.Id)!.BirthDate);
+        Assert.Equal("Bütünüyle yeni kişi", _myRepository.GetContact(veli.Id)!.Notes);
+    }
+
     /// <summary>The new-machine case: an empty archive gets everything, with no restart.</summary>
     [Fact]
     public async Task AnEmptyArchiveReceivesAllOfIt()

@@ -2976,3 +2976,67 @@ rozeti 200'de kapanıyor çünkü sayfası da öyle; Sözler'in tazelenmesi hâl
 o sayfa ekrandayken koşuyor.
 
 **Doğrulama.** 1431 C# testi (1426 geçti, 5 atlandı; taban 1417'ydi) ve 179 Python testi.
+
+## 2026-09-07 — Çekirdekteki altı kusur: birleştirme, kısmi koşum, ve ikinci kez ödenen ses
+
+Denetimin doğrulayıp bir çürütücünün çürütemediği altı madde (YAPILACAKLAR §26). Şema
+değişmedi; v22 ve v23 sonraki paketlerin.
+
+**Kişi profili artık alan alan birleşiyor.** `contact_profile`in birincil anahtarı kişi, kopyalama
+"çakışırsa atla" — yani iki makinede de olan bir kişide gelen satırın **tamamı** düşüyordu. Doğum
+tarihi, fotoğraf, ve Ç2 sonrası çevre ataması. Kural PLAN-IKINCI-TUR §7.2'nin kendi cümlesi:
+**boş olan yere yazmak birleştirme değil, taşımadır.** Burada boş olan alan geleni alır; dolu olan
+alan kalır ve asla ezilmez. İki taraf da doluysa ve ayrıysa yerel değer durur, çakışma çözülmez ve
+sessizce bir kazanan seçilmez. Sütunlar `Copy` gibi çalışma anında okunuyor, çünkü elle yazılmış
+bir sütun listesi bir sonraki şema adımında sessizce taşınmayı bırakan bir alandır.
+
+Denetimin "hakkında notu" dediği şey `contact_profile`de değil `contact.notes`te çıktı ve orada da
+düşüyordu; aynı kuralla o da geliyor. `contact_voice` bilerek "buradaki kazanır" kaldı — o
+kullanıcının yazdığı bir şey değil, bu makinenin kayıtlarından ölçülmüş bir vektör.
+
+**Kısmi çözümleme artık özet istemiyor.** Bölümlerden biri sağlayıcı hatası alınca defter
+korunuyordu ama `SummariseAsync` yine koşuyor ve `SaveSummary` bütün konuşmadan yazılmış özeti
+yarım konuşmadan yazılmışla değiştiriyordu. Yeni metin okumadığı yer hakkında hiçbir şey demediği
+için ekrandan anlaşılmıyordu. Artık istek **hiç atılmıyor** — saklamayacağın bir sonucu satın
+almıyoruz — ve eski özet olduğu gibi duruyor. Ekran sessiz kalmasın diye `AnalysisReport.Partial`
+eklendi ve `CallOrchestrator` tek bir cümle yazıyor.
+
+**Süpürge kişiye daraltıldı, genişletilmedi.** "Vadesi geçti" bayrağı söz tutuldu işaretlenince
+üretilmiyor; üretilmeyen bir bulgunun silineceği bir grup da olmadığı için satır öteki görüşmede
+güncelmiş gibi duruyordu. Üç tür (vadesi geçti, tarih ileri alındı, rakam değişti) kişinin
+**bütün** defterinden hesaplanıyor — yani koşum o kişinin her satırı hakkında fikir sahibi.
+`ClearPersonWideFlags` yalnız onları siliyor. Tek görüşmenin metninden okunan dolandırıcılık
+kalıbı ve kaçamak oranı ile yarıda kesilebilen çelişki yargısı kapsam dışı: koşumun onlar hakkında
+fikri yok.
+
+**Seçilen söz artık seçilmeyenin mezar taşına takılmıyor.** Aynı cümleden çıkan iki söz aynı
+alıntıyı taşıyor, `(ByMe, katlanmış alıntı)` onları ayıramıyordu ve reddedilenin mezar taşı
+seçileni de tutuyordu — `ClearAnalysis` onu zaten silmişti, yani kullanıcının SEÇMESİ onu
+defterden düşüren şeydi. Anahtar daraltılmadı (model cümleyi yeniden yazınca reddedilmiş satır
+dirilirdi, ki bu daha kötü kusur); eşleşme hatta taşındı: önce birebir yükümlülük, sonra kalanlar
+için cümle, en yakın sözcük örtüşmesiyle. **Bir karar tam olarak bir okumayı karşılıyor.**
+Karakterizasyon testindeki "BİLİNEN SINIRLILIK" bloğu, kendi notunun dediği gibi kırmızıya döndü
+ve kaldırıldı.
+
+**Ses ikinci kez ödenmiyor.** "Yalnızca yeniden çözümle" isteği bellekteki bir sözlükteydi;
+çözümleme sırasında kapanan uygulama onu kaybediyor, kuyruk açılışta görüşmeyi geri veriyor ve bir
+saatlik arama, metni veritabanında dururken, yeniden buluta gidiyordu. Kural veritabanına dayandı:
+**dökümü olan görüşme yeniden dökülmez.** İstek ters yöne alındı (`_retranscribe`), çünkü onu bir
+çökmede kaybetmek yalnızca "harcamama" yönünde hata eder. İkinci savunma hattı olarak
+`SaveTranscriptVersion` aynı motorun aynı metni için yeni sürüm açmıyor — açsaydı hem on
+sürümlük karşılaştırmadan bir satır düşerdi hem de kıpırdamamış metne taze tarih basıp bütün
+türev notları bayat gösterirdi. Motor kimliğin parçası: iki motorun kelimesi kelimesine
+uyuşması bu tablonun tutabileceği en ilginç satırdır.
+
+**Ölü sorgu silindi.** `Repository.LastRuns(string stage)`'i hiçbir yer çağırmıyordu. Bir sorguya
+tüketici uydurmak, kimsenin istemediği bir özelliğin sevk edilme biçimidir; şekli yorumda duruyor.
+
+**Bulunan ama düzeltilmeyen.** `AnalysisReport.Warnings` bugün hiçbir ekrana ulaşmıyor —
+`CallOrchestrator` yalnız sayısını günlüğe yazıyor. Bu turda yalnız kısmi koşumun cümlesi için bir
+bildirim eklendi; uyarıların tamamının nereye çıkacağı ayrı bir karar.
+
+**Testlerin gücü ölçüldü: on iki mutasyon, on biri tam kendi testini öldürdü.** On ikincisi
+(sürüm kimliğinden motorun düşmesi) beş testi birden kırdı, ki bu da o kuralın ne kadar
+çivili olduğunun ölçüsü.
+
+**Doğrulama.** 1438 C# testi (1433 geçti, 5 atlandı; taban 1431/1426/5). Python çalıştırılmadı.

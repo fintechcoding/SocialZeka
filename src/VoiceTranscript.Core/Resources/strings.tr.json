@@ -1243,5 +1243,6 @@
   "callwindow.aksiyon-cikmadi": "Aksiyon çıkmadı — sıradan bir konuşmada bu olağandır.",
   "callwindow.son-cikarim-imzasi": "Son çıkarım: {0} · {1}",
   "contactwindow.akis-en-yeni-n-gorusme": "Bu akış en yeni {0} görüşmeden derlendi; daha eskisi var.",
-  "contactwindow.daha-eski-akisi-yukle": "Daha eski akışı yükle"
+  "contactwindow.daha-eski-akisi-yukle": "Daha eski akışı yükle",
+  "callorchestrator.bolum-okunamadi": "Konuşmanın bir bölümü okunamadı. Bulunanlar defterine eklendi; özet, konuşmanın tamamı okunduğunda yazılan hâliyle duruyor."
 }

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using VoiceTranscript.Core.Domain;
@@ -45,6 +45,16 @@ public sealed record AnalysisReport(
     string? Summary,
     IReadOnlyList<string> Warnings)
 {
+    /// <summary>
+    /// True when at least one section of the conversation could not be read.
+    ///
+    /// Not the same as a failure: such a run keeps everything it did read and everything that was
+    /// already stored. It is here because the caller has to tell the user, and because what a
+    /// partial run deliberately does NOT do — replace the ledger, rewrite the summary — is
+    /// invisible on screen unless somebody says it out loud.
+    /// </summary>
+    public bool Partial { get; init; }
+
     /// <summary>
     /// Share of extracted items whose quote could not be found in the transcript.
     ///
@@ -303,7 +313,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         // words must not then be written a second time as a fresh, unruled row. The K4 rule, the
         // way the consistency check already applies it to flags; before this every re-run put a
         // kept promise back on the open list and a dismissed one back undismissed.
-        var surviving = repository.SurvivingCommitmentKeys(callId);
+        var surviving = repository.SurvivingCommitments(callId);
         var dismissedFlags = repository.DismissedFlagKeys(callId);
 
         // The clear belongs to a run that read the whole conversation, and only to that run.
@@ -317,13 +327,18 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
         if (!partial) repository.ClearAnalysis(callId);
 
+        // Which of this run's readings are the ones the user already ruled on — decided here,
+        // once, over the whole list, rather than one row at a time against a set of keys.
+        var ruled = Claimed(surviving, commitments);
+
         var withheld = 0;
 
-        foreach (var commitment in commitments)
+        for (var i = 0; i < commitments.Count; i++)
         {
+            var commitment = commitments[i];
             var key = (commitment.ByMe, TurkishText.NormalizeForSearch(commitment.Quote));
 
-            if (surviving.Contains(key) || stored.Commitments.Contains(key))
+            if (ruled.Contains(i) || stored.Commitments.Contains(key))
             {
                 withheld++;
                 continue;
@@ -359,6 +374,30 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
             flags.AddRange(DeterministicChecks.OverdueCommitments(openCommitments, today));
             flags.AddRange(DeterministicChecks.MovedDeadlines(openCommitments));
             flags.AddRange(DeterministicChecks.ChangedAmounts(allClaims));
+
+            // A finding whose REASON has gone, swept before the answers are written.
+            //
+            // These three checks are functions of the person's whole stored ledger, not of this
+            // conversation's text: they have just read every open commitment and every claim the
+            // contact has, and what they returned is the complete, current answer for all three
+            // kinds across all of that person's calls. The delete below cannot express that,
+            // because it is scoped to the kinds this run PRODUCED — and a row that stopped being
+            // produced is precisely the row that needs removing. "Vadesi geçti" written for the
+            // first conversation stops being emitted the moment the user marks the promise kept,
+            // so nothing deleted it, and it sat on that conversation reading as current until
+            // somebody happened to re-analyse it.
+            //
+            // Sweeping is honest here and only here: the run has an opinion about every row it
+            // removes. It does not extend to the scam patterns or the evasion rate, which are
+            // read out of a single transcript this run may never have opened, nor to the
+            // contradiction judgements, which are paid model calls that can stop halfway.
+            // Dismissed rows are tombstones and are left standing, as everywhere else.
+            repository.ClearPersonWideFlags(contactId,
+            [
+                (int)FlagKind.OverdueCommitment,
+                (int)FlagKind.MovedDeadline,
+                (int)FlagKind.ChangedAmount,
+            ]);
 
             if (options.AdjudicateContradictions)
             {
@@ -427,8 +466,26 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
             repository.ReplaceTacticEvidence(callId, TacticEvidence.Sources.Pipeline, signs);
         }
 
+        // The summary, and only from a run that read the whole conversation.
+        //
+        // Everything above this line was taught to add rather than replace when a section failed;
+        // the summary was not, and SaveSummary replaces. So a provider error on one section of a
+        // twelve-section call rewrote a summary made from the whole conversation with one made
+        // from the eleven-twelfths that came back — and the new text says nothing about the part
+        // it never read, so nobody could tell from the screen that it had shrunk.
+        //
+        // The request is not made at all, rather than made and then discarded. A summary this run
+        // is not allowed to keep is a paid request whose result goes in the bin, and the rule
+        // here is that we do not buy those. The older summary stays exactly as it was; the call
+        // window keeps showing it, and the warnings say which sections this run could not read.
+        if (partial && options.WriteSummary)
+        {
+            warnings.Add(
+                "Konuşmanın tamamı okunamadığı için özet yenilenmedi; önceki özet olduğu gibi duruyor.");
+        }
+
         string? summary = null;
-        if (options.WriteSummary)
+        if (options.WriteSummary && !partial)
         {
             progress?.Report("Özet yazılıyor");
             summary = await SummariseAsync(commitments, claims, flags, segments, options, cancellationToken);
@@ -453,7 +510,114 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         // produced nothing at all, so the failure counter on the usage screen keeps one meaning.
         RecordSpend(succeeded: true);
 
-        return new AnalysisReport(commitments.Count, claims.Count, rejected, flags, summary, warnings);
+        return new AnalysisReport(commitments.Count, claims.Count, rejected, flags, summary, warnings)
+        {
+            Partial = partial,
+        };
+    }
+
+    /// <summary>
+    /// Which of this run's promises are already accounted for by a row the user ruled on.
+    ///
+    /// The question looks like a set lookup and is not one. One sentence can carry two promises —
+    /// <see cref="QuoteVerifier"/> returns the whole segment for a quote found inside it, so both
+    /// readings arrive with the same words, the same speaker and the same millisecond. Asked as
+    /// "is this row's key among the survivors", the tombstone of the reading the user turned down
+    /// answered yes for the reading they KEPT as well, ClearAnalysis had already deleted that one
+    /// because it carried no ruling of its own, and the promise the user chose disappeared from
+    /// the ledger. That is the one failure the mechanism must never produce: it exists to protect
+    /// the user's decisions, and it was eating them.
+    ///
+    /// Narrowing the key to include the obligation is not the fix and was rejected: the model
+    /// rewords an obligation freely between runs, so a refusal would come back to life whenever
+    /// it did, and resurrecting a refusal is the worse failure of the two. So the matching moves
+    /// out of the key and into here, where it can be a pairing rather than a test:
+    ///
+    ///   * first, the same obligation in the same words — a reading the model produced again
+    ///     exactly as before is unmistakably the one that was ruled on;
+    ///   * then the sentence alone, for whatever is left over, and to the leftover whose wording
+    ///     is nearest to the tombstone's, so a reworded refusal still lands on the refusal.
+    ///
+    /// Either way ONE ruling accounts for ONE reading. That is the whole of the correction: a
+    /// tombstone can no longer swallow a second promise it was never about.
+    /// </summary>
+    /// <returns>Positions in <paramref name="found"/> that must not be written.</returns>
+    private static HashSet<int> Claimed(
+        IReadOnlyList<SurvivingCommitment> surviving, IReadOnlyList<Commitment> found)
+    {
+        var taken = new HashSet<int>();
+        if (surviving.Count == 0 || found.Count == 0) return taken;
+
+        var folded = found
+            .Select(c => (
+                c.ByMe,
+                Quote: TurkishText.NormalizeForSearch(c.Quote),
+                Obligation: TurkishText.NormalizeForSearch(c.Obligation)))
+            .ToList();
+
+        var leftOver = new List<SurvivingCommitment>();
+
+        foreach (var row in surviving)
+        {
+            var hit = -1;
+
+            for (var i = 0; i < folded.Count && hit < 0; i++)
+            {
+                if (taken.Contains(i)) continue;
+                if (folded[i].ByMe != row.ByMe) continue;
+                if (folded[i].Quote != row.FoldedQuote) continue;
+                if (folded[i].Obligation != row.FoldedObligation) continue;
+
+                hit = i;
+            }
+
+            if (hit >= 0) taken.Add(hit);
+            else leftOver.Add(row);
+        }
+
+        foreach (var row in leftOver)
+        {
+            var hit = -1;
+            var best = -1;
+
+            for (var i = 0; i < folded.Count; i++)
+            {
+                if (taken.Contains(i)) continue;
+                if (folded[i].ByMe != row.ByMe) continue;
+                if (folded[i].Quote != row.FoldedQuote) continue;
+
+                var shared = SharedWords(row.FoldedObligation, folded[i].Obligation);
+                if (shared <= best) continue;
+
+                best = shared;
+                hit = i;
+            }
+
+            if (hit >= 0) taken.Add(hit);
+        }
+
+        return taken;
+    }
+
+    /// <summary>
+    /// How many words two obligations have in common — the tie-break when a sentence holds more
+    /// than one promise and the model has reworded one of them. Crude on purpose: it decides
+    /// which of two readings a tombstone attaches to, never whether it attaches at all, and when
+    /// it cannot tell them apart the tombstone still attaches to one of them and only one.
+    ///
+    /// Split on anything that is not a letter or a digit, because the folding leaves punctuation
+    /// where it is and "Whatsapp'tan" has to count as sharing a word with "Whatsapp".
+    /// </summary>
+    private static int SharedWords(string a, string b)
+    {
+        var words = Words(b);
+        return Words(a).Count(words.Contains);
+
+        static HashSet<string> Words(string text) =>
+        [
+            .. new string([.. text.Select(c => char.IsLetterOrDigit(c) ? c : ' ')])
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries),
+        ];
     }
 
     /// <summary>

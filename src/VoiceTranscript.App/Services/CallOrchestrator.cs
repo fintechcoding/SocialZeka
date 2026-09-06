@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Net.Http;
 using VoiceTranscript.Capture;
 using VoiceTranscript.Core.Analysis;
@@ -616,6 +616,7 @@ public sealed class CallOrchestrator : IDisposable
             _inQueue.TryRemove(waiting, out _);
             _engineOverride.TryRemove(waiting, out _);
             _analyseOnly.TryRemove(waiting, out _);
+            _retranscribe.TryRemove(waiting, out _);
 
             _repository.SetCallState(waiting, ProcessingState.Skipped,
                 "Kullanıcı durdurdu. Yeniden işle ile istediğin zaman tekrar denenebilir.");
@@ -688,6 +689,24 @@ public sealed class CallOrchestrator : IDisposable
     /// </summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<long, byte> _analyseOnly = new();
 
+    /// <summary>
+    /// Recordings the user asked to have transcribed AGAIN, text and all.
+    ///
+    /// The counterpart of <see cref="_analyseOnly"/>, and the reason both exist is which way each
+    /// one fails. Whether to transcribe used to be answered by "did somebody ask for analysis
+    /// only", so the answer to a question about spending money lived in a dictionary that dies
+    /// with the process: a crash during analysis took the request with it, the queue picked the
+    /// call up again on the next start, and an hour of audio went to a paid transcriber a second
+    /// time to produce the text that was already in the database.
+    ///
+    /// So the default now comes from the database — a call that has a transcript is not
+    /// transcribed again — and this dictionary carries only the OPPOSITE instruction: the user
+    /// standing in the reprocess dialog saying "do it again, with this engine". Lose that to a
+    /// crash and the next start keeps the transcript it already had, which costs nothing and
+    /// throws nothing away. Lost intent has to fail in the direction of not spending.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, byte> _retranscribe = new();
+
     /// <summary>The analysis model chosen for one recording, overriding the setting.</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<long, string> _llmOverride = new();
 
@@ -717,11 +736,38 @@ public sealed class CallOrchestrator : IDisposable
             _llmRouteOverride[callId] = (routeKind, llmRouteUrl);
         else _llmRouteOverride.TryRemove(callId, out _);
 
-        if (analyseOnly) _analyseOnly[callId] = 1;
-        else _analyseOnly.TryRemove(callId, out _);
+        // Both directions are recorded, because only one of them can be inferred. "Analyse only"
+        // still governs whether the analysis runs when the automatic switch is off; the other
+        // dictionary is what tells the transcription step that a transcript already on file is
+        // meant to be replaced rather than kept.
+        if (analyseOnly)
+        {
+            _analyseOnly[callId] = 1;
+            _retranscribe.TryRemove(callId, out _);
+        }
+        else
+        {
+            _analyseOnly.TryRemove(callId, out _);
+            _retranscribe[callId] = 1;
+        }
 
         Enqueue(callId);
     }
+
+    /// <summary>
+    /// Whether this run has to put the audio through a transcriber.
+    ///
+    /// Two facts, and the order of them is the fix. The database's fact comes first: a call that
+    /// already has lines does not need transcribing, whatever any dictionary in memory does or
+    /// does not remember about it. Only an explicit request from the user — the reprocess dialog,
+    /// or a different engine chosen for this one recording — sends it back through.
+    ///
+    /// Written as a function so the rule can be stated once and tested without a worker, a GPU
+    /// and a cloud account, and so it is somewhere to point at: the queue picks a call up again
+    /// after a crash with nothing in memory, and that is exactly the case that used to pay twice.
+    /// </summary>
+    public static bool MustTranscribe(bool hasTranscript, bool retranscribeRequested) =>
+        !hasTranscript || retranscribeRequested;
 
     private static bool IsWatched(CallApp app, AppSettings settings) => app switch
     {
@@ -1375,13 +1421,27 @@ public sealed class CallOrchestrator : IDisposable
 
             // Analysing again does not mean transcribing again.
             //
-            // Transcription is the expensive half — hours on a machine without a usable GPU — and
-            // it is the half that usually does not need repeating. Somebody who connects a model
-            // after the fact has finished transcripts already and wants the ledger built from
-            // them; charging them the audio a second time is the difference between a minute and
-            // an afternoon. The request is consumed here, so it applies once.
+            // Transcription is the expensive half — hours on a machine without a usable GPU, or a
+            // cloud invoice per hour of audio — and it is the half that usually does not need
+            // repeating. Somebody who connects a model after the fact has finished transcripts
+            // already and wants the ledger built from them; charging them the audio a second time
+            // is the difference between a minute and an afternoon.
+            //
+            // This used to read "transcribe unless somebody asked for analysis only", and the
+            // asking lived in a dictionary in this process. Close the application while a call is
+            // being analysed — or crash — and PendingCalls hands that call back on the next start
+            // with the request gone, so a conversation with a perfectly good transcript in the
+            // database was uploaded to a paid transcriber again to produce the same text. An hour
+            // of audio, paid for twice, for no reason anybody could see.
+            //
+            // So the question is asked of the database, and only an explicit instruction from the
+            // user overrides it. Both requests are consumed here, so each applies to one run.
             var analyseRequested = _analyseOnly.TryRemove(call.Id, out _);
-            var keepTranscript = analyseRequested && _repository.CountSegments(call.Id) > 0;
+            var retranscribeRequested = _retranscribe.TryRemove(call.Id, out _);
+
+            var keepTranscript = !MustTranscribe(
+                hasTranscript: _repository.CountSegments(call.Id) > 0,
+                retranscribeRequested);
 
             if (!keepTranscript)
             {
@@ -2400,6 +2460,17 @@ public sealed class CallOrchestrator : IDisposable
             + $"{report.CommitmentsFound} söz, {report.ClaimsFound} iddia, "
             + $"{report.QuotesRejected} alıntı reddedildi"
             + (report.Warnings.Count > 0 ? $" · {report.Warnings.Count} uyarı" : ""));
+
+        // A conversation only half read, said out loud.
+        //
+        // The pipeline keeps what such a run could not re-read: the ledger rows of the sections
+        // that failed, and the summary written back when the whole conversation was readable.
+        // All of that is right, and none of it is visible — the screen after a partial run looks
+        // exactly like the screen after a clean one, summary and all, so without this sentence
+        // the user reads a summary of the whole call as if it described this run. The warnings
+        // the pipeline collects reach no screen at all today; this is the one that matters.
+        if (report.Partial)
+            Notice?.Invoke(this, Core.Text.Localisation.T("callorchestrator.bolum-okunamadi"));
 
         // A model whose quotes mostly cannot be found is not producing usable evidence, and the
         // user should be told to change it rather than left with a quietly empty ledger.
