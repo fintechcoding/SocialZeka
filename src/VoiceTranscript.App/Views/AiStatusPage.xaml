@@ -338,6 +338,39 @@
                                    Style="{StaticResource Caption}"
                                    Visibility="{Binding AskLine, Converter={StaticResource NullToCollapsed}}" />
 
+                        <!-- The other five paid stages, one line each.
+                             processing_run has carried eight of these for some time and this
+                             screen read three, so more than half of what the application spends
+                             was recorded and never shown. One line each rather than a block
+                             each: eight identical blocks would be a worse screen than three
+                             headings, and a stage nobody has ever run takes no space at all. -->
+                        <StackPanel Margin="0,12,0,0"
+                                    Visibility="{Binding HasSecondaryUsage, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{loc:T aistatuspage.diger-okumalar}" Style="{StaticResource Caption}"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+
+                            <ItemsControl ItemsSource="{Binding SecondaryUsage}" Margin="0,4,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                       Style="{StaticResource Caption}"
+                                                       TextTrimming="CharacterEllipsis" />
+
+                                            <TextBlock Grid.Column="1" Text="{Binding Detail}" Margin="12,0,0,0"
+                                                       Style="{StaticResource Caption}"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
                         <TextBlock Text="{Binding FailureLine}" Margin="0,8,0,0" TextWrapping="Wrap"
                                    Foreground="{DynamicResource SystemFillColorCautionBrush}"
                                    Style="{StaticResource Caption}"
