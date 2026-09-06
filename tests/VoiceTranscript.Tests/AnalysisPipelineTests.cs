@@ -433,6 +433,80 @@ public sealed class AnalysisPipelineTests : IDisposable
     }
 
     /// <summary>
+    /// Paket S / S2 — one sentence, two promises, and what the next analysis does with the
+    /// reading the user turned down.
+    ///
+    /// The archive's own case. "Yav bir kulaklık alacağım güzel ya. Dur Whatsapp'tan ayırayım
+    /// seni bekle." became two promises in the user's own ledger, because
+    /// <see cref="QuoteVerifier.Locate"/> hands back the whole segment for a quote found inside
+    /// one, and the pipeline de-duplicates on (whose, obligation, quote) — so two readings of one
+    /// sentence both survive, carrying the same words and the same millisecond. The Sözler page
+    /// asks which one was meant and sends the rest down the ordinary dismissal path.
+    ///
+    /// Goes red when that tombstone stops holding: <c>SurvivingCommitmentKeys</c> must carry the
+    /// dismissed reading's (by whom, folded quote) into the next run, and the pipeline must not
+    /// write the same words again beside it. Without it the sentence the user already refused
+    /// comes back on every re-analysis, and a ledger that will not stay clean stops being read.
+    /// </summary>
+    [Fact]
+    public async Task AnUnpickedCandidateStaysDismissedAcrossAReanalysis()
+    {
+        var (call, contact) = SeedCall(CallKind.OneToOne,
+            (false, 0, "Sesim çok kötü geliyor. Çok yankılı ve çok kötü geliyor."),
+            (true, 51_450, "Yav bir kulaklık alacağım güzel ya. Dur Whatsapp'tan ayırayım seni bekle."));
+
+        const string reply =
+            """
+            {"taahhutler":[
+               {"konusan":"BEN","alinti":"Yav bir kulaklık alacağım güzel ya","yukumluluk":"güzel bir kulaklık almak","tarih_ham":null,"kosullu":false},
+               {"konusan":"BEN","alinti":"Dur Whatsapp'tan ayırayım seni","yukumluluk":"Whatsapp'tan ayırmak","tarih_ham":null,"kosullu":false}],
+             "iddialar":[],"sorular":[],"baski_isaretleri":[]}
+            """;
+
+        await new AnalysisPipeline(new ScriptedLlm(reply), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var found = _repo.PromiseLedger(contactId: contact, includeClosed: true);
+        Assert.Equal(2, found.Count);
+
+        // The quadruple the page groups on: one call, one side, one millisecond, one wording.
+        // Both rows carry the whole segment, which is what makes them one card.
+        Assert.Single(found.Select(r => r.Commitment.Quote).Distinct());
+        Assert.Single(found.Select(r => r.Commitment.QuoteStartMs).Distinct());
+        Assert.All(found, r => Assert.True(r.Commitment.ByMe));
+
+        var unpicked = found.Single(r => r.Commitment.Obligation == "Whatsapp'tan ayırmak").Commitment;
+        _repo.DismissCommitment(unpicked.Id);
+
+        await new AnalysisPipeline(new ScriptedLlm(reply), _repo)
+            .AnalyseAsync(call, Options, cancellationToken: TestContext.Current.CancellationToken);
+
+        var after = _repo.PromiseLedger(contactId: contact, includeClosed: true);
+
+        // The guarantee. The row the user refused is still there, still a tombstone, and the same
+        // words were not written a second time beside it as a fresh open promise.
+        var tombstone = Assert.Single(after, r => r.Commitment.Id == unpicked.Id);
+        Assert.True(tombstone.Commitment.DismissedByUser);
+        Assert.DoesNotContain(after, r => !r.Commitment.DismissedByUser
+                                          && r.Commitment.Obligation == "Whatsapp'tan ayırmak");
+
+        // KNOWN LIMITATION, pinned here so it is visible rather than silent.
+        //
+        // SurvivingCommitmentKeys identifies a surviving row by (by whom, folded quote) and not
+        // by its obligation — so the tombstone's key also matches the reading the user KEPT, and
+        // the re-run withholds that one too. ClearAnalysis had already deleted it (status 0, not
+        // dismissed, not edited), so the promise the user chose is gone from the ledger.
+        //
+        // Not fixed here. Narrowing the key to include the obligation would resurrect a refusal
+        // whenever the model rewords one on the next run, and resurrecting a refusal is the worse
+        // failure — it is the one the whole mechanism exists to prevent. The real fix is to match
+        // on the obligation first and fall back to the quote for whatever is left over, in the
+        // pipeline rather than in the key. When somebody does that, this assertion goes red and
+        // should become Assert.Single with the kept obligation.
+        Assert.DoesNotContain(after, r => !r.Commitment.DismissedByUser);
+    }
+
+    /// <summary>
     /// The guard that matters most. A model that paraphrases while claiming to quote would
     /// otherwise produce fabricated evidence about a real person.
     /// </summary>

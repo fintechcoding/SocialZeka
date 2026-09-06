@@ -49,7 +49,9 @@
                         </StackPanel>
                     </Grid>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <!-- One promise: what was promised. A grouped card shows the candidates instead. -->
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0"
+                                Visibility="{Binding IsGrouped, Converter={StaticResource InverseBoolToVisibility}}">
                         <TextBlock Text="{Binding Obligation}" FontWeight="SemiBold" TextWrapping="Wrap"
                                    FontSize="{StaticResource TextBody}" />
                         <Border Style="{StaticResource Pill}" Margin="8,0,0,0" VerticalAlignment="Center"
@@ -58,7 +60,8 @@
                         </Border>
                     </StackPanel>
 
-                    <TextBlock Text="{Binding DeadlineText}" Style="{StaticResource Caption}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding DeadlineText}" Style="{StaticResource Caption}" Margin="0,3,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding IsGrouped, Converter={StaticResource InverseBoolToVisibility}}" />
 
                     <!-- The words, playable: ▸ opens the conversation at the moment they were said. -->
                     <Grid Margin="0,6,0,0">
@@ -80,6 +83,97 @@
                         </Border>
                     </Grid>
 
+                    <!--
+                        ⌂ S1 — sözün etrafı. The two transcript lines before this moment and the two
+                        after, from the same conversation, each playable. Raw transcript: no label,
+                        no reading, and nothing here says whether the sentence is a promise. It does
+                        not need to — "yav bir kulaklık alacağım" beside "sesim çok kötü geliyor"
+                        answers the question by itself, and the answer is the user's to give.
+
+                        Folded away by default: four extra lines on each of thirteen cards would
+                        turn the page back into a transcript.
+                    -->
+                    <ui:HyperlinkButton Padding="0" Margin="0,6,0,0"
+                                        Content="{loc:T promisespage.sozun-etrafi}"
+                                        ToolTip="{loc:T promisespage.sozun-etrafini-dinle}"
+                                        Visibility="{Binding HasAround, Converter={StaticResource BoolToVisibility}}"
+                                        Command="{Binding DataContext.ToggleAroundCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" />
+
+                    <ItemsControl ItemsSource="{Binding Around}" Margin="0,2,0,0"
+                                  Visibility="{Binding IsAroundOpen, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:PromiseLine}">
+                                <ui:Button Appearance="Transparent" Padding="4,2" Margin="0,0,0,1"
+                                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                           ToolTip="{loc:T promisespage.sozun-verildigi-ani-dinle}"
+                                           Command="{Binding DataContext.OpenLineCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           CommandParameter="{Binding}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Timestamp}" Style="{StaticResource TimeLink}"
+                                                   VerticalAlignment="Top" Margin="0,1,8,0" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Speaker}" Style="{StaticResource Caption}"
+                                                   VerticalAlignment="Top" Margin="0,0,8,0" MinWidth="24" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Text}" Style="{StaticResource Caption}"
+                                                   TextWrapping="Wrap" />
+                                    </Grid>
+                                </ui:Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!--
+                        ⌂ S2 — one sentence, two promises. The pipeline drew more than one obligation
+                        out of these same words, so the card asks which one was meant instead of
+                        listing them as two promises nobody made twice.
+
+                        The candidates sit INSIDE the card, in their own frame, because they are
+                        evidence: the machine's readings, never rewritten. What the user answers
+                        appears below the card, under a rule, as their own writing.
+                    -->
+                    <Border Margin="0,8,0,0" Padding="10,8" CornerRadius="4"
+                            BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                            Visibility="{Binding IsGrouped, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding CandidateQuestion}" Style="{StaticResource Caption}"
+                                       FontWeight="SemiBold" TextWrapping="Wrap" />
+
+                            <ItemsControl ItemsSource="{Binding Candidates}" Margin="0,4,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:PromiseCard}">
+                                        <Grid Margin="0,4,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Obligation}" TextWrapping="Wrap"
+                                                       VerticalAlignment="Center" FontSize="{StaticResource TextBody}" />
+                                            <ui:Button Grid.Column="1" Content="{loc:T promisespage.bu-secim}"
+                                                       Margin="8,0,0,0" Appearance="Secondary"
+                                                       Command="{Binding DataContext.PickCandidateCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <WrapPanel Margin="0,10,0,0">
+                                <ui:Button Content="{loc:T promisespage.ikisi-de-kalsin}" Margin="0,0,6,0" Appearance="Secondary"
+                                           Command="{Binding DataContext.KeepAllCandidatesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           CommandParameter="{Binding}" />
+                                <ui:Button Content="{loc:T promisespage.bu-soz-degil}" Appearance="Transparent"
+                                           Command="{Binding DataContext.JudgeNotAPromiseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           CommandParameter="{Binding}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Postponing, inline: the spoken date stays; this is the user's own. -->
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
                                 Visibility="{Binding IsPostponing, Converter={StaticResource BoolToVisibility}}">
@@ -92,8 +186,50 @@
                                    CommandParameter="{Binding}" />
                     </StackPanel>
 
+                    <!--
+                        S3 — "Ne zamana?". Twelve of the archive's thirteen promises have no date,
+                        so this strip is on almost every card.
+
+                        The first four write the USER's date; what the words said stays in the
+                        machine's column, because the consistency check reads that one to see
+                        whether the other person moved a deadline. The fifth is the point of the
+                        feature: "tarihsiz" stops being a hole in the page and becomes an answer.
+                    -->
+                    <WrapPanel Margin="0,8,0,0"
+                               Visibility="{Binding NeedsDeadline, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{loc:T promisespage.ne-zamana}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center" Margin="0,0,8,4" />
+                        <ui:Button Content="{loc:T promisespage.bu-hafta}" Margin="0,0,6,4" Appearance="Secondary"
+                                   Command="{Binding DataContext.DeadlineThisWeekCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                        <ui:Button Content="{loc:T promisespage.onumuzdeki-hafta}" Margin="0,0,6,4" Appearance="Secondary"
+                                   Command="{Binding DataContext.DeadlineNextWeekCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                        <ui:Button Content="{loc:T promisespage.bu-ay-icinde}" Margin="0,0,6,4" Appearance="Secondary"
+                                   Command="{Binding DataContext.DeadlineThisMonthCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                        <ui:Button Content="{loc:T promisespage.tarih-sec}" Margin="0,0,6,4" Appearance="Secondary"
+                                   Command="{Binding DataContext.BeginPostponeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                        <ui:Button Content="{loc:T promisespage.tarihsiz-kalsin}" Margin="0,0,6,4" Appearance="Transparent"
+                                   Command="{Binding DataContext.KeepUndatedCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                    </WrapPanel>
+
+                    <!-- The strip, answered. It stops asking, and the answer can be taken back. -->
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                Visibility="{Binding IsKeptUndated, Converter={StaticResource BoolToVisibility}}">
+                        <Border Style="{StaticResource Pill}">
+                            <TextBlock Style="{StaticResource PillText}" Text="{Binding UndatedText}" />
+                        </Border>
+                        <ui:HyperlinkButton Content="{loc:T promisespage.yine-de-sor}" Padding="0" Margin="8,0,0,0"
+                                            Command="{Binding DataContext.AskAgainForDeadlineCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}" />
+                    </StackPanel>
+
                     <!-- The verbs. Only the user marks anything; each can be taken back from the notice below. -->
-                    <WrapPanel Margin="0,8,0,0">
+                    <WrapPanel Margin="0,8,0,0"
+                               Visibility="{Binding IsGrouped, Converter={StaticResource InverseBoolToVisibility}}">
                         <ui:Button Content="{loc:T promisespage.tutuldu}" Margin="0,0,6,4"
                                    Visibility="{Binding CanFulfil, Converter={StaticResource BoolToVisibility}}"
                                    Command="{Binding DataContext.FulfilCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -149,6 +285,52 @@
                                         Visibility="{Binding HasHint, Converter={StaticResource BoolToVisibility}}"
                                         Command="{Binding DataContext.OpenHintCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}" />
+
+                    <!--
+                        S4 — the ear, on a promise. Aynam's confirmation widened from what the user
+                        said to what somebody was held to: the words are that promise, or the
+                        transcript misheard them, or they were said and are not a promise.
+
+                        The machine never gives this ruling and never asks it as a leading question;
+                        it asks whether the user listened.
+                    -->
+                    <WrapPanel Margin="0,8,0,0"
+                               Visibility="{Binding CanJudge, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{loc:T promisespage.dinledin-mi}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center" Margin="0,0,8,4" />
+                        <ui:Button Content="{loc:T promisespage.dogru}" Margin="0,0,6,4" Appearance="Transparent"
+                                   Command="{Binding DataContext.JudgeCorrectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                        <ui:Button Content="{loc:T promisespage.yanlis-duyulmus}" Margin="0,0,6,4" Appearance="Transparent"
+                                   Command="{Binding DataContext.JudgeMisheardCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                        <ui:Button Content="{loc:T promisespage.bu-soz-degil}" Margin="0,0,6,4" Appearance="Transparent"
+                                   Command="{Binding DataContext.JudgeNotAPromiseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}" />
+                    </WrapPanel>
+
+                    <!--
+                        ✎ The user's own writing, below a rule.
+
+                        Everything above this line is the machine's — its quote, its reading, the
+                        candidates it drew. Everything below is the user's ruling on it. The two
+                        grounds may share a card; they may not share a region without a boundary,
+                        and this is the boundary.
+                    -->
+                    <Border Margin="0,8,0,0" Padding="0,6,0,0" BorderThickness="0,1,0,0"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            Visibility="{Binding HasUserMark, Converter={StaticResource BoolToVisibility}}">
+                        <WrapPanel>
+                            <Border Style="{StaticResource Pill}" Margin="0,0,6,0"
+                                    Visibility="{Binding IsChosen, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Style="{StaticResource PillText}" Text="{Binding ChosenText}" />
+                            </Border>
+                            <Border Style="{StaticResource Pill}"
+                                    Visibility="{Binding JudgementText, Converter={StaticResource NullToCollapsed}}">
+                                <TextBlock Style="{StaticResource PillText}" Text="{Binding JudgementText}" />
+                            </Border>
+                        </WrapPanel>
+                    </Border>
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -180,7 +362,9 @@
         <WrapPanel Grid.Row="2" Margin="0,0,0,10">
             <ui:Button Margin="0,0,6,6" Command="{Binding SetFilterCommand}" CommandParameter="Open"
                        Appearance="{Binding Filter, Converter={StaticResource FilterAppearance}, ConverterParameter=Open}">
-                <TextBlock><Run Text="{loc:T promisespage.acik}" /><Run Text=" " /><Run Text="{Binding AllCount, Mode=OneWay}" /></TextBlock>
+                <!-- Open, and only open: this number used to be the total of everything, kept and
+                     dismissed rows included, under a chip labelled "Açık". -->
+                <TextBlock><Run Text="{loc:T promisespage.acik}" /><Run Text=" " /><Run Text="{Binding OpenCount, Mode=OneWay}" /></TextBlock>
             </ui:Button>
             <ui:Button Margin="0,0,6,6" Command="{Binding SetFilterCommand}" CommandParameter="Overdue"
                        Appearance="{Binding Filter, Converter={StaticResource FilterAppearance}, ConverterParameter=Overdue}">
@@ -207,8 +391,9 @@
                 <TextBlock><Run Text="{loc:T promisespage.reddedilenler}" /><Run Text=" " /><Run Text="{Binding DismissedCount, Mode=OneWay}" /></TextBlock>
             </ui:Button>
             <ui:Button Margin="0,0,6,6" Command="{Binding SetFilterCommand}" CommandParameter="All"
-                       Appearance="{Binding Filter, Converter={StaticResource FilterAppearance}, ConverterParameter=All}"
-                       Content="{loc:T promisespage.hepsi}" />
+                       Appearance="{Binding Filter, Converter={StaticResource FilterAppearance}, ConverterParameter=All}">
+                <TextBlock><Run Text="{loc:T promisespage.hepsi}" /><Run Text=" " /><Run Text="{Binding AllCount, Mode=OneWay}" /></TextBlock>
+            </ui:Button>
         </WrapPanel>
 
         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
@@ -228,13 +413,26 @@
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="{Binding MineHeader}" Style="{StaticResource GroupHeader}" Margin="4,0,0,6" />
                         <ItemsControl ItemsSource="{Binding Mine}" ItemTemplate="{StaticResource PromiseCardTemplate}" />
-                        <TextBlock Text="{Binding MineTally}" Style="{StaticResource Caption}" Margin="4,2,0,12" />
+                        <TextBlock Text="{Binding MineTally}" Style="{StaticResource Caption}" Margin="4,2,0,0" />
+
+                        <!-- Where the column came from. A count with no denominator beside it reads
+                             as a fact about a person. -->
+                        <TextBlock Text="{Binding SourceLine}" Style="{StaticResource Caption}" Margin="4,2,0,0"
+                                   TextWrapping="Wrap" />
+
+                        <!-- And what a lopsided pair of columns may actually be. Under the user's own
+                             column, because that is the one the extraction under-reads. -->
+                        <TextBlock Text="{Binding AsymmetryNote}" Style="{StaticResource Caption}" Margin="4,4,0,12"
+                                   TextWrapping="Wrap" Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                   Visibility="{Binding HasAsymmetryNote, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="2">
                         <TextBlock Text="{Binding TheirsHeader}" Style="{StaticResource GroupHeader}" Margin="4,0,0,6" />
                         <ItemsControl ItemsSource="{Binding Theirs}" ItemTemplate="{StaticResource PromiseCardTemplate}" />
-                        <TextBlock Text="{Binding TheirsTally}" Style="{StaticResource Caption}" Margin="4,2,0,12" />
+                        <TextBlock Text="{Binding TheirsTally}" Style="{StaticResource Caption}" Margin="4,2,0,0" />
+                        <TextBlock Text="{Binding SourceLine}" Style="{StaticResource Caption}" Margin="4,2,0,12"
+                                   TextWrapping="Wrap" />
                     </StackPanel>
                 </Grid>
             </Grid>

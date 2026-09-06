@@ -55,6 +55,28 @@ public static class VerdictKind
 
     /// <summary>A per-contact pattern row (Kalıplar).</summary>
     public const string Pattern = "kalip";
+
+    /// <summary>
+    /// A promise on the Sözler page: the words really are that promise, were misheard, or are
+    /// not a promise at all.
+    ///
+    /// The ear verdict widened from what the user said to what somebody was held to. It is filed
+    /// against the moment rather than the row for the usual reason — a re-run gives the same
+    /// sentence a new commitment id — and that also makes it the record that survives when the
+    /// pipeline writes two obligations out of one sentence: both rows carry the same folded
+    /// quote, so one ruling covers the moment.
+    /// </summary>
+    public const string Promise = "soz";
+
+    /// <summary>
+    /// A promise's deadline: "tarihsiz kalsın".
+    ///
+    /// Its own kind rather than a second value on <see cref="Promise"/>, because a verdict is
+    /// replaced by its key (call, kind, quote, millisecond) — filed under the same kind, saying
+    /// "no date is the answer" would silently erase the user's ruling on whether the sentence is
+    /// a promise at all, and the other way round.
+    /// </summary>
+    public const string PromiseDeadline = "vade";
 }
 
 /// <summary>The verdict itself. Numbers are stored; the words are the screen's.</summary>
