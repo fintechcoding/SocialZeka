@@ -36,6 +36,7 @@ namespace VoiceTranscript.Tests;
 /// early, never more than one codec frame late, and either no offset or exactly the codec's
 /// own lookahead.
 /// </summary>
+[Collection(AudioMaterialiserCollection.Name)]
 public sealed class OpusAlignmentTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"vt-opus-align-{Guid.NewGuid():N}");

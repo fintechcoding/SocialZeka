@@ -497,6 +497,64 @@ public sealed class MigrationTests : IDisposable
     }
 
     /// <summary>
+    /// v20: the questions people ask and the answers they paid for.
+    ///
+    /// Goes red when the table is missing from an upgraded database, when a column the panel reads
+    /// disappears, or — the one that would quietly break the shell's Sor page — when call_id stops
+    /// being nullable. A question asked of the whole archive belongs to no conversation, and a NOT
+    /// NULL column there means it cannot be stored at all: the exact defect this table exists to
+    /// fix, reintroduced by a schema edit.
+    ///
+    /// Also red if the citations column becomes optional. An answer restored without the quotes it
+    /// cited is a claim with nothing behind it, which is the one thing this product does not show.
+    /// </summary>
+    [Fact]
+    public void TheTwentiethStepAddsTheStoredQuestions()
+    {
+        new Database(_path).Migrate();
+
+        foreach (var column in new[]
+                 {
+                     "call_id", "contact_id", "since_at", "until_at", "question", "answer",
+                     "citations", "insufficient", "model_used", "transcript_version_id", "asked_at",
+                 })
+        {
+            Assert.True(ColumnExistsIn("ask_exchange", column), column);
+        }
+
+        using var connection = new Database(_path).Open();
+
+        using var empty = connection.CreateCommand();
+        empty.CommandText = "SELECT COUNT(*) FROM ask_exchange;";
+        Assert.Equal(0L, empty.ExecuteScalar());
+
+        // A question asked of the archive has no call, and must still have somewhere to live.
+        using var nullableCall = connection.CreateCommand();
+        nullableCall.CommandText =
+            "SELECT \"notnull\" FROM pragma_table_info('ask_exchange') WHERE name = 'call_id';";
+        Assert.Equal(0L, nullableCall.ExecuteScalar());
+
+        // The evidence is not optional.
+        using var quotes = connection.CreateCommand();
+        quotes.CommandText =
+            "SELECT \"notnull\" FROM pragma_table_info('ask_exchange') WHERE name = 'citations';";
+        Assert.Equal(1L, quotes.ExecuteScalar());
+
+        // History, not one row per call: several questions about one conversation are several rows.
+        using var key = connection.CreateCommand();
+        key.CommandText = "SELECT \"pk\" FROM pragma_table_info('ask_exchange') WHERE name = 'call_id';";
+        Assert.Equal(0L, key.ExecuteScalar());
+
+        foreach (var index in new[] { "ix_ask_call", "ix_ask_asked" })
+        {
+            using var probe = connection.CreateCommand();
+            probe.CommandText =
+                $"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = '{index}';";
+            Assert.Equal(1L, probe.ExecuteScalar());
+        }
+    }
+
+    /// <summary>
     /// The general form of the test above: every table, every column, compared between a
     /// database that walked the steps and one born fresh. The spot checks catch the column
     /// somebody thought to assert; this catches the one they forgot — a column in the step but

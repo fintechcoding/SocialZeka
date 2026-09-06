@@ -4,6 +4,68 @@
              xmlns:loc="clr-namespace:VoiceTranscript.App"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
+    <UserControl.Resources>
+        <!--
+            One quote, in the two places quotes appear on this page: under the answer that has
+            just come back, and under every answer stored from before. Written once so the two
+            cannot drift — a stored answer whose evidence looked different from a fresh one's
+            would read as a weaker kind of evidence, and it is the same quote.
+
+            The command is reached through the page rather than through the nearest ItemsControl,
+            because in the history list the nearest one is the exchange's own.
+        -->
+        <DataTemplate x:Key="CitationCard">
+            <Border Style="{StaticResource HoverCard}" Padding="16,13" Margin="0,0,0,8">
+                <Border.InputBindings>
+                    <MouseBinding MouseAction="LeftClick"
+                                  Command="{Binding DataContext.OpenCommand,
+                                            RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  CommandParameter="{Binding}" />
+                </Border.InputBindings>
+
+                <StackPanel>
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Width="8" Height="8" CornerRadius="4"
+                                Margin="0,0,8,0" VerticalAlignment="Center">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMe}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource MeBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+
+                        <TextBlock Grid.Column="1" Text="{Binding Who}" FontWeight="SemiBold"
+                                   FontSize="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center" />
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Caption}" VerticalAlignment="Center"
+                                       Text="{Binding When}" />
+                            <TextBlock Style="{StaticResource TimeLink}" Margin="10,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding At}"
+                                       ToolTip="{loc:T askpage.bu-ani-dinlemek-icin-tikla}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                               FontSize="{StaticResource TextBody}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <Grid Margin="{StaticResource PadPage}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -79,9 +141,10 @@
                     Before the first question.
 
                     An empty box with a cursor in it is the worst introduction to a feature whose
-                    usefulness depends on knowing what it can be asked.
+                    usefulness depends on knowing what it can be asked. Once the page has answers
+                    stored on it there is nothing left to introduce, so the examples step aside.
                 -->
-                <StackPanel Visibility="{Binding HasAsked, Converter={StaticResource InverseBoolToVisibility}}">
+                <StackPanel Visibility="{Binding ShowSuggestions, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Text="{loc:T askpage.sunlari-deneyebilirsin}" Style="{StaticResource GroupHeader}" />
 
                     <ItemsControl ItemsSource="{Binding Suggestions}">
@@ -147,55 +210,60 @@
                 <TextBlock Text="{loc:T askpage.dayandigi-konusmalar}" Style="{StaticResource GroupHeader}"
                            Visibility="{Binding HasCitations, Converter={StaticResource BoolToVisibility}}" />
 
-                <ItemsControl ItemsSource="{Binding Citations}">
+                <ItemsControl ItemsSource="{Binding Citations}"
+                              ItemTemplate="{StaticResource CitationCard}" />
+
+                <!--
+                    What was asked before, and what came back.
+
+                    The page opens on this list and it costs nothing: every answer here was paid
+                    for once and written down, quotes included, so reading it again is a database
+                    read. Nothing is re-asked without a press.
+
+                    Each answer is signed and dated on its own line — the ≈ ground. The quotes
+                    under it are the evidence and stay clickable; the sentence above them is one
+                    model's reading of those quotes on one day, and the signature says so.
+                -->
+                <TextBlock Text="{loc:T askpage.sorulanlar-ve-cevaplari}" Style="{StaticResource GroupHeader}"
+                           Margin="0,14,0,0"
+                           Visibility="{Binding HasHistory, Converter={StaticResource BoolToVisibility}}" />
+
+                <ItemsControl ItemsSource="{Binding Exchanges}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Style="{StaticResource HoverCard}" Padding="16,13" Margin="0,0,0,8">
-                                <Border.InputBindings>
-                                    <MouseBinding MouseAction="LeftClick"
-                                                  Command="{Binding DataContext.OpenCommand,
-                                                            RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                  CommandParameter="{Binding}" />
-                                </Border.InputBindings>
-
+                            <Border Style="{StaticResource SettingCard}" Margin="0,0,0,10">
                                 <StackPanel>
-                                    <Grid Margin="0,0,0,6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Question}" TextWrapping="Wrap"
+                                               FontWeight="SemiBold" FontSize="{StaticResource TextBody}" />
 
-                                        <Border Grid.Column="0" Width="8" Height="8" CornerRadius="4"
-                                                Margin="0,0,8,0" VerticalAlignment="Center">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsMe}" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource MeBrush}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                        </Border>
+                                    <TextBlock Text="{Binding Scope}" Style="{StaticResource Caption}"
+                                               Margin="0,4,0,0" TextWrapping="Wrap"
+                                               Visibility="{Binding Scope, Converter={StaticResource NullToCollapsed}}" />
 
-                                        <TextBlock Grid.Column="1" Text="{Binding Who}" FontWeight="SemiBold"
-                                                   FontSize="{StaticResource TextSecondary}"
+                                    <TextBlock Text="{Binding Answer}" TextWrapping="Wrap" Margin="0,10,0,0"
+                                               FontSize="{StaticResource TextBody}" LineHeight="22" />
+
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                               Visibility="{Binding Insufficient, Converter={StaticResource BoolToVisibility}}"
+                                               Text="{loc:T askpage.bulunan-alintilar-soruyu-tam-karsilamiyor}" />
+
+                                    <ItemsControl ItemsSource="{Binding Citations}" Margin="0,12,0,0"
+                                                  ItemTemplate="{StaticResource CitationCard}"
+                                                  Visibility="{Binding HasCitations, Converter={StaticResource BoolToVisibility}}" />
+
+                                    <Grid Margin="0,2,0,0">
+                                        <TextBlock Text="{Binding Stamp}" Style="{StaticResource Caption}"
                                                    VerticalAlignment="Center" />
 
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                            <TextBlock Style="{StaticResource Caption}" VerticalAlignment="Center"
-                                                       Text="{Binding When}" />
-                                            <TextBlock Style="{StaticResource TimeLink}" Margin="10,0,0,0"
-                                                       VerticalAlignment="Center"
-                                                       Text="{Binding At}"
-                                                       ToolTip="{loc:T askpage.bu-ani-dinlemek-icin-tikla}" />
-                                        </StackPanel>
+                                        <ui:Button HorizontalAlignment="Right" Appearance="Transparent"
+                                                   Padding="8,1" FontSize="{StaticResource TextCaption}"
+                                                   Content="{loc:T askpage.kaldir}"
+                                                   ToolTip="{loc:T askpage.bu-soruyu-ve-cevabini-kaldir}"
+                                                   Command="{Binding DataContext.RemoveCommand,
+                                                             RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   CommandParameter="{Binding}" />
                                     </Grid>
-
-                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
-                                               FontSize="{StaticResource TextBody}" />
                                 </StackPanel>
                             </Border>
                         </DataTemplate>

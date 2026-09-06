@@ -408,9 +408,15 @@ public sealed class Repository(Database database)
     /// merge, the rows were destroyed the moment the absorbed contact was deleted. Merging two
     /// spellings of one person therefore threw away half their outstanding actions, silently,
     /// as part of an operation whose whole purpose is to lose nothing.
+    ///
+    /// ask_exchange is here for the second of those two reasons rather than the first. Its rows
+    /// are not the ledger's and nothing counts them, but its contact_id is what a stored answer
+    /// was narrowed BY — so a call moved to another person must take its questions with it, and a
+    /// merge must carry "what I asked about Ahmet" onto the surviving Ahmet. Left out, the scope
+    /// line under a stored answer would go on naming a person the conversation is no longer with.
     /// </summary>
     private static readonly string[] LedgerTables =
-        ["commitment", "claim", "flag", "action_item", "tactic_evidence", "speech_act"];
+        ["commitment", "claim", "flag", "action_item", "tactic_evidence", "speech_act", "ask_exchange"];
 
     /// <summary>
     /// How many ledger rows a call produced.
@@ -425,6 +431,10 @@ public sealed class Repository(Database database)
     /// is not "43 kayıt" to a person about to move it: the sentence is meant to say how much of
     /// the ledger they are moving, and a count dominated by every question anybody asked would
     /// make it meaningless in exactly the situation it exists for.
+    ///
+    /// ask_exchange is out for the same reason and one more: those rows are not extracted from the
+    /// conversation at all — they are what the user asked about it — so counting them would inflate
+    /// a figure that claims to describe what the analysis produced.
     /// </summary>
     private static readonly string[] CountedLedgerTables =
         ["commitment", "claim", "flag", "action_item", "tactic_evidence"];
@@ -1383,6 +1393,26 @@ public sealed class Repository(Database database)
                      WHERE r.contact_id = (SELECT new FROM map_contact WHERE old = s.contact_id)
                        AND r.created_at = s.created_at)
                 """);
+
+            // The questions and their answers. The only table here whose rows come in two shapes,
+            // so it is copied once with a clause that admits both: one asked of a conversation
+            // travels with that conversation, one asked of the archive belongs to no call and
+            // would be dropped by the ofNewCalls filter every other derived table uses.
+            //
+            // All three identifiers are rewritten — the call it was asked of, the person it was
+            // narrowed to, and the transcript its quotes came from. The archive-wide half is
+            // deduplicated on the question and the instant it was asked, which is what makes a
+            // second import of the same file add nothing: a call-scoped row cannot collide
+            // because its call would not be new.
+            Copy(
+                connection, transaction, "ask_exchange",
+                new Dictionary<string, string>(toCallAndContact) { ["transcript_version_id"] = "map_version" },
+                $"""
+                 ({ofNewCalls} OR s.call_id IS NULL)
+                 AND NOT EXISTS (
+                     SELECT 1 FROM main.ask_exchange a
+                      WHERE a.asked_at = s.asked_at AND a.question = s.question)
+                 """);
 
             Copy(connection, transaction, "contact_field", toContact, where:
                 """
@@ -3972,6 +4002,111 @@ public sealed class Repository(Database database)
         ];
     }
 
+    // ---- what was asked, and what came back ---------------------------------
+    //
+    // The two Sor surfaces used to answer a question, pay for the request and drop the answer on
+    // the way out of the window. These rows are what makes reopening a panel free.
+    //
+    // Same contract as the reading and the assessment: signed by a model, dated, a dead end. The
+    // one difference is who may remove it — a stored answer is the user's own material and comes
+    // off with [Kaldır], where a reading is a note the analysis wrote.
+
+    /// <summary>One stored exchange, exactly as it was answered.</summary>
+    /// <param name="CallId">Null when the question was asked of the whole archive.</param>
+    /// <param name="Citations">Serialised; read with <see cref="Analysis.StoredExcerpts"/>.</param>
+    /// <param name="TranscriptVersionId">
+    /// Of the transcript the quotes came from, for a call-scoped row. Null on an archive-wide one,
+    /// which draws on many texts at once and therefore has no single one to have gone stale.
+    /// </param>
+    public sealed record StoredAskExchange(
+        long Id,
+        long? CallId,
+        long? ContactId,
+        DateTimeOffset? Since,
+        DateTimeOffset? Until,
+        string Question,
+        string Answer,
+        string Citations,
+        bool Insufficient,
+        string? ModelUsed,
+        long? TranscriptVersionId,
+        DateTimeOffset AskedAt);
+
+    /// <summary>
+    /// Files one answered question. Never replaces one: asking the same thing again on a newer
+    /// transcript is a second answer, and which of the two the user believes is their business.
+    ///
+    /// A call-scoped row is filed under the transcript the call currently shows, by the same
+    /// subquery <see cref="SaveReading"/> uses, so a re-transcription can be told from a re-ask.
+    /// </summary>
+    public long SaveAskExchange(
+        long? callId,
+        long? contactId,
+        string question,
+        string answer,
+        string citations,
+        bool insufficient,
+        string? modelUsed,
+        DateTimeOffset? since = null,
+        DateTimeOffset? until = null)
+    {
+        using var connection = Open();
+
+        return connection.ExecuteScalar<long>(
+            """
+            INSERT INTO ask_exchange
+                (call_id, contact_id, since_at, until_at, question, answer, citations,
+                 insufficient, model_used, transcript_version_id, asked_at)
+            VALUES
+                (@callId, @contactId, @since, @until, @question, @answer, @citations,
+                 @insufficient, @modelUsed,
+                 (SELECT transcript_version_id FROM call WHERE id = @callId),
+                 @now)
+            RETURNING id;
+            """,
+            new
+            {
+                callId, contactId, question, answer, citations,
+                insufficient = insufficient ? 1 : 0, modelUsed,
+                since = since is { } s ? Iso(s) : null,
+                until = until is { } u ? Iso(u) : null,
+                now = Iso(DateTimeOffset.UtcNow),
+            });
+    }
+
+    /// <summary>One conversation's questions, oldest first — the order they were asked in.</summary>
+    public IReadOnlyList<StoredAskExchange> AskExchangesOf(long callId)
+    {
+        using var connection = Open();
+
+        return [.. connection.Query<AskExchangeRow>(
+            "SELECT * FROM ask_exchange WHERE call_id = @callId ORDER BY asked_at, id;",
+            new { callId }).Select(r => r.ToModel())];
+    }
+
+    /// <summary>
+    /// The questions asked of the archive rather than of one conversation, newest first.
+    ///
+    /// Deliberately not "every exchange": the shell's panel and a call window's panel answer
+    /// different questions, and a call's own exchanges appearing in the archive-wide list would
+    /// put an answer about one conversation under a screen that ranges over all of them.
+    /// </summary>
+    public IReadOnlyList<StoredAskExchange> ArchiveAskExchanges(int limit = 100)
+    {
+        using var connection = Open();
+
+        return [.. connection.Query<AskExchangeRow>(
+            "SELECT * FROM ask_exchange WHERE call_id IS NULL ORDER BY asked_at DESC, id DESC LIMIT @limit;",
+            new { limit }).Select(r => r.ToModel())];
+    }
+
+    /// <summary>Removes one exchange. The user's own material, so [Kaldır] and not [Reddet].</summary>
+    public void DeleteAskExchange(long id)
+    {
+        using var connection = Open();
+        connection.Execute("DELETE FROM ask_exchange WHERE id = @id;", new { id });
+    }
+
     /// <summary>Saves the consistency check's overall note for a conversation (one per call).</summary>
     public void SaveConsistencyNote(long callId, string note, string? modelUsed)
     {
@@ -6165,6 +6300,29 @@ public sealed class Repository(Database database)
         public string created_at { get; set; } = "";
 
         public StoredHabits ToModel() => new(json, (int)lexicon_version, transcript_version_id, ParseIso(created_at));
+    }
+
+    private sealed class AskExchangeRow
+    {
+        public long id { get; set; }
+        public long? call_id { get; set; }
+        public long? contact_id { get; set; }
+        public string? since_at { get; set; }
+        public string? until_at { get; set; }
+        public string question { get; set; } = "";
+        public string answer { get; set; } = "";
+        public string citations { get; set; } = "";
+        public long insufficient { get; set; }
+        public string? model_used { get; set; }
+        public long? transcript_version_id { get; set; }
+        public string asked_at { get; set; } = "";
+
+        public StoredAskExchange ToModel() => new(
+            id, call_id, contact_id,
+            since_at is null ? null : ParseIso(since_at),
+            until_at is null ? null : ParseIso(until_at),
+            question, answer, citations, insufficient != 0, model_used,
+            transcript_version_id, ParseIso(asked_at));
     }
 
     private sealed class HabitSeriesRaw

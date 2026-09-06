@@ -448,5 +448,33 @@ public static class Migrations
                 """,
                 "CREATE INDEX IF NOT EXISTS ix_contact_reading ON contact_reading(contact_id, created_at DESC);",
             ]),
+
+        // v20 — the answers to the questions people ask, which until now were never written down.
+        //
+        // One row per exchange, because the asking code is stateless and two questions in one panel
+        // are two questions. call_id is nullable so the shell's archive-wide questions have
+        // somewhere to live; the citations ride along as JSON, because an answer with nothing
+        // behind it is refused on the way in and would be restored on the way out.
+        new(20, "Sorulan sorular ve alıntılı cevapları saklanır",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS ask_exchange (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    call_id      INTEGER REFERENCES call(id) ON DELETE CASCADE,
+                    contact_id   INTEGER REFERENCES contact(id) ON DELETE SET NULL,
+                    since_at     TEXT,
+                    until_at     TEXT,
+                    question     TEXT    NOT NULL,
+                    answer       TEXT    NOT NULL,
+                    citations    TEXT    NOT NULL,
+                    insufficient INTEGER NOT NULL DEFAULT 0,
+                    model_used   TEXT,
+                    transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
+                    asked_at     TEXT    NOT NULL
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS ix_ask_call ON ask_exchange(call_id, asked_at);",
+                "CREATE INDEX IF NOT EXISTS ix_ask_asked ON ask_exchange(asked_at DESC);",
+            ]),
     ];
 }

@@ -288,6 +288,62 @@ public class ArchiveMergeTests : IDisposable
         Assert.Equal(2, _myRepository.ListCalls(limit: 100).Count);
     }
 
+    /// <summary>
+    /// Goes red when the questions somebody asked, and the answers they paid for, do not survive
+    /// the move to another machine — or when the identifiers inside them are copied raw.
+    ///
+    /// Both halves matter and they fail differently. A call-scoped answer whose call_id was not
+    /// remapped points at whatever conversation happens to hold that number here, so a stored
+    /// answer appears under a call it was never about. An archive-wide answer has no call at all,
+    /// and the filter every other derived table uses would silently drop it.
+    /// </summary>
+    [Fact]
+    public async Task TheQuestionsAndTheirAnsweredQuotesComeAcross()
+    {
+        var veli = _theirRepository.UpsertContact("Veli", CallApp.WhatsApp);
+        var theirCall = Call(_theirRepository, _theirs, veli, Only, ["fiyat on sekiz bin"]);
+
+        var quote = new Core.Analysis.Excerpt(1, theirCall, "Veli", Only, 4000, false, "fiyat on sekiz bin");
+
+        _theirRepository.SaveAskExchange(
+            theirCall, veli, "fiyat ne oldu", "On sekiz bin lira.",
+            Core.Analysis.StoredExcerpts.Write([quote]), insufficient: false, "test-model");
+
+        _theirRepository.SaveAskExchange(
+            callId: null, veli, "arşivde fiyat", "On sekiz bin lira.",
+            Core.Analysis.StoredExcerpts.Write([quote]), insufficient: false, "test-model");
+
+        var file = Path.Combine(_root, "sorulu-yedek.zip");
+        await _theirBackup.BackupAsync(file, includeAudio: false);
+
+        await _myBackup.ImportAsync(file);
+
+        var here = _myRepository.FindContacts("Veli").Single();
+        var mine = _myRepository.ListCalls(here.Id).Single(c => c.StartedAt == Only);
+
+        // The call-scoped one landed on the conversation it was actually about.
+        var scoped = Assert.Single(_myRepository.AskExchangesOf(mine.Id));
+        Assert.Equal("fiyat ne oldu", scoped.Question);
+        Assert.Equal(here.Id, scoped.ContactId);
+
+        // Its quote points at the call as this archive numbers it, so it is still playable.
+        var restored = Assert.Single(Core.Analysis.StoredExcerpts.Read(scoped.Citations));
+        Assert.Equal(4000, restored.StartMs);
+
+        // And the one that belongs to no conversation came too.
+        var wide = Assert.Single(_myRepository.ArchiveAskExchanges());
+        Assert.Equal("arşivde fiyat", wide.Question);
+        Assert.Equal(here.Id, wide.ContactId);
+
+        // A second import of the same file adds nothing. The call-scoped row is protected by its
+        // call already being here; the archive-wide one has no call to protect it and is caught
+        // on the question and the instant it was asked.
+        await _myBackup.ImportAsync(file);
+
+        Assert.Single(_myRepository.AskExchangesOf(mine.Id));
+        Assert.Single(_myRepository.ArchiveAskExchanges());
+    }
+
     /// <summary>Notes carry over, and a note that is already written down does not double.</summary>
     [Fact]
     public async Task NotesAreCarriedOverWithoutDuplicating()

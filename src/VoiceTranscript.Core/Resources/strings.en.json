@@ -1210,5 +1210,16 @@
   "ledgeractions.hepsi-kalsin-n": "All kept: {0}",
   "ledgeractions.tarihsiz-kalsin-n": "Left undated: {0}",
   "ledgeractions.soz-isareti-kaldirildi-n": "Mark removed: {0}",
-  "ledgeractions.soz-secildi-n": "Picked: {0}"
+  "ledgeractions.soz-secildi-n": "Picked: {0}",
+  "callwindow.modelin-gorusu-imza": "≈ The model's opinion · {0} · {1}",
+  "callwindow.cevap-onceki-dokumden": "This answer was produced from an earlier transcript; the quotes below it may not belong to the text on screen.",
+  "callwindow.alintilar-soruyu-tam-karsilamadi": "The model said the quotes it found did not fully cover the question.",
+  "callwindow.kaldir": "Remove",
+  "callwindow.bu-soruyu-ve-cevabini-kaldir": "Remove this question and its answer",
+  "askpage.modelin-gorusu-imza": "≈ The model's opinion · {0} · {1}",
+  "askpage.kapsam": "Scope: {0}",
+  "askpage.tarih-araligi": "{0} – {1}",
+  "askpage.sorulanlar-ve-cevaplari": "Questions and answers",
+  "askpage.kaldir": "Remove",
+  "askpage.bu-soruyu-ve-cevabini-kaldir": "Remove this question and its answer"
 }

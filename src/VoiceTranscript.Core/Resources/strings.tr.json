@@ -1210,5 +1210,16 @@
   "ledgeractions.hepsi-kalsin-n": "Hepsi kaldı: {0}",
   "ledgeractions.tarihsiz-kalsin-n": "Tarihsiz kaldı: {0}",
   "ledgeractions.soz-isareti-kaldirildi-n": "İşaret kaldırıldı: {0}",
-  "ledgeractions.soz-secildi-n": "Seçildi: {0}"
+  "ledgeractions.soz-secildi-n": "Seçildi: {0}",
+  "callwindow.modelin-gorusu-imza": "≈ Modelin görüşü · {0} · {1}",
+  "callwindow.cevap-onceki-dokumden": "Bu cevap önceki dökümden üretildi; altındaki alıntılar ekrandaki metne ait olmayabilir.",
+  "callwindow.alintilar-soruyu-tam-karsilamadi": "Model, bulduğu alıntıların soruyu tam karşılamadığını söyledi.",
+  "callwindow.kaldir": "Kaldır",
+  "callwindow.bu-soruyu-ve-cevabini-kaldir": "Bu soruyu ve cevabını kaldır",
+  "askpage.modelin-gorusu-imza": "≈ Modelin görüşü · {0} · {1}",
+  "askpage.kapsam": "Kapsam: {0}",
+  "askpage.tarih-araligi": "{0} – {1}",
+  "askpage.sorulanlar-ve-cevaplari": "Sorulanlar ve cevapları",
+  "askpage.kaldir": "Kaldır",
+  "askpage.bu-soruyu-ve-cevabini-kaldir": "Bu soruyu ve cevabını kaldır"
 }

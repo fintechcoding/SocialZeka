@@ -34,6 +34,51 @@ public sealed record Answer(
 }
 
 /// <summary>
+/// The citations, written down and read back.
+///
+/// JSON in one column, like <c>HabitSnapshot</c> and the reading reports, and for the same reason:
+/// nothing joins on these rows and nothing queries inside them, so columns would buy structure
+/// that no query needs and cost a table that must be kept in step with this record.
+///
+/// It lives here rather than in the storage layer because the thing being serialised is the
+/// evidence anchor itself. Every field is one an answer cannot be checked without — the call and
+/// the millisecond are what make a stored quote still playable, the speaker and the date are what
+/// let the reader see whose sentence it was. Dropping any of them turns a restored answer back
+/// into a paragraph asking to be believed.
+///
+/// A payload that cannot be read is treated as no citations rather than as an error: an answer
+/// whose quotes did not survive is shown without them and therefore without its authority, which
+/// is the correct outcome and not a crash.
+/// </summary>
+public static class StoredExcerpts
+{
+    private sealed record Row(
+        int n, long call, string? who, DateTimeOffset at, int ms, bool me, string text);
+
+    public static string Write(IReadOnlyList<Excerpt> excerpts) =>
+        JsonSerializer.Serialize(excerpts.Select(e => new Row(
+            e.Number, e.CallId, e.ContactName, e.CallStartedAt, e.StartMs, e.IsMe, e.Text)));
+
+    public static IReadOnlyList<Excerpt> Read(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+
+        try
+        {
+            var rows = JsonSerializer.Deserialize<List<Row>>(json);
+
+            return rows is null
+                ? []
+                : [.. rows.Select(r => new Excerpt(r.n, r.call, r.who, r.at, r.ms, r.me, r.text ?? ""))];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+}
+
+/// <summary>
 /// Answers questions about the archive, out of the archive.
 ///
 /// The design constraint is the same one that governs the ledger: **the model may summarise what

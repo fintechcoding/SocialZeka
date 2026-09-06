@@ -6,6 +6,7 @@ namespace VoiceTranscript.Tests;
 /// The archive codec. A recording goes in as PCM, comes out twenty times smaller, and comes
 /// back with every frame — because the file this replaces was the only copy of a conversation.
 /// </summary>
+[Collection(AudioMaterialiserCollection.Name)]
 public sealed class OpusArchiveTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"vt-opus-{Guid.NewGuid():N}");

@@ -27,6 +27,68 @@ public sealed record CitationView(Excerpt Excerpt)
 }
 
 /// <summary>
+/// One question that was asked of the archive and the answer that came back, as the page shows it.
+///
+/// The answer is signed and dated on its own line — the ≈ ground, the same treatment the contact
+/// card's reading panel and the call window's assessment get. It is the model's reading of the
+/// quotes beneath it, and a paragraph on this screen with nothing saying where it came from would
+/// read as something the archive knows.
+///
+/// Nothing here is judged stale. An archive-wide answer is built out of quotes from many
+/// conversations, each with its own transcript history; there is no single text for it to have
+/// been written against, and marking it stale because one call among forty was transcribed again
+/// would put a warning on nearly every stored answer and teach the reader to ignore all of them.
+/// What re-transcription can actually break is one quote's position in the audio, and the player
+/// already handles a moment that no longer starts a line.
+/// </summary>
+public sealed class AskExchangeView
+{
+    public AskExchangeView(Repository.StoredAskExchange stored, string? contactName)
+    {
+        Id = stored.Id;
+        Question = stored.Question;
+        Answer = stored.Answer;
+        Insufficient = stored.Insufficient;
+
+        Citations = [.. StoredExcerpts.Read(stored.Citations).Select(e => new CitationView(e))];
+
+        Stamp = string.Format(
+            Localisation.T("askpage.modelin-gorusu-imza"),
+            stored.ModelUsed ?? "model",
+            stored.AskedAt.ToLocalTime().ToString("d MMMM yyyy"));
+
+        // What the question was narrowed to when it was asked. Absent when it ranged over
+        // everything, because "Kapsam: her şey" is a label that says nothing.
+        List<string> parts = [];
+
+        if (contactName is not null) parts.Add(contactName);
+
+        if (stored.Since is not null || stored.Until is not null)
+        {
+            parts.Add(string.Format(
+                Localisation.T("askpage.tarih-araligi"),
+                stored.Since?.ToLocalTime().ToString("d MMMM yyyy") ?? "…",
+                stored.Until?.ToLocalTime().ToString("d MMMM yyyy") ?? "…"));
+        }
+
+        Scope = parts.Count == 0
+            ? null
+            : string.Format(Localisation.T("askpage.kapsam"), string.Join(" · ", parts));
+    }
+
+    public long Id { get; }
+    public string Question { get; }
+    public string Answer { get; }
+    public bool Insufficient { get; }
+    public string Stamp { get; }
+    public string? Scope { get; }
+
+    public IReadOnlyList<CitationView> Citations { get; }
+
+    public bool HasCitations => Citations.Count > 0;
+}
+
+/// <summary>
 /// The screen where a question is asked of the whole archive.
 ///
 /// Separate from Search on purpose, and both are kept. Search answers "find me the word"; this
@@ -45,19 +107,28 @@ public sealed partial class AskViewModel : ObservableObject
     private readonly System.Net.Http.HttpClient _http;
     private readonly Repository _repository;
     private readonly Func<AppSettings> _settings;
+    private readonly Func<AppSettings, ArchiveQuestions>? _questions;
 
     private CancellationTokenSource? _work;
 
+    /// <param name="questions">
+    /// How to reach a model, when the caller wants to say. The page's whole promise is that
+    /// opening it and reading what was answered before costs nothing, and the only way to hold
+    /// that promise to account is to hand it a way of asking that fails if it is ever used.
+    /// </param>
     public AskViewModel(
         System.Net.Http.HttpClient http,
         Repository repository,
-        Func<AppSettings> settings)
+        Func<AppSettings> settings,
+        Func<AppSettings, ArchiveQuestions>? questions = null)
     {
         _http = http;
         _repository = repository;
         _settings = settings;
+        _questions = questions;
 
         LoadContacts();
+        LoadHistory();
     }
 
     /// <summary>
@@ -69,15 +140,19 @@ public sealed partial class AskViewModel : ObservableObject
     /// nothing about the setting that actually changed.
     /// </summary>
     private ArchiveQuestions QuestionsFor(AppSettings settings) =>
-        new(LlmClientFactory.Create(
-                _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey),
-            _repository);
+        _questions?.Invoke(settings)
+        ?? new(LlmClientFactory.Create(
+                   _http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey),
+               _repository);
 
     /// <summary>Raised to open a contact at a moment, when a citation is clicked.</summary>
     public event EventHandler<(long CallId, int StartMs)>? OpenRequested;
 
     public ObservableCollection<ContactChoice> Contacts { get; } = [];
     public ObservableCollection<CitationView> Citations { get; } = [];
+
+    /// <summary>What has already been asked and answered, newest first. Read, never re-asked.</summary>
+    public ObservableCollection<AskExchangeView> Exchanges { get; } = [];
 
     public IReadOnlyList<SearchPeriod> Periods { get; } = Enum.GetValues<SearchPeriod>();
 
@@ -93,6 +168,11 @@ public sealed partial class AskViewModel : ObservableObject
 
     public bool HasAnswer => !string.IsNullOrWhiteSpace(Answer);
     public bool HasCitations => Citations.Count > 0;
+
+    public bool HasHistory => Exchanges.Count > 0;
+
+    /// <summary>The examples are an introduction, and there is nothing to introduce once the page has answers on it.</summary>
+    public bool ShowSuggestions => !HasAsked && Exchanges.Count == 0;
 
     /// <summary>
     /// Questions worth trying before there is a habit of asking any.
@@ -122,6 +202,46 @@ public sealed partial class AskViewModel : ObservableObject
             Contacts.Add(new ContactChoice(contact.Id, contact.Name));
 
         Contact = Contacts.FirstOrDefault(c => c.Id == selected) ?? Contacts[0];
+    }
+
+    /// <summary>
+    /// Puts the answered questions back on the page.
+    ///
+    /// A pure read of the archive. No model is reached, nothing is re-asked, and the page is
+    /// therefore free to open — which is the entire point of writing the answers down.
+    ///
+    /// Only the archive-wide ones: a question asked inside a call window belongs to that
+    /// conversation and is answered there. Listing it here would put an answer about one
+    /// conversation under a screen whose every other row ranges over all of them.
+    /// </summary>
+    public void LoadHistory()
+    {
+        Exchanges.Clear();
+
+        var names = _repository.ListContacts().ToDictionary(c => c.Id, c => c.Name);
+
+        foreach (var stored in _repository.ArchiveAskExchanges())
+        {
+            Exchanges.Add(new AskExchangeView(
+                stored,
+                stored.ContactId is { } id && names.TryGetValue(id, out var name) ? name : null));
+        }
+
+        OnPropertyChanged(nameof(HasHistory));
+        OnPropertyChanged(nameof(ShowSuggestions));
+    }
+
+    /// <summary>
+    /// Takes one exchange off the page and out of the archive.
+    ///
+    /// [Kaldır], not [Reddet]: the machine did not suggest this and the user is not turning it
+    /// down — they asked a question, kept the answer, and have now decided not to.
+    /// </summary>
+    [RelayCommand]
+    private void Remove(AskExchangeView exchange)
+    {
+        _repository.DeleteAskExchange(exchange.Id);
+        LoadHistory();
     }
 
     [RelayCommand]
@@ -154,18 +274,48 @@ public sealed partial class AskViewModel : ObservableObject
         IsInsufficient = false;
         Citations.Clear();
         OnPropertyChanged(nameof(HasCitations));
+        OnPropertyChanged(nameof(ShowSuggestions));
 
         try
         {
             var settings = _settings();
 
+            var since = Period.Since();
+            var until = Period.Until();
+
             var result = await QuestionsFor(settings).AskAsync(
                 Question,
                 settings.ResolvedModelName,
                 Contact?.Id,
-                Period.Since(),
-                Period.Until(),
+                since,
+                until,
                 _work.Token);
+
+            // An answer with quotes under it is written down and then read back out of the
+            // archive, so a fresh answer and one restored tomorrow are rendered by the same code
+            // and cannot disagree about its signature, its scope or its evidence.
+            //
+            // Everything else stays in the live area below and is not written down. Two different
+            // refusals land there: a search that matched nothing, which reached no model, cost
+            // nothing and is free to repeat; and an answer the model could not ground in a quote,
+            // which is refused on screen and would come back tomorrow wearing a signature and a
+            // date if it were kept — as though it had been shown all along.
+            if (result.Ok && result.Citations.Count > 0 && !string.IsNullOrWhiteSpace(result.Text))
+            {
+                _repository.SaveAskExchange(
+                    callId: null,
+                    Contact?.Id,
+                    Question.Trim(),
+                    result.Text,
+                    StoredExcerpts.Write(result.Citations),
+                    result.Insufficient,
+                    settings.ResolvedModelName,
+                    since,
+                    until);
+
+                LoadHistory();
+                return;
+            }
 
             Answer = result.Text;
             Problem = result.Problem;

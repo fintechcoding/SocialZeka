@@ -72,10 +72,31 @@ public sealed partial class ChatTurn(
     [ObservableProperty] private bool _isCurrent;
 }
 
-/// <summary>One exchange in the question panel.</summary>
-public sealed record ChatMessage(bool FromUser, string Text, IReadOnlyList<Excerpt> Citations)
+/// <summary>
+/// One bubble in the question panel — a question, or the answer to it.
+///
+/// Two bubbles per stored exchange rather than one row per exchange, because that is how the panel
+/// reads and because the two are on different grounds: the question is the user's own words and
+/// the answer is a model's reading of quotes, which is why only the second carries a signature.
+/// Both carry the same <paramref name="ExchangeId"/>, so [Kaldır] on the answer removes the
+/// question with it — half an exchange left on screen would be a question that was never answered.
+/// </summary>
+/// <param name="ExchangeId">0 while the question is still in flight and nothing is stored yet.</param>
+/// <param name="Stamp">"≈ Modelin görüşü · model · gün" on an answer; null on a question.</param>
+/// <param name="IsStale">The quotes were taken from a transcript this call no longer shows.</param>
+public sealed record ChatMessage(
+    bool FromUser,
+    string Text,
+    IReadOnlyList<Excerpt> Citations,
+    long ExchangeId = 0,
+    string? Stamp = null,
+    bool IsStale = false,
+    bool Insufficient = false)
 {
     public bool HasCitations => Citations.Count > 0;
+
+    /// <summary>Only a written-down exchange can be taken away again.</summary>
+    public bool CanRemove => ExchangeId != 0 && !FromUser;
 }
 
 /// <summary>
@@ -765,6 +786,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         LoadReading();
         LoadDeception();
         LoadHabits();
+        LoadConversation();
         RefreshFreshness();
 
         // The consistency section's own rows — split from the ledger's flags because the two
@@ -1110,6 +1132,67 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
     public string? ContactName => Title == "İsimsiz" ? null : Title;
 
     // ---- questions about this call -----------------------------------------
+    //
+    // The panel is read out of the archive, not held in the window. Every answer here was paid
+    // for; closing the window used to spend that money again, and the quotes underneath — the
+    // only reason the sentence is allowed on screen — went with it.
+
+    /// <summary>
+    /// Puts the questions already asked of this conversation back on screen.
+    ///
+    /// A pure read. Reopening the tab must never cost a model request, which is the whole point of
+    /// storing the answers, so nothing here reaches for a client and nothing re-asks.
+    /// </summary>
+    private void LoadConversation()
+    {
+        Conversation.Clear();
+
+        var current = _repository.CurrentTranscriptVersion(CallId)?.Id;
+
+        foreach (var stored in _repository.AskExchangesOf(CallId))
+        {
+            // The comparison is per exchange rather than per call: a conversation can hold five
+            // answers, two of them written before the text was replaced and three after, and one
+            // flag on the tab could only be wrong about three of them. Judged here for the reason
+            // the Aynam tab judges its own — DerivedFreshness has a member per note, and this is
+            // not one note per call.
+            //
+            // An unknown pointer is left alone: a wrong "bayat" teaches the reader to ignore it.
+            var stale = stored.TranscriptVersionId is { } asked
+                        && current is { } version
+                        && asked != version;
+
+            Conversation.Add(new ChatMessage(
+                FromUser: true, stored.Question, [], stored.Id));
+
+            Conversation.Add(new ChatMessage(
+                FromUser: false,
+                stored.Answer,
+                StoredExcerpts.Read(stored.Citations),
+                stored.Id,
+                string.Format(
+                    Localisation.T("callwindow.modelin-gorusu-imza"),
+                    stored.ModelUsed ?? "model",
+                    stored.AskedAt.ToLocalTime().ToString("d MMMM yyyy")),
+                stale,
+                stored.Insufficient));
+        }
+    }
+
+    /// <summary>
+    /// Takes one exchange off the panel and out of the archive.
+    ///
+    /// [Kaldır] rather than [Reddet]: this is not a suggestion the machine made and the user is
+    /// turning down — it is a question they asked and an answer they no longer want kept.
+    /// </summary>
+    [RelayCommand]
+    private void RemoveExchange(ChatMessage message)
+    {
+        if (message.ExchangeId == 0) return;
+
+        _repository.DeleteAskExchange(message.ExchangeId);
+        LoadConversation();
+    }
 
     /// <summary>
     /// Answers a question using only this conversation.
@@ -1161,7 +1244,30 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            Conversation.Add(new ChatMessage(FromUser: false, answer.Text, answer.Citations));
+            if (answer.Citations.Count == 0)
+            {
+                // "Nothing was said about this here" — reached without asking a model, so nothing
+                // was paid for and nothing was concluded. Shown once and not written down: a
+                // stored panel full of rows saying that nothing was found is a worse panel.
+                Conversation.Add(new ChatMessage(FromUser: false, answer.Text, []));
+                return;
+            }
+
+            // Written down before it is shown, and then the panel is rebuilt from what was
+            // written. One rendering path for a fresh answer and a restored one means the
+            // signature, the quotes and the [Kaldır] cannot come out differently on a restart —
+            // and an answer that failed to store is one the user finds out about now rather than
+            // tomorrow, when it is gone.
+            _repository.SaveAskExchange(
+                callId: CallId,
+                contactId: call?.ContactId,
+                question,
+                answer.Text,
+                StoredExcerpts.Write(answer.Citations),
+                answer.Insufficient,
+                settings.ResolvedModelName);
+
+            LoadConversation();
         }
         catch (Exception e)
         {

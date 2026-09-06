@@ -1459,6 +1459,20 @@
                                         <StackPanel>
                                             <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
 
+                                            <!-- Complaint 7 again, one bubble at a time: the answer stays,
+                                                 and says which text its quotes were taken out of. Per
+                                                 exchange, because a conversation can hold answers written
+                                                 on both sides of a re-transcription. -->
+                                            <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                                       Visibility="{Binding IsStale, Converter={StaticResource BoolToVisibility}}"
+                                                       Text="{loc:T callwindow.cevap-onceki-dokumden}" />
+
+                                            <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                                       Visibility="{Binding Insufficient, Converter={StaticResource BoolToVisibility}}"
+                                                       Text="{loc:T callwindow.alintilar-soruyu-tam-karsilamadi}" />
+
                                             <!-- The quotes are not decoration. An answer without them
                                                  is this product doing the one thing it exists not to
                                                  do: telling somebody what happened and asking to be
@@ -1482,6 +1496,23 @@
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
+
+                                            <!-- Which ground this bubble stands on, and who signed it. The
+                                                 quotes above are evidence; the sentence at the top is one
+                                                 model's reading of them on one day, and the line says so.
+                                                 [Kaldır], not [Reddet]: the user asked this and can unask it. -->
+                                            <Grid Margin="0,8,0,0"
+                                                  Visibility="{Binding CanRemove, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock Text="{Binding Stamp}" Style="{StaticResource Caption}"
+                                                           VerticalAlignment="Center" />
+                                                <ui:Button HorizontalAlignment="Right" Appearance="Transparent"
+                                                           Padding="8,1" FontSize="{StaticResource TextCaption}"
+                                                           Content="{loc:T callwindow.kaldir}"
+                                                           ToolTip="{loc:T callwindow.bu-soruyu-ve-cevabini-kaldir}"
+                                                           Command="{Binding DataContext.RemoveExchangeCommand,
+                                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                           CommandParameter="{Binding}" />
+                                            </Grid>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
