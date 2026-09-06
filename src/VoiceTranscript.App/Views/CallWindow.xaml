@@ -732,6 +732,155 @@
                             </ScrollViewer>
                         </TabItem>
 
+                        <!--
+                            Aynam: what the user did while talking, in this one conversation.
+
+                            The mirror page shows the curve across months; this is the report for
+                            the call in front of them. Every figure is a count over a stated
+                            denominator — their own speaking minutes, their own hundred words —
+                            and the moments underneath are what a figure rests on. The other
+                            party is not counted anywhere, and the tab says so rather than
+                            leaving it to be assumed.
+                        -->
+                        <TabItem x:Name="MirrorTab" Header="{loc:T callwindow.aynam}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
+                                <StackPanel>
+
+                        <!-- Complaint 7: the counts stay, the tab says which text they read. -->
+                        <StackPanel Margin="0,0,0,10"
+                                    Visibility="{Binding IsHabitsStale, Converter={StaticResource BoolToVisibility}}">
+                            <ui:InfoBar Severity="Warning" IsClosable="False" IsOpen="True"
+                                        Title="{loc:T callwindow.aynam-onceki-dokumden}"
+                                        Message="{Binding StaleDetail}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <ui:Button Content="{loc:T callwindow.yeniden-say}" Command="{Binding RecountCommand}"
+                                           IsEnabled="{Binding IsRecounting, Converter={StaticResource InverseBool}}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:T callwindow.bu-gorusmede-sen}" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,8,0" TextWrapping="Wrap"
+                                                   Text="{loc:T callwindow.karsi-taraf-sayilmaz}" />
+                                    </StackPanel>
+
+                                    <!-- The dictionary is the user's; a word added to it has to be
+                                         answerable on the conversation in front of them. -->
+                                    <ui:Button Grid.Column="1" VerticalAlignment="Center"
+                                               Content="{loc:T callwindow.yeniden-say}"
+                                               Command="{Binding RecountCommand}"
+                                               IsEnabled="{Binding IsRecounting, Converter={StaticResource InverseBool}}">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="ArrowClockwise24" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+
+                                <TextBlock Text="{Binding HabitLine}" TextWrapping="Wrap" Margin="0,10,0,0"
+                                           FontSize="{StaticResource TextBody}"
+                                           Visibility="{Binding HabitLine, Converter={StaticResource NullToCollapsed}}" />
+
+                                <TextBlock Text="{Binding HabitStamp}" Style="{StaticResource Caption}"
+                                           Margin="0,8,0,0" HorizontalAlignment="Right"
+                                           Visibility="{Binding HabitStamp, Converter={StaticResource NullToCollapsed}}" />
+
+                                <StackPanel Style="{StaticResource EmptyState}"
+                                            Visibility="{Binding HasHabits, Converter={StaticResource InverseBoolToVisibility}}">
+                                    <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T callwindow.aynam-sayim-yok}" />
+                                    <TextBlock Style="{StaticResource EmptyBody}" Text="{loc:T callwindow.aynam-sayim-yok-ne-yapmali}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ✎ The user's own line: what they meant not to say. Written in the intent
+                             card, never by the machine, and absent when they wrote nothing. -->
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,10"
+                                Visibility="{Binding IntentText, Converter={StaticResource NullToCollapsed}}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T callwindow.niyet-karti}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding IntentText}" TextWrapping="Wrap" Style="{StaticResource Secondary}" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="{loc:T callwindow.anlar}" Style="{StaticResource GroupHeader}" Margin="2,4,0,8"
+                                   Visibility="{Binding HasHabitMoments, Converter={StaticResource BoolToVisibility}}" />
+
+                        <ItemsControl ItemsSource="{Binding HabitMoments}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource SettingCard}" Padding="14,10" Margin="0,0,0,8">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <ui:Button Grid.Column="0" Appearance="Transparent" Padding="4,0"
+                                                           Margin="0,0,8,0" ToolTip="{loc:T callwindow.alintiyi-dinle}"
+                                                           Command="{Binding DataContext.PlayHabitMomentCommand,
+                                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                           CommandParameter="{Binding}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <ui:SymbolIcon Symbol="Play24" FontSize="14" />
+                                                        <TextBlock Text="{Binding Timestamp}" Style="{StaticResource Caption}"
+                                                                   Margin="4,0,0,0" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </ui:Button>
+
+                                                <TextBlock Grid.Column="1" Text="{Binding Lexeme}" VerticalAlignment="Center"
+                                                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                    <Border Style="{StaticResource Pill}" Margin="0,0,6,0"
+                                                            Visibility="{Binding HasPill, Converter={StaticResource BoolToVisibility}}">
+                                                        <TextBlock Style="{StaticResource PillText}" Text="{Binding Pill}" />
+                                                    </Border>
+                                                    <Border Style="{StaticResource Pill}">
+                                                        <TextBlock Style="{StaticResource PillText}" Text="{Binding KindText}" />
+                                                    </Border>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Border Style="{StaticResource QuoteBlock}" Margin="0,8,0,0"
+                                                    Visibility="{Binding Context, Converter={StaticResource NullToCollapsed}}">
+                                                <TextBlock Style="{StaticResource QuoteText}" Text="{Binding Context}" />
+                                            </Border>
+
+                                            <WrapPanel Margin="0,8,0,0">
+                                                <ui:Button Content="{loc:T callwindow.dogru}" Margin="0,0,6,4"
+                                                           Command="{Binding DataContext.HabitCorrectCommand,
+                                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                           CommandParameter="{Binding}" />
+                                                <ui:Button Content="{loc:T callwindow.yanlis-duyulmus}" Margin="0,0,6,4"
+                                                           Appearance="Secondary"
+                                                           Command="{Binding DataContext.HabitMisheardCommand,
+                                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                           CommandParameter="{Binding}" />
+                                                <ui:Button Content="{loc:T callwindow.bu-o-degil}" Margin="0,0,6,4"
+                                                           Appearance="Secondary"
+                                                           Command="{Binding DataContext.HabitNotThatCommand,
+                                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                           CommandParameter="{Binding}" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
                         <TabItem x:Name="ActionsTab" Header="{loc:T callwindow.aksiyonlar}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,10,4">
                                 <StackPanel>

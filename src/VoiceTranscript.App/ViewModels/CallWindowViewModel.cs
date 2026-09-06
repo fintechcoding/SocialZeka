@@ -358,53 +358,238 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
     public bool HasTalkStats => TalkSummary is not null;
 
+    /// <summary>
+    /// The figures the strip shows, from the one function that works them out.
+    ///
+    /// The arithmetic used to live here and in ContactsViewModel, in two copies that could
+    /// disagree and that no test could reach. <see cref="TalkStats.Compute"/> is that rule,
+    /// lifted, with one correction the copies did not have: a line the capture layer marked as a
+    /// suspected echo of the other stream is the far end heard through the user's microphone, and
+    /// counting it puts the other party's seconds on the user's side.
+    /// </summary>
     private void ComputeTalkStats(IReadOnlyList<Segment> segments)
     {
+        Talk = TalkStats.Compute(segments);
+
         TalkSummary = null;
         InterruptionSummary = null;
         TalkRatio = 0.5;
 
-        if (segments.Count > 0)
+        if (Talk.MyShare is { } share)
         {
-            var mine = TimeSpan.Zero;
-            var theirs = TimeSpan.Zero;
+            TalkRatio = share;
 
-            foreach (var segment in segments)
-            {
-                var length = TimeSpan.FromMilliseconds(Math.Max(0, segment.EndMs - segment.StartMs));
-                if (segment.IsMe) mine += length; else theirs += length;
-            }
+            TalkSummary =
+                $"Sen {Talk.MineMs / 60000.0:0.#} dk (%{share * 100:0}), " +
+                $"karşı taraf {Talk.TheirsMs / 60000.0:0.#} dk (%{(1 - share) * 100:0})";
 
-            var total = mine + theirs;
-            if (total > TimeSpan.Zero)
-            {
-                TalkRatio = mine.TotalSeconds / total.TotalSeconds;
-
-                TalkSummary =
-                    $"Sen {mine.TotalMinutes:0.#} dk (%{TalkRatio * 100:0}), " +
-                    $"karşı taraf {theirs.TotalMinutes:0.#} dk (%{(1 - TalkRatio) * 100:0})";
-
-                var ordered = segments.OrderBy(s => s.StartMs).ToList();
-                var myCuts = 0;
-                var theirCuts = 0;
-
-                for (var i = 1; i < ordered.Count; i++)
-                {
-                    var previous = ordered[i - 1];
-                    var current = ordered[i];
-
-                    if (current.IsMe == previous.IsMe || current.StartMs >= previous.EndMs) continue;
-
-                    if (current.IsMe) myCuts++; else theirCuts++;
-                }
-
-                InterruptionSummary = myCuts + theirCuts == 0
-                    ? "Kimse kimsenin sözünü kesmedi."
-                    : $"Söz kesme: sen {myCuts}, karşı taraf {theirCuts}.";
-            }
+            InterruptionSummary = Talk.MyInterruptions + Talk.TheirInterruptions == 0
+                ? "Kimse kimsenin sözünü kesmedi."
+                : $"Söz kesme: sen {Talk.MyInterruptions}, karşı taraf {Talk.TheirInterruptions}.";
         }
 
         OnPropertyChanged(nameof(HasTalkStats));
+    }
+
+    /// <summary>The figures behind the strip, kept so the Aynam tab reads them rather than counting again.</summary>
+    public TalkStats Talk { get; private set; } = TalkStats.Empty;
+
+    // ---- Aynam: what the user did while talking, in this conversation -------------------------
+    //
+    // The report half of the mirror. The page shows the curve across months; this tab shows the
+    // one conversation, with the moments behind every figure. The other party is never counted:
+    // the counters read lines with IsMe set and no others, and the tab says so rather than
+    // leaving the reader to assume it.
+
+    /// <summary>What was counted for this conversation, or null when it has not been counted yet.</summary>
+    [ObservableProperty] private HabitSnapshot? _habits;
+
+    /// <summary>The six figures on one line, in the order the mirror page's cards stand in.</summary>
+    [ObservableProperty] private string? _habitLine;
+
+    /// <summary>"Hesaplandı: 4 Eylül · döküm nova-3" — when, and from which text.</summary>
+    [ObservableProperty] private string? _habitStamp;
+
+    /// <summary>
+    /// The counts were made from a transcript this call no longer shows.
+    ///
+    /// Judged here rather than through <c>DerivedFreshness</c>: that record is a Core type with a
+    /// member per derived note, and one comparison in a view model is cheaper than a schema-wide
+    /// change for a tab that asks exactly one question.
+    /// </summary>
+    [ObservableProperty] private bool _isHabitsStale;
+
+    [ObservableProperty] private bool _isRecounting;
+
+    /// <summary>What the user wrote they did not want to say in this conversation. Read-only here.</summary>
+    [ObservableProperty] private string? _intentText;
+
+    public ObservableCollection<MirrorMoment> HabitMoments { get; } = [];
+
+    public bool HasHabits => Habits is not null;
+    public bool HasHabitMoments => HabitMoments.Count > 0;
+
+    private void LoadHabits()
+    {
+        var stored = _repository.GetHabits(CallId);
+
+        Habits = stored is null ? null : HabitSnapshot.FromJson(stored.Json);
+
+        var current = _repository.CurrentTranscriptVersion(CallId);
+
+        // Stale when the counts were filed under a transcript that is not the one on screen.
+        // Unknown pointers (a row from before they were kept) are left alone: a wrong "bayat"
+        // teaches the reader to ignore the bar.
+        IsHabitsStale = stored is { TranscriptVersionId: { } counted }
+                        && current is { } version
+                        && counted != version.Id;
+
+        HabitStamp = stored is null
+            ? null
+            : string.Format(
+                Localisation.T("callwindow.hesaplandi-d"),
+                stored.CreatedAt.ToLocalTime().ToString("d MMMM yyyy"),
+                _repository.ListTranscriptVersions(CallId)
+                    .FirstOrDefault(v => v.Id == stored.TranscriptVersionId)?.Engine
+                ?? current?.Engine ?? "?");
+
+        HabitLine = Habits is not { } snapshot
+            ? null
+            : string.Format(
+                Localisation.T("callwindow.aynam-satir"),
+                Text(snapshot.Habits.PerMinute(HabitKind.Profanity), "0.00"),
+                Text(snapshot.Habits.PerHundredWords(HabitKind.Filler), "0.0"),
+                Text(snapshot.Habits.WordsPerMinute, "0"),
+                snapshot.Talk.MyShare is { } share ? $"%{share * 100:0}" : "—",
+                Text(snapshot.Talk.TotalMs > 0
+                    ? snapshot.Talk.MyInterruptions / (snapshot.Talk.TotalMs / 600000.0)
+                    : null, "0.0"),
+                snapshot.Habits.Disclosures.Count.ToString());
+
+        LoadHabitMoments();
+
+        IntentText = _repository.GetCallIntent(CallId)?.Text;
+
+        OnPropertyChanged(nameof(HasHabits));
+    }
+
+    /// <summary>A figure or a dash. A missing denominator is said as a dash, never as a zero.</summary>
+    private static string Text(double? value, string format) =>
+        value is { } v ? v.ToString(format) : "—";
+
+    private void LoadHabitMoments()
+    {
+        HabitMoments.Clear();
+
+        if (Habits is not { } snapshot) return;
+
+        var segments = _repository.GetSegments(CallId);
+        var verdicts = _repository.Verdicts(CallId);
+        var at = _repository.GetCall(CallId)?.StartedAt ?? DateTimeOffset.Now;
+        var name = Title;
+
+        foreach (var moment in snapshot.Habits.Moments.OrderBy(m => m.StartMs))
+        {
+            HabitMoments.Add(new MirrorMoment(
+                CallId, _contactId, name, at,
+                moment.Kind, moment.Lexeme, moment.QuoteFolded, moment.StartMs,
+                MirrorViewModel.Context(segments, moment.StartMs),
+                moment.Bucket,
+                Ruling(verdicts, moment.Kind, moment.QuoteFolded, moment.StartMs)));
+        }
+
+        // The disclosures after the words, because they are a different question: not "did I say
+        // this" but "did I mean to read that out". The value itself was never stored.
+        foreach (var disclosure in snapshot.Habits.Disclosures.OrderBy(d => d.StartMs))
+        {
+            HabitMoments.Add(new MirrorMoment(
+                CallId, _contactId, name, at,
+                disclosure.Kind, "", "", disclosure.StartMs,
+                MirrorViewModel.Context(segments, disclosure.StartMs),
+                HabitBucket.Certain,
+                Ruling(verdicts, disclosure.Kind, "", disclosure.StartMs)));
+        }
+
+        OnPropertyChanged(nameof(HasHabitMoments));
+    }
+
+    private static VerdictValue? Ruling(
+        IReadOnlyList<Verdict> verdicts, string kind, string quoteFolded, int startMs)
+    {
+        var filed = MirrorViewModel.VerdictKindFor(kind);
+
+        return verdicts
+            .Where(v => v.Kind == filed
+                        && (quoteFolded.Length == 0 || v.QuoteFolded == quoteFolded)
+                        && Math.Abs(v.StartMs - startMs) <= SpeechHabits.VerdictWindowMs)
+            .OrderBy(v => Math.Abs(v.StartMs - startMs))
+            .Select(v => (VerdictValue?)v.Value)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Counts this conversation again, with the dictionary as it stands now.
+    ///
+    /// Here because the dictionary is the user's: adding a word or excluding one has to be
+    /// answerable on the conversation in front of them rather than only at the next
+    /// re-transcription. Also what clears a stale bar.
+    /// </summary>
+    [RelayCommand]
+    private void Recount()
+    {
+        if (IsRecounting) return;
+
+        IsRecounting = true;
+
+        try
+        {
+            Services.HabitRecount.Run(_repository, CallId);
+            LoadHabits();
+        }
+        finally
+        {
+            IsRecounting = false;
+        }
+    }
+
+    /// <summary>▸ on a moment: the player, at the second it was said. Always the user's own side.</summary>
+    [RelayCommand]
+    private void PlayHabitMoment(MirrorMoment? moment)
+    {
+        if (moment is null) return;
+        Playback.PlayFrom(moment.StartMs, isMe: true);
+    }
+
+    [RelayCommand]
+    private void HabitCorrect(MirrorMoment? moment) => JudgeHabit(moment, VerdictValue.Correct);
+
+    [RelayCommand]
+    private void HabitMisheard(MirrorMoment? moment) => JudgeHabit(moment, VerdictValue.Misheard);
+
+    [RelayCommand]
+    private void HabitNotThat(MirrorMoment? moment) => JudgeHabit(moment, VerdictValue.NotThat);
+
+    /// <summary>
+    /// Records what the user heard and counts the conversation again, so the figures move with
+    /// the ruling. The recount is what applies it: a screen that filtered the stored report
+    /// itself would be a second implementation of a rule that already has one.
+    /// </summary>
+    private void JudgeHabit(MirrorMoment? moment, VerdictValue value)
+    {
+        if (moment is null) return;
+
+        _repository.SaveVerdict(new Verdict
+        {
+            CallId = CallId,
+            Kind = MirrorViewModel.VerdictKindFor(moment.Kind),
+            QuoteFolded = moment.QuoteFolded,
+            StartMs = moment.StartMs,
+            Value = value,
+            DecidedAt = DateTimeOffset.UtcNow,
+        });
+
+        Services.HabitRecount.Run(_repository, CallId);
+        LoadHabits();
     }
 
     /// <summary>
@@ -579,6 +764,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         LoadActions();
         LoadReading();
         LoadDeception();
+        LoadHabits();
         RefreshFreshness();
 
         // The consistency section's own rows — split from the ledger's flags because the two

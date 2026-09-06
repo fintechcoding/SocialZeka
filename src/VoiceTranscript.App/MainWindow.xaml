@@ -269,6 +269,19 @@
                         </StackPanel>
                     </RadioButton>
 
+                    <!-- The one band about the user rather than about somebody they spoke to. -->
+                    <TextBlock Text="{loc:T mainwindow.grup-kocluk}" Style="{StaticResource Caption}"
+                               FontWeight="SemiBold" Margin="14,12,0,4" />
+
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavButton}"
+                                 IsChecked="{Binding Page, Mode=OneWay, Converter={StaticResource IsPage}, ConverterParameter=Mirror}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="Mirror">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="PersonFeedback24" FontSize="17" Margin="0,0,12,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T mainwindow.aynam}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
                     <TextBlock Text="{loc:T mainwindow.grup-bul}" Style="{StaticResource Caption}"
                                FontWeight="SemiBold" Margin="14,12,0,4" />
 
@@ -442,6 +455,15 @@
                         </MultiBinding>
                     </views:PromisesPage.Visibility>
                 </views:PromisesPage>
+
+                <views:MirrorPage Style="{StaticResource PageHost}" DataContext="{Binding Mirror}">
+                    <views:MirrorPage.Visibility>
+                        <MultiBinding Converter="{StaticResource PageVisibility}">
+                            <Binding Path="DataContext.Page" RelativeSource="{RelativeSource AncestorType=Window}" />
+                            <Binding Source="Mirror" />
+                        </MultiBinding>
+                    </views:MirrorPage.Visibility>
+                </views:MirrorPage>
 
                 <views:ContactsPage Style="{StaticResource PageHost}" DataContext="{Binding Contacts}">
                     <views:ContactsPage.Visibility>

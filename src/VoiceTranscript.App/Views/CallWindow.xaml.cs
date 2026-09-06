@@ -27,6 +27,15 @@ public enum CallTab
     /// transcript, and left the reader to find the tab holding the very thing they clicked.
     /// </summary>
     Actions,
+
+    /// <summary>
+    /// What the user did while talking, in this conversation.
+    ///
+    /// Reached from the post-call notice, which carries three of the numbers and is the moment
+    /// the report is actually delivered — a toast the reader cannot follow is one they have to
+    /// remember instead.
+    /// </summary>
+    Mirror,
 }
 
 public partial class CallWindow
@@ -295,6 +304,7 @@ public partial class CallWindow
     private void SelectTab(CallTab tab)
     {
         if (tab == CallTab.Actions) MainTabs.SelectedItem = ActionsTab;
+        if (tab == CallTab.Mirror) MainTabs.SelectedItem = MirrorTab;
     }
 
     private void Citation_Click(object sender, MouseButtonEventArgs e)

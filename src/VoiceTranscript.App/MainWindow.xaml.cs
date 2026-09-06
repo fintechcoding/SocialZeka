@@ -619,6 +619,17 @@ public partial class MainWindow
                 severity is Services.NoticeSeverity.Warning or Services.NoticeSeverity.Error ? 10 : 5),
         };
 
+        // Where the toast leads, when it leads anywhere.
+        //
+        // The post-call notice is the moment the report is delivered — three numbers and a way to
+        // the rest of them — and a notice you cannot follow is a notice that has to be remembered
+        // instead. Captured before the property is cleared, and the cursor says the toast is live.
+        if (model.NoticeAction is { } follow)
+        {
+            snackbar.Cursor = System.Windows.Input.Cursors.Hand;
+            snackbar.PreviewMouseLeftButtonUp += (_, _) => follow();
+        }
+
         snackbar.Show();
 
         // Cleared so that the same message twice in a row still shows twice.

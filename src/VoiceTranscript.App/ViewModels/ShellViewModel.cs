@@ -34,6 +34,15 @@ public enum ShellPage
 
     Contacts,
 
+    /// <summary>
+    /// The user's own speaking habits, counted, with the moments behind every figure.
+    ///
+    /// Its own band on the rail — KOÇLUK — because it is the only page about the user rather than
+    /// about somebody they spoke to. Nothing on it describes the other party: the counters read
+    /// the user's lines and no others.
+    /// </summary>
+    Mirror,
+
     // ShellPage.Processing was here, and removing it is the fix rather than a tidy-up.
     //
     // The processing list is a tab on the Durum page and has been for a long time; nothing in the
@@ -101,6 +110,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Calendar = new CalendarViewModel(repository);
         Todo = new TodoViewModel(repository, showDone: settings().TodoShowDone);
         Promises = new PromisesViewModel(repository);
+        Mirror = new MirrorViewModel(repository);
         Contacts = new ContactsViewModel(repository);
         Processing = new ProcessingViewModel(repository, settings);
         // The status screen is told the route the recorder really takes, rather than assuming
@@ -137,6 +147,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
         Ledger.OpenRequested += (_, target) => OnUi(() => OpenAt(target.ContactId, target.CallId, target.StartMs, target.IsMe));
         Promises.OpenRequested += (_, target) => OnUi(() => OpenAt(target.ContactId, target.CallId, target.StartMs, target.IsMe));
+
+        // A dot on the curve and a moment in the list are both "take me to where this was said".
+        Mirror.OpenRequested += (_, target) => OnUi(() => OpenAt(target.ContactId, target.CallId, target.StartMs, target.IsMe));
 
         // Severity travels WITH the message from here on. Page notices are ordinary news;
         // everything the orchestrator says out loud is a heads-up ("X yanıt vermedi, Y
@@ -182,13 +195,26 @@ public sealed partial class ShellViewModel : ObservableObject
             {
                 var actions = repository.ActionsOf(processed.CallId, includeClosed: false).Count;
 
+                // The three numbers, and the way to the rest of them.
+                //
+                // This toast is where the post-call report is actually delivered: it arrives
+                // unprompted, minutes after the conversation, and it is the only moment the user
+                // is thinking about the call they just had. Three counts and a click — the whole
+                // report is on the window's Aynam tab, and nothing here is a judgement.
+                var mirror = MirrorLine(repository, processed.CallId);
+
                 Post(
                     $"{processed.ContactName} görüşmesi işlendi"
+                    + (mirror is { Length: > 0 } line ? $" · {line}" : "")
                     + (actions > 0 ? $" · {actions} aksiyon önerildi" : "")
                     + (processed.Summary is { Length: > 0 } s
                         ? $" — {(s.Length <= 120 ? s : s[..117] + "…")}"
                         : "."),
-                    Services.NoticeSeverity.Success);
+                    Services.NoticeSeverity.Success,
+                    () => Views.CallWindow.Show(
+                        System.Windows.Application.Current?.MainWindow,
+                        processed.CallId,
+                        tab: Views.CallTab.Mirror));
             }
             else if (processed.Failure is { } failure)
             {
@@ -205,12 +231,52 @@ public sealed partial class ShellViewModel : ObservableObject
 
     private long _lastProgressCall = -1;
 
+    /// <summary>
+    /// "sen %61 · küfür 3 · 2 açık söz" — the three numbers the post-call notice carries.
+    ///
+    /// Empty when the conversation has not been counted yet, which is the ordinary state until
+    /// the counts are stored: a toast that said "sen %0" because nothing had been computed would
+    /// be a wrong number rather than a missing one. Static and given its repository so the
+    /// sentence can be checked without a window.
+    /// </summary>
+    public static string MirrorLine(Repository repository, long callId)
+    {
+        try
+        {
+            var parts = new List<string>();
+
+            if (repository.GetHabits(callId) is { } stored
+                && Core.Analysis.HabitSnapshot.FromJson(stored.Json) is { } snapshot)
+            {
+                if (snapshot.Talk.MyShare is { } share) parts.Add($"sen %{share * 100:0}");
+
+                var swears = snapshot.Habits.CountOf(Core.Domain.HabitKind.Profanity).Certain;
+                if (swears > 0) parts.Add($"küfür {swears}");
+            }
+
+            if (repository.GetCall(callId)?.ContactId is { } contactId)
+            {
+                var open = repository.PromiseLedger(contactId: contactId).Count;
+                if (open > 0) parts.Add($"{open} açık söz");
+            }
+
+            return string.Join(" · ", parts);
+        }
+        catch (Exception e)
+        {
+            // A toast is not worth failing a completed call over.
+            Services.AppLog.Error("aynam", e, "görüşme sonrası sayılar derlenemedi");
+            return "";
+        }
+    }
+
     public OverviewViewModel Overview { get; }
     public CallsViewModel Calls { get; }
     public LedgerViewModel Ledger { get; }
     public CalendarViewModel Calendar { get; }
     public TodoViewModel Todo { get; }
     public PromisesViewModel Promises { get; }
+    public MirrorViewModel Mirror { get; }
     public ContactsViewModel Contacts { get; }
     public ProcessingViewModel Processing { get; }
     public AiStatusViewModel AiStatus { get; }
@@ -243,6 +309,7 @@ public sealed partial class ShellViewModel : ObservableObject
         ShellPage.Todo => Localisation.T("mainwindow.yapilacaklar"),
         ShellPage.Promises => Localisation.T("mainwindow.sozler"),
         ShellPage.Contacts => Localisation.T("mainwindow.kisiler"),
+        ShellPage.Mirror => Localisation.T("mainwindow.aynam"),
         ShellPage.Search => Localisation.T("mainwindow.arama"),
         ShellPage.Ask => Localisation.T("mainwindow.sor"),
         ShellPage.Health => Localisation.T("mainwindow.durum"),
@@ -372,12 +439,22 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty] private Services.NoticeSeverity _noticeSeverity;
     [ObservableProperty] private int _unseenNoticeCount;
 
+    /// <summary>
+    /// What clicking the current notice does, or null when it does nothing.
+    ///
+    /// Travels ahead of the message exactly as the severity does, and for the same reason: the
+    /// code that raised the notice is the only code that knows where it leads. Set before
+    /// <see cref="Notice"/>, because the window reads it when the Notice change lands.
+    /// </summary>
+    public Action? NoticeAction { get; private set; }
+
     public bool HasUnseenNotices => UnseenNoticeCount > 0;
 
     private readonly Services.NoticeRepeatGuard _repeats = new();
 
     /// <summary>Raises one notice: the toast shows it, the history keeps it.</summary>
-    public void Post(string message, Services.NoticeSeverity severity)
+    /// <param name="onClick">Where the toast leads when it is clicked. Null for a notice that only says something.</param>
+    public void Post(string message, Services.NoticeSeverity severity, Action? onClick = null)
     {
         // Said once per burst. An error still marks the session as having a problem, because that
         // flag is about the state of things rather than about whether this sentence is new.
@@ -393,9 +470,10 @@ public sealed partial class ShellViewModel : ObservableObject
         UnseenNoticeCount++;
         OnPropertyChanged(nameof(HasUnseenNotices));
 
-        // Severity travels ahead of the message: the snackbar factory reads it when the
-        // Notice change lands.
+        // Severity and destination travel ahead of the message: the snackbar factory reads both
+        // when the Notice change lands.
         NoticeSeverity = severity;
+        NoticeAction = onClick;
         Notice = message;
 
         if (severity == Services.NoticeSeverity.Error) HasProblem = true;
@@ -485,6 +563,14 @@ public sealed partial class ShellViewModel : ObservableObject
         // And a promise marked from a call window a moment ago.
         if (Page == ShellPage.Promises) Promises.Refresh();
 
+        // The mirror re-reads its people too: the person filter has to hold whoever exists now,
+        // and a call counted since the window opened belongs in the figures.
+        if (Page == ShellPage.Mirror)
+        {
+            Mirror.LoadContacts();
+            Mirror.Refresh();
+        }
+
         // Checked on arrival rather than on a timer: the answers involve reading the disk and
         // starting a Python process, which is not something to do every minute in the background
         // of a machine that is also on a call.
@@ -502,6 +588,7 @@ public sealed partial class ShellViewModel : ObservableObject
         // the home screen left it showing the suggestion as still open.
         Todo.Refresh();
         Promises.Refresh();
+        Mirror.Refresh();
         Contacts.Refresh();
         Processing.Refresh();
         AiStatus.Refresh();
