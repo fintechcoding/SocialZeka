@@ -285,12 +285,17 @@ public class SuggestionsOnTheTodoPageTests : IDisposable
     /// The other half of the fix cannot be reached from here: <see cref="ShellViewModel"/> takes
     /// a <c>CallOrchestrator</c>, which opens capture devices and a Python worker. So the wiring
     /// is read out of the source instead — the subscription that turns an announcement into a
-    /// refresh, and the line inside <c>RefreshAll</c> that re-reads the to-do list.
+    /// refresh, and the place that knows how to re-read the to-do list.
     ///
     /// Red means the announcements are being made and nothing is listening, which looks exactly
     /// like the complaint that started this: a verdict written, and a list that does not move.
-    /// Note that <c>RefreshAll</c> re-reads every page rather than only the visible one — the
-    /// to-do line was missing from it precisely because the page was not the one on screen.
+    ///
+    /// A source scan, not a behavioural test. It once read the line inside <c>RefreshAll</c>,
+    /// back when that method re-read all ten pages in a row; the to-do line had been missing from
+    /// it precisely because the page was not the one on screen. RefreshAll now re-reads the
+    /// visible page and marks the rest, so the mapping lives in <c>Reload</c> and the scan reads
+    /// it there. That the marked pages really are re-read on arrival is
+    /// <see cref="ShellRefreshTests"/>'s job, not this one's.
     /// </summary>
     [Fact]
     public void TheShellRefreshesTheTodoListWhenASuggestionIsRuledOn()
@@ -305,10 +310,10 @@ public class SuggestionsOnTheTodoPageTests : IDisposable
         Assert.NotNull(subscription);
         Assert.Contains("RefreshAll", subscription, StringComparison.Ordinal);
 
-        var start = source.IndexOf("public void RefreshAll()", StringComparison.Ordinal);
-        var end = source.IndexOf("public void OpenContact(", StringComparison.Ordinal);
+        var start = source.IndexOf("private void Reload(ShellPage page)", StringComparison.Ordinal);
+        var end = source.IndexOf("private void Touch(ShellPage page)", StringComparison.Ordinal);
 
-        Assert.True(start > 0 && end > start, "RefreshAll gövdesi bulunamadı.");
+        Assert.True(start > 0 && end > start, "Reload gövdesi bulunamadı.");
         Assert.Contains("Todo.Refresh()", source[start..end], StringComparison.Ordinal);
     }
 

@@ -340,6 +340,13 @@ public sealed class RepeatedWorkTests : IDisposable
     /// way <see cref="SuggestionsOnTheTodoPageTests"/> reads it. Red means the pages have stopped
     /// re-reading themselves and nothing has taken over: a ruling written and three lists that do
     /// not move, which is worse than the double work this replaced.
+    ///
+    /// A source scan, not a behavioural test. It reads two things: that a ledger ruling still
+    /// reaches the shell's refresh, and that the shell still knows how to re-read each of these
+    /// three pages. Where those re-reads live moved once already — they were a straight run of ten
+    /// calls inside RefreshAll, which is the sledgehammer <see cref="ShellRefreshTests"/> exists
+    /// to keep buried — so the scan now looks in Reload, the one place that maps a page to its
+    /// view model.
     /// </summary>
     [Fact]
     public void TheShellIsTheOneThatReReadsThePages()
@@ -354,10 +361,10 @@ public sealed class RepeatedWorkTests : IDisposable
         Assert.NotNull(ledger);
         Assert.Contains("RefreshAll", ledger, StringComparison.Ordinal);
 
-        var start = source.IndexOf("public void RefreshAll()", StringComparison.Ordinal);
-        var end = source.IndexOf("public void OpenContact(", StringComparison.Ordinal);
+        var start = source.IndexOf("private void Reload(ShellPage page)", StringComparison.Ordinal);
+        var end = source.IndexOf("private void Touch(ShellPage page)", StringComparison.Ordinal);
 
-        Assert.True(start > 0 && end > start, "RefreshAll gövdesi bulunamadı.");
+        Assert.True(start > 0 && end > start, "Reload gövdesi bulunamadı.");
 
         var body = source[start..end];
 

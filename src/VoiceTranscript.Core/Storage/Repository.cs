@@ -2106,6 +2106,61 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>
+    /// How many promises are past their date — the number on the Sözler badge, and nothing else.
+    ///
+    /// It exists because that badge used to be a by-product. The shell read the whole Sözler page
+    /// — every promise in the ledger, a verdict query per conversation, the lines around every
+    /// quote — and then took <c>OverdueCount</c> off the rebuilt page, on every ruling made
+    /// anywhere in the application. The badge is read from every screen, so it cannot be allowed
+    /// to go stale with the page it came from; this is the count on its own.
+    ///
+    /// The conditions are the card's, one for one: still open, not turned down, not conditional,
+    /// carrying a date, and that date already past — the effective date, so a promise the user
+    /// postponed counts from the day they moved it to. The join onto <c>call</c> is the ledger's
+    /// own: a promise whose conversation is gone is not on the page, so it is not in the badge.
+    ///
+    /// The last condition cannot be asked in SQL. "Bu söz değil" is recorded against the folded
+    /// quote, and Turkish folding is not something SQLite can do, so those rulings are read and
+    /// matched here. That set is small by nature — it is the moments the user has personally
+    /// struck out, not a table that grows with the archive.
+    /// </summary>
+    public int OverduePromiseCount(DateOnly today)
+    {
+        using var connection = Open();
+
+        var candidates = connection.Query<(long CallId, string Quote, int StartMs)>(
+            """
+            SELECT cm.call_id, cm.quote, cm.quote_start_ms
+            FROM commitment cm
+            JOIN call c ON c.id = cm.call_id
+            WHERE cm.status = 0
+              AND cm.dismissed_by_user = 0
+              AND cm.is_conditional = 0
+              AND COALESCE(cm.user_deadline_date, cm.deadline_date) IS NOT NULL
+              AND COALESCE(cm.user_deadline_date, cm.deadline_date) < @today;
+            """,
+            new { today = today.ToString("yyyy-MM-dd") })
+            .ToList();
+
+        if (candidates.Count == 0) return 0;
+
+        // Same connection, so the whole badge costs one trip to the archive rather than two.
+        var struckOut = connection
+            .Query<(long CallId, string QuoteFolded, int StartMs)>(
+                """
+                SELECT call_id, quote_folded, start_ms
+                FROM verdict
+                WHERE kind = @kind AND verdict = @value;
+                """,
+                new { kind = VerdictKind.Promise, value = (int)VerdictValue.NotThat })
+            .Select(v => (v.CallId, v.QuoteFolded, v.StartMs))
+            .ToHashSet();
+
+        return candidates.Count(c =>
+            !struckOut.Contains((c.CallId, TurkishText.NormalizeForSearch(c.Quote), c.StartMs)));
+    }
+
+    /// <summary>
     /// Every promise still outstanding, across everybody.
     ///
     /// The per-contact version answers "what does Ahmet owe me"; this one answers the question
@@ -2547,6 +2602,36 @@ public sealed class Repository(Database database)
             splitOn: "name");
 
         return [.. rows.Select(r => (r.Item1.ToModel(), r.Item2 ?? "Bilinmeyen"))];
+    }
+
+    /// <summary>
+    /// How many findings are still waiting to be looked at — the number on the Defter badge.
+    ///
+    /// The counterpart of <see cref="OverduePromiseCount"/>, and there for the same reason: the
+    /// badge used to be <c>Ledger.FlagCount</c>, which meant the only way to keep one small
+    /// number honest was to rebuild the whole Defter page — two hundred findings, every tombstone
+    /// beside them — on every ruling made anywhere. A badge that is read from every screen must
+    /// not depend on a page nobody is looking at being rebuilt.
+    ///
+    /// The limit is the page's own, and matching it is the point rather than an oversight: Defter
+    /// builds its count from the newest two hundred findings, so a badge that counted further
+    /// would promise a number the page cannot show.
+    /// </summary>
+    public int OpenFlagCount(int limit = 200)
+    {
+        using var connection = Open();
+
+        return connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*) FROM (
+                SELECT f.id
+                FROM flag f
+                WHERE f.dismissed_by_user = 0
+                ORDER BY f.created_at DESC
+                LIMIT @limit
+            );
+            """,
+            new { limit });
     }
 
     // ---- analysis -----------------------------------------------------------

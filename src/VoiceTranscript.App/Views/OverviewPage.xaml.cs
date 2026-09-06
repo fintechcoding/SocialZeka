@@ -354,12 +354,21 @@ public partial class OverviewPage
         RefreshEverywhere();
     }
 
-    /// <summary>A call changed hands or vanished: every list that shows calls re-reads.</summary>
+    /// <summary>
+    /// A call changed hands, was named, or vanished: every list that shows calls re-reads.
+    ///
+    /// Through the shell rather than by naming two view models, and the reason is the row that
+    /// does not announce itself. Moving, reprocessing and deleting all go through CallActions,
+    /// which tells every screen; naming a call from its row does not — it writes the contact and
+    /// returns. This used to re-read the first screen and Kişiler by hand and leave Defter still
+    /// showing "Bilinmeyen" against a conversation that now has a name, which nothing but the old
+    /// ten-page sweep was covering. The shell's own refresh re-reads what is on screen and marks
+    /// the rest; the same helper on the Görüşmeler page does exactly this.
+    /// </summary>
     private void RefreshEverywhere()
     {
-        ViewModel?.Refresh();
-
-        if (Window.GetWindow(this)?.DataContext is ShellViewModel shell) shell.Contacts.Refresh();
+        if (Window.GetWindow(this)?.DataContext is ShellViewModel shell) shell.RefreshAll();
+        else ViewModel?.Refresh();
     }
 
     private void TagPill_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
