@@ -515,6 +515,23 @@ public sealed record AppSettings
     /// </summary>
     public bool DeceptionEnabled { get; init; }
 
+    /// <summary>
+    /// Show the contact card's bottom panel: what a model makes of a PERSON, over many calls.
+    ///
+    /// Off by default, and the strongest opt-in in this file. It is a paid request; the text is
+    /// an impression rather than a finding; and it makes the broadest claim anything here makes,
+    /// which is why the panel itself carries its two written boundaries — no psychological or
+    /// emotional state, and no "arguments you can use".
+    /// </summary>
+    public bool ContactReadingEnabled { get; init; }
+
+    /// <summary>
+    /// Set when the feature turned ITSELF off: three people in a row whose reading the user
+    /// rejected. Kept apart from the switch so the settings card can say why it is off, and so
+    /// turning it back on by hand does not erase the fact that it measured badly once.
+    /// </summary>
+    public bool ContactReadingMeasuredNegative { get; init; }
+
     public LlmProviderKind LlmProvider { get; init; } = LlmProviderKind.None;
 
     /// <summary>Which entry of the local model catalogue to use. Ignored by remote providers.</summary>

@@ -36,5 +36,5 @@ public partial class CalendarPage
     private void OpenContact(long contactId)
         => ContactWindow.Show(
             Window.GetWindow(this),
-            new ContactWindowViewModel(App.Repository, contactId));
+            new ContactWindowViewModel(App.Repository, contactId, App.Paths.Photos, App.ModelAccess));
 }

@@ -111,7 +111,19 @@ public sealed partial class ShellViewModel : ObservableObject
         Todo = new TodoViewModel(repository, showDone: settings().TodoShowDone);
         Promises = new PromisesViewModel(repository);
         Mirror = new MirrorViewModel(repository);
-        Contacts = new ContactsViewModel(repository);
+        // The contact card's opt-in opinion panel is the one thing on that page that can spend
+        // money and switch itself off, so the page is handed the same settings/save pair the
+        // update screen uses rather than a second way of reaching them.
+        Contacts = new ContactsViewModel(
+            repository,
+            new Services.ModelAccess(
+                settings,
+                saved =>
+                {
+                    App.Settings = saved;
+                    saved.Save(paths.SettingsFile);
+                },
+                App.HttpClient));
         Processing = new ProcessingViewModel(repository, settings);
         // The status screen is told the route the recorder really takes, rather than assuming
         // local transcription works on this machine.

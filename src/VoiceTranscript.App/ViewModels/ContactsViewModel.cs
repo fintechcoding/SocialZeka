@@ -127,9 +127,13 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
 {
     private readonly Repository repository;
 
-    public ContactsViewModel(Repository repository)
+    /// <summary>Handed to each card so its opt-in opinion panel can run. Null: the panel is off.</summary>
+    private readonly Services.ModelAccess? _access;
+
+    public ContactsViewModel(Repository repository, Services.ModelAccess? access = null)
     {
         this.repository = repository;
+        _access = access;
 
         // The transcript follows the audio. Without this somebody checking a quote has to hunt
         // for the right line by eye while the voice moves on past it.
@@ -400,7 +404,7 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasSelection));
 
         // Built for this person and thrown away with them: the card holds one contact's rows.
-        Card = value is null ? null : new ContactCardViewModel(repository, value.Contact.Id);
+        Card = value is null ? null : new ContactCardViewModel(repository, value.Contact.Id, _access);
 
         if (Card is { } card)
         {

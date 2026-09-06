@@ -1,3 +1,4 @@
+using VoiceTranscript.Core.Analysis;
 using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
@@ -439,5 +440,58 @@ public class ArchiveMergeTests : IDisposable
         // And the card can find both under the person they were said to.
         Assert.Equal("aciliyet", Assert.Single(_myRepository.ContactPatterns(contact.Id)).Kind);
         Assert.Equal(1, _myRepository.SpeechActs(contact.Id).CallsMeasured);
+    }
+
+    /// <summary>
+    /// The model's reading of a person travels, remapped onto this machine's identifiers, and a
+    /// reading already here is left alone.
+    ///
+    /// It hangs off a contact and points at the newest call it covered, so both identifiers have
+    /// to be rewritten — left raw, the pointer would name whatever conversation happens to hold
+    /// that id here. Goes red also when the incoming copy overwrites one of ours, which would
+    /// throw away a [Katılmıyorum] the user pressed, and with it the measurement that decides
+    /// whether the feature stays switched on.
+    /// </summary>
+    [Fact]
+    public async Task TheModelsReadingOfAPersonComesWithTheArchive()
+    {
+        // The same person on both machines, each with a reading. The archive's is written first,
+        // so this machine's is the newer of the two and the one the card must go on showing.
+        var ayse = _theirRepository.UpsertContact("Ayşe", CallApp.WhatsApp);
+        var theirCall = Call(_theirRepository, _theirs, ayse, Only, ["onların", "dökümü"]);
+
+        _theirRepository.SaveContactReading(
+            ayse, """{"CounterReading":"gelen okuma"}""", "bulut-model", 9, theirCall, "gelendeki", 60, 2);
+
+        var here = _myRepository.UpsertContact("Ayşe", CallApp.WhatsApp);
+        Call(_myRepository, _mine, here, Only.AddDays(3), ["benim", "satırlarım"]);
+
+        var kept = _myRepository.SaveContactReading(
+            here, """{"CounterReading":"burada duran okuma"}""", "yerel-model", 5, null, "buradaki", 40, 1);
+        _myRepository.SetContactReadingVerdict(kept, ContactReadingAnalysis.Disagree);
+
+        var file = Path.Combine(_root, "yedek-v19.zip");
+        await _theirBackup.BackupAsync(file, includeAudio: false);
+
+        await _myBackup.ImportAsync(file);
+
+        var contact = _myRepository.FindContacts("Ayşe").Single();
+        var imported = _myRepository.ListCalls(limit: 100).Single(c => c.StartedAt == Only);
+
+        // Both are here, and ours — the newest, and the one carrying the user's verdict — is what
+        // the card reads.
+        var newest = _myRepository.LatestContactReading(contact.Id)!;
+        Assert.Equal(kept, newest.Id);
+        Assert.Equal(ContactReadingAnalysis.Disagree, newest.UserVerdict);
+
+        // And the incoming one arrived pointing at the conversation it actually covered here.
+        var verdicts = _myRepository.RecentContactReadingVerdicts(limit: 10);
+        Assert.Single(verdicts);   // one row per person, and there is one person
+
+        using var connection = new Database(_mine.DatabaseFile).Open();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT latest_call_id FROM contact_reading WHERE input_hash = 'gelendeki';";
+        Assert.Equal(imported.Id, Convert.ToInt64(command.ExecuteScalar()));
     }
 }

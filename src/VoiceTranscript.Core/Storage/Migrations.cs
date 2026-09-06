@@ -420,5 +420,33 @@ public static class Migrations
                 """,
                 "CREATE INDEX IF NOT EXISTS ix_audio_event_call ON audio_event(call_id, start_ms);",
             ]),
+
+        // v19 — the opt-in panel at the bottom of the contact card: what a model makes of a person.
+        //
+        // One table, dated rather than keyed by the person, because the feature ships with its own
+        // measurement: the user can disagree with a reading, and three disagreements in a row turn
+        // the feature off. That question cannot be asked of a row that overwrites itself.
+        //
+        // A dead end in every direction — nothing joins on it and no prompt is ever shown a row —
+        // and deliberately NOT contact_profile, which remains the user's own to write.
+        new(19, "Kişi kartı: modelin görüşü (geçmişli, ölü uç)",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS contact_reading (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    contact_id     INTEGER NOT NULL REFERENCES contact(id) ON DELETE CASCADE,
+                    json           TEXT    NOT NULL,
+                    model_used     TEXT,
+                    calls_covered  INTEGER NOT NULL,
+                    latest_call_id INTEGER REFERENCES call(id) ON DELETE SET NULL,
+                    input_hash     TEXT    NOT NULL,
+                    excerpt_count  INTEGER NOT NULL,
+                    rejected_count INTEGER NOT NULL,
+                    user_verdict   INTEGER,
+                    created_at     TEXT    NOT NULL
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS ix_contact_reading ON contact_reading(contact_id, created_at DESC);",
+            ]),
     ];
 }

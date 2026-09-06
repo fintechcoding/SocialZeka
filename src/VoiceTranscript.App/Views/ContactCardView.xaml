@@ -500,16 +500,150 @@
 
                 <!-- ================= the model's opinion ================= -->
                 <!--
-                    Not built here. One collapsed line rather than nothing, so a reader who has
-                    heard the panel exists learns where it lives and that it is off — and so the
-                    card says out loud that the ground below this point is a different one.
+                    A DIFFERENT GROUND, and it looks like one. Everything above is evidence on the
+                    ordinary panel background; this sits on the subtle fill the call window's
+                    assessment panel uses, under a ≈ heading, signed by its model and dated.
+                    The two grounds share a screen because a person reads one screen; they never
+                    share a card, a number or a background.
+
+                    Off is one line saying where the switch is — not silence, which would read as
+                    a feature that failed to load.
                 -->
-                <Border Style="{StaticResource SettingCard}" Padding="14,10" Margin="0,10,0,0">
+                <Border Style="{StaticResource Panel}" Margin="0,10,0,0"
+                        Background="{DynamicResource SubtleFillColorSecondaryBrush}">
                     <StackPanel>
                         <TextBlock Text="{loc:T contactcard.modelin-gorusu}" Style="{StaticResource SectionHeading}"
                                    Margin="0" />
-                        <TextBlock Text="{loc:T contactcard.modelin-gorusu-kapali}" Style="{StaticResource Caption}"
+                        <TextBlock Text="{loc:T contactcard.modelin-gorusu-nedir}" Style="{StaticResource Caption}"
                                    TextWrapping="Wrap" Margin="0,4,0,0" />
+
+                        <!-- Switched off: where to turn it on, and nothing else. -->
+                        <TextBlock Text="{loc:T contactcard.modelin-gorusu-kapali}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Visibility="{Binding OpinionEnabled, Converter={StaticResource InverseBoolToVisibility}}" />
+
+                        <StackPanel Margin="0,8,0,0"
+                                    Visibility="{Binding OpinionEnabled, Converter={StaticResource BoolToVisibility}}">
+
+                            <!-- model · date · N calls · M excerpts · K dropped for want of an anchor -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="{Binding OpinionSignature}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center" TextWrapping="Wrap"
+                                           Visibility="{Binding OpinionSignature, Converter={StaticResource NullToCollapsed}}" />
+
+                                <WrapPanel Grid.Column="1" HorizontalAlignment="Right">
+                                    <ui:Button Content="{loc:T contactcard.yeniden-sor}" Margin="6,0,0,0" Padding="10,3"
+                                               Command="{Binding AskOpinionCommand}"
+                                               IsEnabled="{Binding CanAskOpinion}" />
+                                    <ui:Button Content="{loc:T contactcard.katilmiyorum}" Margin="6,0,0,0" Padding="10,3"
+                                               Appearance="Transparent"
+                                               ToolTip="{loc:T contactcard.katilmiyorum-aciklama}"
+                                               Command="{Binding DisagreeWithOpinionCommand}" />
+                                </WrapPanel>
+                            </Grid>
+
+                            <TextBlock Text="{loc:T contactcard.katilmadin}" Style="{StaticResource Caption}"
+                                       TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Visibility="{Binding OpinionRejected, Converter={StaticResource BoolToVisibility}}" />
+
+                            <!-- The three honest refusals: not enough to read, the history moved
+                                 under it, and a model whose anchors mostly did not resolve. -->
+                            <TextBlock Text="{loc:T contactcard.okuma-yetersiz}" Style="{StaticResource Secondary}"
+                                       TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Visibility="{Binding OpinionIsThin, Converter={StaticResource BoolToVisibility}}" />
+
+                            <TextBlock Text="{loc:T contactcard.okuma-bayat}" Style="{StaticResource Caption}"
+                                       TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding OpinionIsStale, Converter={StaticResource BoolToVisibility}}" />
+
+                            <TextBlock Text="{Binding OpinionNotice}" Style="{StaticResource Caption}"
+                                       TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding OpinionNotice, Converter={StaticResource NullToCollapsed}}" />
+
+                            <TextBlock Text="{Binding OpinionProblem}" Style="{StaticResource Secondary}"
+                                       TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding OpinionProblem, Converter={StaticResource NullToCollapsed}}" />
+
+                            <!-- Nothing asked for yet. -->
+                            <TextBlock Text="{loc:T contactcard.okuma-henuz-yok}" Style="{StaticResource Caption}"
+                                       TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Visibility="{Binding HasOpinion, Converter={StaticResource InverseBoolToVisibility}}" />
+
+                            <ItemsControl ItemsSource="{Binding Opinion}" Margin="0,6,0,0"
+                                          Visibility="{Binding HasOpinion, Converter={StaticResource BoolToVisibility}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:OpinionSection}">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap" />
+
+                                            <ItemsControl ItemsSource="{Binding Lines}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:OpinionLineRow}">
+                                                        <StackPanel Margin="0,4,0,0">
+                                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+
+                                                            <!-- ▸ [B7] plays the moment the line was
+                                                                 hung on. An impression whose anchor
+                                                                 cannot be played does not appear. -->
+                                                            <ItemsControl ItemsSource="{Binding Anchors}" Margin="0,2,0,0">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <WrapPanel />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate DataType="{x:Type vm:OpinionAnchorRow}">
+                                                                        <ui:Button Appearance="Transparent" Padding="4,0" Margin="0,0,4,0"
+                                                                                   Content="{Binding Label}"
+                                                                                   ToolTip="{Binding Quote}"
+                                                                                   Command="{Binding DataContext.PlayAnchorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                   CommandParameter="{Binding}" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Mandatory, and last: the same records read the other way round. -->
+                            <StackPanel Margin="0,10,0,0"
+                                        Visibility="{Binding OpinionCounterReading, Converter={StaticResource NullToCollapsed}}">
+                                <TextBlock Text="{loc:T contactcard.baska-bir-okuma}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding OpinionCounterReading}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!--
+                            The footer, and it is not decoration. Four sentences the panel owes the
+                            reader: this is subjective; it stands apart from the evidence above;
+                            psychological and emotional state is not given, with the reason; and no
+                            "arguments to use" are written, with the pointer to where the honest
+                            answer to that question lives. Shown whether the panel is on or off,
+                            because the refusals are the product's, not the reading's.
+                        -->
+                        <Border BorderThickness="0,1,0,0" Margin="0,12,0,0" Padding="0,8,0,0"
+                                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T contactcard.okuma-oznel}" Style="{StaticResource Caption}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="{loc:T contactcard.okuma-psikolojik-durum-verilmiyor}" Style="{StaticResource Caption}"
+                                           TextWrapping="Wrap" Margin="0,4,0,0" />
+                                <TextBlock Text="{loc:T contactcard.okuma-argumanlar-yazilmiyor}" Style="{StaticResource Caption}"
+                                           TextWrapping="Wrap" Margin="0,4,0,0" />
+                                <TextBlock Text="{loc:T contactcard.okuma-ayarlardan-kapanir}" Style="{StaticResource Caption}"
+                                           TextWrapping="Wrap" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
             </StackPanel>

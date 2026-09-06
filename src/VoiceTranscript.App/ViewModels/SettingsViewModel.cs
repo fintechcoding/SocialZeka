@@ -91,6 +91,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _extractActions = settings.ExtractActions;
         _themeChoice = settings.ThemeChoice ?? "system";
         _deceptionEnabled = settings.DeceptionEnabled;
+        _contactReadingEnabled = settings.ContactReadingEnabled;
+        _contactReadingMeasuredNegative = settings.ContactReadingMeasuredNegative;
         _habitCountingEnabled = settings.HabitCountingEnabled;
         _intentCardEnabled = settings.IntentCardEnabled;
         _liveTalkMeterEnabled = settings.LiveTalkMeterEnabled;
@@ -485,6 +487,20 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _extractActions = true;
     [ObservableProperty] private string _themeChoice = "system";
     [ObservableProperty] private bool _deceptionEnabled;
+
+    // ---- the contact card's model opinion ----
+    //
+    // Off by default, and the badge beside it is not decoration: when three people in a row had
+    // their reading rejected the feature switched itself off, and the card says so rather than
+    // leaving the user to wonder why the panel went quiet. Read-only here — only the panel's
+    // [Katılmıyorum] can set it, and only turning the switch back on clears it.
+    [ObservableProperty] private bool _contactReadingEnabled;
+    [ObservableProperty] private bool _contactReadingMeasuredNegative;
+
+    partial void OnContactReadingEnabledChanged(bool value)
+    {
+        if (value) ContactReadingMeasuredNegative = false;
+    }
 
     // ---- coaching: Aynam ----
     //
@@ -978,6 +994,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         ExtractActions = ExtractActions,
         ThemeChoice = ThemeChoice,
         DeceptionEnabled = DeceptionEnabled,
+        ContactReadingEnabled = ContactReadingEnabled,
+        ContactReadingMeasuredNegative = ContactReadingMeasuredNegative,
         HabitCountingEnabled = HabitCountingEnabled,
         IntentCardEnabled = IntentCardEnabled,
         LiveTalkMeterEnabled = LiveTalkMeterEnabled,
