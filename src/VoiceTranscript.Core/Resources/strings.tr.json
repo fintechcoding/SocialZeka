@@ -1243,5 +1243,9 @@
   "callwindow.aksiyon-cikmadi": "Aksiyon çıkmadı — sıradan bir konuşmada bu olağandır.",
   "callwindow.son-cikarim-imzasi": "Son çıkarım: {0} · {1}",
   "contactwindow.akis-en-yeni-n-gorusme": "Bu akış en yeni {0} görüşmeden derlendi; daha eskisi var.",
-  "contactwindow.daha-eski-akisi-yukle": "Daha eski akışı yükle"
+  "contactwindow.daha-eski-akisi-yukle": "Daha eski akışı yükle",
+  "todopage.gorusme-hatirlatmasi": "Görüşme hatırlatması",
+  "todopage.kisi-yok": "Kişi yok",
+  "todopage.bu-yapilacagi-bir-kisiye-bagla": "Bu yapılacağı bir kişiye bağla — isteğe bağlı",
+  "todopage.soylendigi-ani-dinle": "Bu önerinin dayandığı cümleyi, söylendiği andan dinle"
 }

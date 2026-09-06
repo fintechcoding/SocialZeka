@@ -136,92 +136,135 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!-- Results -->
-        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto"
-                      Visibility="{Binding Groups.Count, Converter={StaticResource CountToVisibility}}">
-            <ItemsControl ItemsSource="{Binding Groups}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Margin="0,0,0,18">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <Border Style="{StaticResource Avatar}" Width="26" Height="26" CornerRadius="13"
-                                        Margin="0,0,10,0"
-                                        Background="{Binding ContactName, Converter={StaticResource NameBrush}}">
-                                    <TextBlock Style="{StaticResource AvatarText}" FontSize="11"
-                                               Text="{Binding ContactName, Converter={StaticResource Initials}}" />
-                                </Border>
-                                <TextBlock Text="{Binding Header}" FontWeight="SemiBold"
-                                           FontSize="{StaticResource TextBody}" VerticalAlignment="Center" />
+        <!--
+            Results.
+
+            One list, not two nested ones. The headings and the lines under them used to be an
+            ItemsControl inside an ItemsControl inside a ScrollViewer, and nothing in that stack
+            could virtualise: an ItemsControl has no scrolling panel of its own, so it was
+            measured with unlimited height and built a visual tree for every hit the query
+            returned. The archive grows by about nine conversations a day and a common word
+            already reaches the five hundred the query is capped at, so pressing Enter meant
+            waiting for five hundred cards to be constructed before seeing the first one.
+
+            Laid end to end — heading, its lines, next heading — the same rows fit a ListBox,
+            which does have a scrolling panel and builds only what is on screen. Nothing about
+            what a result looks like or which person it sits under changed; the gap above a
+            heading, which used to be the group box's own margin, is now the heading's.
+        -->
+        <ListBox Grid.Row="4" Style="{StaticResource CleanList}" ItemsSource="{Binding Rows}"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 VirtualizingPanel.ScrollUnit="Pixel"
+                 Visibility="{Binding Groups.Count, Converter={StaticResource CountToVisibility}}">
+
+            <!--
+                The rows carry their own surfaces — a heading, or a HoverCard — so the container
+                is nothing at all. CleanList's own row chrome would draw a second hover behind
+                every card and pad it away from the one beside it.
+            -->
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="0" />
+                    <Setter Property="Focusable" Value="False" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <ContentPresenter HorizontalAlignment="Stretch" />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </ListBox.ItemContainerStyle>
+
+            <ListBox.Resources>
+                <!-- One person's heading: initials, name, how many of their lines matched. -->
+                <DataTemplate DataType="{x:Type vm:SearchGroup}">
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Margin" Value="0,18,0,8" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsFirst}" Value="True">
+                                        <Setter Property="Margin" Value="0,0,0,8" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <Border Style="{StaticResource Avatar}" Width="26" Height="26" CornerRadius="13"
+                                Margin="0,0,10,0"
+                                Background="{Binding ContactName, Converter={StaticResource NameBrush}}">
+                            <TextBlock Style="{StaticResource AvatarText}" FontSize="11"
+                                       Text="{Binding ContactName, Converter={StaticResource Initials}}" />
+                        </Border>
+                        <TextBlock Text="{Binding Header}" FontWeight="SemiBold"
+                                   FontSize="{StaticResource TextBody}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </DataTemplate>
+
+                <!-- One matched line. -->
+                <DataTemplate DataType="{x:Type vm:SearchResult}">
+                    <Border Style="{StaticResource HoverCard}" Padding="14,12"
+                            ToolTip="{loc:T searchpage.gorusmeyi-bu-andan-ac}">
+                        <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick"
+                                          Command="{Binding DataContext.OpenCommand,
+                                                    RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          CommandParameter="{Binding}" />
+                        </Border.InputBindings>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Width="3" CornerRadius="2" Margin="0,1,12,1">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMe}" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource MeBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+
+                            <StackPanel Grid.Column="1" Width="76" Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Who}" FontWeight="SemiBold"
+                                           FontSize="{StaticResource TextSecondary}" />
+                                <TextBlock Text="{Binding Timestamp}"
+                                           Style="{StaticResource TimeLink}" Margin="0,2,0,0" />
                             </StackPanel>
 
-                            <ItemsControl ItemsSource="{Binding Results}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Style="{StaticResource HoverCard}" Padding="14,12"
-                                                ToolTip="{loc:T searchpage.gorusmeyi-bu-andan-ac}">
-                                            <Border.InputBindings>
-                                                <MouseBinding MouseAction="LeftClick"
-                                                              Command="{Binding DataContext.OpenCommand,
-                                                                        RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
-                                                              CommandParameter="{Binding}" />
-                                            </Border.InputBindings>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
+                            <!--
+                                Match highlighted in place.
 
-                                                <Border Grid.Column="0" Width="3" CornerRadius="2" Margin="0,1,12,1">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="{DynamicResource ThemBrush}" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsMe}" Value="True">
-                                                                    <Setter Property="Background" Value="{DynamicResource MeBrush}" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-                                                </Border>
+                                Without it every row is a paragraph of similar-looking text and
+                                the eye has to read all of them to find the one word it came for.
+                            -->
+                            <TextBlock Grid.Column="2" TextWrapping="Wrap"
+                                       FontSize="{StaticResource TextSecondary}"
+                                       VerticalAlignment="Center">
+                                <Run Text="{Binding Before, Mode=OneWay}" />
+                                <Run Text="{Binding Match, Mode=OneWay}" FontWeight="Bold"
+                                     Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}" />
+                                <Run Text="{Binding After, Mode=OneWay}" />
+                            </TextBlock>
 
-                                                <StackPanel Grid.Column="1" Width="76" Margin="0,0,12,0">
-                                                    <TextBlock Text="{Binding Who}" FontWeight="SemiBold"
-                                                               FontSize="{StaticResource TextSecondary}" />
-                                                    <TextBlock Text="{Binding Timestamp}"
-                                                               Style="{StaticResource TimeLink}" Margin="0,2,0,0" />
-                                                </StackPanel>
-
-                                                <!--
-                                                    Match highlighted in place.
-
-                                                    Without it every row is a paragraph of
-                                                    similar-looking text and the eye has to read
-                                                    all of them to find the one word it came for.
-                                                -->
-                                                <TextBlock Grid.Column="2" TextWrapping="Wrap"
-                                                           FontSize="{StaticResource TextSecondary}"
-                                                           VerticalAlignment="Center">
-                                                    <Run Text="{Binding Before, Mode=OneWay}" />
-                                                    <Run Text="{Binding Match, Mode=OneWay}" FontWeight="Bold"
-                                                         Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}" />
-                                                    <Run Text="{Binding After, Mode=OneWay}" />
-                                                </TextBlock>
-
-                                                <TextBlock Grid.Column="3" Text="{Binding When}"
-                                                           Style="{StaticResource Caption}" Margin="12,0,0,0"
-                                                           VerticalAlignment="Center" />
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+                            <TextBlock Grid.Column="3" Text="{Binding When}"
+                                       Style="{StaticResource Caption}" Margin="12,0,0,0"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ListBox.Resources>
+        </ListBox>
 
         <!-- Nothing found, or nothing searched for yet. -->
         <StackPanel Grid.Row="4" Style="{StaticResource EmptyState}"

@@ -1559,9 +1559,11 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   tutuluyor; uygulama kapanınca kayboluyor ve açılışta görüşme baştan yazıya dökülüyor.
   Bir saatlik arama ikinci kez ödeniyor. Kural veritabanındaki gerçeğe dayanmalı: döküm
   zaten yazılıysa yeniden dökme.
-- [ ] **ARAMA-SANALLASTIRMA — Arama sonuçları sanallaştırılmıyor** (saklama denetimi, 7
+- [x] **ARAMA-SANALLASTIRMA — Arama sonuçları sanallaştırılmıyor** (saklama denetimi, 7
   numara). Sorgu tarafı sağlam (FTS5 + LIMIT 500) ama sonuçlar iç içe iki ItemsControl ile
   çiziliyor. Arşiv 500 görüşmeye çıkınca sık kelimeler tavana dayanır ve pencere donar.
+  **Kapandı** (`paket-yapilacaklar`): iki iç içe liste uç uca serilip sanallaştıran `CleanList`'e
+  bağlandı. 500 sonuçta kurulan satır 500 → 9, görsel öğe 4744 → 240, tek yerleşim 1149 → 128 ms.
 - [ ] **Ç2 — Genel bakış merkezli çevre sekmeleri (şema v22)** — PLAN-IKINCI-TUR §6. Kullanıcı
   çip değil SEKME istedi ve Genel bakış'ta istedi. Ç'nin şeması ve Çevreler penceresi kalır;
   gizleme tamamen düşer (iki mekanizma aynı işi yapmaz). Şerit YALNIZ "Son görüşmeler"i süzer;
@@ -1578,9 +1580,19 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
 
 - [ ] **B — Arayüz bütünlük sözleşmesi** (3-4 gün, şema yok). 12 kural, 12 test; K1-K10 sert
   sıfır (63 nokta), K11 (40 tarih çağrısı / 14 biçim) ve K12 (422 gömülü dize) çivilenir.
-- [ ] **Y — Yapılacaklar'ın üç kusuru** (1 gün). action_item.quote hiç okunmuyor (kanıt zemini o
+- [x] **Y — Yapılacaklar'ın üç kusuru** (1 gün). action_item.quote hiç okunmuyor (kanıt zemini o
   ekranda tamamen kayıp); yapılacağa kişi seçilemiyor; hatırlatma board_card.remind_on olduğu
   için bir görüşmeye ikinci hatırlatma kurulamıyor ve başlıksız kart metinsiz satır gösteriyor.
+  **Kapandı** (`paket-yapilacaklar`): öneri satırı artık alıntısını ve çalınabilir anını taşıyor
+  (`▸ 07:12 "…"`, kullanıcının kendi yazdığında yok), yapılacağa kişi seçilebiliyor, başlıksız
+  hatırlatma kendini adlandırıyor, çipler `WrapPanel`'de. **Şema gerektirdiği için kapanmayan
+  tek şey aşağıda:** `HATIRLATMA-COKLU`.
+- [ ] **HATIRLATMA-COKLU — Bir görüşmeye ikinci hatırlatma kurulamıyor** (Y'den çıktı, şema ister).
+  `board_card.call_id` birincil anahtar ve hatırlatma o satırın `remind_on` sütunu; yani bir
+  görüşme aynı anda en fazla bir hatırlatma taşıyabilir. Ayrıca `TodoEntry.Id` hatırlatma
+  satırlarında bir `callId`; üç kaynağın sayıları ayrı uzaylarda kaldı, şimdilik her yazma yolu
+  numarayı kendi uzayının adıyla istiyor ve yanlışında istisna atıyor (`TodoGroundsTests`).
+  Gerçek çözüm kendi kimliği olan bir `reminder` tablosu; şema sırası geldiğinde.
 - [x] **İPTAL — §4.6'nın "Sözlerim çipi"** (commitment ByMe=1 → Yapılacaklar). Tasarlandı, 7,5
   ile en yüksek puanı aldı, kullanıcı reddetti: "yok düşsün demiyorum". Gerekçe ve tasarım
   PLAN-IKINCI-TUR §0.1'de; yeniden önerilmesin.
