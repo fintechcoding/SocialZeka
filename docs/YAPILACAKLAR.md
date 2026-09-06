@@ -1554,6 +1554,16 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   bakmadığı bulguları silme riski taşıdığı için yapılmadı.
 - [ ] **ÖLÜ SORGU — `Repository.LastRuns(string stage)` hiçbir yerden çağrılmıyor.** Ya bir
   tüketici kazandırılmalı ya silinmeli.
+- [ ] **Ç2 — Genel bakış merkezli çevre sekmeleri (şema v22)** — PLAN-IKINCI-TUR §6. Kullanıcı
+  çip değil SEKME istedi ve Genel bakış'ta istedi. Ç'nin şeması ve Çevreler penceresi kalır;
+  gizleme tamamen düşer (iki mekanizma aynı işi yapmaz). Şerit YALNIZ "Son görüşmeler"i süzer;
+  üstteki dört sayı, Dikkat kartları ve sağ sütun hiçbir sekmede değişmez. Süzgeç SQL'e iner,
+  çünkü Genel bakış'ta kesim süzgeçten önce (12 satır). 4-6 gün.
+- [ ] **D — İki makine, tek kişi (şema v22'nin yanında)** — PLAN-IKINCI-TUR §7. Kullanıcı
+  uygulamayı birden fazla PC'de kullanıyor. Bugün paylaşılan bir görüşmenin üstündeki kararlar
+  hiç taşınmıyor, kişi profili bütün satır olarak düşüyor, geri yükleme ayar dosyasını eziyor,
+  varsayılan yedek sesi almıyor ve bunu söylemiyor. Arşiv künyesi + içe aktarma önizlemesi +
+  "Getirilmeyenler" listesi. **Kişi profilinin alan alan birleşmesi Ç2'den ÖNCE girmeli.** ~1 hafta.
 - [ ] **Ç — Çevreler (şema v20)** (2-3 gün). `contact_circle` sözlüğü + `contact_profile`a
   `circle_folded`; Görüşmeler'de çip şeridi, Çevreler penceresi, Kişiler/Genel bakış/kişi
   kartı/Aynam'da aynı kavram. **Risk:** kullanıcı bu üründe hiç elle sınıflandırma yapmadı

@@ -551,3 +551,197 @@ dogrulandi. Biri (ertelenen tarihsiz soz cokmesi) ayni gun duzeltildi; kalanlar 
 Kalan 24 bulgu paket sahiplerine dagitilir: a1-a2 ve b-sozler bulgulari **Y** paketine,
 c-d-aynam ve e-kisi-karti bulgulari kendi ekranlarinin bir sonraki dokunusuna, kayit-yerleri
 ve urun-kurallari bulgulari **B** paketinin kural listesine.
+
+---
+
+## 6. Paket Ç2 — Genel bakış merkezli çevre sekmeleri
+
+*6 Eylül 2026. Kullanıcı §2'nin çip tasarımını gördükten sonra farklı bir şey istedi: "son
+görüşmelerde aile diye de ayrım olsa, bazı kişileri aileye aktarsam, tablı olsa, aileyi seçince
+ayrı filtrelenmiş hâlini görsem". Çip değil **sekme**, ve Görüşmeler'de değil **Genel bakış**'ta.
+Ç'nin şeması, Çevreler penceresi ve katlanmış metin kimliği aynen kalır. Değişen üç şey var.*
+
+### 6.1 Üç fark
+
+1. **Denetim yeri Genel bakış'a taşınır.** Ç çipleri Görüşmeler ekranına koyuyordu.
+2. **Gizleme tamamen düşer, yerine tek seçimli sekme gelir.** Ç'nin çok seçimli aç/kapa gizlemesi,
+   `AppSettings.HiddenCircles` kalıcı tercihi ve "{n} görüşme gizli" satırı yazılmaz. **İki
+   mekanizma aynı işi yapmaz.**
+3. **Süzgeç SQL'e iner**, çünkü Genel bakış'ta kesim süzgeçten önce (§6.3).
+
+**Şema v22.** Ç §2.1 "v21" diyordu; v21 sevk edildi. Çevreler v22'dir. Bu, plan boyunca üçüncü
+kaydırma; şema sürümleri tek sıradır ve sevk edilen adım düzenlenmez.
+
+### 6.2 Temel kural: şerit yalnız bir bölümü süzer
+
+Şerit **yalnız "Son görüşmeler" listesini** süzer. Sayfanın başka hiçbir şeyini süzmez:
+
+| Bölüm | Aile sekmesindeyken |
+|---|---|
+| Üstteki dört sayı | **Değişmez** |
+| Dikkat kartları | **Değişmez** |
+| Vadesi geçen sözler satırı | **Değişmez** |
+| Sağ sütun: Önemli / Bugün panosu ve takvim | **Değişmez** |
+| Son görüşmeler listesi | Yalnız o çevrenin son 12'si |
+
+Gerekçe kodun kendi yorumunda yazılı: üstteki kart "arşiv hakkında tek cümle". Bir sayı süzgeç
+yüzünden küçülürse kullanıcı arşivinin küçüldüğünü sanar, ve bu bir arayüz tercihi değil bir
+yalandır. Dikkat kartları da süzülmez: tanımları "kullanıcıyı bölmeye değer şey", ve yedi
+gerekçeden biri (isimlendirilmemiş görüşme) tanımı gereği kişisiz olduğu için hiçbir çevreye
+giremez — süzülse sonsuza dek görünmez olurdu. Bir aile sözünün vadesi, İş sekmesindeyken de
+geçmiştir. Sağ sütun kullanıcının kendi elleriyle dizdiği yer; makinenin listelediğiyle aynı
+süzgece girmez.
+
+### 6.3 Tasarımın öldüğü yer, ve nasıl kurtarıldığı
+
+Genel bakış bugün `ListCalls(limit: 12)` çağırıyor ve o sorguda çevre parametresi yok.
+**Kesim süzgeçten önce.** Şerit bu 12'yi süzerse "Aile" sekmesi 41 aile görüşmesi varken
+**2 satır** gösterir, ve kullanıcı "aile görüşmelerim kayboldu" der. §2.5'in dördüncü sert
+değişmezinin doğrudan ihlali.
+
+Çözüm: çevre süzgeci `ListCalls`'a parametre olarak iner, her sekme kendi son 12'sini SQL'den
+çeker. Bu, Görüşmeler ekranındaki bellek içi süzmeden farklı bir katman — ve iki katmanın
+ayrışması bu tasarımın kendi riskidir, ayrı bir test şart.
+
+Aynı işte kapanacak ikinci şey: Genel bakış bugün satır başına kişi sorgusu atıyor (12 satır =
+12 ek sorgu). Çevre için ikinci bir tur eklenmemeli; Görüşmeler sayfasının tek sorgudan sözlük
+kuran deseni buraya kopyalanır.
+
+### 6.4 Ekranda ne görünür
+
+```
+ Genel bakış
+ +----------------------------------------------+
+ |  78         10        163        14 sa 20 dk |   <- hiçbir sekmede değişmez
+ |  görüşme    kişi   açık söz      kaydedilen  |
+ +----------------------------------------------+
+ ! 3 görüşme kimin olduğu bilinmiyor               <- hiçbir sekmede değişmez
+ 3 sözün vadesi geçti — 1 senin, 2 sana verilen    <- hiçbir sekmede değişmez
+
+ Son görüşmeler                                                    Tümü ->
+ (Hepsi 78) (o Aile 41) (o İş 26) (Çevresiz 11)      Çevreleri düzenle…
+ ------------------------------------------------------------------------
+  (U) o Uliana        bugün 14:02 · Hazır      WhatsApp      41:12
+  (S) o Serdal        dün 19:31 · Hazır        WhatsApp      06:40
+```
+
+Sekme sayıları **arşivin tamamından**, süzgeçten önce. Seçili pil dolu, ötekiler soluk — sağ
+paneldeki Önemli/Bugün ikilisiyle aynı görsel dil. Satırda 8 piksellik renkli daire.
+
+**"Çevresiz" sekmesi vardır ve kaldırılamaz**; yeni bir kişi orada görünür, hiçbir zaman
+kaybolmaz. **Seçim kalıcı değildir**: her açılışta "Hepsi" gelir. Sebebi kayıp korkusu —
+hatırlanan bir seçim, gece gelen bir aile görüşmesini kapalı kapı arkasında bırakırdı.
+
+Görüşmeler sayfasında aynı kavram bir açılır kutu olarak kalır, sekme değil. İki ekranın iki ayrı
+sorusu var: Genel bakış "bugün ne oldu", Görüşmeler "şunu bul". Bu, §4'ün bütünlük sözleşmesinde
+K1'e kayıtlı olduğu sürece meşru bir farktır, ve kayıt bunu yazmak zorundadır.
+
+### 6.5 Ölçü ve geri alma
+
+| # | Ölçü | Eşik |
+|---|---|---|
+| 1 | Kapsama: çevresi olan kişi / görüşmesi olan kişi | İki hafta içinde en az %70 |
+| 2 | Ayrışma: bir çevre sekmesindeki 12 satırda görünen farklı kişi sayısı, Hepsi'dekine karşı | En kalabalık çevrenin dışındaki bir sekmede en az iki katı |
+| 3 | Kayıp yok | Sert değişmez, tolerans sıfır |
+
+İkinci ölçü Ç'nin "sıkışma"sının yerine geçiyor ve daha doğrusu: kullanıcının şikâyeti hacim
+değil **"diğer önemli görüşmeleri bulamıyorum"**du.
+
+**Geri alma ucuz, çünkü kalıcı hiçbir şey yok.** Şeridin görünürlüğünü veren tek bayrak kapatılır
+ve Genel bakış bugünküne döner; tek bir kullanıcı verisi kaybolmaz, atamalar kişi kartında bilgi
+alanı olarak durur.
+
+### 6.6 Tasarımcının kendi söylediği en zayıf yer
+
+**Sekmeye hiç basılmazsa hiçbir şey değişmez.** Varsayılan "Hepsi" ve her açılışta oraya dönüyor,
+yani kullanıcı bilerek basmadıkça ekran bugünküyle birebir aynı. Ç'nin gizlemesi en azından
+varsayılan görünümü değiştiriyordu; bu tasarım o gücü bilerek bırakıyor. Kapsama ölçüsü tam olarak
+bu bahsi sınıyor.
+
+İkinci risk: aynı ekranda **iki pil şeridi** olacak. Üçüncü: beşinci-altıncı çevre eklenirse şerit
+sarar ve sarmış bir sekme şeridi sekme gibi görünmez — eşik şimdiden yazılsın, dörtten fazla
+çevrede şerit açılır kutuya döner.
+
+**Efor:** 4-6 gün.
+
+---
+
+## 7. Paket D — İki makine, tek kişi
+
+*Kullanıcı 6 Eylül'de söyledi: "bu başka PC'deki veritabanı", "birden fazla PC'de kullanıyorum".
+Ürün bunu hiç tasarlamadı. Bu bir senkron tasarımı DEĞİL — ürün yerel kalıyor, ses buluta
+gitmiyor. Tasarlanan şey şu: arşiv kendi adını bilsin, ikizinden ne zaman haber aldığını söylesin,
+aktarım ucuzlasın, ve bir içe aktarmada düşen her kullanıcı kararı ya açıkça uygulansın ya da
+ekranda bir satır olarak dursun.*
+
+### 7.1 Bugün ne oluyor — hepsi koda bakılarak doğrulandı
+
+Tek yönlü aktarım **yaklaşık 13 tık**, ve her seferinde baştan: son klasör hatırlanmıyor, dosya
+adı önerilmiyor, "son yedek ne zaman alındı" diye bir alan kod tabanında hiç yok.
+
+Bunlar sessiz kayıplar:
+
+- **Varsayılan Yedekle düğmesi sesi almıyor.** Karşı makinede o görüşmeler dinlenemez ve yeniden
+  dökülemez. Kullanıcıya bu anda söylenmiyor.
+- **Geri yükleme ayar dosyasını da değiştiriyor.** Öteki makinenin mikrofon ve hoparlör kimliği,
+  API anahtarları ve veri kökü buraya geçiyor. Birleştirmenin kendi belgesinin yasakladığı şeyi
+  geri yükleme yapıyor.
+- **Kişi fotoğrafları yedeğe hiç girmiyor.**
+- **Paylaşılan bir görüşmenin üstündeki kararlar hiç taşınmıyor.** Kopyalama yalnız YENİ
+  görüşmelerin çocuklarına uygulanıyor; iki makinede de var olan bir görüşmede öteki tarafın söz
+  kararı, notu, etiketi ve kulak teyidi gelmiyor.
+- **Kişi profili bütün satır olarak düşüyor.** Birincil anahtarı kişi ve kopyalama "çakışırsa
+  atla" kuralıyla çalışıyor, yani burada bir satır varsa gelenin **tamamı** gidiyor — öteki
+  makinede yazılmış doğum tarihi, hakkında notu ve (Ç2 sonrası) çevre ataması dahil.
+- **İki makine farklı sürümdeyse** yeni sürümün sütunları sessizce düşüyor.
+
+### 7.2 Ne yapılacak
+
+**Arşivin künyesi.** Sağlık, Veriler sekmesinin başında: bu arşivin adı (kullanıcı yazar),
+büyüklüğü, şema sürümü; ve ikizi tanınıyorsa "İş bilgisayarı — en son 20 Ağustos'ta buraya
+aktarıldı (17 gün önce). O günden sonra orada ne olduğunu bilmiyorum." İki makine kullanmayan biri
+bu satırı hiç görmez.
+
+**İçe aktarmadan önce önizleme.** Dosya seçilir seçilmez, birleştirme başlamadan: yedeğin künyesi,
+kaç görüşme, **sesin olup olmadığı**, şema sürümü, ve seninkiyle yan yana. Sürüm farkı varsa açık
+bir satır.
+
+**Getirilmeyenler.** İçe aktarmadan sonraki cümle sayıyla konuşur: kaç görüşme geldi, kaçı zaten
+vardı, **üstündeki kaç kararı getirdim**, kaçını getiremedim. Getiremediklerinin her biri bir
+pencerede satır olur: burada ne yazıyor, ötekinde ne yazıyor, ve üç düğme — Ötekini al, Burada
+kalsın, ikisi de tut. **Sessizce düşen tek bir karar kalmaz.**
+
+**"Boş olan yere yazmak birleştirme değil, taşımadır"** kuralı çoğunluğu susturur: burada hiçbir
+şey yazılmamışsa gelen karar doğrudan uygulanır ve listeye düşmez.
+
+### 7.3 Ölçü ve geri alma
+
+| # | Ölçü | Eşik |
+|---|---|---|
+| 1 | Kayıp yok: düşen sayısı, uygulanan artı listeye girene eşit | Sert değişmez, her zaman |
+| 2 | Gidiş dönüş doğruluğu: A'dan B'ye, B'de beş tür karar, B'den A'ya | Hepsi ya uygulanmış ya listede |
+| 3 | Maliyet: tek yönlü aktarım | 13 tıktan en çok 6 tığa |
+
+İkinci ölçünün bugün testi **yok**. Yani bugünkü davranış bilinçli bir karar değil, sınanmamış bir
+boşluk.
+
+Geri alma katman katman: karar birleştirme tek bir anahtarla kapatılır ve kapatıldığında bile
+**sayma ve listeye yazma devam eder** — yani kapatmak da sessiz kayba dönmez.
+
+### 7.4 Riskler ve yapılmayacaklar
+
+- **En zayıf yer: söz eşleştirme anahtarı.** İki arşivde sözler alıntı ve milisaniyeyle
+  eşleştiriliyor. Bir makinede görüşme yeniden dökülmüşse alıntı da milisaniye de değişir ve
+  eşleşme kaçar.
+- **Silmeler taşınmıyor ve geri dirilebiliyor.** Mezar taşı yok ve ilk turda da olmayacak. Öteki
+  makinede silinen bir yapılacak burada durmaya devam eder; burada silinen bir şey öteki
+  makinenin yedeğinden geri gelebilir.
+- **Kuyruk angaryaya dönebilir.** Haftalık gidiş dönüş yapan biri her hafta bir yapılacak listesi
+  alır. Otomatik "son karar kazanır" bunu bitirirdi ama sessiz kayba geri döner; bilerek
+  seçilmedi.
+- **İlk turda yapılmayacak:** silme izleri, otomatik çakışma çözümü, herhangi bir ağ ya da bulut
+  senkronu, iki makinenin ayarlarının birleştirilmesi.
+
+**Efor:** yaklaşık bir hafta. **Sıra notu:** kişi profilinin alan alan birleşmesi Ç2'den ÖNCE
+girmelidir — tek başına yarım günlük ve Ç2'nin sevk ön koşulu, çünkü çevre ataması o tabloda
+duruyor ve bugünkü hâliyle ikinci makineye hiç geçmez.
