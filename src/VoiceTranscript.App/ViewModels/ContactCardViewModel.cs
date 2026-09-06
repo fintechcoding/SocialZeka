@@ -297,6 +297,16 @@ public sealed partial class ContactCardViewModel : ObservableObject
     /// <summary>Raised by "Sözler sayfasında aç". The host navigates; a view model does not.</summary>
     public event EventHandler? PromisesRequested;
 
+    /// <summary>
+    /// Raised when somebody arrived here to read one figure's history — the ledger's [Yolculuk].
+    ///
+    /// Only the control knows where its own sections are, so the card asks and the view scrolls.
+    /// </summary>
+    public event EventHandler? JourneyRequested;
+
+    /// <summary>Asks the card to bring the "Rakam yolculuğu" section into view.</summary>
+    public void RequestJourney() => JourneyRequested?.Invoke(this, EventArgs.Empty);
+
     /// <summary>What was just ruled on, and the way back — the same quiet card as everywhere else.</summary>
     public UndoSlot Undo { get; } = new();
 
@@ -944,8 +954,35 @@ public sealed partial class ContactCardViewModel : ObservableObject
     /// <summary>Whether the panel exists at all. Off is one line saying where the switch is.</summary>
     public bool OpinionEnabled => _access?.Settings().ContactReadingEnabled ?? false;
 
+    /// <summary>The numbers behind a refusal, when the refusal was made just now.</summary>
+    [ObservableProperty] private string? _opinionThinDetail;
+
     /// <summary>True when there is something to show — a thin answer is not one.</summary>
     public bool HasOpinion => Opinion.Count > 0;
+
+    /// <summary>
+    /// Whether a reading was ever stored for this person, which is a different question from
+    /// whether anything of it is on screen.
+    ///
+    /// The card used to ask only <see cref="HasOpinion"/>. So a stored reading that came back
+    /// "yetersiz", or one whose every item was dropped for want of an anchor, printed "bu kişi
+    /// için henüz bir okuma istenmedi" directly underneath its own model-and-date signature —
+    /// two sentences on one card contradicting each other, each answering a different question.
+    /// </summary>
+    public bool HasStoredOpinion => _opinionId is not null;
+
+    /// <summary>
+    /// Nothing has ever been asked for this person. The two refusals are not this: a reading
+    /// declined for want of record, and one that survived nothing, each say so in their own words.
+    /// </summary>
+    public bool OpinionNotAsked => !HasStoredOpinion && !OpinionIsThin;
+
+    /// <summary>
+    /// A reading was paid for and nothing survived it: every item cited an anchor that was never
+    /// handed over. Distinct from <see cref="OpinionIsThin"/>, which is refused before a model is
+    /// asked anything at all.
+    /// </summary>
+    public bool OpinionIsEmpty => HasStoredOpinion && !HasOpinion && !OpinionIsThin;
 
     /// <summary>Can be asked only where a model can actually be reached.</summary>
     public bool CanAskOpinion => OpinionEnabled && _access is not null && !OpinionIsRunning;
@@ -957,6 +994,7 @@ public sealed partial class ContactCardViewModel : ObservableObject
         OpinionSignature = null;
         OpinionCounterReading = null;
         OpinionNotice = null;
+        OpinionThinDetail = null;
         OpinionIsStale = false;
         OpinionIsThin = false;
         OpinionRejected = false;
@@ -1034,8 +1072,14 @@ public sealed partial class ContactCardViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(OpinionEnabled));
         OnPropertyChanged(nameof(HasOpinion));
+        OnPropertyChanged(nameof(HasStoredOpinion));
+        OnPropertyChanged(nameof(OpinionNotAsked));
+        OnPropertyChanged(nameof(OpinionIsEmpty));
         OnPropertyChanged(nameof(CanAskOpinion));
     }
+
+    /// <summary>The thin flag decides which of the three empty sentences the card shows.</summary>
+    partial void OnOpinionIsThinChanged(bool value) => Announce();
 
     /// <summary>
     /// [Yeniden sor]. Runs the packet, stores the answer, and shows what survived.
@@ -1082,6 +1126,20 @@ public sealed partial class ContactCardViewModel : ObservableObject
             // Re-read rather than rendered from the returned object: what the panel shows is
             // what was stored, so reopening the card can never show something different.
             LoadOpinion();
+
+            // A refusal is an answer, and on this archive it is the answer most people get —
+            // most of the nine contacts have fewer than three conversations. Nothing was stored,
+            // because nothing was asked of a model: the packet was too thin to pay for. So the
+            // re-read above finds no row and clears the panel, and without these two lines
+            // [Yeniden sor] did nothing at all that anyone could see, on exactly the cards where
+            // it is pressed most.
+            if (report.Insufficient)
+            {
+                OpinionIsThin = true;
+                OpinionThinDetail = string.Format(
+                    Localisation.T("contactcard.okuma-yetersiz-simdi"),
+                    report.CallsCovered, report.ExcerptCount);
+            }
         }
         catch (Exception e)
         {

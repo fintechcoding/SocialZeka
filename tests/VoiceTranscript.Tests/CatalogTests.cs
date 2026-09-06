@@ -203,4 +203,77 @@ public class CatalogTests
         => Assert.Equal(
             "api.groq.com · whisper-large-v3",
             AsrCatalog.DisplayFor("https://api.groq.com/openai/v1|whisper-large-v3"));
+
+    /// <summary>
+    /// A list of local engines says which of them are already on this machine.
+    ///
+    /// The settings table has carried that badge since the models were first offered there. The
+    /// "yeniden çevir" dialog offers the same engines and did not, and it is the harder place to
+    /// be without it: the settings table is a decision made calmly, this dialog is opened because
+    /// a recording has already failed once, and picking a row that turns out to be a
+    /// multi-gigabyte download is learned only after the choice is made.
+    ///
+    /// Red means the rule has been copied instead of shared — at which point the two screens
+    /// drift — or that the dialog no longer asks the probe at all, or that "no answer yet" has
+    /// started rendering as an answer. That last one matters most: before the worker replies
+    /// nothing is known, and guessing "inmedi" puts a wrong label on every row for as long as
+    /// the probe takes.
+    /// </summary>
+    [Fact]
+    public void ALocalEngineRowSaysWhetherItsWeightsAreAlreadyHere()
+    {
+        string[] present = ["large-v3", "medium"];
+
+        // Nothing known yet is said as nothing, in both of its shapes.
+        Assert.Equal("", VoiceTranscript.App.ModelPresenceConverter.Describe("large-v3", null));
+        Assert.Equal("", VoiceTranscript.App.ModelPresenceConverter.Describe("large-v3", []));
+
+        var here = VoiceTranscript.App.ModelPresenceConverter.Describe("large-v3", present);
+        var missing = VoiceTranscript.App.ModelPresenceConverter.Describe("small", present);
+
+        // Compared with each other rather than with a literal: the words come from the
+        // dictionaries, and another test class may have the ambient language switched meanwhile.
+        Assert.False(string.IsNullOrWhiteSpace(here));
+        Assert.False(string.IsNullOrWhiteSpace(missing));
+        Assert.NotEqual(here, missing);
+
+        foreach (var code in new[] { "tr", "en" })
+        {
+            var strings = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(
+                File.ReadAllText(Path.Combine(
+                    Root(), "src", "VoiceTranscript.Core", "Resources", $"strings.{code}.json")))!;
+
+            Assert.False(string.IsNullOrWhiteSpace(strings["settingswindow.model-indirildi"]));
+            Assert.False(string.IsNullOrWhiteSpace(strings["settingswindow.model-inmedi"]));
+        }
+
+        // A row wears the badge only when it has one to wear.
+        var row = new VoiceTranscript.App.Views.ReprocessMethod(
+            "large-v3", "large-v3", "Bu makinede", "Desktop24", false, "");
+
+        Assert.False(row.HasPresence);
+        Assert.True((row with { Presence = here }).HasPresence);
+
+        // And the dialog fills it from the worker's own answer, and draws it.
+        var behind = File.ReadAllText(Path.Combine(
+            Root(), "src", "VoiceTranscript.App", "Views", "ReprocessWindow.xaml.cs"));
+
+        Assert.Contains("ModelPresenceConverter.Describe", behind, StringComparison.Ordinal);
+        Assert.Contains("DownloadedModels", behind, StringComparison.Ordinal);
+
+        var markup = File.ReadAllText(Path.Combine(
+            Root(), "src", "VoiceTranscript.App", "Views", "ReprocessWindow.xaml"));
+
+        Assert.Contains("HasPresence", markup, StringComparison.Ordinal);
+    }
+
+    private static string Root()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "VoiceTranscript.slnx")))
+            directory = directory.Parent;
+
+        return directory?.FullName ?? throw new InvalidOperationException("Depo kökü bulunamadı.");
+    }
 }

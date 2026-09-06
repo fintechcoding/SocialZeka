@@ -10,10 +10,12 @@ namespace VoiceTranscript.App.Views;
 /// <summary>One way of redoing this recording, as the list offers it.</summary>
 /// <param name="Id">Catalogue identifier or model name, or null to follow the setting.</param>
 /// <param name="Group">Which heading it sits under: where the audio would go.</param>
+/// <param name="Presence">"İndirildi" / "İnmedi" for a local engine; "" everywhere else.</param>
 public sealed record ReprocessMethod(
     string? Id, string Name, string Detail, string Icon, bool SendsDataOffMachine, string Speed,
     string Group = ReprocessMethod.OnThisMachine, bool SendsAudio = true,
-    Core.Llm.LlmProviderKind? RouteKind = null, string? RouteUrl = null)
+    Core.Llm.LlmProviderKind? RouteKind = null, string? RouteUrl = null,
+    string Presence = "")
 {
     /// <summary>The row that follows the settings, whatever those currently say.</summary>
     public const string FromSettings = "Ayarlarda seçili";
@@ -27,6 +29,9 @@ public sealed record ReprocessMethod(
     /// simply false — and a privacy label caught lying once is distrusted everywhere.
     /// </summary>
     public string OffMachineLabel => SendsAudio ? "ses makineden çıkar" : "metin makineden çıkar";
+
+    /// <summary>Whether there is a presence badge to draw at all.</summary>
+    public bool HasPresence => !string.IsNullOrEmpty(Presence);
 }
 
 /// <summary>Which single job this dialog is being opened for. One purpose per dialog.</summary>
@@ -113,6 +118,7 @@ public partial class ReprocessWindow
             StartButton.Content = "Yeniden çevir";
 
             ShowTranscriptionEngines();
+            _ = ProbeDownloadedModelsAsync();
 
             Hint.Text = _measured.Count == 0
                 ? "Hız sütunu, bu makinede ölçüldükçe dolar."
@@ -122,6 +128,9 @@ public partial class ReprocessWindow
 
     /// <summary>What was chosen. Valid once the dialog closes with a result.</summary>
     public ReprocessChoice Choice { get; private set; } = new(null, null, false);
+
+    /// <summary>What the worker says is already on disk. Empty until the probe answers.</summary>
+    private IReadOnlyCollection<string> _downloaded = [];
 
     private void ShowTranscriptionEngines()
     {
@@ -147,7 +156,8 @@ public partial class ReprocessWindow
                 "Desktop24",
                 false,
                 SpeedOf(model),
-                ReprocessMethod.OnThisMachine));
+                ReprocessMethod.OnThisMachine,
+                Presence: ModelPresenceConverter.Describe(model.ModelRef, _downloaded)));
         }
 
         // The services actually configured, not the catalogue's idea of them.
@@ -264,6 +274,57 @@ public partial class ReprocessWindow
 
         _analysisMethods = merged;
         Dispatcher.Invoke(() => Bind(merged));
+    }
+
+    /// <summary>
+    /// Asks the worker which local engines are already on disk, and puts the answer on the rows.
+    ///
+    /// The settings table has said this since the models were first listed there; this dialog
+    /// did not, and it is the harder place to be without it. The settings table is a decision
+    /// made once, calmly; this list is opened because a recording failed, and picking an engine
+    /// that turns out to be a three-gigabyte download is the difference between "again in a
+    /// minute" and "again after dinner" — learned, without the badge, only after choosing.
+    ///
+    /// Fired and forgotten like the analysis probe beside it: the list is already usable and
+    /// correct without the badge, so a worker that does not answer costs a label, never the
+    /// dialog. The rows are rebuilt rather than mutated because <see cref="ReprocessMethod"/> is
+    /// a record and the list is bound through a grouped collection view.
+    /// </summary>
+    private async Task ProbeDownloadedModelsAsync()
+    {
+        try
+        {
+            var hello = await App.Worker.ProbeAsync();
+
+            Dispatcher.Invoke(() =>
+            {
+                _downloaded = hello.DownloadedModels;
+
+                // The probe lands a moment after the dialog opens, which is long enough for
+                // somebody to have picked a row and pressed a filter. Rebuilding underneath them
+                // must not quietly undo either.
+                var chosen = (Methods.SelectedItem as ReprocessMethod)?.Id;
+                var scope = _scope;
+
+                ShowTranscriptionEngines();
+                ApplyScope(scope);
+
+                if (chosen is null || _view is null) return;
+
+                foreach (ReprocessMethod row in _view)
+                {
+                    if (row.Id != chosen) continue;
+
+                    Methods.SelectedItem = row;
+                    break;
+                }
+            });
+        }
+        catch (Exception)
+        {
+            // No worker, no answer, no badge. Guessing "inmedi" here would put a wrong label on
+            // every row of a list somebody is about to spend an afternoon on.
+        }
     }
 
     /// <summary>

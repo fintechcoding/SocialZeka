@@ -160,6 +160,25 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
     /// <summary>The card's "Sözler sayfasında aç". The page navigates the shell.</summary>
     public event EventHandler? CardPromisesRequested;
 
+    /// <summary>Where the "Kişi kartı" tab sits in the detail pane's tab strip.</summary>
+    public const int CardTab = 1;
+
+    /// <summary>Which tab of the detail pane is open. Bound two ways, so the page can be sent to one.</summary>
+    [ObservableProperty] private int _detailTab;
+
+    /// <summary>
+    /// Shows the open person's figure journey — the card's tab, scrolled to that section.
+    ///
+    /// Reached from the ledger's [Yolculuk], which is the only verb a changed-figure row has.
+    /// The tab is moved here; the scroll is the card's own business, because only the control
+    /// knows where its own sections are.
+    /// </summary>
+    public void ShowFigureJourney()
+    {
+        DetailTab = CardTab;
+        Card?.RequestJourney();
+    }
+
     private void ReloadFlags()
     {
         Flags.Clear();

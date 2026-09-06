@@ -1221,5 +1221,12 @@
   "askpage.tarih-araligi": "{0} – {1}",
   "askpage.sorulanlar-ve-cevaplari": "Sorulanlar ve cevapları",
   "askpage.kaldir": "Kaldır",
-  "askpage.bu-soruyu-ve-cevabini-kaldir": "Bu soruyu ve cevabını kaldır"
+  "askpage.bu-soruyu-ve-cevabini-kaldir": "Bu soruyu ve cevabını kaldır",
+  "contactcard.okuma-yetersiz-simdi": "Şu an bu kişiyle {0} görüşme ve {1} alıntı var; bu yüzden modele hiçbir istek gönderilmedi, ücret de işlemedi.",
+  "contactcard.okuma-bos": "Okuma yapıldı ama ekranda gösterilecek madde kalmadı: her madde, dayanak gösterdiği alıntı verilmediği için elendi. [Yeniden sor] bir kez daha dener.",
+  "settingswindow.model-indirildi": "İndirildi",
+  "settingswindow.model-inmedi": "İnmedi",
+  "settingswindow.kisi-karti-yerel-model-uyarisi": "Yerel bir modelde çoğu kişi için çalışmaz: bağlam penceresi 24 bin karakter, bulutta 400 bin. Okuma önce küçültülmüş bir paketle denenir; uzun geçmişli kişilerde o da sığmaz ve panel dürüst bir retle karşılık verir.",
+  "ledgerpage.yolculuk": "Yolculuk",
+  "ledgerpage.yolculuk-aciklama": "Bu rakamın yolculuğunu kişi kartında aç: her değeri, söylendiği tarihle ve dinlenebilir anıyla."
 }

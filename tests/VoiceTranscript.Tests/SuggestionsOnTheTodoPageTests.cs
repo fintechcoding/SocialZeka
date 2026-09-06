@@ -18,30 +18,34 @@ namespace VoiceTranscript.Tests;
 public class SuggestionsOnTheTodoPageTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"vt-todo-{Guid.NewGuid():N}");
+    private readonly AppPaths _paths;
     private readonly Repository _repository;
     private readonly TodoViewModel _model;
     private readonly long _callId;
+    private readonly long _contactId;
 
     public SuggestionsOnTheTodoPageTests()
     {
-        var paths = new AppPaths(_root);
-        paths.EnsureCreated();
+        _paths = new AppPaths(_root);
+        _paths.EnsureCreated();
 
-        var database = new Database(paths.DatabaseFile);
+        var database = new Database(_paths.DatabaseFile);
         database.Migrate();
 
         _repository = new Repository(database);
 
-        var contact = _repository.UpsertContact("Samet", CallApp.WhatsApp);
+        _contactId = _repository.UpsertContact("Samet", CallApp.WhatsApp);
 
         _callId = _repository.InsertCall(new Core.Domain.Call
         {
-            ContactId = contact,
+            ContactId = _contactId,
             App = CallApp.WhatsApp,
             StartedAt = DateTimeOffset.Now.AddHours(-2),
             Duration = TimeSpan.FromMinutes(4),
             State = ProcessingState.Analysed,
         });
+
+        _repository.AssignContact(_callId, _contactId);
 
         _model = new TodoViewModel(_repository);
     }
@@ -168,6 +172,154 @@ public class SuggestionsOnTheTodoPageTests : IDisposable
 
         Assert.DoesNotContain(Everything(), e => e.Id == id);
         Assert.DoesNotContain(_model.Done, e => e.Id == id);
+    }
+
+    // ---- complaint 2's own measure: "Yaptım" somewhere, and the list is current here ----------
+    //
+    // The complaint was not that ticking failed to write. It wrote. It was that the Yapılacaklar
+    // list went on showing the suggestion as open until something unrelated happened to refresh
+    // it — the same suggestion, in two places, disagreeing about whether it was done.
+    //
+    // The fix is four lines: three announcements (the call window, the contacts page and the home
+    // screen each tell CallActions after writing a verdict) and one listener (the shell re-reads
+    // the to-do list on that announcement). Any one of them deleted and the complaint is back,
+    // in one surface, silently. These tests are what makes that noisy.
+
+    /// <summary>Runs the ruling with the to-do list wired the way the shell wires it.</summary>
+    private void WhileTheShellIsListening(Action ruling)
+    {
+        void Refresh(object? sender, EventArgs e) => _model.Refresh();
+
+        VoiceTranscript.App.Services.CallActions.Changed += Refresh;
+
+        try
+        {
+            ruling();
+        }
+        finally
+        {
+            VoiceTranscript.App.Services.CallActions.Changed -= Refresh;
+        }
+    }
+
+    /// <summary>
+    /// Ticked on the contacts page, and the to-do list is current at the same moment.
+    ///
+    /// Red means <c>ContactsViewModel.SetCallActionStatus</c> has stopped announcing. The row
+    /// would still be written — the assertion on the repository would pass on its own — and the
+    /// page the user is not looking at would go on offering the job they have just done.
+    /// </summary>
+    [Fact]
+    public void TickingASuggestionOnTheContactsPageUpdatesTheTodoList()
+    {
+        var id = Suggest("Sözleşmeyi gönder");
+
+        _model.Refresh();
+        Assert.Contains(Everything(), e => e.Id == id);
+
+        using var contacts = new ContactsViewModel(_repository);
+        contacts.Refresh();
+        contacts.Select(_contactId, _callId);
+
+        var row = contacts.CallActions.Single(r => r.Item.Id == id);
+
+        WhileTheShellIsListening(() => contacts.SetCallActionStatus(row, ActionStatus.Done));
+
+        Assert.DoesNotContain(Everything(), e => e.Id == id);
+        Assert.Equal(ActionStatus.Done, _repository.ActionsOf(_callId).Single().Status);
+    }
+
+    /// <summary>
+    /// Ticked on the home screen, same measure.
+    ///
+    /// Red means <c>OverviewViewModel.SetDayActionStatus</c> has stopped announcing — the surface
+    /// the complaint was actually made about, because the home screen is where a suggestion is
+    /// met first and the to-do page is where it is looked for afterwards.
+    /// </summary>
+    [Fact]
+    public void TickingASuggestionOnTheHomeScreenUpdatesTheTodoList()
+    {
+        var id = Suggest("Faturayı bulup gönder");
+
+        _model.Refresh();
+        Assert.Contains(Everything(), e => e.Id == id);
+
+        var overview = new OverviewViewModel(_repository, () => new AppSettings(), _paths);
+        overview.Refresh();
+
+        var row = overview.DayActions.Single(d => d.Item.Id == id);
+
+        WhileTheShellIsListening(() => overview.SetDayActionStatus(row, ActionStatus.Done));
+
+        Assert.DoesNotContain(Everything(), e => e.Id == id);
+    }
+
+    /// <summary>
+    /// Ticked in the conversation window, same measure.
+    ///
+    /// Red means <c>CallWindowViewModel.SetActionStatus</c> has stopped announcing. This is the
+    /// surface where a suggestion is most often ruled on, because it is where the sentence it
+    /// came from is on screen.
+    /// </summary>
+    [Fact]
+    public void TickingASuggestionInTheCallWindowUpdatesTheTodoList()
+    {
+        var id = Suggest("Proxyyi dene");
+
+        _model.Refresh();
+        Assert.Contains(Everything(), e => e.Id == id);
+
+        using var http = new HttpClient();
+        var window = new CallWindowViewModel(_repository, () => new AppSettings(), http, _callId);
+
+        var row = window.Actions.Single(a => a.Item.Id == id);
+
+        WhileTheShellIsListening(() => window.SetActionStatus(row, ActionStatus.Done));
+
+        Assert.DoesNotContain(Everything(), e => e.Id == id);
+    }
+
+    /// <summary>
+    /// And the shell really is the listener the three tests above stand in for.
+    ///
+    /// The other half of the fix cannot be reached from here: <see cref="ShellViewModel"/> takes
+    /// a <c>CallOrchestrator</c>, which opens capture devices and a Python worker. So the wiring
+    /// is read out of the source instead — the subscription that turns an announcement into a
+    /// refresh, and the line inside <c>RefreshAll</c> that re-reads the to-do list.
+    ///
+    /// Red means the announcements are being made and nothing is listening, which looks exactly
+    /// like the complaint that started this: a verdict written, and a list that does not move.
+    /// Note that <c>RefreshAll</c> re-reads every page rather than only the visible one — the
+    /// to-do line was missing from it precisely because the page was not the one on screen.
+    /// </summary>
+    [Fact]
+    public void TheShellRefreshesTheTodoListWhenASuggestionIsRuledOn()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            RepositoryRoot(), "src", "VoiceTranscript.App", "ViewModels", "ShellViewModel.cs"));
+
+        var subscription = source
+            .Split('\n')
+            .SingleOrDefault(line => line.Contains("CallActions.Changed", StringComparison.Ordinal));
+
+        Assert.NotNull(subscription);
+        Assert.Contains("RefreshAll", subscription, StringComparison.Ordinal);
+
+        var start = source.IndexOf("public void RefreshAll()", StringComparison.Ordinal);
+        var end = source.IndexOf("public void OpenContact(", StringComparison.Ordinal);
+
+        Assert.True(start > 0 && end > start, "RefreshAll gövdesi bulunamadı.");
+        Assert.Contains("Todo.Refresh()", source[start..end], StringComparison.Ordinal);
+    }
+
+    private static string RepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "VoiceTranscript.slnx")))
+            directory = directory.Parent;
+
+        return directory?.FullName ?? throw new InvalidOperationException("Depo kökü bulunamadı.");
     }
 
     [Fact]

@@ -1537,6 +1537,14 @@
                             The badge shows only when the feature turned ITSELF off: three people
                             in a row whose reading the user rejected. Turning the switch back on
                             clears it, which is the user overruling the measurement knowingly.
+
+                            And the fifth thing, which is about this machine rather than about the
+                            feature: a local model's context window is 24k characters against the
+                            cloud's 400k. The reading falls back to a smaller packet there — fewer
+                            rows, all of them whole — and for anybody with a long history even that
+                            does not fit, so the panel answers with a refusal and a character count.
+                            Said here rather than only at the moment of failure, because the point
+                            of a settings card is to be read before the switch is touched.
                         -->
                         <Border Style="{StaticResource SettingCard}">
                             <Grid>
@@ -1557,6 +1565,8 @@
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
                                                Text="{loc:T settingswindow.panelin-iki-siniri}" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.kisi-karti-yerel-model-uyarisi}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
                                                Text="{loc:T settingswindow.olcum-olumsuz-aciklama}"
                                                Visibility="{Binding ContactReadingMeasuredNegative, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
@@ -1570,14 +1580,24 @@
                     <!--
                         Coaching: what the application says about how YOU speak.
 
-                        Only switches whose feature exists are here. The Ses group holds exactly
-                        one, the live meter, because that is the one thing in it that is built; the
-                        loudness strip and the pitch measure the plan's wireframe drew beside it are
-                        not, and neither is the Kişi group (evidence accumulation, the model's
-                        opinion of a contact). A switch for a feature that does not exist is a lie
-                        told in a control panel — somebody turns it on, nothing happens, and every
-                        other switch on the page loses its credibility. They arrive with their
-                        features.
+                        Only switches whose feature exists are here, and that is still the rule
+                        even though the page has since filled out. The Ses group now holds two
+                        real switches — the prosody measurement and the live meter — beside two
+                        cards with no switch at all: the timeline's level band and the live alarm,
+                        each written out with the measurement it is waiting on rather than offered
+                        as a control that would do nothing.
+
+                        The Kişi group is still not here, but the reason has changed: it is no
+                        longer that the feature does not exist. The one switch it ever grew — the
+                        contact card's opinion panel — shipped on the Çözümleme page instead,
+                        beside the other things that spend money on a model. This page is about
+                        the user's own speech, and an opinion about somebody else is not that.
+                        (Evidence accumulation still has no switch anywhere: it is arithmetic over
+                        rows already stored, so there is nothing to turn off.)
+
+                        A switch for a feature that does not exist is a lie told in a control panel
+                        — somebody turns it on, nothing happens, and every other switch on the page
+                        loses its credibility. They arrive with their features.
                     -->
                     <StackPanel x:Name="PageCoaching" Visibility="Collapsed">
                         <TextBlock Text="{loc:T settingswindow.kocluk}" Style="{StaticResource PageTitle}" />
@@ -1676,9 +1696,20 @@
                         </Border>
 
                         <!--
-                            Ses: the one thing this application is allowed to say, live, about how
-                            the user sounds — which is a share of the speaking time and nothing
-                            else. One switch, because one feature exists.
+                            Ses: what the application is allowed to say about how the user sounds.
+
+                            Two switches now, because two features exist. The prosody measurement
+                            reads level and pitch off the recording after the fact and is on by
+                            default; the live meter shows the share of the speaking time while the
+                            call is running and is off by default. Between and after them sit two
+                            cards with no switch — the timeline's level band and the live alarm —
+                            each naming the measurement it is waiting on, because an absence that
+                            is written down reads as a decision and an absence that is silent
+                            reads as an oversight.
+
+                            What none of it does is name a mood. "Ses ölçümü" is exactly the phrase
+                            people expect to be followed by a stress reading, so every caption in
+                            this group says what it is NOT in the same breath as what it is.
                         -->
                         <TextBlock Text="{loc:T settingswindow.ses}" Style="{StaticResource GroupHeader}" Margin="0,16,0,8" />
 

@@ -1221,5 +1221,12 @@
   "askpage.tarih-araligi": "{0} – {1}",
   "askpage.sorulanlar-ve-cevaplari": "Questions and answers",
   "askpage.kaldir": "Remove",
-  "askpage.bu-soruyu-ve-cevabini-kaldir": "Remove this question and its answer"
+  "askpage.bu-soruyu-ve-cevabini-kaldir": "Remove this question and its answer",
+  "contactcard.okuma-yetersiz-simdi": "Right now there are {0} conversations and {1} excerpts with this person, so no request was sent to a model and nothing was charged.",
+  "contactcard.okuma-bos": "A reading was made, but nothing was left to show: every item was dropped because the excerpt it cited was never handed over. [Ask again] tries once more.",
+  "settingswindow.model-indirildi": "Downloaded",
+  "settingswindow.model-inmedi": "Not downloaded",
+  "settingswindow.kisi-karti-yerel-model-uyarisi": "On a local model it will not work for most people: the context window is 24 thousand characters against 400 thousand in the cloud. The reading is first tried with a smaller packet; for anyone with a long history even that does not fit, and the panel answers with an honest refusal.",
+  "ledgerpage.yolculuk": "Journey",
+  "ledgerpage.yolculuk-aciklama": "Open this figure's journey on the contact card: every value, with the date it was named and the moment it can be heard at."
 }

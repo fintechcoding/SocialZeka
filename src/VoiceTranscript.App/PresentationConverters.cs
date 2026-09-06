@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App;
 
@@ -299,16 +300,31 @@ public sealed class LedgerEmptyBodyConverter : IValueConverter
 /// </summary>
 public sealed class ModelPresenceConverter : IMultiValueConverter
 {
+    /// <summary>
+    /// The badge for one model, or "" when there is nothing honest to say yet.
+    ///
+    /// A static rule rather than converter-only logic because two screens now ask the same
+    /// question of the same probe: the settings table, where the model is chosen for good, and
+    /// the "yeniden çevir" dialog, where it is chosen for one recording. The dialog is a plain
+    /// list rather than a DataGrid and cannot reach a multi-binding, and a second copy of this
+    /// three-line rule is exactly how the two screens would drift apart.
+    /// </summary>
+    public static string Describe(string modelRef, IReadOnlyCollection<string>? downloaded)
+    {
+        // Before the first probe there is no answer yet, and guessing "not downloaded" would
+        // put a wrong label on every row for the second the window takes to ask.
+        if (downloaded is null || downloaded.Count == 0) return "";
+
+        return downloaded.Contains(modelRef)
+            ? Localisation.T("settingswindow.model-indirildi")
+            : Localisation.T("settingswindow.model-inmedi");
+    }
+
     public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
     {
         if (values.Length < 2 || values[0] is not string modelRef) return "";
 
-        // Before the first probe there is no answer yet, and guessing "not downloaded" would
-        // put a wrong label on every row for the second the window takes to ask.
-        if (values[1] is not IReadOnlyCollection<string> present) return "";
-        if (present.Count == 0) return "";
-
-        return present.Contains(modelRef) ? "İndirildi" : "İnmedi";
+        return Describe(modelRef, values[1] as IReadOnlyCollection<string>);
     }
 
     public object?[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)

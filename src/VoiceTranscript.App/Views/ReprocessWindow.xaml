@@ -116,6 +116,16 @@
                                             Visibility="{Binding SendsDataOffMachine, Converter={StaticResource BoolToVisibility}}">
                                         <TextBlock Style="{StaticResource PillText}" Text="{Binding OffMachineLabel}" />
                                     </Border>
+
+                                    <!-- Whether the weights are already on this machine, said on
+                                         the row where the engine is picked. Without it the choice
+                                         is made blind, and on this dialog that means a recording
+                                         which already failed once now waits on gigabytes. -->
+                                    <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding HasPresence, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Style="{StaticResource PillText}" Text="{Binding Presence}" />
+                                    </Border>
                                 </StackPanel>
 
                                 <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}"

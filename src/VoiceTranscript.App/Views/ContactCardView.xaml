@@ -465,7 +465,10 @@
                 </Border>
 
                 <!-- ================= Rakam yolculuğu ================= -->
-                <TextBlock Text="{loc:T contactcard.rakam-yolculugu}" Style="{StaticResource GroupHeader}" />
+                <!-- Named because the ledger's [Yolculuk] scrolls here: a changed figure has no
+                     Reddet, so this section is that row's only destination. -->
+                <TextBlock x:Name="JourneySection" Text="{loc:T contactcard.rakam-yolculugu}"
+                           Style="{StaticResource GroupHeader}" />
 
                 <Border Style="{StaticResource Panel}">
                     <StackPanel>
@@ -557,6 +560,13 @@
                                        TextWrapping="Wrap" Margin="0,8,0,0"
                                        Visibility="{Binding OpinionIsThin, Converter={StaticResource BoolToVisibility}}" />
 
+                            <!-- How far short, when [Yeniden sor] was just pressed and refused.
+                                 "Not enough" without the numbers is a wall; with them it is a
+                                 count somebody can watch come up. -->
+                            <TextBlock Text="{Binding OpinionThinDetail}" Style="{StaticResource Caption}"
+                                       TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Visibility="{Binding OpinionThinDetail, Converter={StaticResource NullToCollapsed}}" />
+
                             <TextBlock Text="{loc:T contactcard.okuma-bayat}" Style="{StaticResource Caption}"
                                        TextWrapping="Wrap" Margin="0,6,0,0"
                                        Visibility="{Binding OpinionIsStale, Converter={StaticResource BoolToVisibility}}" />
@@ -569,10 +579,25 @@
                                        TextWrapping="Wrap" Margin="0,6,0,0"
                                        Visibility="{Binding OpinionProblem, Converter={StaticResource NullToCollapsed}}" />
 
-                            <!-- Nothing asked for yet. -->
+                            <!--
+                                Nothing asked for yet — bound to whether a reading was ever
+                                STORED, not to whether anything of it is on screen. Bound to the
+                                latter, this sentence appeared beside the signature of the very
+                                reading it denied: a stored "yetersiz" answer, or one whose every
+                                item was dropped for want of an anchor, shows nothing, and the
+                                card then said both "model · 4 Eyl · 3 görüşme" and "henüz bir
+                                okuma istenmedi".
+                            -->
                             <TextBlock Text="{loc:T contactcard.okuma-henuz-yok}" Style="{StaticResource Caption}"
                                        TextWrapping="Wrap" Margin="0,8,0,0"
-                                       Visibility="{Binding HasOpinion, Converter={StaticResource InverseBoolToVisibility}}" />
+                                       Visibility="{Binding OpinionNotAsked, Converter={StaticResource BoolToVisibility}}" />
+
+                            <!-- Asked, paid for, and nothing survived the anchor rule. Its own
+                                 sentence, because "istenmedi" would be a lie about a request that
+                                 was made and a stored row that exists. -->
+                            <TextBlock Text="{loc:T contactcard.okuma-bos}" Style="{StaticResource Secondary}"
+                                       TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Visibility="{Binding OpinionIsEmpty, Converter={StaticResource BoolToVisibility}}" />
 
                             <ItemsControl ItemsSource="{Binding Opinion}" Margin="0,6,0,0"
                                           Visibility="{Binding HasOpinion, Converter={StaticResource BoolToVisibility}}">

@@ -158,6 +158,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Ask.OpenRequested += (_, target) => OpenCall(target.CallId, target.StartMs);
 
         Ledger.OpenRequested += (_, target) => OnUi(() => OpenAt(target.ContactId, target.CallId, target.StartMs, target.IsMe));
+        Ledger.JourneyRequested += (_, contactId) => OnUi(() => OpenFigureJourney(contactId));
         Promises.OpenRequested += (_, target) => OnUi(() => OpenAt(target.ContactId, target.CallId, target.StartMs, target.IsMe));
 
         // A dot on the curve and a moment in the list are both "take me to where this was said".
@@ -624,6 +625,19 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         Page = ShellPage.Contacts;
         Contacts.Select(contactId, callId);
+    }
+
+    /// <summary>
+    /// [Yolculuk] on a changed-figure row: the person's card, at that figure's own history.
+    ///
+    /// Not merely the card — the section. The card is long, the journey sits near the bottom of
+    /// it, and landing at the top of a page of counts after pressing a button named for one
+    /// section of it is the kind of near-miss that reads as the button not working.
+    /// </summary>
+    public void OpenFigureJourney(long contactId)
+    {
+        OpenContact(contactId);
+        Contacts.ShowFigureJourney();
     }
 
     /// <summary>
