@@ -279,10 +279,10 @@ public sealed partial class TodoViewModel(Repository repository, bool showDone =
                 break;
         }
 
-        Refresh();
-
         // The other screens showing the same suggestion — the home screen, an open call window —
-        // learn of the verdict the way they learn of a deleted call.
+        // learn of the verdict the way they learn of a deleted call, and the shell answers that
+        // by re-reading every page, this one included. Re-reading here first as well meant one
+        // tick read the to-do list twice.
         Services.CallActions.NotifyChanged();
     }
 
@@ -294,11 +294,12 @@ public sealed partial class TodoViewModel(Repository repository, bool showDone =
 
         repository.SetActionStatus(entry.Id, ActionStatus.Hidden);
 
+        // The notice is put up before the change is announced, so the one refresh the
+        // announcement causes sees the page exactly as it will be drawn.
         _undoActionId = entry.Id;
         Notice = string.Format(Localisation.T("todopage.reddedildi-n"), Shorten(entry.Text));
 
         OnPropertyChanged(nameof(CanUndo));
-        Refresh();
         Services.CallActions.NotifyChanged();
     }
 
@@ -313,7 +314,6 @@ public sealed partial class TodoViewModel(Repository repository, bool showDone =
         Notice = null;
 
         OnPropertyChanged(nameof(CanUndo));
-        Refresh();
         Services.CallActions.NotifyChanged();
     }
 

@@ -81,7 +81,7 @@ public class SuggestionsOnTheTodoPageTests : IDisposable
         var id = Suggest("Siteyi bugün aç");
 
         _model.ShowDone = true;
-        _model.ToggleCommand.Execute(Everything().Single(e => e.Id == id));
+        WhileTheShellIsListening(() => _model.ToggleCommand.Execute(Everything().Single(e => e.Id == id)));
 
         Assert.DoesNotContain(Everything(), e => e.Id == id);
         Assert.Contains(_model.Done, e => e.Kind == TodoEntryKind.Action && e.Id == id);
@@ -97,8 +97,8 @@ public class SuggestionsOnTheTodoPageTests : IDisposable
         var id = Suggest("Proxyyi dene");
 
         _model.ShowDone = true;
-        _model.ToggleCommand.Execute(Everything().Single(e => e.Id == id));
-        _model.ToggleCommand.Execute(_model.Done.Single(e => e.Id == id));
+        WhileTheShellIsListening(() => _model.ToggleCommand.Execute(Everything().Single(e => e.Id == id)));
+        WhileTheShellIsListening(() => _model.ToggleCommand.Execute(_model.Done.Single(e => e.Id == id)));
 
         Assert.Contains(Everything(), e => e.Id == id);
         Assert.Equal(ActionStatus.Open, _repository.ActionsOf(_callId).Single().Status);

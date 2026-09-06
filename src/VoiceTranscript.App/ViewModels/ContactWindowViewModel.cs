@@ -578,13 +578,65 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
     public bool HasFlow => Flow.Count > 0;
 
+    /// <summary>How many conversations one page of the flow is drawn from.</summary>
+    private const int FlowPageSize = 200;
+
+    /// <summary>How many pages the user has asked the flow for so far.</summary>
+    private int _visibleFlowPages = 1;
+
+    /// <summary>True while the archive holds conversations older than the ones the flow was built from.</summary>
+    [ObservableProperty] private bool _hasMoreFlow;
+
+    /// <summary>
+    /// What the stream leaves out, said on the screen that leaves it out.
+    ///
+    /// Empty while nothing was cut, which is every contact but the oldest one or two.
+    /// </summary>
+    [ObservableProperty] private string _flowCutLine = "";
+
+    /// <summary>
+    /// The next page of the timeline. Same shape as the Görüşmeler tab's own "daha eski", because
+    /// it is the same cap: a silent 200 that made everything before it look as though it had
+    /// never happened.
+    /// </summary>
+    [RelayCommand]
+    private void LoadMoreFlow()
+    {
+        _visibleFlowPages++;
+        LoadFlow();
+    }
+
     private void LoadFlow()
     {
         Flow.Clear();
 
+        // One row past the window says whether older history exists without counting it all —
+        // LoadCallsCore's answer to the same question, which the flow never asked. It read the
+        // newest 200 conversations and said nothing about the rest, so with a long-standing
+        // contact the timeline simply stopped: no button, no line, and older calls, notes,
+        // promises and findings looked like things that never happened.
+        var window = FlowPageSize * _visibleFlowPages;
+        var calls = _repository.ListCalls(ContactId, limit: window + 1);
+
+        HasMoreFlow = calls.Count > window;
+        if (HasMoreFlow) calls = [.. calls.Take(window)];
+
+        FlowCutLine = HasMoreFlow
+            ? string.Format(Localisation.T("contactwindow.akis-en-yeni-n-gorusme"), calls.Count)
+            : "";
+
+        var ids = calls.Select(c => c.Id).ToList();
+
+        // Batched, the way LoadCallsCore batches: one query for the notes and one for the
+        // suggestions. Both used to be asked per conversation inside the loops below — up to two
+        // hundred round trips, each opening its own connection and running its own pragmas, to
+        // draw a screen whose whole point is that this person has a long history.
+        var notes = _repository.NotesOf(ids);
+        var actions = _repository.ActionsOf(ids, includeClosed: false);
+
         var names = new Dictionary<long, DateTimeOffset>();
 
-        foreach (var call in _repository.ListCalls(ContactId, limit: 200))
+        foreach (var call in calls)
         {
             names[call.Id] = call.StartedAt;
 
@@ -593,7 +645,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
                 $"Görüşme · {(int)call.Duration.TotalMinutes:00}:{call.Duration.Seconds:00}",
                 null, call.Id));
 
-            if (_repository.GetNote(call.Id) is { Length: > 0 } note)
+            if (notes.GetValueOrDefault(call.Id) is { Length: > 0 } note)
                 Flow.Add(new FlowEvent(call.StartedAt, "not", "Not", note, call.Id));
         }
 
@@ -611,11 +663,11 @@ public sealed partial class ContactWindowViewModel : ObservableObject
                 $"Söz ({who}): {commitment.Obligation}", commitment.Quote, commitment.CallId));
         }
 
-        foreach (var callId in names.Keys)
+        foreach (var call in calls)
         {
-            foreach (var action in _repository.ActionsOf(callId, includeClosed: false))
-                Flow.Add(new FlowEvent(At(callId), "aksiyon", $"Öneri: {action.Action}",
-                    action.Reason, callId));
+            foreach (var action in actions.GetValueOrDefault(call.Id, []))
+                Flow.Add(new FlowEvent(At(call.Id), "aksiyon", $"Öneri: {action.Action}",
+                    action.Reason, call.Id));
         }
 
         var reminders = _repository.RemindersOf(names.Keys);

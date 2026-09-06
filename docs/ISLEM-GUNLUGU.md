@@ -2764,3 +2764,72 @@ sonra **1384 test, 1379 geçti, 5 atlandı**.
 (`mirrorpage.neden-rol`) benim tarafımı korudu, yani 22 numaralı bulgunun düzeltmesi
 sessizce geri alınmış oldu. Onu yazan test hemen kırmızıya döndü. Çözüm üç yönlü yapıldı:
 yalnız bir taraf değiştirdiyse o taraf kazanır, ikisi de değiştirdiyse çatışma bildirilir.
+
+## 2026-09-06 — Paket Tekrar: aynı işi iki kez yapan altı ekran
+
+Altı kusur, tek tema: **aynı iş iki kez yapılıyor ya da bir liste kesildiğini söylemiyor.**
+Hiçbiri gözle görünmüyor — kusurun kendisi de bu: yavaş bir ekran, sağlam bir ekran gibi
+görünür ve bir sonraki yardımsever döngü işi geri koyar.
+
+**Ölçü nereden geliyor.** `Database.ConnectionsOpened` eklendi (salt okunur, uygulama bakmıyor).
+Her depo çağrısı tam bir bağlantı açıyor ve her açılış PRAGMA paketini ödüyor, yani "bu ekran
+arşivden ne kadar şey istedi" sorusunun dürüst birimi bu. Sayaç olmadan bu paketin hiçbir
+düzeltmesi kırmızıya döndürülemezdi.
+
+**A — Sözler sayfası her tazelemede döküm tarıyordu.** `SuggestFulfilment` bir söz için: bir
+sorgu söze, bir sorgu sonraki beş görüşmeye, sonra o beş dökümün tamamı ve her satır arşiv
+sorularının böleni. Canlı arşivde 11 açık söz × ~55 satır. Kart, sayı değil, **bulmanın yolunu**
+alıyor artık: `Hint` ilk soranda bir kez bakıyor. Sayılar, toplamlar ve gruplama hiç sormuyor;
+yalnız çizilen kart soruyor. Şema gerekmediği için "daraltma" yolu seçildi (sütun açılmadı).
+Ek daraltma: kullanıcının "bu söz değil" dediği an zaten öneriyi gösteremiyor, artık taramasını
+da ödemiyor.
+
+**B — bir tıklama aynı sayfayı iki kez tazeliyordu.** Fiil kendi sayfasını tazeliyor, sonra
+`NotifyChanged` diyor, kabuğun `RefreshAll`'ı aynı sayfayı bir daha tazeliyordu. Bir "Tutuldu"
+Sözler sayfasını **üç kez** (LedgerActions'ın kendi duyurusu + sayfanın kendi tazelemesi +
+fazladan `CallActions` duyurusu), diğer dokuz sayfayı iki kez okutuyordu. Tazeleme tek zincire
+bırakıldı: LedgerActions yazar ve duyurur, kabuk bir kez okur. Yerel durum **duyurudan önce**
+değiştiriliyor — Defter'de seçim kipi, üç sayfada bildirim şeridi — ki tek tazeleme sayfayı
+olacağı hâliyle görsün. Yapılacaklar'da duyuru zaten tek yoldu; oradan yalnız kendi tazelemesi
+kalktı.
+
+**C — Görüşmeler sayfası elindeki isimleri tekrar soruyordu.** `ListContacts()` ile kişi süzgeci
+kuruluyor, sekiz satır sonra aynı kişiler tek tek `GetContact(id)` ile soruluyordu. Harita artık
+elindeki listeden kuruluyor: sayfanın maliyeti arşivdeki kişi sayısına bağlı değil.
+
+**D — Kişiler sayfası aynı dökümü iki kez okuyordu.** Satırlar için bir `GetSegments`, konuşma
+payı için bir tane daha. Görüşme penceresi bunu zaten tek okumayla yapıyordu. Liste içinde ok
+tuşuyla gezerken bu, satır başına iki okumaydı.
+
+**E — Kişi penceresinin akışı görüşme başına sorgu açıyordu.** `GetNote` ve `ActionsOf` döngü
+içindeydi; her biri kendi bağlantısı ve kendi PRAGMA'ları. `Repository`'ye iki toplu okuyucu
+eklendi: `NotesOf(ids)` (metniyle — `CallsWithNotes` yalnız "var mı" diyor) ve
+`ActionsOf(ids, includeClosed)`. Aynı dosyadaki `LoadCallsCore` kalıbı. Akışın maliyeti artık
+kişinin üç görüşmesi de olsa otuz görüşmesi de aynı altı sorgu.
+
+**F — akış 200'de kesiliyor ve söylemiyordu.** Ne düğme ne satır: uzun geçmişli bir kişide
+zaman çizgisi öylece bitiyor, daha eski görüşmeler, notlar, sözler ve bulgular hiç olmamış gibi
+görünüyordu. Sessizce kesilmiş kanıt, bu ürünün var olma sebebinin tersi. Yanındaki Görüşmeler
+sekmesi aynı kapağı zaten çözmüştü; aynı kalıp kuruldu: pencerenin bir fazlası okunur,
+`HasMoreFlow` ve `FlowCutLine` ("Bu akış en yeni 200 görüşmeden derlendi; daha eskisi var")
+ile söylenir, [Daha eski akışı yükle] bir sayfa daha getirir.
+
+**Testler.** Yeni `RepeatedWorkTests` (10 test). Sayan testler bağlantı sayıyor; "kaç kez
+tazelendi" soranlar sayfanın kendi `IsEmpty`/`HasAnything` bildirimini sayıyor ve **hiçbir statik
+olaya abone olmuyor**, yani sayı sayfanın kendi işi. Kabuğun zinciri kurulamadığı için (orkestratör
+yakalama aygıtı ve Python işçisi açıyor) `RefreshAll` kaynaktan okunuyor —
+`SuggestionsOnTheTodoPageTests`'in kalıbı. Mevcut üç sınıfın fiilleri artık zinciri taklit eden
+bir sarmalayıcıdan geçiyor (`Ruling(...)` / `WhileTheShellIsListening`), çünkü sayfa artık kendini
+tazelemiyor.
+
+**Testlerin gücü ölçüldü.** On iki düzeltme tek tek bozuldu; her seferinde yalnız kendi testi
+kırmızıya döndü. Bir tanesi ilk denemede **dönmedi**: Defter'in tazelemesi `IsEmpty`
+bildirmiyor, `HasAnything` bildiriyordu — sayaç yanlış özelliği dinlediği için o assertion
+hiçbir zaman kırılamazdı. Düzeltildi ve mutasyon tekrarlandı.
+
+**Doğrulama.** 1394 test, 1389 geçti, 5 atlandı (taban 1384/1379/5). Python çalıştırılmadı.
+
+**Bulunan ama düzeltilmeyen.** Akışta, pencere dışında kalan bir görüşmenin bulgusu ya da sözü
+`At()` üzerinden `DateTimeOffset.MinValue` alıyor ve listenin en altında yıl 1 damgasıyla
+duruyor. Davranış değişikliği olacağı için bu pakette dokunulmadı; F'in sayfalaması onları
+"daha eskisini yükle" ile gerçek tarihlerine kavuşturuyor.

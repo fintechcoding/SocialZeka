@@ -80,18 +80,21 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
         var previousContact = SelectedContact?.Id;
         var previousTag = TagChoice;
 
+        var contacts = repository.ListContacts();
+
         ContactChoices.Clear();
         ContactChoices.Add(new ContactChoice(null, "Herkes"));
-        foreach (var contact in repository.ListContacts())
+        foreach (var contact in contacts)
             ContactChoices.Add(new ContactChoice(contact.Id, contact.Name));
 
         var calls = repository.ListCalls(limit: 2000);
         var tags = repository.TagsOf(calls.Select(c => c.Id));
-        var names = calls
-            .Where(c => c.ContactId is not null)
-            .Select(c => c.ContactId!.Value)
-            .Distinct()
-            .ToDictionary(id => id, id => repository.GetContact(id)?.Name);
+
+        // Every name is already in hand: the filter above was built from the same list. This used
+        // to ask the database for each contact by id again, one query per person in the archive,
+        // for names read two lines earlier. A row whose contact is missing from the list falls
+        // through to "İsimsiz" exactly as it did when the lookup came back empty.
+        var names = contacts.ToDictionary(c => c.Id, c => c.Name);
 
         _all = [.. calls.Select(call => new RecentCall(
             call,

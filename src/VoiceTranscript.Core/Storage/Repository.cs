@@ -3753,6 +3753,33 @@ public sealed class Repository(Database database)
     }
 
     /// <summary>
+    /// The suggestions on many conversations at once, each list in the order
+    /// <see cref="ActionsOf(long, bool)"/> would have returned it.
+    ///
+    /// For screens that show a person's whole history: the contact window's flow used to ask per
+    /// conversation, which is one connection and one pragma batch per row of a timeline that
+    /// exists precisely because the person has a lot of them.
+    /// </summary>
+    public IReadOnlyDictionary<long, IReadOnlyList<ActionItem>> ActionsOf(
+        IEnumerable<long> callIds, bool includeClosed = true)
+    {
+        var ids = callIds.Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<long, IReadOnlyList<ActionItem>>();
+
+        using var connection = Open();
+
+        var sql = includeClosed
+            ? "SELECT * FROM action_item WHERE call_id IN @ids ORDER BY status, quote_start_ms, id;"
+            : "SELECT * FROM action_item WHERE call_id IN @ids AND status = 0 ORDER BY quote_start_ms, id;";
+
+        // Grouping keeps the order the rows arrived in, which is the order the single-call
+        // version promises.
+        return connection.Query<ActionRow>(sql, new { ids })
+            .GroupBy(r => r.call_id)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<ActionItem>)[.. g.Select(r => r.ToModel())]);
+    }
+
+    /// <summary>
     /// The home screen's list: open suggestions whose deadline has arrived, plus recent
     /// undated ones — capped, newest conversations first.
     /// </summary>
@@ -4407,6 +4434,27 @@ public sealed class Repository(Database database)
         return connection
             .Query<long>("SELECT call_id FROM call_note WHERE call_id IN @ids;", new { ids })
             .ToHashSet();
+    }
+
+    /// <summary>
+    /// The notes on many conversations at once, with the text — one query for a whole timeline.
+    ///
+    /// <see cref="CallsWithNotes"/> answers "is there one" without reading it, which is what a
+    /// list row needs; a screen that shows the note itself needs this instead. Without it the
+    /// contact window's flow asked <see cref="GetNote"/> for every conversation in turn, each
+    /// call its own connection and its own pragmas, for a column that is empty on most rows.
+    /// </summary>
+    public IReadOnlyDictionary<long, string> NotesOf(IEnumerable<long> callIds)
+    {
+        var ids = callIds.Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<long, string>();
+
+        using var connection = Open();
+
+        return connection
+            .Query<(long CallId, string Note)>(
+                "SELECT call_id, note FROM call_note WHERE call_id IN @ids;", new { ids })
+            .ToDictionary(r => r.CallId, r => r.Note);
     }
 
     public CallSummary? GetSummary(long callId)

@@ -94,7 +94,12 @@
                  instead of four tabs — the CRM people-pane pattern. -->
             <TabItem Header="{loc:T contactwindow.akis}">
                 <Grid>
-                    <ListBox Style="{StaticResource CleanList}" ItemsSource="{Binding FlowView}"
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <ListBox Grid.Row="0" Style="{StaticResource CleanList}" ItemsSource="{Binding FlowView}"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              Visibility="{Binding HasFlow, Converter={StaticResource BoolToVisibility}}">
                         <ListBox.GroupStyle>
@@ -146,9 +151,26 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <StackPanel Style="{StaticResource EmptyState}"
+                    <StackPanel Grid.Row="0" Style="{StaticResource EmptyState}"
                                 Visibility="{Binding HasFlow, Converter={StaticResource InverseBoolToVisibility}}">
                         <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T contactwindow.bu-kisiyle-henuz-bir-akis-yok}" />
+                    </StackPanel>
+
+                    <!-- The cap, said out loud and made clickable. A timeline that stops without
+                         saying it stopped is the one failure this screen cannot have: the reader
+                         cannot tell "nothing happened before this" from "we did not look". -->
+                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="0,8,0,4"
+                                Visibility="{Binding HasMoreFlow, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding FlowCutLine}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" HorizontalAlignment="Center" />
+                        <ui:Button Content="{loc:T contactwindow.daha-eski-akisi-yukle}"
+                                   HorizontalAlignment="Center" Margin="0,6,0,0" Padding="14,6"
+                                   Appearance="Secondary"
+                                   Command="{Binding LoadMoreFlowCommand}">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="ChevronDown24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
                     </StackPanel>
                 </Grid>
             </TabItem>

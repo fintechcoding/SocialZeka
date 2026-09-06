@@ -74,6 +74,32 @@ public sealed class PromisesPageTests : IDisposable
         return vm;
     }
 
+    /// <summary>
+    /// Runs a ruling with the page wired the way the shell wires it.
+    ///
+    /// The verbs do not re-read this page themselves and must not: each goes through
+    /// <c>LedgerActions</c>, which writes the row and announces the change, and the shell answers
+    /// that announcement by re-reading every page once — where it used to read this one three
+    /// times for a single click. Calling a command bare here would leave the assertions looking at
+    /// the list as it stood before the ruling, which is exactly what the screen would show if the
+    /// announcement or the shell's listener were ever taken out.
+    /// </summary>
+    private static void Ruling(PromisesViewModel vm, Action verb)
+    {
+        void Refresh(object? sender, EventArgs e) => vm.Refresh();
+
+        VoiceTranscript.App.Services.LedgerActions.Changed += Refresh;
+
+        try
+        {
+            verb();
+        }
+        finally
+        {
+            VoiceTranscript.App.Services.LedgerActions.Changed -= Refresh;
+        }
+    }
+
     /// <summary>Goes red when a promise lands in the wrong column, or the counts on the chips lie.</summary>
     [Fact]
     public void EachDirectionHasItsColumnAndTheChipsCount()
@@ -138,7 +164,7 @@ public sealed class PromisesPageTests : IDisposable
         Promise(call, contact, byMe: false, "Bakmak");
 
         var vm = Page();
-        vm.DismissCommand.Execute(vm.Theirs.Single());
+        Ruling(vm, () => vm.DismissCommand.Execute(vm.Theirs.Single()));
 
         Assert.Empty(vm.Theirs);
         Assert.Equal(1, vm.DismissedCount);
@@ -158,14 +184,14 @@ public sealed class PromisesPageTests : IDisposable
         Promise(call, contact, byMe: true, "Sözleşme taslağını göndermek", _today.AddDays(-1));
 
         var vm = Page();
-        vm.FulfilCommand.Execute(vm.Mine.Single());
+        Ruling(vm, () => vm.FulfilCommand.Execute(vm.Mine.Single()));
 
         Assert.Empty(vm.Mine);
         Assert.Equal(1, vm.KeptCount);
         Assert.True(vm.CanUndo);
         Assert.Contains("tutuldu", vm.MineTally, StringComparison.OrdinalIgnoreCase);
 
-        vm.UndoCommand.Execute(null);
+        Ruling(vm, () => vm.UndoCommand.Execute(null));
 
         Assert.Single(vm.Mine);
         Assert.Equal(0, vm.KeptCount);
@@ -184,7 +210,7 @@ public sealed class PromisesPageTests : IDisposable
 
         vm.BeginPostponeCommand.Execute(card);
         card.PostponeTo = _today.AddDays(5).ToDateTime(TimeOnly.MinValue);
-        vm.ApplyPostponeCommand.Execute(card);
+        Ruling(vm, () => vm.ApplyPostponeCommand.Execute(card));
 
         var moved = vm.Theirs.Single();
         Assert.False(moved.IsOverdue);
@@ -349,7 +375,7 @@ public sealed class PromisesPageTests : IDisposable
         var group = Assert.Single(vm.Mine);
         var chosen = group.Candidates.Single(k => k.Id == kulaklik);
 
-        vm.PickCandidateCommand.Execute(chosen);
+        Ruling(vm, () => vm.PickCandidateCommand.Execute(chosen));
 
         // One card again, and it is the one that was picked.
         var standing = Assert.Single(vm.Mine);
@@ -367,7 +393,7 @@ public sealed class PromisesPageTests : IDisposable
 
         // And one "Geri al" puts the question back exactly as it was.
         Assert.True(vm.CanUndo);
-        vm.UndoCommand.Execute(null);
+        Ruling(vm, () => vm.UndoCommand.Execute(null));
 
         var back = Assert.Single(vm.Mine);
         Assert.True(back.IsGrouped);
@@ -386,7 +412,7 @@ public sealed class PromisesPageTests : IDisposable
         Promise(call, contact, byMe: true, "Whatsapp'tan ayırmak", quote: OneSentence, quoteStartMs: 51_450);
 
         var vm = Page();
-        vm.KeepAllCandidatesCommand.Execute(Assert.Single(vm.Mine));
+        Ruling(vm, () => vm.KeepAllCandidatesCommand.Execute(Assert.Single(vm.Mine)));
 
         Assert.Equal(2, vm.Mine.Count);
         Assert.All(vm.Mine, k => Assert.False(k.IsGrouped));
@@ -419,7 +445,7 @@ public sealed class PromisesPageTests : IDisposable
         Assert.True(card.NeedsDeadline);
         Assert.True(card.IsUndated);
 
-        vm.DeadlineThisWeekCommand.Execute(card);
+        Ruling(vm, () => vm.DeadlineThisWeekCommand.Execute(card));
 
         var dated = Assert.Single(vm.Theirs);
         Assert.NotNull(dated.Deadline);
@@ -433,7 +459,7 @@ public sealed class PromisesPageTests : IDisposable
         // "Bu hafta" is the end of this week; "önümüzdeki hafta" is a week further out.
         Assert.True(dated.Deadline <= _today.AddDays(7));
 
-        vm.DeadlineNextWeekCommand.Execute(dated);
+        Ruling(vm, () => vm.DeadlineNextWeekCommand.Execute(dated));
         Assert.True(Assert.Single(vm.Theirs).Deadline > _today.AddDays(6));
         Assert.Null(Assert.Single(vm.Theirs).Commitment.DeadlineDate);
     }
@@ -450,7 +476,7 @@ public sealed class PromisesPageTests : IDisposable
         Promise(call, contact, byMe: true, "Coşkun'u halletmek");
 
         var vm = Page();
-        vm.KeepUndatedCommand.Execute(Assert.Single(vm.Mine));
+        Ruling(vm, () => vm.KeepUndatedCommand.Execute(Assert.Single(vm.Mine)));
 
         var answered = Assert.Single(vm.Mine);
         Assert.False(answered.NeedsDeadline);
@@ -466,7 +492,7 @@ public sealed class PromisesPageTests : IDisposable
         // Read back from the archive on a fresh page, and revocable.
         Assert.True(Assert.Single(Page().Mine).KeepsUndated);
 
-        vm.AskAgainForDeadlineCommand.Execute(answered);
+        Ruling(vm, () => vm.AskAgainForDeadlineCommand.Execute(answered));
         Assert.True(Assert.Single(vm.Mine).NeedsDeadline);
     }
 
@@ -489,7 +515,7 @@ public sealed class PromisesPageTests : IDisposable
         var vm = Page();
         Assert.Equal(2, vm.OpenCount);
 
-        vm.JudgeNotAPromiseCommand.Execute(vm.Mine.Single(k => k.Obligation == "Whatsapp'tan ayırmak"));
+        Ruling(vm, () => vm.JudgeNotAPromiseCommand.Execute(vm.Mine.Single(k => k.Obligation == "Whatsapp'tan ayırmak")));
 
         Assert.Single(vm.Mine);
         Assert.Equal(1, vm.OpenCount);
@@ -509,7 +535,7 @@ public sealed class PromisesPageTests : IDisposable
         Assert.True(refused.CanRestore);
         Assert.Contains("söz değil", refused.HeadText);
 
-        vm.RestoreCommand.Execute(refused);
+        Ruling(vm, () => vm.RestoreCommand.Execute(refused));
         vm.Filter = PromiseFilter.Open;
         Assert.Equal(2, vm.OpenCount);
     }
@@ -526,7 +552,7 @@ public sealed class PromisesPageTests : IDisposable
         Promise(call, contact, byMe: false, "Dilekçeyi iletmek");
 
         var vm = Page();
-        vm.JudgeMisheardCommand.Execute(vm.Theirs.Single());
+        Ruling(vm, () => vm.JudgeMisheardCommand.Execute(vm.Theirs.Single()));
 
         var marked = Assert.Single(vm.Theirs);
         Assert.True(marked.IsMisheard);
@@ -648,8 +674,8 @@ public sealed class PromisesPageTests : IDisposable
         var card = Assert.Single(vm.Theirs);
 
         // What PromisesPage does with what EditPromiseWindow hands back.
-        vm.Offer(VoiceTranscript.App.Services.LedgerActions.Edit(
-            _repo, card.Commitment, "Dilekçeyi kaymakamlığa iletmek", _today.AddDays(4)));
+        Ruling(vm, () => vm.Offer(VoiceTranscript.App.Services.LedgerActions.Edit(
+            _repo, card.Commitment, "Dilekçeyi kaymakamlığa iletmek", _today.AddDays(4))));
 
         Assert.True(vm.CanUndo);
         Assert.NotNull(vm.Notice);
@@ -658,7 +684,7 @@ public sealed class PromisesPageTests : IDisposable
         Assert.Equal("Dilekçeyi kaymakamlığa iletmek", edited.Obligation);
         Assert.True(edited.IsEdited);
 
-        vm.UndoCommand.Execute(null);
+        Ruling(vm, () => vm.UndoCommand.Execute(null));
 
         var back = _repo.PromiseLedger(includeClosed: true).Single(r => r.Commitment.Id == promise).Commitment;
         Assert.Null(back.UserObligation);

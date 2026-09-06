@@ -1228,5 +1228,7 @@
   "settingswindow.model-inmedi": "İnmedi",
   "settingswindow.kisi-karti-yerel-model-uyarisi": "Yerel bir modelde çoğu kişi için çalışmaz: bağlam penceresi 24 bin karakter, bulutta 400 bin. Okuma önce küçültülmüş bir paketle denenir; uzun geçmişli kişilerde o da sığmaz ve panel dürüst bir retle karşılık verir.",
   "ledgerpage.yolculuk": "Yolculuk",
-  "ledgerpage.yolculuk-aciklama": "Bu rakamın yolculuğunu kişi kartında aç: her değeri, söylendiği tarihle ve dinlenebilir anıyla."
+  "ledgerpage.yolculuk-aciklama": "Bu rakamın yolculuğunu kişi kartında aç: her değeri, söylendiği tarihle ve dinlenebilir anıyla.",
+  "contactwindow.akis-en-yeni-n-gorusme": "Bu akış en yeni {0} görüşmeden derlendi; daha eskisi var.",
+  "contactwindow.daha-eski-akisi-yukle": "Daha eski akışı yükle"
 }
