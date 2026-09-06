@@ -347,6 +347,31 @@ public sealed class WorkerResult : WorkerEvent
     /// <summary>The worst of the streams, which is the one worth reporting. Null if unmeasured.</summary>
     public double? WorstSpeechCoverage =>
         SpeechCoverage is { Count: > 0 } c ? c.Values.Min() : null;
+
+    /// <summary>
+    /// What the service heard that was not a word: laughter, a cough, a long silence.
+    ///
+    /// Only ElevenLabs labels these, and only when asked. Every other engine sends an empty list,
+    /// which is the honest answer — a call transcribed by one of those has no events rather than
+    /// no laughter, and the screen says which.
+    ///
+    /// Deliberately beside the words rather than inside them: an event in the transcript would be
+    /// a sentence nobody said, and it would then be quoted as one.
+    /// </summary>
+    public List<TranscriptAudioEvent> AudioEvents { get; init; } = [];
+}
+
+/// <summary>One non-word sound the service reported, on the channel it heard it on.</summary>
+public sealed class TranscriptAudioEvent
+{
+    /// <summary>"mic" or "far".</summary>
+    public string Channel { get; init; } = "";
+
+    public int StartMs { get; init; }
+    public int EndMs { get; init; }
+
+    /// <summary>One lower-case ASCII token, as the worker normalised it: "laughter", "door_slam".</summary>
+    public string Kind { get; init; } = "";
 }
 
 public sealed class TranscriptSegment
