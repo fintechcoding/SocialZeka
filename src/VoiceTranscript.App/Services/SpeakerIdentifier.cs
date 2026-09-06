@@ -35,8 +35,15 @@ public sealed class SpeakerIdentifier : IDisposable
     /// <summary>How much of the other person is needed before asking. See vt_worker/speaker.py.</summary>
     private const double RequiredSpeechSeconds = 30.0;
 
-    /// <summary>Loud enough to be somebody talking rather than the room they are in.</summary>
-    private const double SpeechFloorDbfs = -40.0;
+    /// <summary>
+    /// Loud enough to be somebody talking rather than the room they are in.
+    ///
+    /// Internal rather than private because <see cref="LiveTalkMeter"/> asks the same question of
+    /// the same packets and has to get the same answer. A second copy of this number would drift
+    /// from this one the first time either was tuned, and then two parts of the application would
+    /// disagree about whether anybody was speaking.
+    /// </summary>
+    internal const double SpeechFloorDbfs = -40.0;
 
     /// <summary>
     /// The most audio held at once, in seconds of speech.
@@ -134,9 +141,22 @@ public sealed class SpeakerIdentifier : IDisposable
     }
 
     /// <summary>Whether this packet is somebody talking, by level. Cheap on purpose.</summary>
-    private static bool IsSpeech(ReadOnlySpan<byte> pcm)
+    private static bool IsSpeech(ReadOnlySpan<byte> pcm) => Dbfs(pcm) > SpeechFloorDbfs;
+
+    /// <summary>
+    /// Loudness of one packet in dBFS. Cheap on purpose: this runs inside WASAPI's callback.
+    ///
+    /// Split out of <see cref="IsSpeech"/>, unchanged, because <see cref="LiveTalkMeter"/> needs
+    /// the level itself and not only the verdict — its baseline is a median of these. Two
+    /// implementations of the same arithmetic over the same packets is how two screens end up
+    /// disagreeing about the same second of audio.
+    ///
+    /// Negative infinity for a packet too short to have a level, which is below every threshold
+    /// and so reads as silence exactly as the earlier length check did.
+    /// </summary>
+    internal static double Dbfs(ReadOnlySpan<byte> pcm)
     {
-        if (pcm.Length < 2) return false;
+        if (pcm.Length < 2) return double.NegativeInfinity;
 
         double squared = 0;
         var count = pcm.Length / 2;
@@ -148,7 +168,7 @@ public sealed class SpeakerIdentifier : IDisposable
         }
 
         var rms = Math.Sqrt(squared / count);
-        return 20 * Math.Log10(Math.Max(rms, 1e-9) / short.MaxValue) > SpeechFloorDbfs;
+        return 20 * Math.Log10(Math.Max(rms, 1e-9) / short.MaxValue);
     }
 
     private async Task IdentifyAsync()

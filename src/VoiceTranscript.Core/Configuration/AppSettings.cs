@@ -567,6 +567,25 @@ public sealed record AppSettings
     /// </summary>
     public bool IntentCardEnabled { get; init; }
 
+    /// <summary>
+    /// Show, on the recording strip, how much of the last minute was the user talking.
+    ///
+    /// Off by default, and for a stronger reason than the intent card: this one is on screen for
+    /// the whole conversation. It is the only surface in this product looked at *during* a call
+    /// rather than after it, and something that can change how a person speaks while they are
+    /// speaking has to have been asked for rather than switched on for them.
+    ///
+    /// What it shows is arithmetic — a share of the speaking time and an arrow against the same
+    /// person's own level a minute earlier. It never warns, never turns a colour that means "too
+    /// much", and never prints a decibel figure: Windows gains, ducks and denoises the microphone
+    /// before this code sees a sample, so an absolute number would be describing the operating
+    /// system as much as the person. Stretches where the other party is audible in the
+    /// microphone are thrown away rather than counted wrongly, and the strip says so.
+    ///
+    /// Nothing is stored. The counters exist in memory for the length of the call and go with it.
+    /// </summary>
+    public bool LiveTalkMeterEnabled { get; init; }
+
     // ---- export -------------------------------------------------------------
 
     public bool ExportToObsidian { get; init; }

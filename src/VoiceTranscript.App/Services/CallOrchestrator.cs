@@ -112,6 +112,20 @@ public sealed class CallOrchestrator : IDisposable
 
     /// <summary>Listens to the far end of the current call for long enough to recognise them.</summary>
     private SpeakerIdentifier? _speaker;
+
+    /// <summary>Counts the user's share of the last minute while the call is running, or null when off.</summary>
+    private LiveTalkMeter? _meter;
+
+    /// <summary>
+    /// The live meter for the recording in progress, or null when it is switched off.
+    ///
+    /// Exposed for the strip, which reads it once a second from the timer it already runs. The
+    /// meter is not handed to the strip when the call starts because the strip is built lazily
+    /// and outlives every individual call; asking for the current one is the only way it can be
+    /// certain it is not reading a meter belonging to a conversation that has ended.
+    /// </summary>
+    public LiveTalkMeter? LiveMeter => _meter;
+
     private bool? _localTranscriptionUsable;
 
     /// <summary>
@@ -922,6 +936,27 @@ public sealed class CallOrchestrator : IDisposable
                 _speaker.Listen(backend);
             }
 
+            // The live meter, attached beside the voice listener and by exactly the same means: a
+            // further subscriber to the same multicast event. Neither the recorder nor its level
+            // reporting nor the detection loop gains a line of work from this; removing the
+            // subscription leaves the capture chain as it was.
+            if (settings.LiveTalkMeterEnabled)
+            {
+                try
+                {
+                    _meter = new LiveTalkMeter(backend.Format) { HeadphonesUnlikely = LastCallHadNoHeadphones() };
+                    _meter.Listen(backend);
+                }
+                catch (Exception e)
+                {
+                    // Caught here rather than left to the block below, which would turn it into
+                    // "Kayıt başlatılamadı" and abandon the conversation. Nothing about a number
+                    // on a strip is worth a recording that did not happen.
+                    AppLog.Error("ses", e, "canlı ölçer takılamadı, kayıt ölçersiz sürüyor");
+                    _meter = null;
+                }
+            }
+
             _recorder = new CallRecorder(backend);
             _recorder.Interrupted += (_, reason) =>
             {
@@ -965,12 +1000,51 @@ public sealed class CallOrchestrator : IDisposable
             _recorder = null;
             _speaker?.Dispose();
             _speaker = null;
+            _meter?.Dispose();
+            _meter = null;
             _currentCallId = null;
 
             // The status indicator is derived from _recorder, so clearing it above is what stops
             // the window claiming to be recording. Refresh it now rather than a second later.
             UpdateState();
         }
+    }
+
+    /// <summary>
+    /// Whether the conversation before this one was recorded without headphones.
+    ///
+    /// The meter's share is a lie on a machine with open speakers — the other person comes back
+    /// through the microphone and is counted as the user — and the live gate that throws those
+    /// stretches away can only notice after the fact. If the previous call already said so, the
+    /// meter is never attached at all and the strip carries one line explaining the absence
+    /// instead of a figure that would be wrong.
+    ///
+    /// Read from the row rather than measured again here. Worth knowing: today nothing writes
+    /// that column after transcription — the worker's finding is turned into a notice and
+    /// forgotten (see the LikelyNoHeadphones notice further down) — so this reads false in
+    /// practice. It is written the way it is so that the day the column is filled in, the gate
+    /// starts working with no further change; and the live gate inside the meter covers the case
+    /// meanwhile.
+    /// </summary>
+    private bool LastCallHadNoHeadphones()
+    {
+        try
+        {
+            foreach (var call in _repository.ListCalls(limit: 3))
+            {
+                if (call.Id == _currentCallId) continue;
+
+                return call.LikelyNoHeadphones;
+            }
+        }
+        catch (Exception e)
+        {
+            // A database that cannot answer must not stop a recording from starting. The meter
+            // simply attaches and relies on its own live gate.
+            AppLog.Error("ses", e, "önceki görüşmenin kulaklık durumu okunamadı");
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -1067,6 +1141,13 @@ public sealed class CallOrchestrator : IDisposable
         var recorder = _recorder;
         _recorder = null;
         _currentCallId = null;
+
+        // Detached here rather than at the end, because the end is not reached by every path
+        // through this method — a call shorter than five seconds returns early. A meter left
+        // subscribed would keep counting whatever the next thing to open the microphone was, and
+        // the strip would go on showing a share of a conversation that had finished.
+        _meter?.Dispose();
+        _meter = null;
 
         try
         {
@@ -2471,6 +2552,7 @@ public sealed class CallOrchestrator : IDisposable
 
         _recorder?.Dispose();
         _speaker?.Dispose();
+        _meter?.Dispose();
         _sessions.Dispose();
 
         // The token source and the processing slot are deliberately NOT disposed.

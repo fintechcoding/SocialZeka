@@ -93,6 +93,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _deceptionEnabled = settings.DeceptionEnabled;
         _habitCountingEnabled = settings.HabitCountingEnabled;
         _intentCardEnabled = settings.IntentCardEnabled;
+        _liveTalkMeterEnabled = settings.LiveTalkMeterEnabled;
         _commentaryEnabled = settings.CommentaryEnabled;
         _llmRemoteModel = settings.LlmRemoteModel ?? "";
         _llmBaseUrl = settings.LlmBaseUrl ?? "";
@@ -490,6 +491,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     // interrupts a call.
     [ObservableProperty] private bool _habitCountingEnabled = true;
     [ObservableProperty] private bool _intentCardEnabled;
+
+    // ---- coaching: Ses ----
+    //
+    // Off for the same reason the intent card is, only more so: the card appears once at the
+    // start, the meter is on screen for the whole conversation.
+    [ObservableProperty] private bool _liveTalkMeterEnabled;
 
     [ObservableProperty] private bool _commentaryEnabled = true;
     [ObservableProperty] private string _llmRemoteModel;
@@ -971,6 +978,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         DeceptionEnabled = DeceptionEnabled,
         HabitCountingEnabled = HabitCountingEnabled,
         IntentCardEnabled = IntentCardEnabled,
+        LiveTalkMeterEnabled = LiveTalkMeterEnabled,
         CommentaryEnabled = CommentaryEnabled,
         LlmProvider = SelectedProvider.Kind,
         LlmModelId = SelectedLlmModel.Id,
