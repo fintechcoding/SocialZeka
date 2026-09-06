@@ -625,6 +625,18 @@ public sealed class Repository(Database database)
             """,
             new { intoContactId, fromContactId }, transaction);
 
+        // The model's readings follow the person as well, and the NEWEST of the combined history
+        // is the one the card then shows — which is what "newest wins" means for a table that is
+        // a history rather than a row per person.
+        //
+        // Nothing is deleted here on purpose. Each of these rows is a paid request and, more to
+        // the point, may carry a [Katılmıyorum] the user pressed; throwing the older ones away
+        // during an operation whose whole purpose is to lose nothing would also quietly rewrite
+        // the measurement that decides whether this feature stays switched on.
+        connection.Execute(
+            "UPDATE contact_reading SET contact_id = @intoContactId WHERE contact_id = @fromContactId;",
+            new { intoContactId, fromContactId }, transaction);
+
         // Deleted last, once nothing points at it. ON DELETE CASCADE would otherwise take the
         // rows that were just moved.
         connection.Execute("DELETE FROM contact WHERE id = @fromContactId;", new { fromContactId }, transaction);
@@ -1356,6 +1368,21 @@ public sealed class Repository(Database database)
             // a photo, a voiceprint or a set of fields already on a contact is this machine's.
             Copy(connection, transaction, "contact_profile", toContact);
             Copy(connection, transaction, "contact_voice", toContact);
+
+            // The model's readings of a person. Filed against the contact, and pointing at the
+            // newest call they covered, so both identifiers are rewritten — left on the contact
+            // map alone the pointer would name whichever conversation happens to hold that id
+            // here. A reading already on this machine wins, matched on the moment it was written:
+            // it is the one whose [Katılmıyorum] the user may already have pressed.
+            Copy(
+                connection, transaction, "contact_reading",
+                new Dictionary<string, string>(toContact) { ["latest_call_id"] = "map_call" },
+                """
+                NOT EXISTS (
+                    SELECT 1 FROM main.contact_reading r
+                     WHERE r.contact_id = (SELECT new FROM map_contact WHERE old = s.contact_id)
+                       AND r.created_at = s.created_at)
+                """);
 
             Copy(connection, transaction, "contact_field", toContact, where:
                 """
@@ -3797,6 +3824,107 @@ public sealed class Repository(Database database)
         connection.Execute("DELETE FROM deception_note WHERE call_id = @callId;", new { callId });
     }
 
+    // ---- the model's stored reading of a PERSON -------------------------------
+    //
+    // The contact card's opt-in bottom panel. Same contract as the two above and one more: this
+    // one is HISTORY. A reading is dated and the previous one is kept, because the feature ships
+    // with its own measurement — "did the user disagree" — and a table that overwrote itself
+    // could only ever answer that about the last person.
+    //
+    // Nothing joins on it and NO PROMPT IS EVER SHOWN A ROW. contact_profile, which holds what
+    // the user typed about the same person, is not touched by any of this.
+
+    /// <summary>One stored reading, exactly as it was written.</summary>
+    /// <param name="UserVerdict">The user's own column: 1 for [Katılmıyorum], null while unsaid.</param>
+    public sealed record StoredContactReading(
+        long Id,
+        long ContactId,
+        string Json,
+        string? ModelUsed,
+        int CallsCovered,
+        long? LatestCallId,
+        string InputHash,
+        int ExcerptCount,
+        int RejectedCount,
+        int? UserVerdict,
+        DateTimeOffset CreatedAt);
+
+    /// <summary>Adds a reading. Never replaces one: the older readings are the measurement.</summary>
+    public long SaveContactReading(
+        long contactId, string json, string? modelUsed, int callsCovered, long? latestCallId,
+        string inputHash, int excerptCount, int rejectedCount)
+    {
+        using var connection = Open();
+
+        return connection.ExecuteScalar<long>(
+            """
+            INSERT INTO contact_reading
+                (contact_id, json, model_used, calls_covered, latest_call_id,
+                 input_hash, excerpt_count, rejected_count, created_at)
+            VALUES
+                (@contactId, @json, @modelUsed, @callsCovered, @latestCallId,
+                 @inputHash, @excerptCount, @rejectedCount, @now)
+            RETURNING id;
+            """,
+            new
+            {
+                contactId, json, modelUsed, callsCovered, latestCallId,
+                inputHash, excerptCount, rejectedCount, now = Iso(DateTimeOffset.UtcNow),
+            });
+    }
+
+    /// <summary>The newest reading of one person, or null when none was ever produced.</summary>
+    public StoredContactReading? LatestContactReading(long contactId)
+    {
+        using var connection = Open();
+
+        return connection.QueryFirstOrDefault<ContactReadingRow>(
+            """
+            SELECT * FROM contact_reading
+             WHERE contact_id = @contactId
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1;
+            """,
+            new { contactId })?.ToModel();
+    }
+
+    /// <summary>
+    /// USER DATA. Nothing in the analysis writes this column and no re-run clears it — which is
+    /// what makes the disable-after-three-disagreements rule an honest measurement rather than
+    /// the feature grading itself.
+    /// </summary>
+    public void SetContactReadingVerdict(long readingId, int? verdict)
+    {
+        using var connection = Open();
+        connection.Execute(
+            "UPDATE contact_reading SET user_verdict = @verdict WHERE id = @readingId;",
+            new { readingId, verdict });
+    }
+
+    /// <summary>
+    /// The newest reading of each of the last few people, newest first — the acceptance rule's
+    /// input. One row per person, because three disagreements about one contact is one opinion.
+    /// </summary>
+    public IReadOnlyList<int?> RecentContactReadingVerdicts(int limit = 3)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection.Query<int?>(
+                """
+                SELECT r.user_verdict
+                  FROM contact_reading r
+                 WHERE r.id = (SELECT x.id FROM contact_reading x
+                                WHERE x.contact_id = r.contact_id
+                                ORDER BY x.created_at DESC, x.id DESC LIMIT 1)
+                 ORDER BY r.created_at DESC, r.id DESC
+                 LIMIT @limit;
+                """,
+                new { limit }),
+        ];
+    }
+
     /// <summary>Saves the consistency check's overall note for a conversation (one per call).</summary>
     public void SaveConsistencyNote(long callId, string note, string? modelUsed)
     {
@@ -5961,6 +6089,25 @@ public sealed class Repository(Database database)
         public string kind { get; set; } = "";
 
         public AudioEvent ToModel() => new(id, call_id, channel, (int)start_ms, (int)end_ms, kind);
+    }
+
+    private sealed class ContactReadingRow
+    {
+        public long id { get; set; }
+        public long contact_id { get; set; }
+        public string json { get; set; } = "";
+        public string? model_used { get; set; }
+        public long calls_covered { get; set; }
+        public long? latest_call_id { get; set; }
+        public string input_hash { get; set; } = "";
+        public long excerpt_count { get; set; }
+        public long rejected_count { get; set; }
+        public long? user_verdict { get; set; }
+        public string created_at { get; set; } = "";
+
+        public StoredContactReading ToModel() => new(
+            id, contact_id, json, model_used, (int)calls_covered, latest_call_id, input_hash,
+            (int)excerpt_count, (int)rejected_count, (int?)user_verdict, ParseIso(created_at));
     }
 
     private sealed class HabitRow

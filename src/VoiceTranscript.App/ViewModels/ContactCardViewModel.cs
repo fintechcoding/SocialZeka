@@ -195,6 +195,29 @@ public sealed record OwnWordRow(Repository.OwnWord Word)
 /// <summary>The rows about one subject.</summary>
 public sealed record OwnWordsRow(string Subject, IReadOnlyList<OwnWordRow> Words);
 
+/// <summary>One anchor under a line of the model's opinion: ▸, the excerpt number, the moment.</summary>
+public sealed record OpinionAnchorRow(ContactReadingAnchor Anchor)
+{
+    public string Label => $"▸ [{Anchor.Label}]";
+    public long CallId => Anchor.CallId;
+    public int StartMs => Anchor.StartMs;
+    public bool IsMe => Anchor.IsMe;
+
+    /// <summary>Shown on hover: the sentence the impression was hung on.</summary>
+    public string Quote => Anchor.Quote.Trim();
+}
+
+/// <summary>
+/// One line of the model's opinion, with the anchors it survived on.
+///
+/// A line with no anchors never gets here: <see cref="ContactReadingAnalysis"/> drops it and
+/// counts it, and the signature line says how many went that way.
+/// </summary>
+public sealed record OpinionLineRow(string Text, IReadOnlyList<OpinionAnchorRow> Anchors);
+
+/// <summary>One heading of the panel and its lines. Empty sections are not rendered at all.</summary>
+public sealed record OpinionSection(string Label, IReadOnlyList<OpinionLineRow> Lines);
+
 /// <summary>One overdue promise as the card's Sözler strip shows it.</summary>
 public sealed record CardPromise(Repository.PromiseRow Row, DateOnly Today)
 {
@@ -243,12 +266,22 @@ public sealed partial class ContactCardViewModel : ObservableObject
 {
     private readonly Repository _repository;
 
+    /// <summary>
+    /// What the opt-in opinion panel needs to spend money, or null when nobody supplied it.
+    ///
+    /// Null is a real state rather than a test artefact: the card is one control with two hosts,
+    /// and a host that cannot run models shows the panel's off line instead of a button that
+    /// would fail when pressed.
+    /// </summary>
+    private readonly Services.ModelAccess? _access;
+
     /// <summary>Every kept pattern row, before the source filter narrows it.</summary>
     private readonly List<PatternRow> _allPatterns = [];
 
-    public ContactCardViewModel(Repository repository, long contactId)
+    public ContactCardViewModel(Repository repository, long contactId, Services.ModelAccess? access = null)
     {
         _repository = repository;
+        _access = access;
         ContactId = contactId;
 
         Undo.Undone += (_, _) => Refresh();
@@ -343,6 +376,7 @@ public sealed partial class ContactCardViewModel : ObservableObject
         LoadPatterns();
         LoadJourneys();
         LoadOwnWords();
+        LoadOpinion();
     }
 
     /// <summary>
@@ -875,7 +909,235 @@ public sealed partial class ContactCardViewModel : ObservableObject
         OnPropertyChanged(nameof(HasOwnWords));
     }
 
+    // ---- the model's opinion (opt-in, its own ground) ------------------------------------------
+    //
+    // The one part of this card that is not evidence, and everything here exists to keep the two
+    // apart. It sits below every counted thing, on its own surface, under a heading that says
+    // whose opinion it is; it is off unless somebody turned it on; it is signed by the model and
+    // dated; and its two written boundaries — no psychological or emotional state, no "arguments
+    // you can use" — are in the footer rather than only in the prompt, because a refusal nobody
+    // can see reads as an oversight and gets "fixed" by the next person.
+    //
+    // Nothing here feeds anything. The stored reading is a dead end: no prompt receives it, no
+    // count above it moves because of it, and no figure on this card is computed from it.
+
+    /// <summary>The sections in the order the panel shows them, empty ones omitted.</summary>
+    public ObservableCollection<OpinionSection> Opinion { get; } = [];
+
+    [ObservableProperty] private string? _opinionSignature;
+    [ObservableProperty] private string? _opinionCounterReading;
+    [ObservableProperty] private string? _opinionProblem;
+
+    /// <summary>"Alıntıların çoğu bulunamadı" — the ledger's own sentence, same threshold.</summary>
+    [ObservableProperty] private string? _opinionNotice;
+
+    [ObservableProperty] private bool _opinionIsStale;
+    [ObservableProperty] private bool _opinionIsThin;
+    [ObservableProperty] private bool _opinionIsRunning;
+
+    /// <summary>True once the user has pressed [Katılmıyorum] on the reading now on screen.</summary>
+    [ObservableProperty] private bool _opinionRejected;
+
+    /// <summary>The row the verdict would be written to. Null while no reading is stored.</summary>
+    private long? _opinionId;
+
+    /// <summary>Whether the panel exists at all. Off is one line saying where the switch is.</summary>
+    public bool OpinionEnabled => _access?.Settings().ContactReadingEnabled ?? false;
+
+    /// <summary>True when there is something to show — a thin answer is not one.</summary>
+    public bool HasOpinion => Opinion.Count > 0;
+
+    /// <summary>Can be asked only where a model can actually be reached.</summary>
+    public bool CanAskOpinion => OpinionEnabled && _access is not null && !OpinionIsRunning;
+
+    private void LoadOpinion()
+    {
+        Opinion.Clear();
+
+        OpinionSignature = null;
+        OpinionCounterReading = null;
+        OpinionNotice = null;
+        OpinionIsStale = false;
+        OpinionIsThin = false;
+        OpinionRejected = false;
+        _opinionId = null;
+
+        Announce();
+
+        if (!OpinionEnabled) return;
+
+        if (_repository.LatestContactReading(ContactId) is not { } stored) return;
+        if (ContactReadingAnalysis.FromStored(stored.Json) is not { } report) return;
+
+        _opinionId = stored.Id;
+        OpinionRejected = stored.UserVerdict == ContactReadingAnalysis.Disagree;
+        OpinionIsThin = report.Insufficient;
+
+        OpinionSignature = string.Format(
+            Localisation.T("contactcard.okuma-imzasi"),
+            stored.ModelUsed ?? "model",
+            stored.CreatedAt.ToLocalTime().ToString("d MMM yyyy"),
+            stored.CallsCovered,
+            stored.ExcerptCount,
+            stored.RejectedCount);
+
+        // "Have there been conversations since?" — asked of the calls, not of the text, so a
+        // reading is old the moment the history moved under it.
+        OpinionIsStale = stored.InputHash != CurrentInputHash();
+
+        // The same threshold and the same sentence the ledger uses when a model's quotes mostly
+        // cannot be found: it is the same failure, made about a person instead of a call.
+        OpinionNotice = report.RejectionRate > 0.4
+            ? Localisation.T("contactcard.okuma-model-uygun-olmayabilir")
+            : null;
+
+        if (!report.Insufficient) Fill(report);
+
+        Announce();
+    }
+
+    /// <summary>The fingerprint of today's history, to compare with the one stored beside a reading.</summary>
+    private string CurrentInputHash() =>
+        ContactReadingAnalysis.InputHash(OneToOneCalls().Calls.Select(c => c.CallId));
+
+    private void Fill(ContactReadingReport report)
+    {
+        void Section(string key, IReadOnlyList<ContactReadingItem> items)
+        {
+            if (items.Count == 0) return;
+
+            Opinion.Add(new OpinionSection(
+                Localisation.T(key),
+                [.. items.Select(i => new OpinionLineRow(
+                    i.Text, [.. i.Anchors.Select(a => new OpinionAnchorRow(a))]))]));
+        }
+
+        // The general impression is a section of one so that it renders like everything else —
+        // with its anchors beside it, which is the whole point of holding it to the same rule.
+        if (report.GeneralImpression.Anchors.Count > 0)
+            Section("contactcard.genel-izlenim", [report.GeneralImpression]);
+
+        Section("contactcard.iletisim-tarzi", report.CommunicationStyle);
+        Section("contactcard.oncelikler", report.Priorities);
+        Section("contactcard.guclu-yanlar", report.Strengths);
+        Section("contactcard.zayif-yanlar", report.Weaknesses);
+        Section("contactcard.cevapsiz-kalan-konular", report.UnansweredTopics);
+        Section("contactcard.gorusmeye-giderken", report.BeforeYouGo);
+        Section("contactcard.ben-icin-notlar", report.NotesForMe);
+
+        OpinionCounterReading = string.IsNullOrWhiteSpace(report.CounterReading)
+            ? null
+            : report.CounterReading.Trim();
+    }
+
+    private void Announce()
+    {
+        OnPropertyChanged(nameof(OpinionEnabled));
+        OnPropertyChanged(nameof(HasOpinion));
+        OnPropertyChanged(nameof(CanAskOpinion));
+    }
+
+    /// <summary>
+    /// [Yeniden sor]. Runs the packet, stores the answer, and shows what survived.
+    ///
+    /// Deliberately never automatic: it costs money and it is an opinion about a person, so it
+    /// happens when somebody asks for it and at no other moment.
+    /// </summary>
+    [RelayCommand]
+    private async Task AskOpinionAsync(CancellationToken cancellationToken)
+    {
+        if (OpinionIsRunning || _access is null) return;
+
+        var settings = _access.Settings();
+        if (!settings.ContactReadingEnabled) return;
+
+        if (!settings.LlmReachableInPrinciple)
+        {
+            OpinionProblem = Localisation.T("contactcard.okuma-servis-yok");
+            return;
+        }
+
+        OpinionIsRunning = true;
+        OpinionProblem = null;
+        Announce();
+
+        try
+        {
+            var client = Core.Llm.LlmClientFactory.Create(
+                _access.Http, settings.LlmProvider, settings.ResolvedBaseUrl, settings.LlmApiKey);
+
+            var report = await new ContactReadingAnalysis(client, _repository).RunAsync(
+                ContactId,
+                settings.ResolvedConsistencyModel,
+                settings.PreferredName,
+                settings.Provider.SendsDataOffMachine,
+                cancellationToken);
+
+            if (!report.Ok)
+            {
+                OpinionProblem = report.Problem;
+                return;
+            }
+
+            // Re-read rather than rendered from the returned object: what the panel shows is
+            // what was stored, so reopening the card can never show something different.
+            LoadOpinion();
+        }
+        catch (Exception e)
+        {
+            OpinionProblem = string.Format(Localisation.T("contactcard.okuma-tamamlanamadi"), e.Message);
+        }
+        finally
+        {
+            OpinionIsRunning = false;
+            Announce();
+        }
+    }
+
+    /// <summary>
+    /// [Katılmıyorum]. The user's column, and the feature's own measurement.
+    ///
+    /// Three people in a row whose reading was rejected is the acceptance rule failing, and the
+    /// answer is not a defence: the switch goes off, the settings card grows an "ölçüm olumsuz"
+    /// badge, and the fact is written to the log so the negative result can be reported rather
+    /// than rediscovered. Turning the switch back on is the user overruling that knowingly.
+    /// </summary>
+    [RelayCommand]
+    private void DisagreeWithOpinion()
+    {
+        if (_opinionId is not { } id) return;
+
+        _repository.SetContactReadingVerdict(id, ContactReadingAnalysis.Disagree);
+        OpinionRejected = true;
+
+        if (_access is null) return;
+
+        var verdicts = _repository.RecentContactReadingVerdicts(ContactReadingAnalysis.NegativeStreak);
+        if (!ContactReadingAnalysis.MeasurementIsNegative(verdicts)) return;
+
+        var settings = _access.Settings();
+        if (!settings.ContactReadingEnabled) return;
+
+        _access.Save(settings with
+        {
+            ContactReadingEnabled = false,
+            ContactReadingMeasuredNegative = true,
+        });
+
+        Services.AppLog.Write("kişi",
+            $"kişi kartı modelin görüşü: üst üste {ContactReadingAnalysis.NegativeStreak} kişide "
+            + "[Katılmıyorum] işaretlendi; özellik kendini kapattı");
+
+        LoadOpinion();
+    }
+
     // ---- playing -----------------------------------------------------------------------------
+
+    [RelayCommand]
+    private void PlayAnchor(OpinionAnchorRow? anchor)
+    {
+        if (anchor is not null) OpenRequested?.Invoke(this, (anchor.CallId, anchor.StartMs, anchor.IsMe));
+    }
 
     [RelayCommand]
     private void PlayQuote(PatternQuoteRow? quote)

@@ -178,6 +178,12 @@ public class SettingsSurviveSavingTests
         nameof(AppSettings.LogDetail),
         nameof(AppSettings.HabitCountingEnabled), nameof(AppSettings.IntentCardEnabled),
         nameof(AppSettings.LiveTalkMeterEnabled), nameof(AppSettings.ProsodyMeasurementEnabled),
+
+        // The contact card's opinion panel. The second of the pair is not a switch anybody
+        // touches: the panel writes it when it turns itself off after measuring badly, and the
+        // window carries it back out unchanged. It is on this list because it passes through
+        // ToSettings deliberately rather than by accident.
+        nameof(AppSettings.ContactReadingEnabled), nameof(AppSettings.ContactReadingMeasuredNegative),
     ];
 
     private static AppSettings RoundTrip(AppSettings original)

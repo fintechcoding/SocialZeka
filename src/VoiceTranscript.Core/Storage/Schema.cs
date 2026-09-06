@@ -17,7 +17,7 @@
 /// </summary>
 public static class Schema
 {
-    public const int Version = 18;
+    public const int Version = 19;
 
     public static readonly string[] Statements =
     [
@@ -875,5 +875,50 @@ public static class Schema
         );
         """,
         "CREATE INDEX IF NOT EXISTS ix_audio_event_call ON audio_event(call_id, start_ms);",
+
+        // What a model thinks of somebody, when the user asked it to.
+        //
+        // A DEAD END, and the strictest one in this file. Nothing joins on this table, no screen
+        // but the card's own bottom panel reads it, and NO PROMPT EVER RECEIVES A ROW OF IT — not
+        // the next contact reading, not the consistency check, not the archive questions. A model
+        // that could read its own earlier opinion back would be building a case about a person out
+        // of its own prose rather than out of what was said, and every run would make the last one
+        // truer. The reading is quote-anchored on the way in and nothing on the way out.
+        //
+        // NOT contact_profile, which is USER-ENTERED ONLY and stays that way. This is the machine's
+        // side of the same person, kept apart so the two can never be mistaken for each other.
+        //
+        // History, not a row per person. A reading is dated, signed by the model that wrote it, and
+        // the previous one stays: the whole measurement of whether this feature is worth having is
+        // "does the user disagree with it", and a table that overwrote itself would answer that
+        // question with one data point. user_verdict is the USER's column — nothing in the analysis
+        // writes it and no re-run clears it.
+        //
+        // input_hash is what makes "N yeni görüşme var, bu okuma eski" answerable: it is computed
+        // from the conversations the packet was built out of, so new calls change it and the panel
+        // can say the reading no longer covers the history. rejected_count and excerpt_count travel
+        // with the row for the same reason the ledger's denominators do — a reading whose anchors
+        // mostly did not resolve is not a better reading, and the signature line says so.
+        """
+        CREATE TABLE IF NOT EXISTS contact_reading (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            contact_id     INTEGER NOT NULL REFERENCES contact(id) ON DELETE CASCADE,
+            json           TEXT    NOT NULL,
+            model_used     TEXT,
+            calls_covered  INTEGER NOT NULL,
+
+            -- The newest conversation the packet drew on; SET NULL so deleting it keeps the row.
+            latest_call_id INTEGER REFERENCES call(id) ON DELETE SET NULL,
+
+            input_hash     TEXT    NOT NULL,
+            excerpt_count  INTEGER NOT NULL,
+            rejected_count INTEGER NOT NULL,
+
+            -- USER: 1 when they pressed [Katılmıyorum]. NULL means they have not said.
+            user_verdict   INTEGER,
+            created_at     TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_contact_reading ON contact_reading(contact_id, created_at DESC);",
     ];
 }

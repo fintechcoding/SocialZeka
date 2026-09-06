@@ -41,6 +41,23 @@ public partial class App : Application
     public static HttpClient HttpClient => Http;
 
     /// <summary>
+    /// What a window opened outside the shell needs to run a paid model request.
+    ///
+    /// Built on demand rather than held, so it always reads the settings as they are now — a
+    /// contact window left open across a settings change would otherwise keep calling yesterday's
+    /// provider. Saving goes through the same two steps the shell uses: the running application's
+    /// copy first, then the file.
+    /// </summary>
+    public static Services.ModelAccess ModelAccess => new(
+        () => Settings,
+        saved =>
+        {
+            Settings = saved;
+            saved.Save(Paths.SettingsFile);
+        },
+        Http);
+
+    /// <summary>
     /// Records the failures nobody is there to see.
     ///
     /// A tray application runs for weeks. Most of what goes wrong with one goes wrong while the

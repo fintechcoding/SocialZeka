@@ -164,7 +164,9 @@ public sealed partial class ContactWindowViewModel : ObservableObject
     private readonly Repository _repository;
     private readonly string _photosDirectory;
 
-    public ContactWindowViewModel(Repository repository, long contactId, string? photosDirectory = null)
+    public ContactWindowViewModel(
+        Repository repository, long contactId, string? photosDirectory = null,
+        Services.ModelAccess? access = null)
     {
         _repository = repository;
         _photosDirectory = photosDirectory ?? "";
@@ -177,7 +179,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
             new System.Windows.Data.PropertyGroupDescription(nameof(ContactCall.Month)));
         CallsView = view;
 
-        Card = new ContactCardViewModel(repository, contactId);
+        Card = new ContactCardViewModel(repository, contactId, access);
 
         Load();
     }

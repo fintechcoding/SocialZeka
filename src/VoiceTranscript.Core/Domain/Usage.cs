@@ -35,6 +35,15 @@ public static class ProcessingStage
 
     /// <summary>The opt-in deception/manipulation assessment — the user chose to hear an opinion.</summary>
     public const string Deception = "deception";
+
+    /// <summary>
+    /// The opt-in reading of a PERSON rather than of a conversation.
+    ///
+    /// Its own stage because it is the only paid work here with no call behind it: the run is
+    /// recorded with a null call id, over a packet built from many conversations, and a bill
+    /// nobody can trace to a recording is exactly the surprise the Usage screen exists to prevent.
+    /// </summary>
+    public const string ContactReading = "contact-reading";
 }
 
 /// <summary>

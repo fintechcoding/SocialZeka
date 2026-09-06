@@ -452,6 +452,51 @@ public sealed class MigrationTests : IDisposable
     }
 
     /// <summary>
+    /// v19: what a model makes of a person, kept as history and as a dead end.
+    ///
+    /// Goes red when the table is missing from an upgraded database, when it stops being able to
+    /// hold more than one reading per contact (the whole acceptance measurement depends on the
+    /// older ones surviving), when the user's verdict column stops being nullable — "has not
+    /// said" is not "agreed" — or when the index the panel's read depends on disappears.
+    /// </summary>
+    [Fact]
+    public void TheNineteenthStepAddsTheContactReading()
+    {
+        new Database(_path).Migrate();
+
+        foreach (var column in new[]
+                 {
+                     "contact_id", "json", "model_used", "calls_covered", "latest_call_id",
+                     "input_hash", "excerpt_count", "rejected_count", "user_verdict", "created_at",
+                 })
+        {
+            Assert.True(ColumnExistsIn("contact_reading", column), column);
+        }
+
+        using var connection = new Database(_path).Open();
+
+        using var empty = connection.CreateCommand();
+        empty.CommandText = "SELECT COUNT(*) FROM contact_reading;";
+        Assert.Equal(0L, empty.ExecuteScalar());
+
+        using var index = connection.CreateCommand();
+        index.CommandText =
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'ix_contact_reading';";
+        Assert.Equal(1L, index.ExecuteScalar());
+
+        // History, not one row per person: contact_id is not the primary key.
+        using var key = connection.CreateCommand();
+        key.CommandText = "SELECT \"pk\" FROM pragma_table_info('contact_reading') WHERE name = 'contact_id';";
+        Assert.Equal(0L, key.ExecuteScalar());
+
+        // "Nobody has said" must stay tellable from "agreed".
+        using var nullable = connection.CreateCommand();
+        nullable.CommandText =
+            "SELECT \"notnull\" FROM pragma_table_info('contact_reading') WHERE name = 'user_verdict';";
+        Assert.Equal(0L, nullable.ExecuteScalar());
+    }
+
+    /// <summary>
     /// The general form of the test above: every table, every column, compared between a
     /// database that walked the steps and one born fresh. The spot checks catch the column
     /// somebody thought to assert; this catches the one they forgot — a column in the step but

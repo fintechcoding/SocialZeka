@@ -96,6 +96,10 @@ public sealed class ContactCardTests : IDisposable
 
     private ContactCardViewModel Card() => new(_repo, _contact);
 
+    /// <summary>The card with a model behind it, so the opt-in panel is reachable.</summary>
+    private ContactCardViewModel Card(VoiceTranscript.App.Services.ModelAccess access) =>
+        new(_repo, _contact, access);
+
     // ---- Gidişat -----------------------------------------------------------------------------
 
     /// <summary>
@@ -458,6 +462,212 @@ public sealed class ContactCardTests : IDisposable
 
         Assert.NotEqual("contactcard.bulgu-yogunlugu-serisi-yok", caption);
         Assert.Contains("denetim", caption, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ---- the model's opinion (opt-in) ----------------------------------------------------------
+
+    private static VoiceTranscript.App.Services.ModelAccess Access(
+        Core.Configuration.AppSettings settings, Action<Core.Configuration.AppSettings>? save = null)
+    {
+        var current = settings;
+
+        return new VoiceTranscript.App.Services.ModelAccess(
+            () => current,
+            saved => { current = saved; save?.Invoke(saved); },
+            new HttpClient());
+    }
+
+    /// <summary>One stored reading, written the way the analysis writes it.</summary>
+    private long StoreOpinion(long contactId, string text, string anchorLabel, int startMs, string hash)
+    {
+        var report = new ContactReadingReport(
+            new ContactReadingItem(text, [new ContactReadingAnchor(anchorLabel, 1, startMs, false, "alıntı")]),
+            [], [], [], [], [], [], [],
+            "Aynı kayıtlar sıradan bir iş yoğunluğuyla da açıklanabilir.",
+            CallsCovered: 3, ExcerptCount: 24, RejectedCount: 1, Insufficient: false);
+
+        return _repo.SaveContactReading(
+            contactId, JsonSerializer.Serialize(report), "qwen-test", 3, null, hash, 24, 1);
+    }
+
+    /// <summary>
+    /// Switched off, the panel is one line saying where the switch is — not silence.
+    ///
+    /// Red means either that the panel appeared without anybody asking for it, which is the one
+    /// thing an opt-in surface may never do, or that "off" renders as nothing at all: a reader who
+    /// has heard the panel exists then reads the gap as a feature that failed to load, and the
+    /// card loses the chance to say that the ground below the evidence is a different one.
+    /// </summary>
+    [Fact]
+    public void TheOpinionPanelIsOffUntilSomebodyTurnsItOn()
+    {
+        StoreOpinion(_contact, "Bir izlenim.", "A1", 1_000, "hash");
+
+        // No model behind the card at all, and with a model but the switch off.
+        Assert.False(Card().OpinionEnabled);
+        Assert.Empty(Card().Opinion);
+
+        var off = Card(Access(new Core.Configuration.AppSettings()));
+        Assert.False(off.OpinionEnabled);
+        Assert.Empty(off.Opinion);
+        Assert.Null(off.OpinionSignature);
+
+        // The off line says where to turn it on — read from the dictionaries rather than through
+        // the ambient language, which another test may have switched.
+        foreach (var (code, word) in new[] { ("tr", "Ayarlar"), ("en", "Settings") })
+        {
+            Assert.Contains(word, Strings(code)["contactcard.modelin-gorusu-kapali"], StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>One dictionary, straight off disk: language-independent, unlike Localisation.T.</summary>
+    private static Dictionary<string, string> Strings(string code) =>
+        JsonSerializer.Deserialize<Dictionary<string, string>>(
+            File.ReadAllText(Path.Combine(
+                Root(), "src", "VoiceTranscript.Core", "Resources", $"strings.{code}.json")))!;
+
+    /// <summary>
+    /// Turned on, the panel shows the stored reading, signed and dated, with its anchors playable
+    /// and its staleness visible.
+    ///
+    /// Red means one of the three things that keep this from being a machine asserting facts about
+    /// a person: the signature (which model, when, over how much, how much was dropped), the
+    /// anchors (every line playable back to the moment it rests on), or the staleness note that
+    /// stops an old impression being read as a current one.
+    /// </summary>
+    [Fact]
+    public void AStoredOpinionIsSignedAnchoredAndKnowsWhenItWentOld()
+    {
+        var call = Call(daysAgo: 2);
+        StoreOpinion(_contact, "Konuyu tarihe bağlamadan bırakma izlenimi veriyor.", "A1", 12_000, "eski-hash");
+
+        var card = Card(Access(new Core.Configuration.AppSettings { ContactReadingEnabled = true }));
+
+        Assert.True(card.OpinionEnabled);
+        Assert.True(card.HasOpinion);
+
+        var line = Assert.Single(Assert.Single(card.Opinion).Lines);
+        Assert.Equal("Konuyu tarihe bağlamadan bırakma izlenimi veriyor.", line.Text);
+
+        var anchor = Assert.Single(line.Anchors);
+        Assert.Contains("A1", anchor.Label, StringComparison.Ordinal);
+        Assert.Equal(12_000, anchor.StartMs);
+
+        // model · date · calls · excerpts · dropped.
+        Assert.Contains("qwen-test", card.OpinionSignature!, StringComparison.Ordinal);
+        Assert.Contains("24", card.OpinionSignature!, StringComparison.Ordinal);
+
+        // The stored fingerprint is not this archive's, so the panel says the reading is old.
+        Assert.True(card.OpinionIsStale);
+        Assert.NotNull(card.OpinionCounterReading);
+
+        // And with the hash of the history it actually covers, it is not.
+        StoreOpinion(_contact, "Aynı izlenim.", "A1", 12_000, ContactReadingAnalysis.InputHash([call]));
+        Assert.False(Card(Access(new Core.Configuration.AppSettings { ContactReadingEnabled = true })).OpinionIsStale);
+    }
+
+    /// <summary>
+    /// [Katılmıyorum] is written down, and three people in a row switch the feature off.
+    ///
+    /// This is the package's own rollback condition, made operable. Red one way and a rejection
+    /// does not stick, so the feature can never fail its own measurement; red the other way and it
+    /// switches itself off over a single bad reading, which would take a working feature away from
+    /// somebody who never asked for that.
+    /// </summary>
+    [Fact]
+    public void ThreeRejectedReadingsInARowSwitchTheFeatureOff()
+    {
+        Core.Configuration.AppSettings? saved = null;
+        var access = Access(new Core.Configuration.AppSettings { ContactReadingEnabled = true }, s => saved = s);
+
+        StoreOpinion(_contact, "Bir izlenim.", "A1", 1_000, "hash");
+
+        var first = Card(access);
+        first.DisagreeWithOpinionCommand.Execute(null);
+
+        Assert.True(first.OpinionRejected);
+        Assert.Equal(ContactReadingAnalysis.Disagree, _repo.LatestContactReading(_contact)!.UserVerdict);
+
+        // One person is one opinion: the feature stays on.
+        Assert.Null(saved);
+
+        foreach (var name in new[] { "Avukat", "Uliana" })
+        {
+            var other = _repo.UpsertContact(name, CallApp.WhatsApp);
+            StoreOpinion(other, "Bir izlenim.", "A1", 1_000, "hash");
+
+            new ContactCardViewModel(_repo, other, access).DisagreeWithOpinionCommand.Execute(null);
+        }
+
+        Assert.NotNull(saved);
+        Assert.False(saved!.ContactReadingEnabled);
+        Assert.True(saved.ContactReadingMeasuredNegative);
+
+        // And the panel is gone the next time the card is built.
+        Assert.False(Card(access).OpinionEnabled);
+    }
+
+    /// <summary>
+    /// The panel refuses the same three vocabularies in its surface that the card refuses in its
+    /// figures: a score, a psychological or emotional state, and arguments to use on somebody.
+    ///
+    /// Member names rather than markup, for the same reason <see cref="NothingOnTheCardIsAScore"/>
+    /// checks members: one property called <c>MoodLine</c> or <c>PersuasionTips</c> and every
+    /// binding that wants it is one line of XAML away. The two boundaries are also asserted to be
+    /// SAID — a refusal nobody can read is the kind that gets "fixed" by the next person who
+    /// notices the gap.
+    ///
+    /// Red means the opinion panel has started offering what the user themselves excluded when
+    /// they allowed impressions (§7-1, §7-4, §7-5).
+    /// </summary>
+    [Fact]
+    public void TheOpinionPanelOffersNoStateAndNoArguments()
+    {
+        string[] forbidden =
+        [
+            "score", "skor", "puan", "trust", "guven", "risk", "rating", "grade",
+            "psycholog", "psikolojik", "emotion", "duygu", "mood", "ruhhal",
+            "argument", "arguman", "persuad", "ikna", "manipul", "leverage", "tactic",
+        ];
+
+        Type[] surfaces =
+        [
+            typeof(OpinionSection), typeof(OpinionLineRow), typeof(OpinionAnchorRow),
+            typeof(ContactReadingReport), typeof(ContactReadingItem), typeof(ContactReadingAnchor),
+        ];
+
+        var offenders = surfaces
+            .SelectMany(t => t.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+                .Select(m => $"{t.Name}.{m.Name}"))
+            .Where(name => forbidden.Any(word => name.Contains(word, StringComparison.OrdinalIgnoreCase)))
+            .Distinct()
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(offenders.Count == 0, "Görüş panelinde yasak sözcük taşıyan üye: " + string.Join(", ", offenders));
+
+        // Also on the view model's own surface: the panel's properties all begin with "Opinion".
+        var panel = typeof(ContactCardViewModel)
+            .GetMembers(BindingFlags.Public | BindingFlags.Instance)
+            .Select(m => m.Name)
+            .Where(name => forbidden.Any(word => name.Contains(word, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        Assert.True(panel.Count == 0, "Kart yüzeyinde yasak sözcük: " + string.Join(", ", panel));
+
+        // And the two boundaries are written where the reader is, in both dictionaries.
+        foreach (var (code, state, argument, pointer) in new[]
+                 {
+                     ("tr", "psikolojik", "argüman", "Elindeki kayıtlar"),
+                     ("en", "psychological", "argument", "What you have on record"),
+                 })
+        {
+            var strings = Strings(code);
+
+            Assert.Contains(state, strings["contactcard.okuma-psikolojik-durum-verilmiyor"], StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(argument, strings["contactcard.okuma-argumanlar-yazilmiyor"], StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(pointer, strings["contactcard.okuma-argumanlar-yazilmiyor"], StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private static string Root()

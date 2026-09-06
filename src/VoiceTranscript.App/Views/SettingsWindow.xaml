@@ -1521,6 +1521,49 @@
                                                  IsChecked="{Binding DeceptionEnabled}" />
                             </Grid>
                         </Border>
+
+                        <TextBlock Text="{loc:T settingswindow.kisi-karti}" Style="{StaticResource GroupHeader}" Margin="0,16,0,4" />
+
+                        <!--
+                            The contact card's bottom panel: what a model makes of a PERSON.
+
+                            The broadest claim anything in this product makes, so the card says all
+                            four things before the switch is touched — it is a paid request, the
+                            text can be wrong, it is an impression and not a finding, and it is off
+                            unless somebody turns it on. The caption underneath names the two
+                            boundaries the panel itself repeats, so a reader deciding here knows
+                            what they are NOT buying.
+
+                            The badge shows only when the feature turned ITSELF off: three people
+                            in a row whose reading the user rejected. Turning the switch back on
+                            clears it, which is the user overruling the measurement knowingly.
+                        -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{loc:T settingswindow.kisi-karti-modelin-gorusu}" FontSize="{StaticResource TextBody}" />
+                                        <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                                Visibility="{Binding ContactReadingMeasuredNegative, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Style="{StaticResource PillText}" Text="{loc:T settingswindow.olcum-olumsuz}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.ucretli-istek-metin-yanlis-olabilir}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.panelin-iki-siniri}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.olcum-olumsuz-aciklama}"
+                                               Visibility="{Binding ContactReadingMeasuredNegative, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding ContactReadingEnabled}" />
+                            </Grid>
+                        </Border>
                         </StackPanel>
                     </StackPanel>
 

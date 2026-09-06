@@ -107,7 +107,8 @@ public partial class ContactsPage
 
         ContactWindow.Show(
             Window.GetWindow(this),
-            new ViewModels.ContactWindowViewModel(App.Repository, contact.Contact.Id, App.Paths.Photos));
+            new ViewModels.ContactWindowViewModel(
+                App.Repository, contact.Contact.Id, App.Paths.Photos, App.ModelAccess));
     }
 
     /// <summary>
