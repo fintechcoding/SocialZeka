@@ -122,16 +122,18 @@ Bu betik hem C# hem Python testlerini çalıştırır. **PowerShell'den çalış
 
 ### Bilinen taban çizgisi
 
-2026-09-05, hedef makinede (`C:\Voice\SocialZeka`, çatalın ilk derlemesi), temiz bir depo üzerinde:
+2026-09-06, hedef makinede (`C:\Voice\SocialZeka`, SocialZeka programı tamamlandıktan sonra),
+temiz bir depo üzerinde:
 
 | Takım | Sonuç |
 |---|---|
-| `dotnet build VoiceTranscript.slnx -c Debug` | **0 hata**, 74 uyarı, ~20 sn (artımlı) |
-| `VoiceTranscript.Tests.exe` | **1080 test · 1075 geçti · 0 kırık · 5 atlandı**, ~9 sn |
-| `pytest` (`worker/`) | **156 test · 156 geçti**, ~29 sn |
+| `dotnet build VoiceTranscript.slnx -c Debug` | **0 hata**, 86 uyarı, ~8 sn (artımlı) |
+| `VoiceTranscript.Tests.exe` | **1338 test · 1333 geçti · 0 kırık · 5 atlandı**, ~9 sn |
+| `pytest` (`worker/`) | **179 test · 179 geçti**, ~24 sn |
 
-Önceki kayıt (2026-09-02): 846/841/5 ve 89/89. Aradaki fark 3–4 Eylül turlarının testleridir;
-sayı düşerse sebep senin değişikliğindir.
+Önceki kayıtlar: 2026-09-05 (çatalın ilk derlemesi) 1080/1075/5 ve 156/156; 2026-09-02
+846/841/5 ve 89/89. Aradaki fark A1'den I'ya kadarki paketlerin testleridir; sayı düşerse
+sebep senin değişikliğindir.
 
 Atlanan 5 testin dördü `OpenRouterLiveTests` içinde (`VT_OPENROUTER_KEY` tanımlı değil), biri
 `PythonWorkerHostTests` içinde (Whisper ağırlıkları indirilmeden çalışmaz). İkisi de beklenen

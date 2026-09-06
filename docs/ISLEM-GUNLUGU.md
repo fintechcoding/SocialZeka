@@ -2495,3 +2495,50 @@ Bir test kartın bütün genel yüzeyini ve bütün `contactcard.*` metinlerini 
 güven/risk/tehlike sözcüklerini reddediyor — kural sözcükten de sızamasın diye.
 
 **Doğrulama.** 1321 test (1316 geçti, 5 atlandı).
+
+## 2026-09-06 — Kişi kartında modelin görüşü (Paket I tamam; program bitti)
+
+`22cef12` + `c1379cf`. Şema v19 `contact_reading` — kişi başına tek satır değil, tarihli geçmiş:
+her okuma bir ücretli istektir ve üstüne bir [Katılmıyorum] işareti binmiş olabilir, o yüzden
+eskisi silinmiyor. Tablo ölü uç: hiçbir sorgu ona join atmıyor, hiçbir isteme geri beslenmiyor.
+
+**Pakete ne giriyor.** Sayılabilir bir özet satırı, `[B#]` defter çıpaları (iddia 20 + söz 20 +
+`flag` 20) ve `[A#]` görüşme satırları (40). **Ne girmiyor: `deception_note`, `tactic_evidence`,
+`call_summary`.** İlk ikisi modelin kendi eski şüphesini geri okuması olurdu; üçüncüsü döküme
+karşı hiç doğrulanmamış tek saklı metin. Bunu tutan test üç ayrı imleci yalnız o üç tablonun
+içine yazıp ne kullanıcı ne sistem isteminde geçmediğini iddia ediyor — `TacticEvidenceTests`'in
+tekniği, üç tabloya genişletilmiş hâli. Grup görüşmeleri paketin iki yarısından da, `calls_covered`
+sayısından da düşüyor.
+
+**Çıpa kuralı.** Verilmemiş bir numaraya dayanan madde eleniyor ve **sayılıyor**; `genel_izlenim`
+dayanaksız yazılamıyor; elenen oranı %40'ı geçince kart "bu model bu iş için uygun olmayabilir"
+diyor. Saklanan şey ham cevap değil, **zorlanmış şekil**: kart yeniden açıldığında görülen,
+gösterilenin aynısı; düşen madde düşmüş kalıyor.
+
+**Tavan.** Bulut 400 bin, yerel 24 bin karakter. Aşarsa paket küçültülüp (B30 + A20) yeniden
+kuruluyor — aynı sorunun kırpılmışı değil, daha küçüğü dürüstçe sorulmuş hâli. O da sığmazsa
+karakter sayısıyla reddediyor ve tek kuruş harcamıyor.
+
+**İki sınır panelin kendi metninde.** Psikolojik durum ve duygu durumu verilmiyor (gerekçesiyle:
+metinden ya da sesten duygu okuması Türkçede doğrulanmadı, yanlışı zararlı); "kullanabileceğin
+argümanlar" yazılmıyor ve karşılığının yukarıdaki **Elindeki kayıtlar** olduğu söyleniyor. İstemde
+ayrıca ses tonu iddiası, skor/yüzde/güvenilirlik derecesi, yağcılık ve kesinlik dili yasak;
+`baska_okuma` ile `ben_icin_notlar` (simetri) zorunlu.
+
+**Geri alma kuralı işliyor.** Son üç **kişinin** en yeni okumasının üçünde de [Katılmıyorum]
+varsa özellik kendini kapatıyor, ayar kartına "ölçüm olumsuz" rozeti ve gerekçesi düşüyor,
+günlüğe satır yazılıyor. Anahtarı elle açmak rozeti kaldırıyor.
+
+**`IGpuGate` yazılmadı, bilerek.** `_gpu` semaforunu bugün yalnız `CallOrchestrator.ProcessAsync`
+alıyor; elle çalıştırılan Okuma, Değerlendirme ve Tutarlılık zaten doğrudan modele gidiyor. Yani
+kişi okuması bulut kuyruğunun arkasına hiç düşmüyor — planın vaat ettiği fayda halihazırda var.
+Yazmak, "koşan iş GPU'yu kullanıyor mu" bilgisini kayıt/döküm yolundan dışarı açmak demekti;
+davranışta hiçbir kazanç yokken o yola dokunmak kayıt maliyeti taşır.
+
+**Ayrılık:** `MergeContacts` iki kişi birleşince okumaları silmiyor, hayatta kalan kişiye taşıyor;
+`LatestContactReading` en yenisini gösteriyor. Silmek, özelliğin açık kalıp kalmayacağına karar
+veren [Katılmıyorum] işaretlerini sessizce yok etmek olurdu.
+
+**Doğrulama.** 1338 C# testi (1333 geçti, 5 atlandı) ve 179 Python testi. Yeni sınıf
+`ContactReadingAnalysisTests` (9 test), `ContactCardTests` +4, `MigrationTests` v19,
+`ArchiveMergeTests` +1, `SchemaStrictnessTests` şemayı kendiliğinden yakaladı (+2).

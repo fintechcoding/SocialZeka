@@ -1514,7 +1514,12 @@ taslakları ve ölçüm kapıları: [`PLAN-SOSYALZEKA.md`](PLAN-SOSYALZEKA.md).
   (`5d1a663`, `cdea035`), C# (`d13ecda`, `cf54407`, `615e224`), canlı ölçer (`dceeb92`).
   **Bekleyen ölçüm:** 60 zirve dinlenmeden zaman çizgisi ses şeridi çizilmiyor; canlı uyarı
   "isterdim ≥ %70" kapısı geçilmeden yok. İkisi de ayar kartında yazılı.
-- [ ] **I — Kişi kartı, modelin görüşü (v19)** → v3.4.0
+- [x] **I — Kişi kartı, modelin görüşü (v19)** → v3.4.0 (`c1379cf`). Opt-in, varsayılan kapalı;
+  `[A#]`/`[B#]` çıpaları ve dayanaksız maddenin elenmesi; `deception_note`/`tactic_evidence`/
+  `call_summary` isteme **girmiyor** (üç imleçli test); iki sınır panelin kendi metninde yazılı;
+  üç kişide üst üste [Katılmıyorum] → özellik kendini kapatır. `IGpuGate` bilerek yazılmadı
+  (gerekçe: ISLEM-GUNLUGU 2026-09-06). **Ölçülecek:** `RejectedCount/Total` ≤ 0,4 ve 10 dayanağın
+  ≥ 8'i gözlemi taşıyor (elle, ilk okumalardan sonra).
 - [~] **Ölçüm turları** (kod yok): Hume, canlı kelime uyarısı, F0 kararlılığı. **Şive ön-ölçümü
   bitti (6 Eylül 2026): görüşme başına 0,78 eşleşme, kapı ≥ 1 — kaldı, dedektör yazılmadı.**
   Aynam kesinlik ölçümü (`tools/olcum/aynam-kesinlik.py`) kullanıcının dinlemesini bekliyor.
