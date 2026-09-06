@@ -17,7 +17,7 @@
 /// </summary>
 public static class Schema
 {
-    public const int Version = 16;
+    public const int Version = 17;
 
     public static readonly string[] Statements =
     [
@@ -391,6 +391,14 @@ public static class Schema
         // stored as the enforced shape, joined by nothing, fed to no other prompt. It exists
         // because the user explicitly asked to hear the model's opinion — and it is stored as
         // an opinion, never as evidence.
+        //
+        // The dead end still holds for the two fields that ARE the opinion: the suspicion LEVEL
+        // and the ASSESSMENT paragraph never leave this row — not to another table, not to a
+        // contact, not into any prompt. What was loosened, deliberately and only for the quote:
+        // a tactic line whose words were VERIFIED against the transcript is copied to
+        // tactic_evidence, so the same sentence can be counted on the person's card. What is
+        // copied there is a machine-verified quote with a label on it, which is the same class
+        // of thing the consistency check already writes; the judgement stays here.
         """
         CREATE TABLE IF NOT EXISTS deception_note (
             call_id    INTEGER PRIMARY KEY REFERENCES call(id) ON DELETE CASCADE,
@@ -746,5 +754,81 @@ public static class Schema
             updated_at TEXT    NOT NULL
         );
         """,
+
+        // One tactic line whose quote was verified against the transcript, filed under the
+        // person it was said to — what the contact card counts under "Kalıplar".
+        //
+        // MACHINE EVIDENCE, AND ONLY THE QUOTE. The assessment's suspicion LEVEL and its
+        // ASSESSMENT PARAGRAPH ARE NEVER COPIED HERE; they stay in deception_note, which is a
+        // dead end. And NOTHING IN THIS TABLE IS EVER FED TO A PROMPT — not the contact
+        // reading, not the consistency check, not the archive questions. A row is a label, a
+        // verbatim sentence and the millisecond it was said, so the user can play it; the
+        // machinery that produced the label never gets to read its own output back.
+        //
+        // The tactic is a whitelist. An unrecognised label is DROPPED rather than filed as
+        // "diger" — a bucket named "other" accumulates whatever a model felt like typing, and
+        // it would then be counted on somebody's card as a pattern. The same rule the action
+        // extraction already applies to its kinds.
+        //
+        // source says which machinery wrote the row, and it is ownership rather than
+        // decoration, exactly as on flag: the ledger rebuild clears the pipeline's rows and
+        // leaves the paid assessment's alone. dismissed_by_user rows are tombstones — deleting
+        // them would let the next run put the same sentence back.
+        """
+        CREATE TABLE IF NOT EXISTS tactic_evidence (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id               INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+            contact_id            INTEGER REFERENCES contact(id) ON DELETE CASCADE,
+
+            -- Which stored transcript the quote was verified against; NULL when unrecorded.
+            transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
+
+            -- 'deception' (the opt-in assessment) | 'pipeline' (the extraction's pressure signs).
+            source                TEXT    NOT NULL,
+            tactic                TEXT    NOT NULL,
+
+            -- Which recorded stream the quote was found in, never the model's opinion of it.
+            by_me                 INTEGER NOT NULL DEFAULT 0,
+            quote                 TEXT    NOT NULL,
+            quote_start_ms        INTEGER NOT NULL DEFAULT 0,
+            low_confidence        INTEGER NOT NULL DEFAULT 0,
+            model_used            TEXT,
+            dismissed_by_user     INTEGER NOT NULL DEFAULT 0,
+            created_at            TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_tactic_contact ON tactic_evidence(contact_id, dismissed_by_user);",
+
+        // The questions of a conversation, kept.
+        //
+        // The extraction has always asked for them and the pipeline has always thrown them
+        // away: they lived in a local list long enough to compute one evasion ratio for one
+        // call, and then the run ended. So "how often does this person answer you" could only
+        // ever be asked about the call on screen, and the contact card's honest denominator —
+        // "measured in N of M conversations" — did not exist, because nothing recorded which
+        // calls had been looked at at all.
+        //
+        // MACHINE EVIDENCE, same rules as above: a verified quote, a millisecond, and the
+        // stream it was found in. answer_status is one of four words or NULL; it is not a score
+        // and no row here is fed to a prompt. Only 'soru' is written today, and the column
+        // exists so a second kind is a constant rather than a migration.
+        """
+        CREATE TABLE IF NOT EXISTS speech_act (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id        INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+            contact_id     INTEGER REFERENCES contact(id) ON DELETE CASCADE,
+            by_me          INTEGER NOT NULL DEFAULT 0,
+            kind           TEXT    NOT NULL,
+
+            -- cevaplandi | kismi | kacamak | savusturuldu, or NULL when the model said nothing
+            -- this code recognises. An unknown word is not invented into one of the four.
+            answer_status  TEXT,
+            quote          TEXT    NOT NULL,
+            quote_start_ms INTEGER NOT NULL DEFAULT 0,
+            low_confidence INTEGER NOT NULL DEFAULT 0,
+            created_at     TEXT    NOT NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_speech_act_contact ON speech_act(contact_id, kind);",
     ];
 }

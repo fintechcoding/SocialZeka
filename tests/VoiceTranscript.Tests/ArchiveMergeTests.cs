@@ -377,4 +377,67 @@ public class ArchiveMergeTests : IDisposable
         Assert.Empty(ours.Suffixes);
         Assert.Single(lexicon, l => l.LexemeFolded == "hani");
     }
+
+    /// <summary>
+    /// The contact card's evidence travels, remapped onto this machine's identifiers.
+    ///
+    /// Both tables are filed against a person as well as a call, so both have to be remapped
+    /// twice; left on the call map alone, a tactic quote would arrive pointing at whichever
+    /// contact happened to hold that id here — one person's sentences counted on another's card,
+    /// silently, by an operation whose whole purpose is to lose nothing. Goes red also when a
+    /// row is left behind entirely, or when the tactic quote arrives filed under a transcript
+    /// row belonging to the other database.
+    /// </summary>
+    [Fact]
+    public async Task TheContactCardsEvidenceComesWithTheArchive()
+    {
+        // Something already here, so the incoming ids cannot happen to coincide with ours.
+        var mine = _myRepository.UpsertContact("Zeynep", CallApp.WhatsApp);
+        var myCall = Call(_myRepository, _mine, mine, Only.AddDays(3), ["benim", "satırlarım"]);
+        _myRepository.SaveTranscriptVersion(myCall, "large-v3", 0.7, [.. _myRepository.GetSegments(myCall)]);
+
+        var ayse = _theirRepository.UpsertContact("Ayşe", CallApp.WhatsApp);
+        var theirs = Call(_theirRepository, _theirs, ayse, Only, ["onların", "dökümü", "üç satır"]);
+        _theirRepository.SaveTranscriptVersion(theirs, "nova-3", 0.9, [.. _theirRepository.GetSegments(theirs)]);
+
+        _theirRepository.ReplaceTacticEvidence(theirs, TacticEvidence.Sources.Deception,
+        [
+            new TacticEvidence
+            {
+                CallId = theirs, Tactic = "aciliyet",
+                Quote = "bugün karar vermen lazım", QuoteStartMs = 4000, ModelUsed = "qwen",
+            },
+        ]);
+
+        _theirRepository.ReplaceSpeechActs(theirs,
+        [
+            new SpeechAct
+            {
+                CallId = theirs, ByMe = true, Kind = SpeechAct.Kinds.Question,
+                AnswerStatus = SpeechAct.Statuses.Evasive,
+                Quote = "tarihi netleştirebilir miyiz", QuoteStartMs = 2000,
+            },
+        ]);
+
+        var file = Path.Combine(_root, "yedek-v17.zip");
+        await _theirBackup.BackupAsync(file, includeAudio: false);
+
+        await _myBackup.ImportAsync(file);
+
+        var imported = _myRepository.ListCalls(limit: 100).Single(c => c.StartedAt == Only);
+        var contact = _myRepository.FindContacts("Ayşe").Single();
+
+        var tactic = Assert.Single(_myRepository.TacticEvidenceOf(imported.Id));
+        Assert.Equal("aciliyet", tactic.Tactic);
+        Assert.Equal(contact.Id, tactic.ContactId);
+        Assert.Equal(_myRepository.CurrentTranscriptVersion(imported.Id)!.Id, tactic.TranscriptVersionId);
+
+        var question = Assert.Single(_myRepository.SpeechActsOf(imported.Id));
+        Assert.Equal(SpeechAct.Statuses.Evasive, question.AnswerStatus);
+        Assert.Equal(contact.Id, question.ContactId);
+
+        // And the card can find both under the person they were said to.
+        Assert.Equal("aciliyet", Assert.Single(_myRepository.ContactPatterns(contact.Id)).Kind);
+        Assert.Equal(1, _myRepository.SpeechActs(contact.Id).CallsMeasured);
+    }
 }

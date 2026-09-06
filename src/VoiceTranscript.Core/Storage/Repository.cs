@@ -409,7 +409,8 @@ public sealed class Repository(Database database)
     /// spellings of one person therefore threw away half their outstanding actions, silently,
     /// as part of an operation whose whole purpose is to lose nothing.
     /// </summary>
-    private static readonly string[] LedgerTables = ["commitment", "claim", "flag", "action_item"];
+    private static readonly string[] LedgerTables =
+        ["commitment", "claim", "flag", "action_item", "tactic_evidence", "speech_act"];
 
     /// <summary>
     /// How many ledger rows a call produced.
@@ -418,12 +419,21 @@ public sealed class Repository(Database database)
     /// taken out of it are filed against the same person and travel with it — and somebody moving
     /// a conversation to a different contact is also moving those, which is not obvious and is
     /// worth saying before rather than after.
+    ///
+    /// Its own list rather than <see cref="LedgerTables"/>, and the difference is speech_act.
+    /// Those rows follow the call like the rest, but a conversation with forty questions in it
+    /// is not "43 kayıt" to a person about to move it: the sentence is meant to say how much of
+    /// the ledger they are moving, and a count dominated by every question anybody asked would
+    /// make it meaningless in exactly the situation it exists for.
     /// </summary>
+    private static readonly string[] CountedLedgerTables =
+        ["commitment", "claim", "flag", "action_item", "tactic_evidence"];
+
     public int CountLedgerEntriesForCall(long callId)
     {
         using var connection = Open();
 
-        return LedgerTables.Sum(table => connection.ExecuteScalar<int>(
+        return CountedLedgerTables.Sum(table => connection.ExecuteScalar<int>(
             $"SELECT COUNT(*) FROM {table} WHERE call_id = @callId;", new { callId }));
     }
 
@@ -1319,6 +1329,17 @@ public sealed class Repository(Database database)
                 connection, transaction, "flag",
                 new Dictionary<string, string>(toCallAndContact) { ["counter_call_id"] = "map_call" },
                 ofNewCalls);
+
+            // The contact card's evidence. Both are filed against a person as well as a call, so
+            // both go through toCallAndContact — left on the plain call map their contact_id
+            // would point at a stranger here, and the card would count one person's sentences on
+            // another's. tactic_evidence also remembers which transcript verified its quote.
+            Copy(
+                connection, transaction, "tactic_evidence",
+                new Dictionary<string, string>(toCallAndContact) { ["transcript_version_id"] = "map_version" },
+                ofNewCalls);
+
+            Copy(connection, transaction, "speech_act", toCallAndContact, ofNewCalls);
 
             // Things that hang off a person rather than a call. What is here wins in every case:
             // a photo, a voiceprint or a set of fields already on a contact is this machine's.
@@ -2446,6 +2467,22 @@ public sealed class Repository(Database database)
             "DELETE FROM flag WHERE call_id = @callId AND dismissed_by_user = 0 AND source = @source;",
             new { callId, source = Flag.Sources.Pipeline }, transaction);
 
+        // The questions are wholly the extraction's: it finds every one of them on every run,
+        // there is nothing a user can rule on, and a run that appended instead of replacing
+        // would double the denominator the contact card divides by.
+        connection.Execute("DELETE FROM speech_act WHERE call_id = @callId;", new { callId }, transaction);
+
+        // The tactic quotes, but only the ones this machinery wrote. The assessment's rows were
+        // paid for by a separate button and a ledger rebuild must not erase them — the same
+        // ownership rule as the flags above — and a dismissed row is a tombstone that has to
+        // outlive the re-run, or the next one puts the same sentence back.
+        connection.Execute(
+            """
+            DELETE FROM tactic_evidence
+             WHERE call_id = @callId AND source = @source AND dismissed_by_user = 0;
+            """,
+            new { callId, source = TacticEvidence.Sources.Pipeline }, transaction);
+
         transaction.Commit();
     }
 
@@ -2832,6 +2869,632 @@ public sealed class Repository(Database database)
     {
         using var connection = Open();
         connection.Execute("DELETE FROM call_intent WHERE call_id = @callId;", new { callId });
+    }
+
+    // ---- the contact card: tactic quotes, questions, and the reads that count them ---------
+    //
+    // Everything here is evidence about one person, accumulated over their calls: a label with a
+    // verbatim sentence under it, a question and what happened to it, a figure that moved. No
+    // row carries a score, and no read returns one — the numbers are counts of things somebody
+    // said, each with the millisecond that plays it.
+    //
+    // The rule that governs the whole section: NOTHING IN tactic_evidence OR speech_act IS EVER
+    // PUT INTO A PROMPT. The reads below feed screens. The moment one of them feeds a model, a
+    // run starts building on its own earlier labels instead of on the conversation.
+
+    /// <summary>
+    /// Replaces one machinery's tactic quotes for a call.
+    ///
+    /// Delete-then-insert scoped by source, like the flags: a ledger rebuild rewrites the
+    /// pipeline's rows and leaves the opt-in assessment's standing, and a fresh assessment
+    /// replaces its own rows rather than adding a second copy of the same sentences.
+    ///
+    /// Two things are refused rather than written. A label this build does not recognise —
+    /// filing it as "diger" would put whatever a model typed onto somebody's card as a pattern.
+    /// And a sentence the user has already dismissed for this call: that row is a tombstone, and
+    /// re-inserting the same words beside it is how a rejected finding comes back.
+    ///
+    /// The contact and the transcript are read off the call rather than taken from the caller,
+    /// so a quote cannot be filed against a person the call does not belong to.
+    /// </summary>
+    /// <returns>How many rows were actually written.</returns>
+    public int ReplaceTacticEvidence(long callId, string source, IReadOnlyList<TacticEvidence> lines)
+    {
+        var dismissed = DismissedTacticKeys(callId);
+
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        connection.Execute(
+            """
+            DELETE FROM tactic_evidence
+             WHERE call_id = @callId AND source = @source AND dismissed_by_user = 0;
+            """,
+            new { callId, source }, transaction);
+
+        var written = 0;
+
+        foreach (var line in lines)
+        {
+            if (TacticEvidence.Recognise(line.Tactic) is not { } tactic) continue;
+            if (dismissed.Contains((tactic, TurkishText.NormalizeForSearch(line.Quote)))) continue;
+
+            connection.Execute(
+                """
+                INSERT INTO tactic_evidence
+                    (call_id, contact_id, transcript_version_id, source, tactic, by_me,
+                     quote, quote_start_ms, low_confidence, model_used, created_at)
+                VALUES
+                    (@callId,
+                     (SELECT contact_id FROM call WHERE id = @callId),
+                     (SELECT transcript_version_id FROM call WHERE id = @callId),
+                     @source, @tactic, @byMe, @quote, @startMs, @lowConfidence, @modelUsed, @now);
+                """,
+                new
+                {
+                    callId,
+                    source,
+                    tactic,
+                    byMe = line.ByMe ? 1 : 0,
+                    quote = line.Quote,
+                    startMs = line.QuoteStartMs,
+                    lowConfidence = line.LowConfidence ? 1 : 0,
+                    modelUsed = line.ModelUsed,
+                    now = Iso(line.CreatedAt == default ? DateTimeOffset.UtcNow : line.CreatedAt),
+                },
+                transaction);
+
+            written++;
+        }
+
+        transaction.Commit();
+        return written;
+    }
+
+    /// <summary>
+    /// The tactic quotes the user has turned down for one call, as (tactic, folded quote) pairs.
+    /// The DismissedFlagKeys rule applied to this table: a judgement rejected once is not
+    /// resurrected by the next run finding the same sentence.
+    /// </summary>
+    public IReadOnlySet<(string Tactic, string FoldedQuote)> DismissedTacticKeys(long callId)
+    {
+        using var connection = Open();
+
+        return connection
+            .Query<(string Tactic, string Quote)>(
+                "SELECT tactic, quote FROM tactic_evidence WHERE call_id = @callId AND dismissed_by_user = 1;",
+                new { callId })
+            .Select(r => (r.Tactic, TurkishText.NormalizeForSearch(r.Quote)))
+            .ToHashSet();
+    }
+
+    /// <summary>One conversation's tactic quotes, in the order they were said.</summary>
+    public IReadOnlyList<TacticEvidence> TacticEvidenceOf(long callId, bool includeDismissed = false)
+    {
+        using var connection = Open();
+
+        return [.. connection
+            .Query<TacticRow>(
+                """
+                SELECT * FROM tactic_evidence
+                 WHERE call_id = @callId AND (@includeDismissed = 1 OR dismissed_by_user = 0)
+                 ORDER BY quote_start_ms, id;
+                """,
+                new { callId, includeDismissed = includeDismissed ? 1 : 0 })
+            .Select(r => r.ToModel())];
+    }
+
+    public void DismissTacticEvidence(long id)
+    {
+        using var connection = Open();
+        connection.Execute(
+            "UPDATE tactic_evidence SET dismissed_by_user = 1 WHERE id = @id;", new { id });
+    }
+
+    /// <summary>Takes a dismissal back; the row was a tombstone, never gone.</summary>
+    public void RestoreTacticEvidence(long id)
+    {
+        using var connection = Open();
+        connection.Execute(
+            "UPDATE tactic_evidence SET dismissed_by_user = 0 WHERE id = @id;", new { id });
+    }
+
+    /// <summary>
+    /// Replaces one conversation's questions. Wholly the extraction's — there is nothing here a
+    /// user has ruled on, so the whole call is rewritten rather than filtered by owner.
+    /// </summary>
+    public int ReplaceSpeechActs(long callId, IReadOnlyList<SpeechAct> acts)
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        connection.Execute("DELETE FROM speech_act WHERE call_id = @callId;", new { callId }, transaction);
+
+        var written = 0;
+
+        foreach (var act in acts)
+        {
+            connection.Execute(
+                """
+                INSERT INTO speech_act
+                    (call_id, contact_id, by_me, kind, answer_status, quote,
+                     quote_start_ms, low_confidence, created_at)
+                VALUES
+                    (@callId, (SELECT contact_id FROM call WHERE id = @callId), @byMe, @kind,
+                     @answerStatus, @quote, @startMs, @lowConfidence, @now);
+                """,
+                new
+                {
+                    callId,
+                    byMe = act.ByMe ? 1 : 0,
+                    kind = act.Kind,
+                    answerStatus = SpeechAct.Statuses.Recognise(act.AnswerStatus),
+                    quote = act.Quote,
+                    startMs = act.QuoteStartMs,
+                    lowConfidence = act.LowConfidence ? 1 : 0,
+                    now = Iso(act.CreatedAt == default ? DateTimeOffset.UtcNow : act.CreatedAt),
+                },
+                transaction);
+
+            written++;
+        }
+
+        transaction.Commit();
+        return written;
+    }
+
+    /// <summary>One conversation's questions, in the order they were asked.</summary>
+    public IReadOnlyList<SpeechAct> SpeechActsOf(long callId)
+    {
+        using var connection = Open();
+
+        return [.. connection
+            .Query<SpeechActRow>(
+                "SELECT * FROM speech_act WHERE call_id = @callId ORDER BY quote_start_ms, id;",
+                new { callId })
+            .Select(r => r.ToModel())];
+    }
+
+    /// <summary>
+    /// One "Kalıplar" row: a kind of finding from one source, counted over a person's calls.
+    /// </summary>
+    /// <param name="Kind">A <see cref="FlagKind"/> name, or a tactic label.</param>
+    /// <param name="Source">Which machinery produced it: pipeline, consistency, or deception.</param>
+    /// <param name="Total">Rows the user has not dismissed.</param>
+    /// <param name="Calls">How many distinct conversations those came from.</param>
+    /// <param name="LowConfidence">How many of them rest on audio the transcriber doubted.</param>
+    /// <param name="Dismissed">Rows the user turned down. Not part of <paramref name="Total"/>.</param>
+    /// <param name="Listened">How many of the counted rows the user has ruled on by ear.</param>
+    /// <param name="Correct">How many of those they confirmed. Never divided here — the screen decides.</param>
+    /// <param name="Last">When the most recent counted row's conversation began.</param>
+    public sealed record PatternSummary(
+        string Kind,
+        string Source,
+        int Total,
+        int Calls,
+        int LowConfidence,
+        int Dismissed,
+        int Listened,
+        int Correct,
+        DateTimeOffset? Last);
+
+    /// <summary>
+    /// Everything the archive has counted against one person, by kind and by who counted it.
+    ///
+    /// The union of the ledger's flags and the tactic quotes, because the card shows them in one
+    /// list and the source filter is what keeps them honest: a deterministic check and a model's
+    /// label are both evidence, and a screen that pooled them would let one borrow the other's
+    /// standing. Dismissed rows are counted separately rather than dropped, so the card can say
+    /// "reddettiklerin (3) sayılmaz" instead of quietly shrinking.
+    ///
+    /// The listening figures are matched the way <see cref="Domain.Verdict"/> says they must be —
+    /// by the folded words and the millisecond, never by a row id — so a re-run that moved every
+    /// id keeps the user's own verdicts attached to the sentences they were about.
+    /// </summary>
+    public IReadOnlyList<PatternSummary> ContactPatterns(long contactId)
+    {
+        using var connection = Open();
+
+        var raw = connection.Query<PatternRaw>(
+            """
+            SELECT k.is_flag, k.kind, k.source, k.id, k.call_id, k.quote, k.start_ms,
+                   k.low_confidence, k.dismissed, c.started_at,
+                   v.quote_folded AS verdict_quote, v.verdict AS verdict_value, v.decided_at AS verdict_at
+              FROM (
+                    SELECT 1 AS is_flag, CAST(f.kind AS TEXT) AS kind, f.source AS source,
+                           f.id AS id, f.call_id AS call_id, f.quote AS quote,
+                           f.quote_start_ms AS start_ms, f.low_confidence AS low_confidence,
+                           f.dismissed_by_user AS dismissed
+                      FROM flag f
+                     WHERE f.contact_id = @contactId
+                    UNION ALL
+                    SELECT 0, t.tactic, t.source, t.id, t.call_id, t.quote,
+                           t.quote_start_ms, t.low_confidence, t.dismissed_by_user
+                      FROM tactic_evidence t
+                     WHERE t.contact_id = @contactId
+                   ) k
+              JOIN call c ON c.id = k.call_id
+              LEFT JOIN verdict v
+                     ON v.call_id = k.call_id
+                    AND v.kind IN (@flagKind, @patternKind)
+                    AND ABS(v.start_ms - k.start_ms) <= @window;
+            """,
+            new
+            {
+                contactId,
+                flagKind = VerdictKind.Flag,
+                patternKind = VerdictKind.Pattern,
+                window = Analysis.SpeechHabits.VerdictWindowMs,
+            }).ToList();
+
+        List<PatternSummary> summaries = [];
+
+        // One row of evidence may meet several verdicts inside the window; the words decide
+        // which of them is about it, and the newest ruling is the one that stands.
+        foreach (var kindGroup in raw
+                     .GroupBy(r => (r.is_flag, r.kind, r.source))
+                     .OrderBy(g => g.Key.kind, StringComparer.Ordinal)
+                     .ThenBy(g => g.Key.source, StringComparer.Ordinal))
+        {
+            var rows = kindGroup.GroupBy(r => r.id).ToList();
+
+            var kept = rows.Where(r => r.First().dismissed == 0).ToList();
+
+            var listened = 0;
+            var correct = 0;
+
+            foreach (var row in kept)
+            {
+                var folded = TurkishText.NormalizeForSearch(row.First().quote);
+
+                var verdict = row
+                    .Where(r => r.verdict_quote is not null && r.verdict_quote == folded)
+                    .OrderByDescending(r => r.verdict_at, StringComparer.Ordinal)
+                    .FirstOrDefault();
+
+                if (verdict is null) continue;
+
+                listened++;
+                if (verdict.verdict_value == (long)VerdictValue.Correct) correct++;
+            }
+
+            var name = kindGroup.Key.is_flag != 0 && int.TryParse(kindGroup.Key.kind, out var number)
+                ? ((FlagKind)number).ToString()
+                : kindGroup.Key.kind;
+
+            summaries.Add(new PatternSummary(
+                name,
+                kindGroup.Key.source,
+                kept.Count,
+                kept.Select(r => r.First().call_id).Distinct().Count(),
+                kept.Count(r => r.First().low_confidence != 0),
+                rows.Count - kept.Count,
+                listened,
+                correct,
+                kept.Count == 0
+                    ? null
+                    : kept.Max(r => ParseIso(r.First().started_at))));
+        }
+
+        return summaries;
+    }
+
+    /// <summary>One quote behind a "Kalıplar" row, playable.</summary>
+    /// <param name="ByMe">Null for a ledger flag: the flag table has never recorded which stream its quote came from.</param>
+    public sealed record PatternQuote(
+        long Id,
+        string Kind,
+        string Source,
+        long CallId,
+        DateTimeOffset CallStartedAt,
+        int StartMs,
+        bool? ByMe,
+        bool LowConfidence,
+        bool Dismissed,
+        string Quote,
+        string Summary,
+        DateTimeOffset? DecidedAt);
+
+    /// <summary>
+    /// The quotes behind one <see cref="PatternSummary"/> row, newest conversation first.
+    ///
+    /// The kind decides which table is read: a <see cref="FlagKind"/> name is the ledger's, and
+    /// anything else is a tactic label. Both sources can be called "pipeline", so the source
+    /// alone could not tell them apart.
+    /// </summary>
+    public IReadOnlyList<PatternQuote> PatternRows(
+        long contactId, string kind, string source, bool includeDismissed = false, int limit = 200)
+    {
+        using var connection = Open();
+
+        if (Enum.TryParse<FlagKind>(kind, ignoreCase: false, out var flagKind))
+        {
+            return [.. connection
+                .Query<PatternQuoteRaw>(
+                    """
+                    SELECT f.id, f.call_id, c.started_at, f.quote_start_ms AS start_ms,
+                           NULL AS by_me, f.low_confidence, f.dismissed_by_user AS dismissed,
+                           f.quote, f.summary, f.decided_at
+                      FROM flag f
+                      JOIN call c ON c.id = f.call_id
+                     WHERE f.contact_id = @contactId AND f.kind = @kind AND f.source = @source
+                       AND (@includeDismissed = 1 OR f.dismissed_by_user = 0)
+                     ORDER BY c.started_at DESC, f.quote_start_ms
+                     LIMIT @limit;
+                    """,
+                    new
+                    {
+                        contactId,
+                        kind = (int)flagKind,
+                        source,
+                        includeDismissed = includeDismissed ? 1 : 0,
+                        limit,
+                    })
+                .Select(r => r.ToModel(kind, source))];
+        }
+
+        return [.. connection
+            .Query<PatternQuoteRaw>(
+                """
+                SELECT t.id, t.call_id, c.started_at, t.quote_start_ms AS start_ms,
+                       t.by_me, t.low_confidence, t.dismissed_by_user AS dismissed,
+                       t.quote, '' AS summary, NULL AS decided_at
+                  FROM tactic_evidence t
+                  JOIN call c ON c.id = t.call_id
+                 WHERE t.contact_id = @contactId AND t.tactic = @kind AND t.source = @source
+                   AND (@includeDismissed = 1 OR t.dismissed_by_user = 0)
+                 ORDER BY c.started_at DESC, t.quote_start_ms
+                 LIMIT @limit;
+                """,
+                new { contactId, kind, source, includeDismissed = includeDismissed ? 1 : 0, limit })
+            .Select(r => r.ToModel(kind, source))];
+    }
+
+    /// <summary>One value on a figure's journey, with the moment it was said.</summary>
+    public sealed record FigureStop(
+        string Value,
+        decimal? NumericValue,
+        string? Unit,
+        long CallId,
+        DateTimeOffset CallStartedAt,
+        int StartMs,
+        string Quote,
+        bool LowConfidence);
+
+    /// <summary>A subject whose stated value moved, and every value it has held.</summary>
+    public sealed record FigureJourneyRow(
+        string Entity, string Attribute, int DistinctValues, IReadOnlyList<FigureStop> Stops);
+
+    /// <summary>
+    /// Every subject this person has given more than one answer about, with all of the answers.
+    ///
+    /// Grouped exactly the way <see cref="Analysis.DeterministicChecks.ChangedAmounts"/> groups
+    /// its claims — by folded entity and attribute, over the other party's lines only — so the
+    /// card's journey and the ledger's "değişen rakam" row can never disagree about what
+    /// changed. Two differences, both deliberate: non-numeric values count too ("cuma" becoming
+    /// "gelecek hafta" is the same movement and the same evidence), and low-confidence lines are
+    /// listed rather than dropped, carrying their mark so the screen can grey them. A flag would
+    /// be an accusation and is held to the stricter rule; this is a list of what was said.
+    /// </summary>
+    public IReadOnlyList<FigureJourneyRow> FigureJourney(long contactId)
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<FigureRaw>(
+            """
+            SELECT cl.entity, cl.attribute, cl.value, cl.numeric_value, cl.unit,
+                   cl.call_id, c.started_at, cl.quote_start_ms AS start_ms,
+                   cl.quote, cl.low_confidence, cl.id
+              FROM claim cl
+              JOIN call c ON c.id = cl.call_id
+             WHERE cl.contact_id = @contactId AND cl.by_me = 0
+             ORDER BY c.started_at, cl.quote_start_ms, cl.id;
+            """,
+            new { contactId }).ToList();
+
+        List<FigureJourneyRow> journeys = [];
+
+        foreach (var group in rows.GroupBy(r => (
+                     Entity: TurkishText.NormalizeForSearch(r.entity),
+                     Attribute: TurkishText.NormalizeForSearch(r.attribute))))
+        {
+            var stops = group.Select(r => r.ToStop()).ToList();
+
+            // What counts as "a different answer": the number when both are numbers, the folded
+            // words otherwise — the same comparison the contradiction check makes.
+            var distinct = stops
+                .Select(s => s.NumericValue is { } number
+                    ? number.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : TurkishText.NormalizeForSearch(s.Value))
+                .Where(key => key.Length > 0)
+                .Distinct(StringComparer.Ordinal)
+                .Count();
+
+            if (distinct < 2) continue;
+
+            journeys.Add(new FigureJourneyRow(
+                group.First().entity, group.First().attribute, distinct, stops));
+        }
+
+        return [.. journeys.OrderByDescending(j => j.Stops[^1].CallStartedAt)];
+    }
+
+    /// <summary>One thing the other person said, dated and playable.</summary>
+    public sealed record OwnWord(
+        bool IsPromise,
+        string Subject,
+        string Attribute,
+        string Value,
+        long CallId,
+        DateTimeOffset CallStartedAt,
+        int StartMs,
+        string Quote,
+        bool LowConfidence,
+        CommitmentStatus? Status,
+        DateOnly? Deadline);
+
+    /// <summary>The rows about one subject, newest first.</summary>
+    public sealed record OwnWordsGroup(string Subject, IReadOnlyList<OwnWord> Words);
+
+    /// <summary>
+    /// "Elindeki kayıtlar": what this person has said, in their own words, grouped by subject.
+    ///
+    /// This is the evidence-side answer to "give me arguments I can use against them", which is
+    /// a prompt this product does not write. What it can honestly hand somebody before a
+    /// conversation is the record: the claims and the promises the other party made, dated, with
+    /// the sentence and the millisecond that plays it. No model reads this and none writes it.
+    ///
+    /// The other party's lines only — the user's own words are not evidence about them — and
+    /// dismissed promises are left out, because the user has already said those were not
+    /// promises. The user's own rewording and their postponed date win where they set one, the
+    /// same way every other promise surface reads them.
+    /// </summary>
+    public IReadOnlyList<OwnWordsGroup> OwnWords(long contactId, int limit = 200)
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<OwnWordRaw>(
+            """
+            SELECT 0 AS is_promise, cl.entity AS subject, cl.attribute AS attribute,
+                   cl.value AS value, cl.call_id AS call_id, c.started_at AS started_at,
+                   cl.quote_start_ms AS start_ms, cl.quote AS quote,
+                   cl.low_confidence AS low_confidence, NULL AS status, NULL AS deadline
+              FROM claim cl
+              JOIN call c ON c.id = cl.call_id
+             WHERE cl.contact_id = @contactId AND cl.by_me = 0
+
+            UNION ALL
+
+            SELECT 1, COALESCE(NULLIF(TRIM(cm.user_obligation), ''), cm.obligation), '', '',
+                   cm.call_id, c.started_at, cm.quote_start_ms, cm.quote, 0,
+                   cm.status, COALESCE(cm.user_deadline_date, cm.deadline_date)
+              FROM commitment cm
+              JOIN call c ON c.id = cm.call_id
+             WHERE cm.contact_id = @contactId AND cm.by_me = 0 AND cm.dismissed_by_user = 0
+
+             ORDER BY started_at DESC, start_ms DESC
+             LIMIT @limit;
+            """,
+            new { contactId, limit }).ToList();
+
+        return [.. rows
+            .Select(r => r.ToModel())
+            .GroupBy(w => TurkishText.NormalizeForSearch(w.Subject))
+            .Select(g => new OwnWordsGroup(g.First().Subject, [.. g]))
+            .OrderByDescending(g => g.Words[0].CallStartedAt)];
+    }
+
+    /// <summary>
+    /// One conversation's questions, counted.
+    /// </summary>
+    /// <param name="Measured">
+    /// True when this call has any question rows at all. False means nobody looked, which is a
+    /// different thing from "nothing was asked" and must never be averaged in as a zero.
+    /// </param>
+    /// <param name="Asked">Questions the user put to this person.</param>
+    public sealed record SpeechActCounts(
+        long CallId,
+        DateTimeOffset CallStartedAt,
+        bool Measured,
+        int Asked,
+        int Answered,
+        int Partial,
+        int Evaded,
+        int Deflected)
+    {
+        /// <summary>The two statuses that mean the question got no real answer.</summary>
+        public int Unanswered => Evaded + Deflected;
+    }
+
+    /// <summary>Every call of a contact, so the honest denominator is in the same object as the counts.</summary>
+    public sealed record SpeechActSummary(IReadOnlyList<SpeechActCounts> Calls)
+    {
+        /// <summary>The N of "N/M görüşmede ölçüldü".</summary>
+        public int CallsMeasured => Calls.Count(c => c.Measured);
+
+        /// <summary>The M: every conversation with this person, measured or not.</summary>
+        public int CallsTotal => Calls.Count;
+    }
+
+    /// <summary>
+    /// The question counts for one person, one row per conversation — including the
+    /// conversations nobody counted, which is the whole point.
+    ///
+    /// Every call is returned, not only the ones with rows, because the honest sentence on the
+    /// card is "N/M görüşmede ölçüldü". Older calls were analysed before questions were kept,
+    /// and a rate computed over the calls that happen to have rows would silently claim to speak
+    /// for the whole history.
+    ///
+    /// Only questions the USER asked are counted: "was this person answering you" is a question
+    /// about their answers, and their own questions belong to a different measurement.
+    /// </summary>
+    public SpeechActSummary SpeechActs(long contactId)
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<SpeechActCountRaw>(
+            """
+            SELECT c.id AS call_id, c.started_at AS started_at,
+                   EXISTS (SELECT 1 FROM speech_act s WHERE s.call_id = c.id) AS measured,
+                   COUNT(a.id) AS asked,
+                   COALESCE(SUM(CASE WHEN a.answer_status = @answered     THEN 1 ELSE 0 END), 0) AS answered,
+                   COALESCE(SUM(CASE WHEN a.answer_status = @partial      THEN 1 ELSE 0 END), 0) AS partial,
+                   COALESCE(SUM(CASE WHEN a.answer_status = @evasive      THEN 1 ELSE 0 END), 0) AS evaded,
+                   COALESCE(SUM(CASE WHEN a.answer_status = @deflected    THEN 1 ELSE 0 END), 0) AS deflected
+              FROM call c
+              LEFT JOIN speech_act a
+                     ON a.call_id = c.id AND a.kind = @kind AND a.by_me = 1
+             WHERE c.contact_id = @contactId
+             GROUP BY c.id
+             ORDER BY c.started_at, c.id;
+            """,
+            new
+            {
+                contactId,
+                kind = SpeechAct.Kinds.Question,
+                answered = SpeechAct.Statuses.Answered,
+                partial = SpeechAct.Statuses.Partial,
+                evasive = SpeechAct.Statuses.Evasive,
+                deflected = SpeechAct.Statuses.Deflected,
+            });
+
+        return new SpeechActSummary([.. rows.Select(r => r.ToModel())]);
+    }
+
+    /// <summary>One conversation as the "Gidişat" series reads it.</summary>
+    /// <param name="Talk">Null when this call has no stored counts: not measured, never zero.</param>
+    public sealed record ContactCallPoint(
+        long CallId,
+        DateTimeOffset StartedAt,
+        CallDirection Direction,
+        Analysis.TalkStats? Talk);
+
+    /// <summary>
+    /// A person's calls in time order, each with its talk statistics when they were counted.
+    ///
+    /// One SELECT for the whole history, like <see cref="HabitSeries"/>: the card draws months
+    /// and a recent-versus-previous pair, and doing that with a query per call would make
+    /// opening a well-used contact a hundred round trips.
+    ///
+    /// A call with no stored counts comes back with a null <see cref="ContactCallPoint.Talk"/>
+    /// rather than an empty one. The difference is the whole honesty of the series: "not
+    /// measured" is not a talk share of zero, and the trend counts its own denominator.
+    /// </summary>
+    public IReadOnlyList<ContactCallPoint> ContactSeries(long contactId)
+    {
+        using var connection = Open();
+
+        return [.. connection
+            .Query<ContactSeriesRaw>(
+                """
+                SELECT c.id AS call_id, c.started_at, c.direction, h.json
+                  FROM call c
+                  LEFT JOIN speech_habit h ON h.call_id = c.id
+                 WHERE c.contact_id = @contactId
+                 ORDER BY c.started_at, c.id;
+                """,
+                new { contactId })
+            .Select(r => r.ToModel())];
     }
 
     // ---- action suggestions ------------------------------------------------
@@ -5238,5 +5901,192 @@ public sealed class Repository(Database database)
                 return [];
             }
         }
+    }
+
+    private sealed class TacticRow
+    {
+        public long id { get; set; }
+        public long call_id { get; set; }
+        public long? contact_id { get; set; }
+        public long? transcript_version_id { get; set; }
+        public string source { get; set; } = TacticEvidence.Sources.Deception;
+        public string tactic { get; set; } = "";
+        public long by_me { get; set; }
+        public string quote { get; set; } = "";
+        public long quote_start_ms { get; set; }
+        public long low_confidence { get; set; }
+        public string? model_used { get; set; }
+        public long dismissed_by_user { get; set; }
+        public string created_at { get; set; } = "";
+
+        public TacticEvidence ToModel() => new()
+        {
+            Id = id,
+            CallId = call_id,
+            ContactId = contact_id,
+            TranscriptVersionId = transcript_version_id,
+            Source = source,
+            Tactic = tactic,
+            ByMe = by_me != 0,
+            Quote = quote,
+            QuoteStartMs = (int)quote_start_ms,
+            LowConfidence = low_confidence != 0,
+            ModelUsed = model_used,
+            DismissedByUser = dismissed_by_user != 0,
+            CreatedAt = ParseIso(created_at),
+        };
+    }
+
+    private sealed class SpeechActRow
+    {
+        public long id { get; set; }
+        public long call_id { get; set; }
+        public long? contact_id { get; set; }
+        public long by_me { get; set; }
+        public string kind { get; set; } = SpeechAct.Kinds.Question;
+        public string? answer_status { get; set; }
+        public string quote { get; set; } = "";
+        public long quote_start_ms { get; set; }
+        public long low_confidence { get; set; }
+        public string created_at { get; set; } = "";
+
+        public SpeechAct ToModel() => new()
+        {
+            Id = id,
+            CallId = call_id,
+            ContactId = contact_id,
+            ByMe = by_me != 0,
+            Kind = kind,
+            AnswerStatus = answer_status,
+            Quote = quote,
+            QuoteStartMs = (int)quote_start_ms,
+            LowConfidence = low_confidence != 0,
+            CreatedAt = ParseIso(created_at),
+        };
+    }
+
+    /// <summary>One evidence row crossed with one candidate verdict; the folding decides in code.</summary>
+    private sealed class PatternRaw
+    {
+        public long is_flag { get; set; }
+        public string kind { get; set; } = "";
+        public string source { get; set; } = "";
+        public long id { get; set; }
+        public long call_id { get; set; }
+        public string quote { get; set; } = "";
+        public long start_ms { get; set; }
+        public long low_confidence { get; set; }
+        public long dismissed { get; set; }
+        public string started_at { get; set; } = "";
+        public string? verdict_quote { get; set; }
+        public long? verdict_value { get; set; }
+        public string? verdict_at { get; set; }
+    }
+
+    private sealed class PatternQuoteRaw
+    {
+        public long id { get; set; }
+        public long call_id { get; set; }
+        public string started_at { get; set; } = "";
+        public long start_ms { get; set; }
+        public long? by_me { get; set; }
+        public long low_confidence { get; set; }
+        public long dismissed { get; set; }
+        public string quote { get; set; } = "";
+        public string summary { get; set; } = "";
+        public string? decided_at { get; set; }
+
+        public PatternQuote ToModel(string kind, string source) => new(
+            id, kind, source, call_id, ParseIso(started_at), (int)start_ms,
+            by_me is null ? null : by_me != 0,
+            low_confidence != 0, dismissed != 0, quote, summary,
+            decided_at is null ? null : ParseIso(decided_at));
+    }
+
+    private sealed class FigureRaw
+    {
+        public long id { get; set; }
+        public string entity { get; set; } = "";
+        public string attribute { get; set; } = "";
+        public string value { get; set; } = "";
+        public string? numeric_value { get; set; }
+        public string? unit { get; set; }
+        public long call_id { get; set; }
+        public string started_at { get; set; } = "";
+        public long start_ms { get; set; }
+        public string quote { get; set; } = "";
+        public long low_confidence { get; set; }
+
+        public FigureStop ToStop() => new(
+            value,
+            numeric_value is null
+                ? null
+                : decimal.Parse(numeric_value, System.Globalization.CultureInfo.InvariantCulture),
+            unit,
+            call_id,
+            ParseIso(started_at),
+            (int)start_ms,
+            quote,
+            low_confidence != 0);
+    }
+
+    private sealed class OwnWordRaw
+    {
+        public long is_promise { get; set; }
+        public string subject { get; set; } = "";
+        public string attribute { get; set; } = "";
+        public string value { get; set; } = "";
+        public long call_id { get; set; }
+        public string started_at { get; set; } = "";
+        public long start_ms { get; set; }
+        public string quote { get; set; } = "";
+        public long low_confidence { get; set; }
+        public long? status { get; set; }
+        public string? deadline { get; set; }
+
+        public OwnWord ToModel() => new(
+            is_promise != 0,
+            subject,
+            attribute,
+            value,
+            call_id,
+            ParseIso(started_at),
+            (int)start_ms,
+            quote,
+            low_confidence != 0,
+            status is null ? null : (CommitmentStatus)status,
+            deadline is null ? null : DateOnly.Parse(deadline));
+    }
+
+    private sealed class SpeechActCountRaw
+    {
+        public long call_id { get; set; }
+        public string started_at { get; set; } = "";
+        public long measured { get; set; }
+        public long asked { get; set; }
+        public long answered { get; set; }
+        public long partial { get; set; }
+        public long evaded { get; set; }
+        public long deflected { get; set; }
+
+        public SpeechActCounts ToModel() => new(
+            call_id, ParseIso(started_at), measured != 0,
+            (int)asked, (int)answered, (int)partial, (int)evaded, (int)deflected);
+    }
+
+    private sealed class ContactSeriesRaw
+    {
+        public long call_id { get; set; }
+        public string started_at { get; set; } = "";
+        public long direction { get; set; }
+        public string? json { get; set; }
+
+        // A cache row this build can no longer read is "not measured", not a crash: the trend
+        // says so with its own denominator rather than pretending the call had no talking in it.
+        public ContactCallPoint ToModel() => new(
+            call_id,
+            ParseIso(started_at),
+            (CallDirection)direction,
+            json is null ? null : Analysis.HabitSnapshot.FromJson(json)?.Talk);
     }
 }

@@ -342,5 +342,53 @@ public static class Migrations
                 );
                 """,
             ]),
+
+        // v17 — the contact card's evidence: tactic quotes and questions, kept per person.
+        //
+        // Both are the machine's, both are quote-anchored, and both are dead ends towards the
+        // model: nothing in either table is ever put into a prompt. tactic_evidence is where a
+        // VERIFIED tactic quote from the opt-in assessment lands so it can be counted on a
+        // person's card — the assessment's level and its paragraph stay where they were, which
+        // is the part of the dead-end rule that does not move. speech_act is the extraction's
+        // "sorular", which until now existed for the length of one run and then vanished, so
+        // "how many of the calls was this even measured in" had no answer.
+        //
+        // Two new tables, no column on an existing one changes shape.
+        new(17, "Kişi kartı kanıtı: doğrulanmış taktik alıntıları ve sorular",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS tactic_evidence (
+                    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                    call_id               INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+                    contact_id            INTEGER REFERENCES contact(id) ON DELETE CASCADE,
+                    transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL,
+                    source                TEXT    NOT NULL,
+                    tactic                TEXT    NOT NULL,
+                    by_me                 INTEGER NOT NULL DEFAULT 0,
+                    quote                 TEXT    NOT NULL,
+                    quote_start_ms        INTEGER NOT NULL DEFAULT 0,
+                    low_confidence        INTEGER NOT NULL DEFAULT 0,
+                    model_used            TEXT,
+                    dismissed_by_user     INTEGER NOT NULL DEFAULT 0,
+                    created_at            TEXT    NOT NULL
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS ix_tactic_contact ON tactic_evidence(contact_id, dismissed_by_user);",
+                """
+                CREATE TABLE IF NOT EXISTS speech_act (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    call_id        INTEGER NOT NULL REFERENCES call(id) ON DELETE CASCADE,
+                    contact_id     INTEGER REFERENCES contact(id) ON DELETE CASCADE,
+                    by_me          INTEGER NOT NULL DEFAULT 0,
+                    kind           TEXT    NOT NULL,
+                    answer_status  TEXT,
+                    quote          TEXT    NOT NULL,
+                    quote_start_ms INTEGER NOT NULL DEFAULT 0,
+                    low_confidence INTEGER NOT NULL DEFAULT 0,
+                    created_at     TEXT    NOT NULL
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS ix_speech_act_contact ON speech_act(contact_id, kind);",
+            ]),
     ];
 }
