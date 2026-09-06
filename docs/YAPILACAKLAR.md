@@ -1530,11 +1530,18 @@ taslakları ve ölçüm kapıları: [`PLAN-SOSYALZEKA.md`](PLAN-SOSYALZEKA.md).
 Kullanıcının üç isteği. Planın tamamı, ölçülen sayılar, tel çerçeveler, ölçü ve geri alma
 koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
 
-- [ ] **S — Sözün tabanı** (şema yok, 2-3 gün). S1 sözün etrafı (alıntının öncesi ve sonrası iki
+- [x] **S — Sözün tabanı** (şema yok, 2-3 gün). S1 sözün etrafı (alıntının öncesi ve sonrası iki
   döküm satırı), S2 tek cümle iki söz (aynı alıntıyı paylaşan satırlar tek kartta), S3 "ne
   zamana?" (tarihsiz söze tek tıkla vade + "tarihsiz kalsın"), S4 "bu söz değildi" (verdict
   tablosuna kind='soz'), + sütun altı dürüstlük satırı. **Neden önce:** 6 Eylül'de #99 ve #100
   yedi saniye arayla "tutuldu" işaretlendi; ikisi aynı cümleden çıkmış ve #100 söz bile değil.
+- [ ] **SK — Seçilen sözün mezar taşına takılması** (Paket S'ten çıktı, ayrı iş). `AnalysisPipeline`
+  hayatta kalan sözü `SurvivingCommitmentKeys` ile `(ByMe, katlanmış alıntı)` üzerinden tanıyor,
+  yükümlülüğüyle değil. Aynı cümleden iki söz çıkmışsa, seçilmeyenin mezar taşı seçilene de uyuyor
+  ve yeniden çözümlemede kullanıcının SEÇTİĞİ söz defterden düşüyor. Anahtarı yükümlülükle
+  daraltmak çözüm değil: model cümleyi yeniden yazınca reddedilmiş satır dirilir, ki mekanizma
+  zaten onu engellemek için var. Doğru çözüm eşleşmeyi anahtardan çıkarıp hatta taşımak.
+  Karakterizasyon testi `AnalysisPipelineTests` içinde, düzeltecek kişiye not bırakıldı.
 - [ ] **Ç — Çevreler (şema v20)** (2-3 gün). `contact_circle` sözlüğü + `contact_profile`a
   `circle_folded`; Görüşmeler'de çip şeridi, Çevreler penceresi, Kişiler/Genel bakış/kişi
   kartı/Aynam'da aynı kavram. **Risk:** kullanıcı bu üründe hiç elle sınıflandırma yapmadı

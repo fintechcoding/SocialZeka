@@ -2596,3 +2596,61 @@ sınıflandırma sunan beş yüzeyin beşi de bugüne kadar hiç kullanılmamı�
 Plan §4.6'nın "Sözlerim çipi" maddesi **iptal edildi**: tasarlandı, 7,5 ile turun en yüksek
 puanını aldı, kullanıcı reddetti ("yok düşsün demiyorum"). Gerekçesiyle birlikte
 PLAN-IKINCI-TUR §0.1'de duruyor ki yeniden önerilmesin.
+
+## 2026-09-06 — Paket S: sözün tabanı (ikinci turun ilk paketi)
+
+`d73669e` + `1813c0c`. Sözler sayfası değişmedi, üstüne beş yüzey geldi. Şema değişikliği yok,
+model çağrısı yok.
+
+**Sözün etrafı.** Alıntının altında, aynı görüşmenin öncesindeki ve sonrasındaki ikişer döküm
+satırı; her satır sen/o damgalı ve tıklanınca o anı çalıyor. Varsayılan katlı, çünkü on üç kartın
+her birine dört satır eklemek defteri yeniden döküme çevirirdi. Tek yeni sorgu (`SegmentsAround`),
+`ix_segment_call` üzerinde iki LIMIT'li yürüyüş, satır başına 140 karakter kırpma. Yorum yok:
+uygulama "bu söz değil" DEMİYOR, satırları gösteriyor, kararı kullanıcı veriyor.
+
+**Tek cümle, iki söz.** Aynı `(call_id, by_me, quote_start_ms, katlanmış alıntı)` dörtlüsüne düşen
+satırlar tek kart oluyor ve kart tek soru soruyor. Adaylar kartın içinde, kullanıcının seçimi
+kartın altında ayrı rozette — zemin sınırı çerçeveyle çizili. Bugünkü arşivde tam bir grup var ve
+o grup kullanıcının kendi sözlerinde: #99 ve #100.
+
+**"Ne zamana?"** Tarihsiz, açık, koşulsuz her kartın altında beş düğme. İlk dördü yalnız
+`user_deadline_date`'e yazıyor. Beşincisi — "tarihsiz kalsın" — yeni bir `verdict` türüne
+(`vade`) yazılıyor. `user_deadline_date`'in NULL'u zaten "kullanıcı söylemedi" demek; aynı hücre
+"kullanıcı yok dedi" anlamına da gelemez, yoksa şerit sormaya devam ederdi. `kind='soz'` de
+olamazdı: `SaveVerdict` `(call, kind, quote, ms)` ile üstüne yazdığı için iki yargı birbirini
+silerdi.
+
+**"Bu söz değildi".** Kulak teyidi sözlere genişledi: Doğru · Yanlış duyulmuş · Bu söz değil.
+
+**Dürüstlük satırı.** Her sütunun altında "Bu sütun N görüşmeden çıkarıldı." Fark eşiği geçince
+ikinci cümle çıkıyor. Eşik `karşı >= benim * 2 + 3`: yalnız oran 0'a karşı 2'de de ateşlerdi,
+yalnız fark 40'a karşı 43'te ateşlerdi. Bugünkü 3'e karşı 10 geçiyor, eşitlik sessiz.
+
+**Denetimden gelen dört düzeltme de indi.** "Açık" çipi artık yalnız açık satırları sayıyor ve
+toplam "Hepsi"ye taşındı; ✎ düzenlemesinin geri alması artık sunuluyor (sayfanın tek geri
+alınamayan fiiliydi); `fulfilled_by_call_id` yazılıyor; sayfanın bütün fiilleri `LedgerActions`
+üzerinden geçiyor.
+
+**Bilerek düzeltilmeyen bir kusur, testle sabitlendi.** `SurvivingCommitmentKeys` hayatta kalan
+satırı `(ByMe, katlanmış alıntı)` ile tanıyor, yükümlülüğüyle değil. Bu yüzden seçilmeyen adayın
+mezar taşı, kullanıcının SEÇTİĞİ okumaya da uyuyor. Kusur S2'den önce de vardı ama S2 onu
+nadirlikten olağan yola çeviriyor. Anahtarı yükümlülükle daraltmak, model bir sonraki koşumda
+cümleyi yeniden yazdığında reddedilmiş bir satırı diriltirdi — ve reddi diriltmek daha kötü
+başarısızlık, mekanizma zaten onun için var. Doğru çözüm eşleşmeyi anahtardan çıkarıp hatta
+taşımak; bu paketin sınırının dışında. Ayrı iş olarak YAPILACAKLAR §26'ya yazıldı.
+
+**Doğrulama.** 1357 C# testi (1352 geçti, 5 atlandı; taban 1341'di) ve 179 Python testi.
+
+## 2026-09-06 — Eski sürümün yedeği: söz vardı, testi yoktu
+
+`cf13753`. Kullanıcı eski VoiceTranscript yedeklerinin bu sisteme alınıp alınamayacağını sordu.
+Alınabiliyor, ve iki ayrı mekanizmayla: `BackupService.ImportAsync` açtığı KOPYAYA göç
+çalıştırıyor, `Repository.Copy` ise sütun listesini iki veritabanının kesişiminden kuruyor, yani
+yalnız bir tarafın bildiği sütun ya da tablo içe aktarmayı düşürmek yerine geride kalıyor.
+
+Ama içe aktarmanın on üç testinin hepsi gelen arşivi GÜNCEL şemayla kuruyordu; yani "eski yedek
+de açılır" sözünü hiçbir şey tutmuyordu. Yeni test arşivi önce dolduruyor, sonra v14'e düşürüyor.
+
+Testin gücü ölçüldü: `archive.Migrate()` satırı geçici olarak kapatıldığında test **yeşil
+kalıyor**, çünkü ikinci mekanizma tek başına yetiyor. Bu, kemer ve askı olarak çalışıyor demek;
+testin yorumu bunu açıkça söylüyor ki yeşili birinin tek başına çalıştığının kanıtı sayılmasın.
