@@ -356,4 +356,60 @@ public sealed class HabitSnapshotCountingTests : CoachingFixture
         Assert.False(HabitCounter.CountIfStale(Repo, empty));
         Assert.Null(Repo.GetHabits(empty));
     }
+
+    /// <summary>
+    /// A conversation with a transcript and no count gets counted without being transcribed
+    /// again — which is exactly what "yalnızca yeniden çözümle" has to do.
+    ///
+    /// The counting hook lives in the transcription tail, and that path is the one route through
+    /// the orchestrator which skips it: with <c>keepTranscript</c> true the branch set the call
+    /// state and went straight on to the analysis half. So somebody who connected a model after
+    /// the fact and rebuilt the ledger from transcripts they already had — the whole reason that
+    /// path exists — got a mirror with nothing in it, or worse, figures counted from a transcript
+    /// that had since been replaced.
+    ///
+    /// Goes red in two ways. The first half is the contract the orchestrator leans on: a stored
+    /// row that is missing, or made against another dictionary, is written. The second is the
+    /// call site itself, which no unit test can reach — the orchestrator opens capture devices
+    /// and a Python worker — so the branch is read out of the source. Delete the call from the
+    /// keepTranscript branch and it goes red; take it out of the settings gate or out of the
+    /// try/catch and it goes red too, because a count that throws must never fail a call whose
+    /// text is already safely stored.
+    /// </summary>
+    [Fact]
+    public void ReAnalysingWithoutReTranscribingStillCountsTheHabits()
+    {
+        Repo.UpsertLexeme(HabitKind.Filler, "yani");
+        Transcribed(out var call);
+
+        // The state that path finds: lines, and no count at all.
+        Assert.Null(Repo.GetHabits(call));
+        Assert.True(HabitCounter.CountIfStale(Repo, call));
+        Assert.NotNull(Repo.GetHabits(call));
+
+        var source = File.ReadAllText(Path.Combine(
+            RepositoryRoot(), "src", "VoiceTranscript.App", "Services", "CallOrchestrator.cs"));
+
+        var start = source.IndexOf("var keepTranscript", StringComparison.Ordinal);
+        var end = source.IndexOf("if (settings.AnalyseAutomatically", StringComparison.Ordinal);
+
+        Assert.True(start > 0 && end > start, "keepTranscript dalı bulunamadı.");
+
+        var branch = source[start..end];
+
+        Assert.Contains("SetCallState(call.Id, ProcessingState.Transcribed)", branch, StringComparison.Ordinal);
+        Assert.Contains("HabitCounter.CountIfStale", branch, StringComparison.Ordinal);
+        Assert.Contains("settings.HabitCountingEnabled", branch, StringComparison.Ordinal);
+        Assert.Contains("catch", branch, StringComparison.Ordinal);
+    }
+
+    private static string RepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "VoiceTranscript.slnx")))
+            directory = directory.Parent;
+
+        return directory?.FullName ?? throw new InvalidOperationException("Depo kökü bulunamadı.");
+    }
 }

@@ -1007,7 +1007,7 @@
   "mirrorpage.neden-sive-baslik": "Why dialect is not counted",
   "mirrorpage.neden-sive": "The transcribers normalise speech towards written Turkish. What a counter measured would be how much the engine normalised that day, not how the speaker spoke. Until a pre-measurement says otherwise the counter is not written; and what is not measured is not counted.",
   "mirrorpage.neden-rol-baslik": "Why playing a part is not measured",
-  "mirrorpage.neden-rol": "Intent cannot be measured, from audio or from text. What stands in its place is the intent card — the line you write before a call saying what you do not intend to say, and the count of the times you afterwards marked it yourself. The ruling is yours, not the machine's.",
+  "mirrorpage.neden-rol": "Intent cannot be measured, from audio or from text. What stands in its place is the intent card — the line you write to yourself before a call saying what you do not intend to say. A note and nothing more: no analysis reads it, it is sent nowhere, and whether you kept to it is not counted either. There is no tally; the ruling is yours.",
   "mirrorpage.neden-duygu-baslik": "Why emotion is not measured",
   "mirrorpage.neden-duygu": "Reading emotion from voice or text is unvalidated in Turkish. A wrong emotion label is worse than none: people read it as a verdict about themselves.",
   "mirrorpage.egri-aciklama": "One dot per conversation; the line joins only conversations of the same engine. A dashed line is where the engine changed, a hollow dot a call likely without headphones. Clicking a dot opens that conversation.",
@@ -1210,5 +1210,12 @@
   "ledgeractions.hepsi-kalsin-n": "All kept: {0}",
   "ledgeractions.tarihsiz-kalsin-n": "Left undated: {0}",
   "ledgeractions.soz-isareti-kaldirildi-n": "Mark removed: {0}",
-  "ledgeractions.soz-secildi-n": "Picked: {0}"
+  "ledgeractions.soz-secildi-n": "Picked: {0}",
+  "contactcard.okuma-yetersiz-simdi": "Right now there are {0} conversations and {1} excerpts with this person, so no request was sent to a model and nothing was charged.",
+  "contactcard.okuma-bos": "A reading was made, but nothing was left to show: every item was dropped because the excerpt it cited was never handed over. [Ask again] tries once more.",
+  "settingswindow.model-indirildi": "Downloaded",
+  "settingswindow.model-inmedi": "Not downloaded",
+  "settingswindow.kisi-karti-yerel-model-uyarisi": "On a local model it will not work for most people: the context window is 24 thousand characters against 400 thousand in the cloud. The reading is first tried with a smaller packet; for anyone with a long history even that does not fit, and the panel answers with an honest refusal.",
+  "ledgerpage.yolculuk": "Journey",
+  "ledgerpage.yolculuk-aciklama": "Open this figure's journey on the contact card: every value, with the date it was named and the moment it can be heard at."
 }

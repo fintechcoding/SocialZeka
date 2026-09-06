@@ -247,8 +247,10 @@
                     </Grid>
                 </Border>
 
-                <!-- Three views of one contact. -->
-                <TabControl Grid.Row="1" Padding="0,12,0,0">
+                <!-- The views of one contact. The open tab is bound so that somewhere else can
+                     send the page to one of them: the ledger's [Yolculuk] arrives on the card. -->
+                <TabControl Grid.Row="1" Padding="0,12,0,0"
+                            SelectedIndex="{Binding DetailTab, Mode=TwoWay}">
 
                     <!-- calls and transcript -->
                     <TabItem>

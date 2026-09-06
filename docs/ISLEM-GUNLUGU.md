@@ -2654,3 +2654,60 @@ de açılır" sözünü hiçbir şey tutmuyordu. Yeni test arşivi önce dolduru
 Testin gücü ölçüldü: `archive.Migrate()` satırı geçici olarak kapatıldığında test **yeşil
 kalıyor**, çünkü ikinci mekanizma tek başına yetiyor. Bu, kemer ve askı olarak çalışıyor demek;
 testin yorumu bunu açıkça söylüyor ki yeşili birinin tek başına çalıştığının kanıtı sayılmasın.
+
+## 2026-09-06 — Paket Y: bitiş denetiminin dokuz bulgusu
+
+Ek A'nın 18, 19, 10, 1, 3, 20, 22, 12 ve 2 numaralı bulguları. Sekizi kapatıldı, biri
+(12 numara) yalnız yorum olduğu için testsiz.
+
+**18 — kişi kartında "yetersiz kayıt" reddi ekrana ulaşmıyordu.** `ContactReadingAnalysis`
+üç görüşmeden ya da yirmi alıntıdan azını okumayı reddediyor ve bunu `Ok = true` ile dönen
+bir raporda söylüyor. `AskOpinionAsync` bu dalı hiç okumuyor, saklanan satırı yeniden
+okuyordu; satır olmadığı için panel kendini temizliyor ve [Yeniden sor] hiçbir iz
+bırakmıyordu. Arşivdeki dokuz kişinin çoğunun üçten az görüşmesi var, yani düğme çoğu kartta
+bozuk görünüyordu. Ret artık `OpinionIsThin` ile karta düşüyor, yanında sayılarla:
+"şu an {0} görüşme ve {1} alıntı var".
+
+**19 — kart kendisiyle çelişiyordu.** "Bu kişi için henüz bir okuma istenmedi" cümlesi
+`HasOpinion`'a bağlıydı; saklanmış ama `yetersiz` dönen ya da her maddesi dayanaksızlıktan
+düşen bir okuma ekranda hiçbir şey göstermediği için cümle kendi imzasının altında
+çıkıyordu. Üç durum artık üç ayrı soru: `OpinionNotAsked` (hiç istenmedi), `OpinionIsThin`
+(kayıt yetmedi, ücret işlemedi), `OpinionIsEmpty` (istendi, ödendi, hiçbir madde çıpa
+kuralından geçemedi — yeni cümle `contactcard.okuma-bos`).
+
+**10 — "yalnızca yeniden çözümle" yolunda alışkanlıklar sayılmıyordu.** Sayım kancası
+transkripsiyon kuyruğunda; `keepTranscript` dalı yalnız durumu yazıp geçiyordu. Planın §5-D
+maddesi ("tek tetik; keepTranscript yolunda satır yoksa hesapla") `SetCallState`'in yanına
+kondu, aynı ayar kapısı ve aynı try/catch ile.
+
+**1 — ReprocessWindow'da "indirildi" rozeti.** `ModelPresenceConverter`'ın kuralı statik bir
+`Describe`'a çıkarıldı; iki ekran aynı kuralı paylaşıyor. Sözcükler sözlüğe taşındı
+(`settingswindow.model-indirildi` / `-inmedi`). Pencere `App.Worker.ProbeAsync()`'i ateşle-unut
+biçiminde soruyor; cevap gelince liste yeniden kuruluyor ama seçim ve süzgeç korunuyor.
+
+**3 — Defter'de [Yolculuk].** `LedgerEntry.CanShowJourney` (yalnız `Changes`, kişisi olan
+satırlarda) + `JourneyCommand` → `ShellViewModel.OpenFigureJourney` → `Contacts.ShowFigureJourney()`
+→ kartın `JourneySection`'ına kaydırma. Planın kuralının iki yarısı da artık kodda: değişen
+rakamda Reddet yok, Yolculuk var.
+
+**20 — ayar kartında yerel model uyarısı.** Küçültülmüş paket yazılmıştı, uyarı yazılmamıştı.
+Metin `ContactReadingAnalysis`'in kendi tavanlarını (24 bin / 400 bin) anıyor ve testi bunu
+sabitlere karşı doğruluyor.
+
+**22 — Aynam var olmayan bir sayacı anlatıyordu.** "Rol yapma neden ölçülmüyor" gerekçesi
+kullanıcının kendi işaretlediği "istemedim" sayısından söz ediyordu; böyle bir işaret hiçbir
+yerde yok ve plana göre bilerek yok. Cümle Niyet kartını olduğu gibi anlatıyor: bir not,
+okunmuyor, gönderilmiyor, sayılmıyor. Sayaç yazılmadı.
+
+**12 — Koçluk sayfasının iki eskimiş yorumu.** "Ses grubunda tek anahtar var" (artık iki: ses
+ölçümü ve canlı ölçer) ve "Kişi grubu yok" (kişi kartı anahtarı Çözümleme sayfasında çıktı).
+Yorumlar bugünkü sayfayı anlatıyor.
+
+**2 — şikâyet 2'nin kendi ölçüsü artık korunuyor.** Düzeltme dört satırdı: üç `NotifyChanged()`
+(görüşme penceresi, kişiler sayfası, ana ekran) ve `RefreshAll`'daki `Todo.Refresh()`. Hiçbiri
+test edilmiyordu. Dördü de tek tek geçici olarak silindi ve dört yeni testten tam biri kırmızıya
+döndü. `ShellViewModel` testte kurulamadığı için (yakalama aygıtı ve Python işçisi açıyor) o
+yarım kaynaktan okunuyor; diğer üçü davranışsal.
+
+**Testlerin gücü ölçüldü.** Yedi düzeltme de tek tek bozuldu; her seferinde yalnız kendi testi
+kırmızıya döndü. Toplam 1368 test, 1363 geçti, 5 atlandı (baz: 1357/1352/5).

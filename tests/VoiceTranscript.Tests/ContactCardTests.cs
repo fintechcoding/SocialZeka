@@ -670,6 +670,132 @@ public sealed class ContactCardTests : IDisposable
         }
     }
 
+    /// <summary>One stored reading, given whole, so a test can store a shape and not only a line.</summary>
+    private long StoreReport(ContactReadingReport report, string hash = "hash") =>
+        _repo.SaveContactReading(
+            _contact, JsonSerializer.Serialize(report), "qwen-test",
+            report.CallsCovered, null, hash, report.ExcerptCount, report.RejectedCount);
+
+    /// <summary>A reading with no items at all, which is the shape both empty cases arrive in.</summary>
+    private static ContactReadingReport EmptyReport(
+        int calls, int excerpts, int rejected, bool insufficient) =>
+        new(new ContactReadingItem("", []), [], [], [], [], [], [], [], "",
+            CallsCovered: calls, ExcerptCount: excerpts, RejectedCount: rejected,
+            Insufficient: insufficient);
+
+    /// <summary>
+    /// [Yeniden sor] on somebody with too little on record says so, out loud, on the card.
+    ///
+    /// The refusal is the analysis's, made before a model is asked anything: fewer than three
+    /// conversations or fewer than twenty anchors and the packet is not paid for. It came back
+    /// with <c>Ok = true</c>, and the panel — which re-reads the stored row rather than rendering
+    /// the returned object — found no row, cleared itself, and showed nothing whatsoever.
+    ///
+    /// Red means [Yeniden sor] is silent again, and it is silent on the majority of this
+    /// archive's people: most of the nine have fewer than three calls, so the button that looks
+    /// broken looks broken on most cards. Red also if a request WAS paid for, which the second
+    /// assertion pins: nothing may be stored and nothing charged for a refusal.
+    /// </summary>
+    [Fact]
+    public async Task AskingAboutSomebodyWithTooLittleOnRecordSaysSoOnTheCard()
+    {
+        Call(daysAgo: 3);
+
+        // A model that could in principle be reached, so the command gets as far as the packet.
+        // It never talks to one: the refusal happens before a request is built.
+        var card = Card(Access(new Core.Configuration.AppSettings
+        {
+            ContactReadingEnabled = true,
+            LlmProvider = Core.Llm.LlmProviderKind.LlamaServer,
+        }));
+
+        Assert.True(card.OpinionNotAsked);
+
+        await card.AskOpinionCommand.ExecuteAsync(null);
+
+        Assert.True(card.OpinionIsThin);
+        Assert.False(card.OpinionNotAsked);
+
+        // With the numbers in it, so "not enough" is a count somebody can watch come up.
+        Assert.NotNull(card.OpinionThinDetail);
+        Assert.NotEqual("contactcard.okuma-yetersiz-simdi", card.OpinionThinDetail);
+
+        // Refused before it was paid for: no row, no signature, nothing to disagree with.
+        Assert.Null(_repo.LatestContactReading(_contact));
+        Assert.False(card.HasStoredOpinion);
+        Assert.Null(card.OpinionSignature);
+
+        // And the refusal itself is written in both languages, not only in Turkish.
+        foreach (var code in new[] { "tr", "en" })
+            Assert.False(string.IsNullOrWhiteSpace(Strings(code)["contactcard.okuma-yetersiz-simdi"]));
+
+        // The card draws it. Without this the panel could hold the refusal and still show
+        // nothing, which is the state the finding was about.
+        Assert.Contains("OpinionThinDetail", Markup(), StringComparison.Ordinal);
+    }
+
+    /// <summary>The card's markup, for the bindings that decide which sentence a state gets.</summary>
+    private static string Markup() => File.ReadAllText(Path.Combine(
+        Root(), "src", "VoiceTranscript.App", "Views", "ContactCardView.xaml"));
+
+    /// <summary>
+    /// A stored reading that shows nothing does not also claim nobody ever asked for one.
+    ///
+    /// Three states share one empty panel and they are three different facts: nothing was ever
+    /// requested; a request was refused for want of record; a request was made, paid for, and
+    /// every item of it dropped for citing an anchor that was never handed over. The sentence
+    /// was bound to <c>HasOpinion</c>, so the last two printed "bu kişi için henüz bir okuma
+    /// istenmedi" directly beneath the model-and-date signature of the very reading they were
+    /// denying.
+    ///
+    /// Red means the card contradicts itself on that row again, or — the other direction — that
+    /// the empty-but-stored case has gone back to saying nothing at all, which reads as a panel
+    /// that failed to load rather than a model whose evidence did not check out.
+    /// </summary>
+    [Fact]
+    public void AnEmptyStoredReadingSaysWhichKindOfEmptyItIs()
+    {
+        var settings = new Core.Configuration.AppSettings { ContactReadingEnabled = true };
+
+        // 1. Nothing stored: the only state that may say "istenmedi".
+        Assert.True(Card(Access(settings)).OpinionNotAsked);
+
+        // 2. Stored and "yetersiz": its own sentence, and its signature beside it.
+        StoreReport(EmptyReport(calls: 2, excerpts: 7, rejected: 0, insufficient: true));
+
+        var thin = Card(Access(settings));
+
+        Assert.True(thin.HasStoredOpinion);
+        Assert.True(thin.OpinionIsThin);
+        Assert.False(thin.OpinionNotAsked);
+        Assert.False(thin.OpinionIsEmpty);
+        Assert.NotNull(thin.OpinionSignature);
+
+        // 3. Stored, not thin, and nothing survived the anchor rule: a third sentence again.
+        StoreReport(EmptyReport(calls: 4, excerpts: 26, rejected: 5, insufficient: false));
+
+        var empty = Card(Access(settings));
+
+        Assert.True(empty.HasStoredOpinion);
+        Assert.False(empty.HasOpinion);
+        Assert.False(empty.OpinionIsThin);
+        Assert.False(empty.OpinionNotAsked);
+        Assert.True(empty.OpinionIsEmpty);
+        Assert.NotNull(empty.OpinionSignature);
+
+        foreach (var code in new[] { "tr", "en" })
+            Assert.False(string.IsNullOrWhiteSpace(Strings(code)["contactcard.okuma-bos"]));
+
+        // The card asks these questions rather than "is anything on screen", which is the whole
+        // of the fix: bound the old way, the sentence denying a reading appeared beside its
+        // signature.
+        var markup = Markup();
+
+        Assert.Contains("OpinionNotAsked", markup, StringComparison.Ordinal);
+        Assert.Contains("OpinionIsEmpty", markup, StringComparison.Ordinal);
+        Assert.Contains("contactcard.okuma-bos", markup, StringComparison.Ordinal);
+    }
+
     private static string Root()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

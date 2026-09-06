@@ -1007,7 +1007,7 @@
   "mirrorpage.neden-sive-baslik": "Şive neden sayılmıyor",
   "mirrorpage.neden-sive": "Yazıya döken motorlar konuşmayı yazı diline çeviriyor. Sayılan şey konuşanın şivesi değil, motorun o gün ne kadar normalize ettiği olurdu. Ön ölçüm bunu doğrulayana kadar şive sayacı yazılmıyor; ölçülmeyen bir şey de sayılmıyor.",
   "mirrorpage.neden-rol-baslik": "Rol yapma neden ölçülmüyor",
-  "mirrorpage.neden-rol": "Niyet ölçülemez: ne sesten ne metinden çıkar. Karşılığı Niyet kartı — görüşmeden önce yazdığın \"şunu söylemeyeceğim\" satırı ve sonra kendi işaretlediğin \"istemedim\" sayısı. Hükmü makine değil sen veriyorsun.",
+  "mirrorpage.neden-rol": "Niyet ölçülemez: ne sesten ne metinden çıkar. Karşılığı Niyet kartı — görüşmeden önce kendine yazdığın \"şunu söylemeyeceğim\" satırı. Yalnızca bir not: hiçbir çözümleme okumaz, hiçbir yere gönderilmez, tutup tutmadığın da sayılmaz. Sayaç yok; hüküm senin.",
   "mirrorpage.neden-duygu-baslik": "Duygu neden ölçülmüyor",
   "mirrorpage.neden-duygu": "Sesten ya da metinden duygu okuması Türkçede doğrulanmadı. Yanlış bir duygu etiketi hiç etiket olmamasından daha zararlı: insan onu kendi hakkında bir hüküm gibi okuyor.",
   "mirrorpage.egri-aciklama": "Her nokta bir görüşme; çizgi yalnız aynı motorun görüşmelerini bağlar. Kesik çizgi motorun değiştiği yer, içi boş nokta kulaklıksız görüşme. Bir noktaya tıklayınca o görüşme açılır.",
@@ -1210,5 +1210,12 @@
   "ledgeractions.hepsi-kalsin-n": "Hepsi kaldı: {0}",
   "ledgeractions.tarihsiz-kalsin-n": "Tarihsiz kaldı: {0}",
   "ledgeractions.soz-isareti-kaldirildi-n": "İşaret kaldırıldı: {0}",
-  "ledgeractions.soz-secildi-n": "Seçildi: {0}"
+  "ledgeractions.soz-secildi-n": "Seçildi: {0}",
+  "contactcard.okuma-yetersiz-simdi": "Şu an bu kişiyle {0} görüşme ve {1} alıntı var; bu yüzden modele hiçbir istek gönderilmedi, ücret de işlemedi.",
+  "contactcard.okuma-bos": "Okuma yapıldı ama ekranda gösterilecek madde kalmadı: her madde, dayanak gösterdiği alıntı verilmediği için elendi. [Yeniden sor] bir kez daha dener.",
+  "settingswindow.model-indirildi": "İndirildi",
+  "settingswindow.model-inmedi": "İnmedi",
+  "settingswindow.kisi-karti-yerel-model-uyarisi": "Yerel bir modelde çoğu kişi için çalışmaz: bağlam penceresi 24 bin karakter, bulutta 400 bin. Okuma önce küçültülmüş bir paketle denenir; uzun geçmişli kişilerde o da sığmaz ve panel dürüst bir retle karşılık verir.",
+  "ledgerpage.yolculuk": "Yolculuk",
+  "ledgerpage.yolculuk-aciklama": "Bu rakamın yolculuğunu kişi kartında aç: her değeri, söylendiği tarihle ve dinlenebilir anıyla."
 }

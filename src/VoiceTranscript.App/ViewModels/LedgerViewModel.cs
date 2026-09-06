@@ -134,6 +134,18 @@ public sealed partial class LedgerEntry : ObservableObject
 
     public bool CanSelect => CanDismiss;
 
+    /// <summary>
+    /// The other half of that same rule: a changed figure has no Reddet, but it does have
+    /// Yolculuk.
+    ///
+    /// The plan draws exactly this pair on the ledger's wireframe, and only the negative half of
+    /// it was built — so the one row on the page that cannot be ruled on was also the one row
+    /// with nothing to press, and the figure's own history sat on the contact card with no way
+    /// in from here. Needs a person: the journey is that person's list of what the number was
+    /// each time they named it, and an unattributed call has no such list.
+    /// </summary>
+    public bool CanShowJourney => Kind == LedgerFilter.Changes && ContactId is not null;
+
     public string LateText => DaysLate == 1
         ? Localisation.T("ledgerpage.1-gun-gecti")
         : string.Format(Localisation.T("ledgerpage.n-gun-gecti"), DaysLate);
@@ -184,6 +196,9 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
 
     /// <summary>Raised when a row wants the shell to open a contact.</summary>
     public event EventHandler<(long? ContactId, long CallId, int StartMs, bool IsMe)>? OpenRequested;
+
+    /// <summary>Raised by [Yolculuk]: show this person's card at the figure journey.</summary>
+    public event EventHandler<long>? JourneyRequested;
 
     public ObservableCollection<LedgerEntry> Entries { get; } = [];
 
@@ -414,6 +429,21 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     private void Open(LedgerEntry entry)
     {
         OpenRequested?.Invoke(this, (entry.ContactId, entry.CallId, entry.QuoteStartMs, entry.ByMe));
+    }
+
+    /// <summary>
+    /// [Yolculuk]. Opens the person's card at the figure's own history.
+    ///
+    /// "15.000 → 18.000 → 20.000" on this page is a headline; the journey is every value with
+    /// the date it was named and the second it can be heard at. The row that most needs that is
+    /// the one that cannot be refused, and it was the only row here with no way to reach it.
+    /// </summary>
+    [RelayCommand]
+    private void Journey(LedgerEntry entry)
+    {
+        if (!entry.CanShowJourney || entry.ContactId is not { } contactId) return;
+
+        JourneyRequested?.Invoke(this, contactId);
     }
 
     /// <summary>

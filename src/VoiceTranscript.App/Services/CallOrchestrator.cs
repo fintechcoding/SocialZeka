@@ -1383,8 +1383,39 @@ public sealed class CallOrchestrator : IDisposable
             var analyseRequested = _analyseOnly.TryRemove(call.Id, out _);
             var keepTranscript = analyseRequested && _repository.CountSegments(call.Id) > 0;
 
-            if (!keepTranscript) await TranscribeAsync(call, settings, cancellationToken);
-            else _repository.SetCallState(call.Id, ProcessingState.Transcribed);
+            if (!keepTranscript)
+            {
+                await TranscribeAsync(call, settings, cancellationToken);
+            }
+            else
+            {
+                _repository.SetCallState(call.Id, ProcessingState.Transcribed);
+
+                // The habits, on the one path that does not run through TranscribeAsync.
+                //
+                // The plan asked for a single trigger, and "yalnızca yeniden çözümle" was the
+                // hole in it: the count lives in the transcription tail, so a conversation
+                // re-analysed this way kept whatever figures were made from the OLD text, or —
+                // far more often — none at all, because nothing had ever counted it. CountIfStale
+                // is the same call and the same rule as below; on this path the transcript has
+                // not moved, so in practice it writes a row where there is none and where the
+                // dictionary has been edited since.
+                //
+                // Same settings gate and same try/catch as the transcription tail, for the same
+                // reason: a count that cannot be written must never fail a call whose text is
+                // safely stored.
+                if (settings.HabitCountingEnabled)
+                {
+                    try
+                    {
+                        Services.HabitCounter.CountIfStale(_repository, call.Id);
+                    }
+                    catch (Exception e)
+                    {
+                        AppLog.Error("aynam", e, $"görüşme #{call.Id} alışkanlıkları sayılamadı");
+                    }
+                }
+            }
 
             // Analysis is attempted only when there is something to analyse with.
             //

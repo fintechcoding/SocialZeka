@@ -224,6 +224,84 @@ public sealed class LedgerPageUndoTests : IDisposable
         Assert.Equal(["Ayşe", "Çetin", "Gürhan", "Zeynep"], _model.Entries.Select(e => e.ContactName).ToList());
     }
 
+    /// <summary>
+    /// A changed figure has no Reddet, and it does have Yolculuk.
+    ///
+    /// The plan states that pair as one rule and only its negative half was built, so the single
+    /// row on this page that cannot be ruled on was also the single row with nothing at all to
+    /// press: "kira: 15.000 → 18.000" and no way to reach the dates, the quotes or the
+    /// milliseconds behind those numbers, every one of which the contact card already holds.
+    ///
+    /// Red means either half of the rule has slipped — a Reddet appearing on a computed row, or
+    /// Yolculuk gone from it — or that pressing it no longer names the person whose card the
+    /// journey lives on, in which case the button leads somewhere with no journey in it. A
+    /// finding keeps the opposite pair: Yolculuk there would promise a figure history that does
+    /// not exist.
+    /// </summary>
+    [Fact]
+    public void AChangedFigureOffersJourneyWhereEveryOtherRowOffersReddet()
+    {
+        var second = _repository.InsertCall(new Call
+        {
+            ContactId = _contact,
+            App = CallApp.WhatsApp,
+            StartedAt = DateTimeOffset.UtcNow.AddDays(-2),
+            State = ProcessingState.Analysed,
+        });
+        _repository.AssignContact(second, _contact);
+
+        foreach (var (call, value, amount, ms) in new[]
+                 {
+                     (_call, "15.000", 15_000m, 4_000),
+                     (second, "18.000", 18_000m, 6_000),
+                 })
+        {
+            _repository.InsertClaim(new Claim
+            {
+                CallId = call,
+                ContactId = _contact,
+                Quote = $"kira {value}",
+                QuoteStartMs = ms,
+                Entity = "kira",
+                Attribute = "tutar",
+                Value = value,
+                NumericValue = amount,
+                Unit = "TL",
+            });
+        }
+
+        var flag = Finding("bugün karar vermezsen başkasına vereceğim");
+        _model.Refresh();
+
+        var figure = _model.Entries.Single(e => e.Kind == LedgerFilter.Changes);
+
+        Assert.False(figure.CanDismiss);
+        Assert.True(figure.CanShowJourney);
+
+        // A finding is the other way round: it can be ruled on, and has no figure history.
+        Assert.True(FindingRow(flag).CanDismiss);
+        Assert.False(FindingRow(flag).CanShowJourney);
+
+        long? asked = null;
+        _model.JourneyRequested += (_, contactId) => asked = contactId;
+
+        _model.JourneyCommand.Execute(figure);
+        Assert.Equal(_contact, asked);
+
+        // And it does nothing on a row that has no journey, rather than opening a card at a
+        // section that would be empty.
+        asked = null;
+        _model.JourneyCommand.Execute(FindingRow(flag));
+        Assert.Null(asked);
+
+        // The page actually draws it, under the same rule the view model states.
+        var markup = File.ReadAllText(
+            Path.Combine(RepositoryRoot(), "src", "VoiceTranscript.App", "Views", "LedgerPage.xaml"));
+
+        Assert.Contains("JourneyCommand", markup, StringComparison.Ordinal);
+        Assert.Contains("CanShowJourney", markup, StringComparison.Ordinal);
+    }
+
     private static string RepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

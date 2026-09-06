@@ -214,6 +214,90 @@ public class LocalisationTests
         Assert.True(literal.Count == 0, "Sözlük dışı \"Gizlendi\" metni: " + string.Join(", ", literal));
     }
 
+    /// <summary>
+    /// Aynam's "why playing a part is not measured" describes what the Niyet card is, and does
+    /// not promise a counter nobody built.
+    ///
+    /// The reason given for not measuring intent said the answer was the intent card "and the
+    /// count of the times you afterwards marked it yourself" — an [İstemedim] tally that exists
+    /// nowhere and, by the plan, deliberately so. The card is a line the user writes to
+    /// themselves; nothing reads it and nothing counts it. A refusal that explains itself with a
+    /// feature that does not exist is worse than no explanation: it sends the reader looking for
+    /// a screen, and when they cannot find it they stop believing the other refusals beside it.
+    ///
+    /// Red means the phantom mark is back in the dictionaries — the fix being to drop the
+    /// promise, never to build the tally — or that the sentence has stopped saying plainly that
+    /// there is no count.
+    /// </summary>
+    [Fact]
+    public void TheReasonRolePlayIsNotMeasuredPromisesNoCounter()
+    {
+        var tr = Read("tr");
+        var en = Read("en");
+
+        // The mark by name, here and anywhere else in either dictionary.
+        foreach (var (code, strings) in new[] { ("tr", tr), ("en", en) })
+        {
+            var offenders = strings
+                .Where(pair => pair.Value.Contains("istemedim", StringComparison.OrdinalIgnoreCase))
+                .Select(pair => pair.Key)
+                .OrderBy(k => k, StringComparer.Ordinal)
+                .ToList();
+
+            Assert.True(offenders.Count == 0,
+                $"{code}: var olmayan [İstemedim] sayacını anlatan anahtarlar: " + string.Join(", ", offenders));
+        }
+
+        // And the absence is stated rather than merely left out.
+        Assert.Contains("Sayaç yok", tr["mirrorpage.neden-rol"], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no tally", en["mirrorpage.neden-rol"], StringComparison.OrdinalIgnoreCase);
+
+        // Agreeing with the intent window's own caption, which is the ground truth here.
+        Assert.Contains("ölçülmez", tr["niyetwindow.yalniz-senin-notun"], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not measured", en["niyetwindow.yalniz-senin-notun"], StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The contact-card setting warns that on a local model the reading will not fit.
+    ///
+    /// The shrunken packet for a small context window was built; the sentence the plan asked for
+    /// beside the switch was not. Without it the card offers a paid, opt-in feature and says
+    /// nothing about the one configuration in which it refuses for most people — learned instead
+    /// at the moment of failure, after the switch was turned on for it.
+    ///
+    /// Red means the warning has left a dictionary, is no longer drawn on the settings page, or
+    /// has drifted from the ceilings it describes: the numbers in the text are the limits the
+    /// analysis actually applies, and a caption quoting a figure the code no longer uses is how
+    /// a warning stops being true without anybody noticing.
+    /// </summary>
+    [Fact]
+    public void TheContactCardSettingSaysItWillNotFitOnALocalModel()
+    {
+        const string key = "settingswindow.kisi-karti-yerel-model-uyarisi";
+
+        var tr = Read("tr");
+        var en = Read("en");
+
+        Assert.Contains("Yerel", tr[key], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("local", en[key], StringComparison.OrdinalIgnoreCase);
+
+        // The two limits it contrasts, as the analysis itself holds them.
+        var local = Core.Analysis.ContactReadingAnalysis.LocalCharacterLimit / 1000;
+        var cloud = Core.Analysis.ContactReadingAnalysis.CloudCharacterLimit / 1000;
+
+        foreach (var text in new[] { tr[key], en[key] })
+        {
+            Assert.Contains(local.ToString(), text, StringComparison.Ordinal);
+            Assert.Contains(cloud.ToString(), text, StringComparison.Ordinal);
+        }
+
+        // And it is on the card, not merely in the dictionaries.
+        var markup = File.ReadAllText(Path.Combine(
+            Root, "src", "VoiceTranscript.App", "Views", "SettingsWindow.xaml"));
+
+        Assert.Contains(key, markup, StringComparison.Ordinal);
+    }
+
     private static IEnumerable<string> SourceFiles() =>
         new[] { "VoiceTranscript.App", "VoiceTranscript.Core" }
             .SelectMany(project => Directory.EnumerateFiles(Path.Combine(Root, "src", project), "*.cs", SearchOption.AllDirectories))

@@ -282,7 +282,8 @@
                                     The row's verbs. Open is a look; Reddet is a ruling, and sits
                                     12 px apart from it so the two are not one target. A changed
                                     figure has no Reddet — it is computed from the claims, not
-                                    stored — and a tombstone offers Geri getir instead.
+                                    stored — and offers Yolculuk in its place; a tombstone offers
+                                    Geri getir instead.
                                 -->
                                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Top"
                                             Margin="12,0,0,0">
@@ -300,6 +301,14 @@
                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                CommandParameter="{Binding}"
                                                Visibility="{Binding CanDismiss, Converter={StaticResource BoolToVisibility}}" />
+
+                                    <ui:Button Content="{loc:T ledgerpage.yolculuk}" Appearance="Transparent"
+                                               Margin="12,0,0,0" Padding="10,4"
+                                               ToolTip="{loc:T ledgerpage.yolculuk-aciklama}"
+                                               Command="{Binding DataContext.JourneyCommand,
+                                                         RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                               CommandParameter="{Binding}"
+                                               Visibility="{Binding CanShowJourney, Converter={StaticResource BoolToVisibility}}" />
 
                                     <ui:Button Content="{loc:T ledgerpage.geri-getir}" Appearance="Secondary"
                                                Margin="12,0,0,0" Padding="10,4"
