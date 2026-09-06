@@ -1007,7 +1007,7 @@
   "mirrorpage.neden-sive-baslik": "Şive neden sayılmıyor",
   "mirrorpage.neden-sive": "Yazıya döken motorlar konuşmayı yazı diline çeviriyor. Sayılan şey konuşanın şivesi değil, motorun o gün ne kadar normalize ettiği olurdu. Ön ölçüm bunu doğrulayana kadar şive sayacı yazılmıyor; ölçülmeyen bir şey de sayılmıyor.",
   "mirrorpage.neden-rol-baslik": "Rol yapma neden ölçülmüyor",
-  "mirrorpage.neden-rol": "Niyet ölçülemez: ne sesten ne metinden çıkar. Karşılığı Niyet kartı — görüşmeden önce yazdığın \"şunu söylemeyeceğim\" satırı ve sonra kendi işaretlediğin \"istemedim\" sayısı. Hükmü makine değil sen veriyorsun.",
+  "mirrorpage.neden-rol": "Niyet ölçülemez: ne sesten ne metinden çıkar. Karşılığı Niyet kartı — görüşmeden önce kendine yazdığın \"şunu söylemeyeceğim\" satırı. Yalnızca bir not: hiçbir çözümleme okumaz, hiçbir yere gönderilmez, tutup tutmadığın da sayılmaz. Sayaç yok; hüküm senin.",
   "mirrorpage.neden-duygu-baslik": "Duygu neden ölçülmüyor",
   "mirrorpage.neden-duygu": "Sesten ya da metinden duygu okuması Türkçede doğrulanmadı. Yanlış bir duygu etiketi hiç etiket olmamasından daha zararlı: insan onu kendi hakkında bir hüküm gibi okuyor.",
   "mirrorpage.egri-aciklama": "Her nokta bir görüşme; çizgi yalnız aynı motorun görüşmelerini bağlar. Kesik çizgi motorun değiştiği yer, içi boş nokta kulaklıksız görüşme. Bir noktaya tıklayınca o görüşme açılır.",

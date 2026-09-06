@@ -2756,4 +2756,11 @@ döndü. `ShellViewModel` testte kurulamadığı için (yakalama aygıtı ve Pyt
 yarım kaynaktan okunuyor; diğer üçü davranışsal.
 
 **Testlerin gücü ölçüldü.** Yedi düzeltme de tek tek bozuldu; her seferinde yalnız kendi testi
-kırmızıya döndü. Toplam 1368 test, 1363 geçti, 5 atlandı (baz: 1357/1352/5).
+kırmızıya döndü. Dalda 1368 test, 1363 geçti (baz 1357/1352/5); ana dalla birleştikten
+sonra **1384 test, 1379 geçti, 5 atlandı**.
+
+**Birleşmede bir sözlük çatışması yanlış çözüldü ve test yakaladı.** İki dal da
+`strings.*.json`'a eklemişti; ilk çözümüm yalnız karşı tarafın DEĞİŞTİRDİĞİ bir anahtarda
+(`mirrorpage.neden-rol`) benim tarafımı korudu, yani 22 numaralı bulgunun düzeltmesi
+sessizce geri alınmış oldu. Onu yazan test hemen kırmızıya döndü. Çözüm üç yönlü yapıldı:
+yalnız bir taraf değiştirdiyse o taraf kazanır, ikisi de değiştirdiyse çatışma bildirilir.
