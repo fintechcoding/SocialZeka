@@ -134,6 +134,17 @@ public sealed class CallOrchestrator : IDisposable
     /// is a visible second or two.
     /// </summary>
     public DateTimeOffset RecordingStartedAt => _callStartedAt;
+
+    /// <summary>
+    /// The row of the recording in progress, or null while idle.
+    ///
+    /// Exposed for the same reason <see cref="RecordingStartedAt"/> is: the strip on screen needs
+    /// to write against the conversation actually being recorded, and the row exists from the
+    /// moment capture starts. Without this the intent note could only be attached after the call
+    /// had ended, which is exactly the wrong half of it — the note is a decision made before
+    /// speaking.
+    /// </summary>
+    public long? CurrentCallId => _currentCallId;
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private bool _disposed;
@@ -2044,6 +2055,29 @@ public sealed class CallOrchestrator : IDisposable
         catch (Exception e)
         {
             AppLog.Error("işleme", e, $"görüşme #{call.Id} dökümü tazelendiği bildirilemedi");
+        }
+
+        // The speaking habits, counted from the lines just written.
+        //
+        // Here rather than in the analysis half because it needs neither a model nor the network:
+        // it is arithmetic over rows already in this database, so a machine with no provider
+        // configured — where analysis is skipped entirely — still gets its counts. No GPU gate and
+        // no queue slot for the same reason; on the longest conversations in this archive the pass
+        // is milliseconds, and holding a processing slot for it would delay a real transcription.
+        //
+        // Wrapped like the transcript history above it: a count that could not be written is not a
+        // reason to fail a call whose text is safely stored. The next transcription or the archive
+        // sweep will write it, and until then the mirror simply has one fewer dot.
+        if (settings.HabitCountingEnabled)
+        {
+            try
+            {
+                Services.HabitCounter.CountIfStale(_repository, call.Id);
+            }
+            catch (Exception e)
+            {
+                AppLog.Error("aynam", e, $"görüşme #{call.Id} alışkanlıkları sayılamadı");
+            }
         }
     }
 

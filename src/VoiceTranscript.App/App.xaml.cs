@@ -376,6 +376,20 @@ public partial class App : Application
         // Tag looks, read once: every pill on every list draws from this cache, not from disk.
         Services.TagPalette.Load(Repository);
 
+        // The habit dictionary's starter rows, on the same terms as the starter tags: written
+        // only into an empty table, so words the user deleted never come back on the next start.
+        // Seed itself logs how many rows it wrote — a count and nothing else; not one word of the
+        // list may reach a log file that is written to be sent to a stranger.
+        try
+        {
+            Core.Analysis.HabitLexicon.Seed(Repository);
+        }
+        catch (Exception repair)
+        {
+            // Housekeeping. It must never be the reason the application does not start.
+            AppLog.Error("aynam", repair, "alışkanlık sözlüğü tohumlanamadı");
+        }
+
         // Rows written before engine references were scrubbed can hold an API key. Struck out
         // here, once, so no screen ever prints a credential again.
         Repository.ScrubSecretsFromRuns();

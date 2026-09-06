@@ -1,0 +1,211 @@
+<ui:FluentWindow x:Class="VoiceTranscript.App.Views.SozlukWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="{loc:T sozlukwindow.sozlukler}"
+                 Width="640" Height="720" MinWidth="540" MinHeight="480"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica">
+
+    <!--
+        The words the counters look for, as the user's own list.
+
+        Rows here are the user's data from the moment they exist: seeded once and then edited,
+        extended and pruned, and no recount ever writes to this table. A stem rather than a whole
+        word, with the endings it is allowed to carry beside it — Turkish glues, and a list that
+        had to spell out every inflection would miss the next one while still catching innocent
+        words that merely start the same way.
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="{loc:T sozlukwindow.sozlukler}" ShowMinimize="False" ShowMaximize="False" />
+
+        <TextBlock Grid.Row="1" Margin="20,8,20,10" TextWrapping="Wrap"
+                   Style="{StaticResource Caption}"
+                   Text="{loc:T sozlukwindow.eslesme-kurali}" />
+
+        <ScrollViewer Grid.Row="2" Margin="20,0,20,0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <TextBlock Text="{loc:T sozlukwindow.kufur}" Style="{StaticResource GroupHeader}" Margin="0,0,0,4" />
+                <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,6" TextWrapping="Wrap"
+                           Text="{loc:T sozlukwindow.kufur-aciklama}" />
+
+                <Border CornerRadius="6" BorderThickness="1" Padding="10,6"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <ItemsControl x:Name="ProfanityRows">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <ui:TextBox Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                    PlaceholderText="{loc:T sozlukwindow.govde}"
+                                                    Text="{Binding Lexeme, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <ui:TextBox Grid.Column="1" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                    PlaceholderText="{loc:T sozlukwindow.izinli-ekler}"
+                                                    Text="{Binding Suffixes, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6,4"
+                                                   Click="RemoveRow_Click" ToolTip="{loc:T sozlukwindow.satiri-sil}">
+                                            <ui:Button.Icon>
+                                                <ui:SymbolIcon Symbol="Delete24" />
+                                            </ui:Button.Icon>
+                                        </ui:Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ui:Button Content="{loc:T sozlukwindow.satir-ekle}" Appearance="Secondary" Margin="0,6,0,0"
+                                   HorizontalAlignment="Left" Padding="10,4" Tag="kufur" Click="AddRow_Click">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="Add24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{loc:T sozlukwindow.dolgu}" Style="{StaticResource GroupHeader}" Margin="0,18,0,4" />
+                <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,6" TextWrapping="Wrap"
+                           Text="{loc:T sozlukwindow.dolgu-aciklama}" />
+
+                <Border CornerRadius="6" BorderThickness="1" Padding="10,6"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <ItemsControl x:Name="FillerRows">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <ui:TextBox Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                    PlaceholderText="{loc:T sozlukwindow.govde}"
+                                                    Text="{Binding Lexeme, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <ui:TextBox Grid.Column="1" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                    PlaceholderText="{loc:T sozlukwindow.izinli-ekler}"
+                                                    Text="{Binding Suffixes, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6,4"
+                                                   Click="RemoveRow_Click" ToolTip="{loc:T sozlukwindow.satiri-sil}">
+                                            <ui:Button.Icon>
+                                                <ui:SymbolIcon Symbol="Delete24" />
+                                            </ui:Button.Icon>
+                                        </ui:Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ui:Button Content="{loc:T sozlukwindow.satir-ekle}" Appearance="Secondary" Margin="0,6,0,0"
+                                   HorizontalAlignment="Left" Padding="10,4" Tag="dolgu" Click="AddRow_Click">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="Add24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{loc:T sozlukwindow.haric-tutulanlar}" Style="{StaticResource GroupHeader}" Margin="0,18,0,4" />
+                <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,6" TextWrapping="Wrap"
+                           Text="{loc:T sozlukwindow.haric-aciklama}" />
+
+                <Border CornerRadius="6" BorderThickness="1" Padding="10,6"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <ItemsControl x:Name="ExclusionRows">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <ui:TextBox Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                    PlaceholderText="{loc:T sozlukwindow.govde}"
+                                                    Text="{Binding Lexeme, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <ui:TextBox Grid.Column="1" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                    PlaceholderText="{loc:T sozlukwindow.izinli-ekler}"
+                                                    Text="{Binding Suffixes, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6,4"
+                                                   Click="RemoveRow_Click" ToolTip="{loc:T sozlukwindow.satiri-sil}">
+                                            <ui:Button.Icon>
+                                                <ui:SymbolIcon Symbol="Delete24" />
+                                            </ui:Button.Icon>
+                                        </ui:Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ui:Button Content="{loc:T sozlukwindow.satir-ekle}" Appearance="Secondary" Margin="0,6,0,0"
+                                   HorizontalAlignment="Left" Padding="10,4" Tag="haric" Click="AddRow_Click">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="Add24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+                    </StackPanel>
+                </Border>
+
+                <!--
+                    Present, empty, and explained.
+
+                    Leaving the section out would suggest nobody thought of it; leaving a list here
+                    to fill in would suggest filling it changes something. Neither is true: the
+                    transcribers normalise speech towards written Turkish, so what a dialect list
+                    would count is the engine's normalisation on the day rather than how anybody
+                    spoke — and the recall of such a counter cannot even be measured from text.
+                -->
+                <TextBlock Text="{loc:T sozlukwindow.sive}" Style="{StaticResource GroupHeader}" Margin="0,18,0,4" />
+
+                <Border CornerRadius="6" BorderThickness="1" Padding="12,10" Margin="0,0,0,4"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <TextBlock FontSize="{StaticResource TextBody}" TextWrapping="Wrap"
+                                   Text="{loc:T sozlukwindow.sive-olculmuyor}" />
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Text="{loc:T sozlukwindow.sive-neden}" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Style="{StaticResource Caption}" Margin="0,10,0,12" TextWrapping="Wrap"
+                           Text="{loc:T sozlukwindow.degisiklik-sonraki-sayimda}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="3" Margin="20,12,20,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ui:Button Grid.Column="1" Content="{loc:T sozlukwindow.vazgec}" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <ui:Button Grid.Column="2" Content="{loc:T sozlukwindow.kaydet}" Appearance="Primary" IsDefault="True"
+                       Click="Save_Click" />
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

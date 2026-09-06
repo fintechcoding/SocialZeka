@@ -535,6 +535,38 @@ public sealed record AppSettings
     /// <summary>Only used by providers that require one. Never written for local backends.</summary>
     public string? LlmApiKey { get; init; }
 
+    // ---- coaching: your own speaking habits ---------------------------------
+    //
+    // The one part of this product that costs nothing and leaves nothing: the counters run on
+    // this machine, over rows already in the database, with no model anywhere near them. Which
+    // is why the counting switch defaults on and the card that interrupts a call does not.
+
+    /// <summary>
+    /// Count the speaking habits — swearing, fillers, pace, what was disclosed — after every
+    /// transcription.
+    ///
+    /// On by default, which nothing else derived from a conversation is. It is arithmetic over
+    /// text that already exists: no model is called, no audio is re-read, nothing leaves the
+    /// machine, and the whole pass is milliseconds. Only the user's own channel is counted —
+    /// the other party's habits are their business, and a tool that tallied them would be
+    /// keeping a file on somebody.
+    ///
+    /// Off means the counts are simply not written; nothing already stored is deleted.
+    /// </summary>
+    public bool HabitCountingEnabled { get; init; } = true;
+
+    /// <summary>
+    /// Ask, as a recording starts, what the user has decided not to say in this conversation.
+    ///
+    /// Off by default: this one interrupts. Every other switch here changes what happens after a
+    /// call, where being wrong costs a wasted screen; this puts a box in front of somebody who is
+    /// about to speak to another person, and a prompt at that moment has to be asked for.
+    ///
+    /// What is typed is the user's own note and no analysis reads it. It is not a measurement of
+    /// whether they kept to it — that would be a claim about intent, which nothing here can see.
+    /// </summary>
+    public bool IntentCardEnabled { get; init; }
+
     // ---- export -------------------------------------------------------------
 
     public bool ExportToObsidian { get; init; }

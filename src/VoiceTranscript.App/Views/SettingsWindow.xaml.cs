@@ -74,8 +74,14 @@ public partial class SettingsWindow
         PageTranscription.Visibility = Visible(tag == "Transcription");
         PageAnalysis.Visibility = Visible(tag == "Analysis");
         PageConsistency.Visibility = Visible(tag == "Consistency");
+        PageCoaching.Visibility = Visible(tag == "Coaching");
         PageData.Visibility = Visible(tag == "Data");
         PageExport.Visibility = Visible(tag == "Export");
+
+        // Read when the page is opened rather than when the window is: the dictionary can be
+        // edited from this very page, and a row stating a count that the user has just changed is
+        // the screen contradicting itself.
+        if (tag == "Coaching") ShowLexiconCounts();
 
         // Back to the top of the section just chosen. Without this the new section opened at
         // wherever the last one was scrolled to — a page that starts in its own middle, with
@@ -98,6 +104,7 @@ public partial class SettingsWindow
             "Transcription" => NavTranscription,
             "Analysis" => NavAnalysis,
             "Consistency" => NavConsistency,
+            "Coaching" => NavCoaching,
             "Data" => NavData,
             "Export" => NavExport,
             _ => NavGeneral,
@@ -485,6 +492,171 @@ public partial class SettingsWindow
         VoiceStatus.Text = message;
         VoiceStatus.Visibility = Visibility.Visible;
     }
+
+    // ---- coaching: Aynam ----------------------------------------------------
+
+    /// <summary>
+    /// How large each dictionary is, beside the button that edits them.
+    ///
+    /// A count and nothing else. The words themselves must never be printed on a settings page:
+    /// this screen gets photographed for support, read over somebody's shoulder, and screen-shared
+    /// — and the swearing list is the one thing in this product nobody wants shown that way. Şive
+    /// is named without a number because it is not measured at all, and a "0" would read as an
+    /// empty list somebody ought to fill in.
+    /// </summary>
+    private void ShowLexiconCounts()
+    {
+        if (App.Repository is not { } repository)
+        {
+            LexiconCounts.Text = Localisation.T("settingswindow.sozlukler-okunamadi");
+            return;
+        }
+
+        try
+        {
+            var rows = repository.Lexicon();
+
+            LexiconCounts.Text = string.Format(
+                Localisation.T("settingswindow.sozluk-sayilari"),
+                rows.Count(r => r.Kind == Core.Domain.HabitKind.Profanity),
+                rows.Count(r => r.Kind == Core.Domain.HabitKind.Filler));
+        }
+        catch (Exception e)
+        {
+            Services.AppLog.Error("aynam", e, "sözlük sayıları okunamadı");
+            LexiconCounts.Text = Localisation.T("settingswindow.sozlukler-okunamadi");
+        }
+    }
+
+    private void EditLexicon_Click(object sender, RoutedEventArgs e)
+    {
+        if (App.Repository is not { } repository) return;
+
+        SozlukWindow.Open(this, repository);
+
+        // The row above the button states the sizes, so it repaints the moment the window that
+        // could have changed them closes.
+        ShowLexiconCounts();
+    }
+
+    /// <summary>
+    /// Counts the archive: every conversation that has a transcript and no current count.
+    ///
+    /// A background thread at the lowest priority, off the processing queue, on the shape
+    /// <c>CompressBacklog</c> established — for the same reasons. It must never delay a
+    /// transcription and must never be felt during a call, and it is not queue work because a
+    /// queue slot held by arithmetic is a recording that waits.
+    ///
+    /// Started by a press rather than at startup. On an archive of months this is minutes of
+    /// work, and minutes of unexplained disk activity on launch is how a quiet application stops
+    /// being trusted. Progress lands in the caption under the button, which is this window's own
+    /// status channel — the same one voice enrolment reports through.
+    /// </summary>
+    private void CountBacklog_Click(object sender, RoutedEventArgs e)
+    {
+        if (App.Repository is not { } repository) return;
+
+        CountBacklogButton.IsEnabled = false;
+        ShowBacklogStatus(Localisation.T("settingswindow.gecmis-sayiliyor"));
+
+        var thread = new Thread(() =>
+        {
+            var counted = 0;
+            var failed = 0;
+
+            try
+            {
+                var lexicon = Core.Analysis.HabitLexicon.Load(repository);
+                var pending = Services.HabitCounter.NeedingCount(repository, lexicon.LexiconVersion);
+
+                if (pending.Count == 0)
+                {
+                    Report(Localisation.T("settingswindow.sayilacak-gorusme-yok"));
+                    return;
+                }
+
+                Services.AppLog.Write("aynam", $"geçmiş sayımı: {pending.Count} görüşme");
+
+                foreach (var callId in pending)
+                {
+                    // One bad row must not end the sweep: a call whose transcript is unreadable is
+                    // one missing dot, not a reason for the other four hundred to stay uncounted.
+                    try
+                    {
+                        if (Services.HabitCounter.Count(repository, callId, lexicon)) counted++;
+                    }
+                    catch (Exception one)
+                    {
+                        failed++;
+                        Services.AppLog.Error("aynam", one, $"görüşme #{callId} sayılamadı");
+                    }
+
+                    Report(string.Format(
+                        Localisation.T("settingswindow.sayiliyor-n-m"), counted + failed, pending.Count));
+                }
+
+                Report(failed == 0
+                    ? string.Format(Localisation.T("settingswindow.n-gorusme-sayildi"), counted)
+                    : string.Format(Localisation.T("settingswindow.n-gorusme-sayildi-m-atlandi"), counted, failed));
+
+                Services.AppLog.Write("aynam", $"geçmiş sayımı bitti: {counted} sayıldı, {failed} atlandı");
+            }
+            catch (Exception ex)
+            {
+                Services.AppLog.Error("aynam", ex, "geçmiş sayımı yarıda kaldı");
+                Report(string.Format(Localisation.T("settingswindow.gecmis-sayilamadi-n"), ex.Message));
+            }
+            finally
+            {
+                OnUi(() => CountBacklogButton.IsEnabled = true);
+            }
+
+            void Report(string line) => OnUi(() => ShowBacklogStatus(line));
+
+            // The sweep outlives this window and can outlive the application: it is a background
+            // thread, and the user may close settings or quit while it is halfway through an
+            // archive. Posting to a dispatcher that has shut down throws, and an exception on a
+            // thread nobody awaits takes the process with it — over a status caption.
+            void OnUi(Action action)
+            {
+                try
+                {
+                    Dispatcher.InvokeAsync(action);
+                }
+                catch (Exception)
+                {
+                    // Nothing left to tell.
+                }
+            }
+        })
+        {
+            IsBackground = true,
+            Priority = ThreadPriority.Lowest,
+            Name = "aynam-gecmis-sayimi",
+        };
+
+        thread.Start();
+    }
+
+    private void ShowBacklogStatus(string message)
+    {
+        BacklogStatus.Text = message;
+        BacklogStatus.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Why the things on the "Ölçülmeyenler" list are not offered.
+    ///
+    /// A button rather than a paragraph on the page: the reasons are long, and a control panel
+    /// that argues with the reader in place is a control panel nobody finishes reading. But they
+    /// are reachable, because "we do not do that" without a reason is indistinguishable from "we
+    /// could not be bothered".
+    /// </summary>
+    private void WhyNotMeasured_Click(object sender, RoutedEventArgs e) =>
+        _ = Services.Dialogs.InfoAsync(
+            this,
+            Localisation.T("settingswindow.olculmeyenler"),
+            Localisation.T("settingswindow.olculmeyenler-neden"));
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {

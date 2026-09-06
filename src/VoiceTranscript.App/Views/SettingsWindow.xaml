@@ -78,6 +78,14 @@
                 </RadioButton>
 
                 <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
+                             x:Name="NavCoaching" Checked="Category_Checked" Tag="Coaching">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="PersonFeedback24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T settingswindow.kocluk}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton GroupName="Cat" Style="{StaticResource NavButton}"
                              x:Name="NavData" Checked="Category_Checked" Tag="Data">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Folder24" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center" />
@@ -1514,6 +1522,136 @@
                             </Grid>
                         </Border>
                         </StackPanel>
+                    </StackPanel>
+
+                    <!--
+                        Coaching: what the application says about how YOU speak.
+
+                        Only switches whose feature exists are here. The plan's wireframe also drew
+                        a Ses group (loudness, pitch, a live meter) and a Kişi group (evidence
+                        accumulation, the model's opinion of a contact); none of those are built,
+                        and a switch for a feature that does not exist is a lie told in a control
+                        panel — somebody turns it on, nothing happens, and every other switch on
+                        the page loses its credibility. They arrive with their features.
+                    -->
+                    <StackPanel x:Name="PageCoaching" Visibility="Collapsed">
+                        <TextBlock Text="{loc:T settingswindow.kocluk}" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="{loc:T settingswindow.kocluk-aciklama}" />
+
+                        <TextBlock Text="{loc:T settingswindow.aynam}" Style="{StaticResource GroupHeader}" Margin="0,0,0,8" />
+
+                        <!-- On by default, which nothing else derived from a conversation is: it
+                             is arithmetic over lines already stored, so the caption says what it
+                             costs (nothing) and what it counts (only your own channel). -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.aliskanlik-sayimi}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.bu-makinede-model-yok-ucretsiz}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding HabitCountingEnabled}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- The dictionaries the counters read, with their sizes on the row: a
+                             count is the only honest summary of a list this screen must not print.
+                             Şive is named and excluded here rather than left off, because a
+                             missing row reads as an oversight and an empty one as a bug. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.sozlukler}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock x:Name="LexiconCounts" Style="{StaticResource Caption}"
+                                               Margin="0,2,0,0" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ui:Button Grid.Column="1" VerticalAlignment="Center" Padding="10,4"
+                                           Appearance="Secondary" Click="EditLexicon_Click"
+                                           Content="{loc:T settingswindow.duzenle}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Off by default. Every other switch here changes what happens after a
+                             call; this one puts a box in front of somebody about to speak. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.niyet-karti}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.niyet-karti-aciklama}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                 IsChecked="{Binding IntentCardEnabled}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- A measurement that has not been made, said as such.
+                             The plan's wireframe drew example numbers per engine here. There are
+                             none: no threshold has been established for any engine, and printing a
+                             plausible one would be the screen inventing a figure. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T settingswindow.kelime-guveni-esigi}" FontSize="{StaticResource TextBody}" />
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                           Text="{loc:T settingswindow.kelime-guveni-esigi-henuz-olculmedi}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- The archive counted retroactively, on the user's press rather than on
+                             every start: it is minutes of background work over months of calls,
+                             and something that long must be asked for and must be visible. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{loc:T settingswindow.gecmis-gorusmeleri-say}" FontSize="{StaticResource TextBody}" />
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                           Text="{loc:T settingswindow.gecmis-gorusmeleri-say-aciklama}" />
+
+                                <ui:Button x:Name="CountBacklogButton" Padding="10,4" Margin="0,10,0,0"
+                                           HorizontalAlignment="Left" Appearance="Secondary"
+                                           Click="CountBacklog_Click"
+                                           Content="{loc:T settingswindow.gecmis-gorusmeleri-say}" />
+
+                                <TextBlock x:Name="BacklogStatus" Margin="0,8,0,0" TextWrapping="Wrap"
+                                           Style="{StaticResource Caption}" Visibility="Collapsed" />
+                            </StackPanel>
+                        </Border>
+
+                        <!--
+                            What is deliberately not offered, listed where somebody would look for
+                            it. Written out rather than silently absent: the difference between "we
+                            did not think of it" and "we measured it and it does not work" is the
+                            whole of this product's honesty, and the "neden" button carries the
+                            reasons rather than a marketing sentence.
+                        -->
+                        <TextBlock Text="{loc:T settingswindow.olculmeyenler}" Style="{StaticResource GroupHeader}" Margin="0,16,0,8" />
+
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap"
+                                           Text="{loc:T settingswindow.olculmeyenler-liste}" />
+                                <ui:Button Grid.Column="1" VerticalAlignment="Center" Padding="10,4" Margin="12,0,0,0"
+                                           Appearance="Transparent" Click="WhyNotMeasured_Click"
+                                           Content="{loc:T settingswindow.neden}" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- Export -->
