@@ -469,16 +469,22 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Works out who did the talking.
+    /// Works out who did the talking, through the one function that knows the rule.
     ///
     /// Speaking time is summed per stream, and an interruption is counted when one side starts
     /// while the other is still going. Both are stated as counts with the seconds behind them
     /// rather than as a verdict: "sen %62 konuştun" is a fact somebody can check, whereas
     /// "karşı taraf seni sürekli böldü" is a judgement this application has no business making.
+    ///
+    /// The arithmetic itself was a copy of the call window's until <see cref="TalkStats"/>
+    /// existed. Two copies of one rule is one rule that can drift, and neither copy could be
+    /// tested without a window.
     /// </summary>
     private void ComputeTalkStats(IReadOnlyList<Core.Domain.Segment> segments)
     {
-        if (segments.Count == 0)
+        var stats = Core.Analysis.TalkStats.Compute(segments);
+
+        if (stats.MyShare is not { } share)
         {
             TalkSummary = null;
             InterruptionSummary = null;
@@ -486,46 +492,15 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var mine = TimeSpan.Zero;
-        var theirs = TimeSpan.Zero;
-
-        foreach (var segment in segments)
-        {
-            var length = TimeSpan.FromMilliseconds(Math.Max(0, segment.EndMs - segment.StartMs));
-            if (segment.IsMe) mine += length; else theirs += length;
-        }
-
-        var total = mine + theirs;
-        if (total <= TimeSpan.Zero)
-        {
-            TalkSummary = null;
-            return;
-        }
-
-        TalkRatio = mine.TotalSeconds / total.TotalSeconds;
+        TalkRatio = share;
 
         TalkSummary =
-            $"Sen {mine.TotalMinutes:0.#} dk (%{TalkRatio * 100:0}), " +
-            $"karşı taraf {theirs.TotalMinutes:0.#} dk (%{(1 - TalkRatio) * 100:0})";
+            $"Sen {stats.MineMs / 60000.0:0.#} dk (%{share * 100:0}), " +
+            $"karşı taraf {stats.TheirsMs / 60000.0:0.#} dk (%{(1 - share) * 100:0})";
 
-        var ordered = segments.OrderBy(s => s.StartMs).ToList();
-        var myCuts = 0;
-        var theirCuts = 0;
-
-        for (var i = 1; i < ordered.Count; i++)
-        {
-            var previous = ordered[i - 1];
-            var current = ordered[i];
-
-            // Started before the previous speaker finished, and by a different speaker.
-            if (current.IsMe == previous.IsMe || current.StartMs >= previous.EndMs) continue;
-
-            if (current.IsMe) myCuts++; else theirCuts++;
-        }
-
-        InterruptionSummary = myCuts + theirCuts == 0
+        InterruptionSummary = stats.MyInterruptions + stats.TheirInterruptions == 0
             ? "Kimse kimsenin sözünü kesmedi."
-            : $"Söz kesme: sen {myCuts}, karşı taraf {theirCuts}.";
+            : $"Söz kesme: sen {stats.MyInterruptions}, karşı taraf {stats.TheirInterruptions}.";
     }
 
     // ---- the selected call's open suggestions --------------------------------

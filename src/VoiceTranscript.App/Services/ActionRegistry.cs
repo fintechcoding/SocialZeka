@@ -61,6 +61,9 @@ public static class ActionRegistry
         new("Yapılacaklar", "Sayfaya git — yazdıkların, öneriler, hatırlatmalar", Wpf.Ui.Controls.SymbolRegular.TaskListLtr24,
             shell => shell.NavigateCommand.Execute("Todo"), ShellPage.Todo, Key.D7),
 
+        new("Aynam", "Sayfaya git — kendi konuşma alışkanlıkların, sayılarla ve anlarla", Wpf.Ui.Controls.SymbolRegular.PersonFeedback24,
+            shell => shell.NavigateCommand.Execute("Mirror"), ShellPage.Mirror, Key.D8),
+
         new("Arama", "Sayfaya git — metinlerde ve etiketlerde ara", Wpf.Ui.Controls.SymbolRegular.Search24,
             shell => shell.NavigateCommand.Execute("Search"), ShellPage.Search, Key.F),
         new("Sor", "Sayfaya git — arşive soru sor", Wpf.Ui.Controls.SymbolRegular.ChatHelp24,

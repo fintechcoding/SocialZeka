@@ -48,7 +48,11 @@ public sealed class ActionRegistryTests
         Assert.Equal("Ctrl+?", ActionRegistry.All.Single(a => a.Key == Key.OemQuestion).ShortcutText);
     }
 
-    /// <summary>The digits follow the rail: what the calls are, what they left behind, then the lookups.</summary>
+    /// <summary>
+    /// The digits follow the rail: what the calls are, what they left behind, the coaching band,
+    /// then the lookups. Goes red when a page is inserted into the rail without the digits
+    /// moving with it — which is the state the whole registry exists to prevent.
+    /// </summary>
     [Fact]
     public void TheDigitsFollowTheRailOrder()
     {
@@ -56,7 +60,8 @@ public sealed class ActionRegistryTests
         {
             (ShellPage.Overview, Key.D1), (ShellPage.Calls, Key.D2), (ShellPage.Contacts, Key.D3),
             (ShellPage.Ledger, Key.D4), (ShellPage.Promises, Key.D5), (ShellPage.Calendar, Key.D6),
-            (ShellPage.Todo, Key.D7), (ShellPage.Ask, Key.D9), (ShellPage.Health, Key.D0),
+            (ShellPage.Todo, Key.D7), (ShellPage.Mirror, Key.D8),
+            (ShellPage.Ask, Key.D9), (ShellPage.Health, Key.D0),
         };
 
         foreach (var (page, key) in expected)
