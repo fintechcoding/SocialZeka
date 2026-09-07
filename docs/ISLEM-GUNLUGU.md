@@ -3200,3 +3200,53 @@ açılırı bunu **sözlükten gelen** bir metinle yapıyor, yani dil değiştir
 tutmuyor — planın "İngilizce bozar" hikâyesinin bugün gerçekten doğru olduğu tek yer burası.
 
 **Doğrulama.** 1478 C# testi (1473 geçti, 5 atlandı), üç ardışık koşumda da temiz.
+
+## 2026-09-07 — İki makine, tek kişi: ekranlar
+
+`d752002` + `b6e41dc`. Çekirdek sabahleyin girmişti ama hiçbiri görünmüyordu. Üç ekran.
+
+**Arşivin künyesi**, Sağlık → Veriler'in başında, düğmelerin üstünde. Bu arşivin adını kullanıcı
+yazıyor, başka hiçbir şey yazmıyor. Yanında boyutu, şema sürümü ve son yedeğin ne zaman
+alındığı. İkiz tanınıyorsa ayrı bir blok: hangi makine, ne zaman buraya aktarıldı, kaç gün önce,
+ve **"o günden sonra orada ne olduğunu bilmiyorum"**. Künyesi olmayan bir yedekte "yedeğin ne
+zaman yazıldığı bilinmiyor" yazıyor — içe aktarma günü oraya yazılmıyor. Tek bilgisayar kullanan
+biri ikiz bloğunu ve getirilmeyenler kartını **hiç görmüyor**; boş değil, yok.
+
+**Önizleme**, dosya seçilir seçilmez ve hiçbir şey birleşmeden. Kimin yedeği, ne zaman yazılmış,
+kaç görüşme, **sesi var mı** — "ses kayıtları YOK, bu görüşmeler burada dinlenemez ve yeniden
+dökülemez" diye açıkça — ve şema sürümü, seninkiyle yan yana. Künye yoksa "kaynak bilinmiyor" ve
+"dosya bozuk değil". Daha yeni bir sürümden geliyorsa reddedilmiyor: hangi sütunların geçmeyeceği
+söylenip yine de sunuluyor. Eski kör onay kutusu kalktı, yerine bu geçti.
+
+**Getirilmeyenler penceresi.** Her satır türünü, kimin ve ne zaman olduğunu, alıntısını, sonra
+**BURADA** ve **ÖTEKİNDE** diye iki eşit sütunu gösteriyor. Üç cevap: ötekini al, burada kalsın,
+ikisi de tut. Geri alma ortak şeride bağlı ve geri almak yalnız değeri döndürmüyor, **soruyu da
+yeniden açıyor**.
+
+**"İkisi de tut" her tür için sunulmuyor, ve sunulmadığı yerde sebebi yazılı.** Not için iki
+paragraf demek, mantıklı. Etiket için sunulmuyor: bir etiket ya vardır ya yoktur, ikisini tutmak
+ötekini almakla aynı şey olurdu. Söz kararı için sunulmuyor: bir söz hem tutulmuş hem
+tutulmamış olamaz. Doğum günü, fotoğraf, pano kartı ve kulak teyidi için de aynı sebeple yok.
+**Yapılamayan bir cevabın düğmesi hiç çizilmiyor** ve satır neden yapılamadığını cümleyle
+söylüyor.
+
+Makine satırları kelimeye çevriliyor: `durum=1 · susturuldu=0 · tarih=-` yerine "tutuldu".
+
+**Fotoğraflar artık yedeğe giriyor** ve ses anahtarının arkasında değil, her zaman — çünkü her
+fotoğraf zaten girişte 512 piksele küçültülüyor, boyut argümanı yok. İçe aktarma geldiği adla
+sahipleniyor ve burada tutulmuş bir adı asla ezmiyor. Eski bir yedekte fotoğraf klasörü hiç yok
+ve o durumda içe aktarma eskisi gibi davranıyor.
+
+**Ölçü tutmadı ve ajan bunu dürüstçe bildirdi.** Plan tek yönlü aktarımı 13 tıktan 6'ya indirmeyi
+istiyordu; **10'a indi**. Klasör hatırlanıyor ve dosya adı öneriliyor, iki dosya penceresi tek
+tıka indi. Kalan onun dördü iki makinede ekrana ulaşmak, biri parola teklifi, biri Kaydet. Eşiği
+kapatacak iki şey (Veriler sekmesinin hatırlanması, parola teklifinin kutu yerine kart tercihi
+olması) ayrı madde olarak yazıldı — ikisi de arayüz kararı.
+
+**Doğrulama.** 1488 C# testi (1483 geçti, 5 atlandı), iki ardışık koşumda aynı. On mutasyon,
+sekizi tam kendi testini öldürdü, ikisi bir de çekirdeğin testini — aynı davranışın öteki
+yüzünden görünüşü, kaçırma değil.
+
+**Bulunan ama düzeltilmeyen:** getirilemeyen satır alıntıyı saklıyor ama sözün yönünü, teyidin
+milisaniyesini ve önerinin metnini saklamıyor; bir görüşmede aynı sözleri taşıyan iki satır varsa
+"ötekini al" reddediliyor. Çekirdeğin saklama biçimini değiştirmek yerine etrafından dolaşıldı.

@@ -1549,12 +1549,13 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   değişiklik yayınıydı: kendi tazelemesini sayan bir test sınıfı, paralel koşan başka bir
   sınıfın verdiği kararları da sayıyordu. Yayına dokunan beş sınıf tek koleksiyona alındı;
   ölçüm 18 koşumda 4 kırılmadan 12 koşumda 0'a indi.
-- [ ] **K9-KILITLI — Bütünlük sözleşmesinin dört ihlali işaretleme tarafında.** `callwindow.gizle`,
-  `contactspage.gizle`, `overviewpage.gizle` adları "gizle" ama değerleri "Reddet"; her biri aynı
-  sayfadaki bir `*.reddet` anahtarının kopyası, çözüm işaretlemeyi ona yöneltip eskisini silmek.
-  Dördüncüsü `settingswindow.acik` ile `promisespage.acik` çakışması: biri açık tema, biri açık
-  söz; İngilizcede tek karşılık ikisine birden hizmet etmiyor, ayarlardaki anahtar yeniden
-  adlandırılmalı.
+- [ ] **K9-KILITLI — Dört ihlalin biri kaldı.** Üçü kapandı (7 Eylül, `d39b8a0`):
+  `callwindow.gizle` aynı sayfadaki `callwindow.reddet`in birebir kopyasıydı, silindi;
+  `contactspage.gizle` adıyla anılsın diye `contactspage.reddet` oldu; ışık temasının
+  "Açık"ı `settingswindow.acik-tema` adını aldı ve K9'un eşadlı istisnası tamamen kalktı.
+  **Kalan:** `overviewpage.gizle` — adı "gizle", değeri "Reddet". Anahtar
+  `OverviewPage.xaml` içinde yazılı ve o dosyayı Ç2 yeniden düzenliyor; yarışa girilmedi.
+  Çözüm tek jeton: işaretlemeyi `overviewpage.reddet`e yöneltip eskisini silmek.
 - [x] **FOTO-YEDEK — Kişi fotoğrafları yedeğe hiç girmiyor** — **BİTTİ** (7 Eylül, Paket D ekran).
   Fotoğraflar artık arşivin dördüncü ön eki: `photos/`, ses anahtarının ARKASINDA değil, her zaman
   (her fotoğraf girerken 512 piksele küçültülüyor, yani boyut gerekçesi yok). İçe aktarma geldiği
