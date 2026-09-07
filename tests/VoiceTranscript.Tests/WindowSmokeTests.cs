@@ -193,6 +193,13 @@ public class WindowSmokeTests
                 // converter, so an invalid SymbolRegular in the choices would fail here.
                 Build("Etiketler", () => new TagManagerWindow(repository), failures);
 
+                // The same, for circles — two panels, a dropdown on every person row, and both
+                // lists read from the database on construction, so the queries behind the window
+                // are proved here along with the markup. Seeded first so the rows are really
+                // rendered: an empty ItemsControl builds cleanly and proves nothing.
+                repository.SeedDefaultCircles();
+                Build("Çevreler", () => new CirclesWindow(repository), failures);
+
                 // Seeded first, so the three lists are really populated and every row template is
                 // really rendered — an empty ItemsControl would build cleanly and prove nothing.
                 VoiceTranscript.Core.Analysis.HabitLexicon.Seed(repository);

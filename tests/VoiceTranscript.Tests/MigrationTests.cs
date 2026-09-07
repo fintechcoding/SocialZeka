@@ -766,6 +766,121 @@ public sealed class MigrationTests : IDisposable
     }
 
     /// <summary>
+    /// v23: circles — the user's own groups of people, and which one each person is in.
+    ///
+    /// Both tables are built here in their pre-v23 shape, and contact_profile is the reason. The
+    /// baseline creates every table it does not FIND, in its current shape, before these steps
+    /// run; on a database that already has contact_profile it walks straight past, so the new
+    /// column can only arrive from the step's ALTER. Without the table below the assertion would
+    /// be reading a column the baseline had just created and could not fail — the whole point of
+    /// the finding recorded as GOC-ADIMI-OLU.
+    ///
+    /// Red when an upgraded database cannot say which circles exist or who is in them; when the
+    /// circle's identity stops being the folded word (an INTEGER id would need a translation
+    /// table between the user's two computers, which is why <c>tag_def</c> never used one); or
+    /// when circle_folded stops being nullable. NULL there means "in no circle", which is a place
+    /// with a tab of its own rather than a gap, and nothing is backfilled: nobody has yet said
+    /// which people are family, and a migration that guessed would be the application filing the
+    /// user's relatives for them.
+    /// </summary>
+    [Fact]
+    public void TheTwentyThirdStepAddsTheCirclesAndWhoIsInThem()
+    {
+        using (var old = new Database(_path).Open())
+        {
+            using var create = old.CreateCommand();
+            create.CommandText =
+                """
+                CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                INSERT INTO setting VALUES ('schema_version', '22');
+
+                CREATE TABLE contact (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+                    name_normalised TEXT NOT NULL, app INTEGER NOT NULL DEFAULT 0, handle TEXT,
+                    created_at TEXT NOT NULL, last_call_at TEXT,
+                    call_count INTEGER NOT NULL DEFAULT 0, notes TEXT);
+
+                -- The pre-v23 card: no circle column anywhere on it.
+                CREATE TABLE contact_profile (
+                    contact_id INTEGER PRIMARY KEY REFERENCES contact(id) ON DELETE CASCADE,
+                    photo_file TEXT,
+                    birth_date TEXT,
+                    updated_at TEXT NOT NULL);
+
+                INSERT INTO contact (id, name, name_normalised, created_at)
+                     VALUES (1, 'Uliana', 'uliana', '2026-06-01T09:00:00+00:00');
+
+                INSERT INTO contact_profile (contact_id, birth_date, updated_at)
+                     VALUES (1, '1990-03-14', '2026-06-01T09:00:00+00:00');
+                """;
+            create.ExecuteNonQuery();
+        }
+
+        new Database(_path).Migrate();
+
+        Assert.True(ColumnExistsIn("contact_profile", "circle_folded"));
+
+        foreach (var column in new[] { "circle_folded", "circle", "icon", "color", "position" })
+            Assert.True(ColumnExistsIn("contact_circle", column), column);
+
+        using var connection = new Database(_path).Open();
+
+        // Nothing is invented for a database that already exists: no circles, and the person who
+        // was already here is in none of them.
+        using (var empty = connection.CreateCommand())
+        {
+            empty.CommandText =
+                """
+                SELECT (SELECT COUNT(*) FROM contact_circle)
+                     + (SELECT COUNT(*) FROM contact_profile WHERE circle_folded IS NOT NULL);
+                """;
+            Assert.Equal(0L, empty.ExecuteScalar());
+        }
+
+        // What the card already held is untouched by the upgrade.
+        using (var kept = connection.CreateCommand())
+        {
+            kept.CommandText = "SELECT birth_date FROM contact_profile WHERE contact_id = 1;";
+            Assert.Equal("1990-03-14", kept.ExecuteScalar());
+        }
+
+        // "In no circle" has to stay sayable, so the column is nullable and undefaulted.
+        using (var nullable = connection.CreateCommand())
+        {
+            nullable.CommandText =
+                "SELECT \"notnull\" FROM pragma_table_info('contact_profile') WHERE name = 'circle_folded';";
+            Assert.Equal(0L, nullable.ExecuteScalar());
+
+            using var blank = connection.CreateCommand();
+            blank.CommandText =
+                "SELECT IFNULL(dflt_value, '') FROM pragma_table_info('contact_profile') WHERE name = 'circle_folded';";
+            Assert.Equal("", blank.ExecuteScalar());
+        }
+
+        // The identity is the folded word and it is the primary key: the same word twice is one
+        // circle, which is what lets two computers agree without translating ids.
+        using (var twice = connection.CreateCommand())
+        {
+            twice.CommandText =
+                """
+                INSERT INTO contact_circle (circle_folded, circle, icon, color) VALUES ('aile', 'Aile', 'Home24', '#8764B8');
+                INSERT INTO contact_circle (circle_folded, circle, icon, color) VALUES ('aile', 'aile', 'Home24', '#107C10');
+                """;
+            Assert.ThrowsAny<SqliteException>(() => twice.ExecuteNonQuery());
+        }
+
+        // And no index over the new column, in either half. This test is what found out why: the
+        // baseline runs BEFORE the steps, so an index declared there would be created over a
+        // column this ALTER has not added yet and every existing database would fail to open.
+        // Red here means somebody added one back and only fresh installations would survive it.
+        using (var index = connection.CreateCommand())
+        {
+            index.CommandText =
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'ix_profile_circle';";
+            Assert.Equal(0L, index.ExecuteScalar());
+        }
+    }
+
+    /// <summary>
     /// The general form of the test above: every table, every column, compared between a
     /// database that walked the steps and one born fresh. The spot checks catch the column
     /// somebody thought to assert; this catches the one they forgot — a column in the step but

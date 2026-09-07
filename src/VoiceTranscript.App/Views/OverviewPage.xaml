@@ -171,8 +171,15 @@
                 </Grid>
             </Border>
 
-            <!-- The archive. -->
-            <StackPanel Visibility="{Binding Recent.Count, Converter={StaticResource CountToVisibility}}">
+            <!--
+                The archive.
+
+                Shown whenever there is anything recorded at all — NOT when the list under the
+                strip happens to be empty. Tying this to the visible rows would take the strip
+                away with them, and a tab that leaves the screen when it turns out to be empty is
+                a way in with no way back.
+            -->
+            <StackPanel Visibility="{Binding HasAnyData, Converter={StaticResource BoolToVisibility}}">
                 <Grid Margin="0,18,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -184,6 +191,81 @@
                                         Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="Calls" />
                 </Grid>
+
+                <!--
+                    The circle strip.
+
+                    It narrows THIS LIST and nothing else on the page: the four figures, the
+                    attention cards, the overdue line and the whole right-hand column are the same
+                    on every tab. A number that shrinks because of a filter tells somebody their
+                    archive shrank.
+
+                    Every count is of the whole archive, before the filter — "Aile 41" while the
+                    list under it shows twelve. And the way to define circles stays on screen even
+                    when there are none left to choose between, which is the only state from which
+                    the user could otherwise not get back.
+                -->
+                <Grid Margin="0,6,0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ItemsControl Grid.Column="0" ItemsSource="{Binding Circles}" VerticalAlignment="Center"
+                                  Visibility="{Binding CirclesAreAStrip, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ui:Button Margin="0,0,6,4" Padding="10,3" FontSize="{StaticResource TextCaption}"
+                                           Appearance="{Binding IsSelected, Converter={StaticResource SelectedAppearance}}"
+                                           Command="{Binding DataContext.SelectCircleCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                           CommandParameter="{Binding}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                 Fill="{Binding Color, Converter={StaticResource HexBrush}}"
+                                                 Visibility="{Binding HasColor, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Count}" Margin="6,0,0,0" Opacity="0.75"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ui:Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Past four circles a strip wraps onto a second line and stops reading as
+                         tabs. The same tabs, as one dropdown. -->
+                    <ComboBox Grid.Column="0" HorizontalAlignment="Left" MinWidth="180" Margin="0,0,0,4"
+                              ItemsSource="{Binding Circles}" SelectedItem="{Binding SelectedCircle}"
+                              Visibility="{Binding CirclesAreADropdown, Converter={StaticResource BoolToVisibility}}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"
+                                             Fill="{Binding Color, Converter={StaticResource HexBrush}}"
+                                             Visibility="{Binding HasColor, Converter={StaticResource BoolToVisibility}}" />
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Count}" Margin="6,0,0,0" Opacity="0.75"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <ui:HyperlinkButton Grid.Column="1" Content="{loc:T overviewpage.cevreleri-duzenle}"
+                                        Padding="6,0" VerticalAlignment="Center" Click="EditCircles_Click" />
+                </Grid>
+
+                <!-- A circle with nothing in it says so, and the way back is the tab beside it. -->
+                <StackPanel Style="{StaticResource EmptyState}" Margin="24,24,24,16"
+                            Visibility="{Binding Recent.Count, Converter={StaticResource CountToVisibility}, ConverterParameter=invert}">
+                    <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T overviewpage.bu-cevrede-gorusme-yok-baslik}" />
+                    <TextBlock Style="{StaticResource EmptyBody}" Text="{loc:T overviewpage.bu-cevrede-gorusme-yok}" />
+                </StackPanel>
 
                 <ItemsControl ItemsSource="{Binding Recent}">
                     <ItemsControl.ItemTemplate>
@@ -277,19 +359,30 @@
                                     </Border>
 
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"
-                                                   FontSize="{StaticResource TextBody}">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding NeedsLabel}" Value="True">
-                                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                            <Setter Property="FontWeight" Value="Normal" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- The circle, as an eight-pixel dot rather than a
+                                                 second pill: this list is built without
+                                                 virtualisation and rebuilt on every keystroke of
+                                                 the search box, so a row that grows another
+                                                 bordered, padded control grows it twelve times. -->
+                                            <Ellipse Width="8" Height="8" Margin="0,0,7,0" VerticalAlignment="Center"
+                                                     Fill="{Binding CircleColor, Converter={StaticResource HexBrush}}"
+                                                     ToolTip="{Binding CircleName}"
+                                                     Visibility="{Binding HasCircle, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"
+                                                       FontSize="{StaticResource TextBody}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding NeedsLabel}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                <Setter Property="FontWeight" Value="Normal" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                                             <TextBlock Style="{StaticResource Caption}"
                                                        Text="{Binding StartedAt, Converter={StaticResource RelativeDate}}" />

@@ -1,0 +1,201 @@
+<ui:FluentWindow x:Class="VoiceTranscript.App.Views.CirclesWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:loc="clr-namespace:VoiceTranscript.App"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="{loc:T circleswindow.cevreler}"
+                 Width="900" Height="620" MinWidth="720" MinHeight="460"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica">
+
+    <!--
+        Circles: the user's own groups of people, and who is in them.
+
+        Two panels because there are two different jobs, and one of them is done once. On the left
+        the vocabulary — a name, an icon, a colour — which is edited like the tag wardrobe and
+        written when the window is saved, because a circle's identity IS its spelling and writing
+        every keystroke would make a new circle per letter. On the right the filing, which is
+        written the moment it is chosen: no Save button, the same behaviour as a birth date or a
+        note. The caption over each panel says which of the two it is.
+
+        People are ordered by how much the user talks to them, so the first two clicks do two
+        thirds of the work.
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="{loc:T circleswindow.cevreler}" ShowMinimize="False" ShowMaximize="False" />
+
+        <TextBlock Grid.Row="1" Margin="20,8,20,10" TextWrapping="Wrap"
+                   Style="{StaticResource Caption}"
+                   Text="{loc:T circleswindow.cevre-senin-kendi-kelimen}" />
+
+        <Grid Grid.Row="2" Margin="20,0,20,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ================= the vocabulary ================= -->
+            <Grid Grid.Column="0" Margin="0,0,14,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="{loc:T circleswindow.cevreler-baslik}" Style="{StaticResource GroupHeader}" />
+
+                <Border Grid.Row="1" Margin="0,6,0,0" CornerRadius="6" BorderThickness="1"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="Rows" Margin="10">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- The circle as it will look on a row, updating as you edit. -->
+                                        <Border Grid.Column="0" CornerRadius="10" Padding="7,3"
+                                                Margin="0,0,8,0" VerticalAlignment="Center"
+                                                Background="{Binding Color, Converter={StaticResource HexBrush}}">
+                                            <ui:SymbolIcon Symbol="{Binding Icon, Converter={StaticResource SymbolFromName}}"
+                                                           FontSize="13" Foreground="White" />
+                                        </Border>
+
+                                        <ui:TextBox Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                    PlaceholderText="{loc:T circleswindow.cevre-adi}" Margin="0,0,6,0"
+                                                    VerticalAlignment="Center" />
+
+                                        <ComboBox Grid.Column="2" Width="70" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding Icons}" SelectedItem="{Binding Icon}"
+                                                  ToolTip="{loc:T circleswindow.simge}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <ui:SymbolIcon Symbol="{Binding Converter={StaticResource SymbolFromName}}"
+                                                                   FontSize="15" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+
+                                        <ComboBox Grid.Column="3" Width="60" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding Colors}" SelectedItem="{Binding Color}"
+                                                  ToolTip="{loc:T circleswindow.renk}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Width="14" Height="14" CornerRadius="3"
+                                                            Background="{Binding Converter={StaticResource HexBrush}}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+
+                                        <ui:Button Grid.Column="4" Appearance="Transparent" Padding="6,4"
+                                                   Click="RemoveCircle_Click" ToolTip="{loc:T circleswindow.tanimi-sil}">
+                                            <ui:Button.Icon>
+                                                <ui:SymbolIcon Symbol="Delete24" />
+                                            </ui:Button.Icon>
+                                        </ui:Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                    <ui:Button Content="{loc:T circleswindow.yeni-cevre}" HorizontalAlignment="Left"
+                               Click="AddCircle_Click">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="Add24" />
+                        </ui:Button.Icon>
+                    </ui:Button>
+
+                    <!-- Said plainly: the left panel waits for the button, the right one does not. -->
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Text="{loc:T circleswindow.adlar-kaydete-basinca-yazilir}" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Right">
+                        <ui:Button Content="{loc:T circleswindow.vazgec}" Margin="0,0,8,0" IsCancel="True"
+                                   Click="Cancel_Click" />
+                        <ui:Button Content="{loc:T circleswindow.kaydet}" Appearance="Primary" IsDefault="True"
+                                   Click="Save_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <!-- ================= who is in them ================= -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="{loc:T circleswindow.kisiler-cok-konusulandan-aza}"
+                           Style="{StaticResource GroupHeader}" />
+
+                <Border Grid.Row="1" Margin="0,6,0,0" CornerRadius="6" BorderThickness="1"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="People" Margin="10">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0" Style="{StaticResource Avatar}" Margin="0,0,10,0"
+                                                Background="{Binding Name, Converter={StaticResource NameBrush}}">
+                                            <TextBlock Style="{StaticResource AvatarText}"
+                                                       Text="{Binding Name, Converter={StaticResource Initials}}" />
+                                        </Border>
+
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+
+                                        <TextBlock Grid.Column="2" Text="{Binding CallLine}" Margin="10,0,12,0"
+                                                   VerticalAlignment="Center" Style="{StaticResource Caption}" />
+
+                                        <ComboBox Grid.Column="3" Width="170" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding Choices}" SelectedItem="{Binding Choice}"
+                                                  SelectionChanged="Assign_Changed">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                 Fill="{Binding Color, Converter={StaticResource HexBrush}}"
+                                                                 Visibility="{Binding HasColor, Converter={StaticResource BoolToVisibility}}" />
+                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- "8 / 9 kişi bir çevrede": the coverage measure, on the screen that moves it. -->
+                <TextBlock x:Name="CoverageLine" Grid.Row="2" Margin="0,8,0,0"
+                           Style="{StaticResource Caption}" />
+            </Grid>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

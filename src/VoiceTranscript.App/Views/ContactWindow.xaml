@@ -645,6 +645,29 @@
                                        VerticalAlignment="Center" Margin="12,0,0,0" />
                         </StackPanel>
 
+                        <!-- The circle, under the birth date and on the same terms: the user's own
+                             word for a group of people, written the moment it is chosen. -->
+                        <TextBlock Text="{loc:T contactwindow.cevre}" Style="{StaticResource GroupHeader}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,18">
+                            <ComboBox Width="200" ItemsSource="{Binding CircleChoices}"
+                                      SelectedItem="{Binding PersonCircle}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                     Fill="{Binding Color, Converter={StaticResource HexBrush}}"
+                                                     Visibility="{Binding HasColor, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <ui:HyperlinkButton Content="{loc:T contactwindow.cevreleri-duzenle}" Margin="8,0,0,0"
+                                                VerticalAlignment="Center" Click="EditCircles_Click" />
+                        </StackPanel>
+
                         <TextBlock Text="{loc:T contactwindow.bilgiler}" Style="{StaticResource GroupHeader}" />
 
                         <ItemsControl ItemsSource="{Binding Fields}" Margin="0,4,0,0">

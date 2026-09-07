@@ -17,7 +17,7 @@ namespace VoiceTranscript.Core.Storage;
 /// </summary>
 public static class Schema
 {
-    public const int Version = 22;
+    public const int Version = 23;
 
     public static readonly string[] Statements =
     [
@@ -508,6 +508,29 @@ public static class Schema
         );
         """,
 
+        // The user's own groups of people: "Aile", "İş". tag_def's shape to the letter, because
+        // it is the same kind of thing — a name the user chose, an appearance, and an identity
+        // that is the folded spelling rather than a number.
+        //
+        // THE IDENTITY IS TEXT AND NOT AN INTEGER ID on purpose. Ids differ between two machines,
+        // so an archive merge would need a map_circle translation table; a folded word is already
+        // the same word on both computers. call_tag and tag_def solved this years ago and this is
+        // the copy, not an invention.
+        //
+        // USER DATA. The pipeline may never write a row here or put anybody in a circle — a
+        // circle is the user's word for a group of people, never the application's opinion about
+        // them. Deleting a definition leaves every assignment where it is, exactly as deleting a
+        // tag definition leaves the taggings: the people come back the moment the word does.
+        """
+        CREATE TABLE IF NOT EXISTS contact_circle (
+            circle_folded TEXT    PRIMARY KEY,
+            circle        TEXT    NOT NULL,
+            icon          TEXT    NOT NULL,
+            color         TEXT    NOT NULL,
+            position      INTEGER NOT NULL DEFAULT 0
+        );
+        """,
+
         // What the user knows about a person: photo, birth date, and free-form labelled facts.
         //
         // USER-ENTERED ONLY. Nothing in the analysis pipeline may write these tables. The ledger
@@ -525,6 +548,21 @@ public static class Schema
             contact_id INTEGER PRIMARY KEY REFERENCES contact(id) ON DELETE CASCADE,
             photo_file TEXT,
             birth_date TEXT,
+
+            -- Which circle the user put this person in; NULL means none, and none is a place
+            -- rather than a gap — "Çevresiz" is a tab of its own and everybody starts there.
+            -- A fixed column rather than a contact_field row because the application computes
+            -- with it: the first screen filters on it in SQL, twelve rows at a time.
+            --
+            -- DELIBERATELY UNINDEXED. The plan asked for ix_profile_circle and it cannot exist:
+            -- this baseline runs BEFORE the migration steps, so on every database that already
+            -- has contact_profile the index would be created over a column the step has not
+            -- added yet, and the application would fail to start. An index that can only exist
+            -- on a fresh installation is a shape difference between two users' databases, which
+            -- is the one thing this file may not have. It costs nothing worth measuring: the
+            -- table holds one row per person and every query reaches it by its primary key.
+            circle_folded TEXT,
+
             updated_at TEXT NOT NULL
         );
         """,

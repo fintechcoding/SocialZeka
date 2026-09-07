@@ -407,6 +407,10 @@ public partial class App : Application
         // Tag looks, read once: every pill on every list draws from this cache, not from disk.
         Services.TagPalette.Load(Repository);
 
+        // The two starting circles — Aile and İş, chosen by the user themselves — written only
+        // into an empty table, so a circle they deleted never comes back on the next start.
+        Repository.SeedDefaultCircles();
+
         // The habit dictionary's starter rows, on the same terms as the starter tags: written
         // only into an empty table, so words the user deleted never come back on the next start.
         // Seed itself logs how many rows it wrote — a count and nothing else; not one word of the

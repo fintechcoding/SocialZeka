@@ -301,6 +301,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
         _loadingProfile = true;
         BirthDatePick = profile?.BirthDate?.ToDateTime(TimeOnly.MinValue);
+        LoadCircles();
         _loadingProfile = false;
 
         BirthdayLine = BirthdayLineFor(profile?.BirthDate, DateOnly.FromDateTime(DateTime.Today));
@@ -310,6 +311,56 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
         OnPropertyChanged(nameof(HasPhoto));
         OnPropertyChanged(nameof(HasFields));
+    }
+
+    /// <summary>
+    /// Which circle this person is in — on the card, beside the birth date, in the same
+    /// hand-written company.
+    ///
+    /// Under the "bu bilgileri sen girersin" rule with everything else on this tab: the pipeline
+    /// never puts anybody in a circle. "Çevresiz" is offered as a choice rather than as a blank,
+    /// because being in no circle is a place a person can be put back into.
+    /// </summary>
+    public ObservableCollection<CircleChoice> CircleChoices { get; } = [];
+
+    /// <summary>
+    /// The circle chosen for this person. Written the moment it changes — no Save button, the
+    /// same as the birth date and the note.
+    /// </summary>
+    [ObservableProperty] private CircleChoice? _personCircle;
+
+    partial void OnPersonCircleChanged(CircleChoice? value)
+    {
+        // The same load guard the birth date needs: LoadProfile sets this from the database, and
+        // without it every window-open would write the value straight back and stamp updated_at
+        // as though somebody had edited something.
+        if (!_loadingProfile) _repository.SetContactCircle(ContactId, value?.Folded);
+    }
+
+    private void LoadCircles()
+    {
+        var current = _repository.CirclesByContact().GetValueOrDefault(ContactId);
+
+        var folded = current is null
+            ? null
+            : Core.Text.TurkishText.NormalizeForSearch(current.Name.Trim());
+
+        CircleChoices.Clear();
+        CircleChoices.Add(new CircleChoice(
+            CircleTabKind.Uncircled, Localisation.T("contactwindow.cevresiz"), null, ""));
+
+        foreach (var circle in _repository.Circles())
+        {
+            CircleChoices.Add(new CircleChoice(
+                CircleTabKind.Circle,
+                circle.Name,
+                Core.Text.TurkishText.NormalizeForSearch(circle.Name.Trim()),
+                circle.Color));
+        }
+
+        PersonCircle = CircleChoices.FirstOrDefault(
+                           c => string.Equals(c.Folded, folded, StringComparison.Ordinal))
+                       ?? CircleChoices[0];
     }
 
     /// <summary>All arithmetic from the user's own entry — the application infers nothing.</summary>

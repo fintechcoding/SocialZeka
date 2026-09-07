@@ -38,6 +38,20 @@ public partial class OverviewPage
         CallWindow.Show(Window.GetWindow(this), callId);
     }
 
+    /// <summary>
+    /// The circles: what they are called, and who is in them.
+    ///
+    /// Reachable from here even when there is not a single circle left to choose between —
+    /// deleting the last one must never also delete the way to make another.
+    /// </summary>
+    private void EditCircles_Click(object sender, RoutedEventArgs e)
+    {
+        new CirclesWindow(App.Repository) { Owner = Window.GetWindow(this) }.ShowDialog();
+
+        // Both the counts on the strip and the dots on the rows come from what that window wrote.
+        ViewModel?.Refresh();
+    }
+
     // ---- the panel: drag in, drag around, take off --------------------------
     //
     // A drag begins only after the pointer has moved a real distance with the button down, so a
