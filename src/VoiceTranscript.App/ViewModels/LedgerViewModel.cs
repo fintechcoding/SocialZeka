@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -213,11 +213,10 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
 
     /// <summary>
     /// What was just done, said in-page rather than as a toast, and undoable for as long as the
-    /// line is on screen. Null when nothing is being said.
+    /// line is on screen — the shared slot, shown by the shared strip, as on every other screen
+    /// that rules on a row.
     /// </summary>
-    [ObservableProperty] private string? _notice;
-
-    private PendingUndo? _pending;
+    public UndoSlot Undo { get; } = new();
 
     /// <summary>Counts for the filter chips, so the numbers are visible before clicking.</summary>
     [ObservableProperty] private int _changeCount;
@@ -227,9 +226,6 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
     public bool HasEntries => Entries.Count > 0;
 
     public bool HasAnything => ChangeCount + FlagCount > 0;
-
-    /// <summary>True while the last ruling can still be taken back.</summary>
-    public bool CanUndo => _pending is not null;
 
     public int SelectedCount => Entries.Count(e => e.IsSelected);
 
@@ -465,14 +461,14 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
             // A changed figure is derived from the claims rather than stored as its own row,
             // so there is nothing to mark. Saying so is better than a button that silently
             // does nothing — and the button is not drawn on those rows.
-            Say(Localisation.T("ledgerpage.degisen-rakamlar-tek-tek-reddedilemez"));
+            Undo.Say(Localisation.T("ledgerpage.degisen-rakamlar-tek-tek-reddedilemez"));
             return;
         }
 
         Entries.Remove(entry);
         OnPropertyChanged(nameof(HasEntries));
 
-        Offer(undo);
+        Undo.Offer(undo);
     }
 
     /// <summary>Lifts a tombstone — the Reddedilenler chip's verb.</summary>
@@ -486,7 +482,7 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
         Entries.Remove(entry);
         OnPropertyChanged(nameof(HasEntries));
 
-        Offer(undo);
+        Undo.Offer(undo);
     }
 
     private bool HasSelection => SelectedCount > 0;
@@ -504,47 +500,10 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
         // to undo that — the whole ledger read twice for one click.
         IsSelecting = false;
 
-        Offer(LedgerActions.DismissMany(
+        Undo.Offer(LedgerActions.DismissMany(
             repository,
             [],
             picked.Where(e => e.Flag is not null).Select(e => e.SourceId).ToList()));
-    }
-
-    /// <summary>Takes the last ruling back, whatever it was.</summary>
-    [RelayCommand]
-    private void Undo()
-    {
-        if (_pending is not { } pending) return;
-
-        // Same order, same reason: the notice comes down first, then the inverse is written and
-        // announced, and the single refresh that follows sees the page as it will be.
-        _pending = null;
-        Notice = null;
-        OnPropertyChanged(nameof(CanUndo));
-
-        pending.Undo();
-    }
-
-    [RelayCommand]
-    private void ClearNotice()
-    {
-        _pending = null;
-        Notice = null;
-        OnPropertyChanged(nameof(CanUndo));
-    }
-
-    private void Offer(PendingUndo undo)
-    {
-        _pending = undo;
-        Notice = undo.Sentence;
-        OnPropertyChanged(nameof(CanUndo));
-    }
-
-    private void Say(string sentence)
-    {
-        _pending = null;
-        Notice = sentence;
-        OnPropertyChanged(nameof(CanUndo));
     }
 
     /// <summary>
@@ -565,7 +524,7 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
 
         if (swept.Total == 0)
         {
-            Say(Localisation.T("ledgerpage.temizlenecek-bir-sey-yok"));
+            Undo.Say(Localisation.T("ledgerpage.temizlenecek-bir-sey-yok"));
             return;
         }
 
@@ -574,7 +533,7 @@ public sealed partial class LedgerViewModel(Repository repository) : ObservableO
         // re-read this one first and then announce, which read the whole ledger twice.
         LedgerActions.NotifyChanged();
 
-        Say(string.Format(Localisation.T("ledgerpage.n-kayit-kaldirildi"), swept.Total, swept.Hollow, swept.Duplicates));
+        Undo.Say(string.Format(Localisation.T("ledgerpage.n-kayit-kaldirildi"), swept.Total, swept.Hollow, swept.Duplicates));
     }
 
     [RelayCommand]

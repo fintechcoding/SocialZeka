@@ -12,6 +12,7 @@ namespace VoiceTranscript.Tests;
 /// chance; a conditional promise is never overdue; a dismissed one is a tombstone under its own
 /// chip. Each of these was a way the old ledger chips could mislead.
 /// </summary>
+[Collection(ChangeBroadcastCollection.Name)]
 public sealed class PromisesPageTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"vt-sozler-{Guid.NewGuid():N}");
@@ -168,7 +169,7 @@ public sealed class PromisesPageTests : IDisposable
 
         Assert.Empty(vm.Theirs);
         Assert.Equal(1, vm.DismissedCount);
-        Assert.NotNull(vm.Notice);
+        Assert.NotNull(vm.Undo.Notice);
 
         vm.Filter = PromiseFilter.Dismissed;
         var card = Assert.Single(vm.Theirs);
@@ -188,14 +189,14 @@ public sealed class PromisesPageTests : IDisposable
 
         Assert.Empty(vm.Mine);
         Assert.Equal(1, vm.KeptCount);
-        Assert.True(vm.CanUndo);
+        Assert.True(vm.Undo.CanUndo);
         Assert.Contains("tutuldu", vm.MineTally, StringComparison.OrdinalIgnoreCase);
 
-        Ruling(vm, () => vm.UndoCommand.Execute(null));
+        Ruling(vm, () => vm.Undo.UndoCommand.Execute(null));
 
         Assert.Single(vm.Mine);
         Assert.Equal(0, vm.KeptCount);
-        Assert.False(vm.CanUndo);
+        Assert.False(vm.Undo.CanUndo);
     }
 
     /// <summary>Goes red when postponing loses the spoken date or fails to lift the overdue mark.</summary>
@@ -392,8 +393,8 @@ public sealed class PromisesPageTests : IDisposable
         Assert.True(silenced.Commitment.DismissedByUser);
 
         // And one "Geri al" puts the question back exactly as it was.
-        Assert.True(vm.CanUndo);
-        Ruling(vm, () => vm.UndoCommand.Execute(null));
+        Assert.True(vm.Undo.CanUndo);
+        Ruling(vm, () => vm.Undo.UndoCommand.Execute(null));
 
         var back = Assert.Single(vm.Mine);
         Assert.True(back.IsGrouped);
@@ -653,7 +654,7 @@ public sealed class PromisesPageTests : IDisposable
         Assert.Equal(CommitmentStatus.Fulfilled, stamped.Status);
         Assert.Equal(later, stamped.FulfilledByCallId);
 
-        vm.UndoCommand.Execute(null);
+        vm.Undo.UndoCommand.Execute(null);
 
         var reopened = _repo.PromiseLedger(includeClosed: true).Single(r => r.Commitment.Id == promise).Commitment;
         Assert.Equal(CommitmentStatus.Open, reopened.Status);
@@ -674,21 +675,21 @@ public sealed class PromisesPageTests : IDisposable
         var card = Assert.Single(vm.Theirs);
 
         // What PromisesPage does with what EditPromiseWindow hands back.
-        Ruling(vm, () => vm.Offer(VoiceTranscript.App.Services.LedgerActions.Edit(
+        Ruling(vm, () => vm.Undo.Offer(VoiceTranscript.App.Services.LedgerActions.Edit(
             _repo, card.Commitment, "Dilekçeyi kaymakamlığa iletmek", _today.AddDays(4))));
 
-        Assert.True(vm.CanUndo);
-        Assert.NotNull(vm.Notice);
+        Assert.True(vm.Undo.CanUndo);
+        Assert.NotNull(vm.Undo.Notice);
 
         var edited = Assert.Single(vm.Theirs);
         Assert.Equal("Dilekçeyi kaymakamlığa iletmek", edited.Obligation);
         Assert.True(edited.IsEdited);
 
-        Ruling(vm, () => vm.UndoCommand.Execute(null));
+        Ruling(vm, () => vm.Undo.UndoCommand.Execute(null));
 
         var back = _repo.PromiseLedger(includeClosed: true).Single(r => r.Commitment.Id == promise).Commitment;
         Assert.Null(back.UserObligation);
         Assert.Null(back.UserDeadlineDate);
-        Assert.False(vm.CanUndo);
+        Assert.False(vm.Undo.CanUndo);
     }
 }

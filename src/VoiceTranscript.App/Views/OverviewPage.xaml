@@ -1,4 +1,4 @@
-<UserControl x:Class="VoiceTranscript.App.Views.OverviewPage"
+﻿<UserControl x:Class="VoiceTranscript.App.Views.OverviewPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:VoiceTranscript.App"
@@ -607,9 +607,14 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <TextBlock Margin="12,10" Style="{StaticResource Secondary}" TextWrapping="Wrap"
-                                   Text="{loc:T overviewpage.buraya-surukle-asagidaki-gorusmelerden-tak}"
-                                   Visibility="{Binding HasBoard, Converter={StaticResource InverseBoolToVisibility}}" />
+                        <!-- The one list on this page the user fills by hand, so its empty state
+                             is the only instruction there is for how. -->
+                        <StackPanel Style="{StaticResource EmptyState}" Margin="12,18,12,14"
+                                    Visibility="{Binding HasBoard, Converter={StaticResource InverseBoolToVisibility}}">
+                            <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T overviewpage.pano-bos-baslik}" />
+                            <TextBlock Style="{StaticResource EmptyBody}"
+                                       Text="{loc:T overviewpage.buraya-surukle-asagidaki-gorusmelerden-tak}" />
+                        </StackPanel>
                     </StackPanel>
                   </Grid>
                 </Border>
@@ -734,12 +739,15 @@
                             </ItemsControl>
                         </StackPanel>
 
-                        <StackPanel Margin="8,24" HorizontalAlignment="Center"
+                        <!-- Built by hand once; it is the shared state now, with the heading it
+                             was missing. -->
+                        <StackPanel Style="{StaticResource EmptyState}" Margin="8,24,8,16"
                                     Visibility="{Binding TodayIsEmpty, Converter={StaticResource BoolToVisibility}}">
                             <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="28" HorizontalAlignment="Center"
+                                           Margin="0,0,0,10"
                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                            <TextBlock Style="{StaticResource Secondary}" Margin="0,8,0,0" TextWrapping="Wrap"
-                                       TextAlignment="Center"
+                            <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T overviewpage.bugun-bos-baslik}" />
+                            <TextBlock Style="{StaticResource EmptyBody}"
                                        Text="{loc:T overviewpage.bugun-icin-hatirlatma-yok-bir-gorusmeye-ya}" />
                         </StackPanel>
                     </StackPanel>

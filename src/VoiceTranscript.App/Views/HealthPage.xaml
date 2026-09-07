@@ -18,15 +18,31 @@
         same question at two levels — is the machinery set up, and is it getting through the work —
         so they belong on one screen with a tab between them.
     -->
-    <TabControl x:Name="Tabs" Margin="24,10,24,16" Padding="0,14,0,0" Style="{StaticResource SegmentedTabs}">
+    <Grid Margin="{StaticResource PadPage}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            The page names itself, not its first tab.
+
+            The title and the subtitle used to live inside "Sistem", so the page had no name at
+            all on the other two tabs and the inset was the TabControl's own hand-rolled margin
+            rather than the one every other page uses. Switching tabs is not navigation to
+            another page, and the heading should not come and go with it.
+        -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="{loc:T healthpage.durum}" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}"
+                       Text="{loc:T healthpage.bir-kaydedici-basariya-benzeyen-sekillerde}" />
+        </StackPanel>
+
+    <TabControl Grid.Row="1" x:Name="Tabs" Padding="0,6,0,0" Style="{StaticResource SegmentedTabs}">
 
         <TabItem Header="{loc:T healthpage.sistem}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4,8,24">
         <StackPanel MaxWidth="860" HorizontalAlignment="Left">
-
-            <TextBlock Text="{loc:T healthpage.durum}" Style="{StaticResource PageTitle}" />
-            <TextBlock Style="{StaticResource PageSubtitle}"
-                       Text="{loc:T healthpage.bir-kaydedici-basariya-benzeyen-sekillerde}" />
 
             <!-- Summary -->
             <Border Style="{StaticResource HeroCard}">
@@ -225,7 +241,10 @@
                         </TextBlock.Style>
                     </TextBlock>
 
-                    <Grid Margin="{StaticResource PadPage}">
+                    <!-- Indented to line up with the two rows above it. It used to borrow
+                         PadPage for this, which meant a row inside a card moved whenever the
+                         page inset was retuned. Same pixels, its own. -->
+                    <Grid Margin="24,4,24,16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -526,4 +545,5 @@
                 DataContext="{Binding DataContext.Processing, RelativeSource={RelativeSource AncestorType=Window}}" />
         </TabItem>
     </TabControl>
+    </Grid>
 </UserControl>

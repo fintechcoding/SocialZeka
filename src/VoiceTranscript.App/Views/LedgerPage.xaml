@@ -4,6 +4,7 @@
              xmlns:loc="clr-namespace:VoiceTranscript.App"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:controls="clr-namespace:VoiceTranscript.App.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -79,11 +80,13 @@
             finds.
         -->
         <WrapPanel Grid.Row="1" Margin="0,0,0,6">
-            <RadioButton GroupName="LedgerFilter" IsChecked="True" Style="{StaticResource WrapChip}"
+            <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
+                         IsChecked="{Binding Path=Filter, Mode=OneWay, Converter={StaticResource IsValue}, ConverterParameter=Everything}"
                          Command="{Binding SetFilterCommand}" CommandParameter="Everything"
                          Content="{loc:T ledgerpage.hepsi}" />
 
             <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
+                         IsChecked="{Binding Path=Filter, Mode=OneWay, Converter={StaticResource IsValue}, ConverterParameter=Changes}"
                          Command="{Binding SetFilterCommand}" CommandParameter="Changes">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{loc:T ledgerpage.degisenler}" VerticalAlignment="Center" />
@@ -95,6 +98,7 @@
             </RadioButton>
 
             <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
+                         IsChecked="{Binding Path=Filter, Mode=OneWay, Converter={StaticResource IsValue}, ConverterParameter=Flags}"
                          Command="{Binding SetFilterCommand}" CommandParameter="Flags">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{loc:T ledgerpage.dikkat}" VerticalAlignment="Center" />
@@ -108,6 +112,7 @@
             <!-- The tombstones. A dismissal is not a deletion, so it is not hidden either:
                  what was turned down is listed, and can be brought back from here. -->
             <RadioButton GroupName="LedgerFilter" Style="{StaticResource WrapChip}"
+                         IsChecked="{Binding Path=Filter, Mode=OneWay, Converter={StaticResource IsValue}, ConverterParameter=Dismissed}"
                          Command="{Binding SetFilterCommand}" CommandParameter="Dismissed">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{loc:T ledgerpage.reddedilenler}" VerticalAlignment="Center" />
@@ -121,57 +126,45 @@
             <!-- Which machinery wrote the row: the per-call analysis, or the consistency check. -->
             <TextBlock Text="{loc:T ledgerpage.kaynak}" Style="{StaticResource ChipGroupLabel}" />
 
-            <RadioButton GroupName="LedgerSource" IsChecked="True" Style="{StaticResource WrapChip}"
+            <RadioButton GroupName="LedgerSource" Style="{StaticResource WrapChip}"
+                         IsChecked="{Binding Path=Source, Mode=OneWay, Converter={StaticResource IsValue}, ConverterParameter=All}"
                          Command="{Binding SetSourceCommand}" CommandParameter="All"
                          Content="{loc:T ledgerpage.kaynak-hepsi}" />
             <RadioButton GroupName="LedgerSource" Style="{StaticResource WrapChip}"
+                         IsChecked="{Binding Path=Source, Mode=OneWay, Converter={StaticResource IsValue}, ConverterParameter=Rule}"
                          Command="{Binding SetSourceCommand}" CommandParameter="Rule"
                          Content="{loc:T ledgerpage.kaynak-kural}" />
             <RadioButton GroupName="LedgerSource" Style="{StaticResource WrapChip}"
+                         IsChecked="{Binding Path=Source, Mode=OneWay, Converter={StaticResource IsValue}, ConverterParameter=Audit}"
                          Command="{Binding SetSourceCommand}" CommandParameter="Audit"
                          Content="{loc:T ledgerpage.kaynak-denetim}" />
 
             <TextBlock Text="{loc:T ledgerpage.sirala}" Style="{StaticResource ChipGroupLabel}" />
 
-            <RadioButton GroupName="LedgerSort" IsChecked="True" Style="{StaticResource WrapChip}"
+            <RadioButton GroupName="LedgerSort" Style="{StaticResource WrapChip}"
+                         IsChecked="{Binding Path=Sort, Mode=OneWay, Converter={StaticResource IsValue}, ConverterParameter=Date}"
                          Command="{Binding SetSortCommand}" CommandParameter="Date"
                          Content="{loc:T ledgerpage.sirala-tarih}" />
             <RadioButton GroupName="LedgerSort" Style="{StaticResource WrapChip}"
+                         IsChecked="{Binding Path=Sort, Mode=OneWay, Converter={StaticResource IsValue}, ConverterParameter=Contact}"
                          Command="{Binding SetSortCommand}" CommandParameter="Contact"
                          Content="{loc:T ledgerpage.sirala-kisi}" />
             <RadioButton GroupName="LedgerSort" Style="{StaticResource WrapChip}"
+                         IsChecked="{Binding Path=Sort, Mode=OneWay, Converter={StaticResource IsValue}, ConverterParameter=Kind}"
                          Command="{Binding SetSortCommand}" CommandParameter="Kind"
                          Content="{loc:T ledgerpage.sirala-tur}" />
         </WrapPanel>
 
         <!--
-            What was just done, and the way back.
+            What was just done, and the way back — the shared strip, not a copy of it.
 
-            A ruling on a row is said here, in the page, rather than as a toast that slides away:
-            "Reddedildi: …" stays until it is closed, and for as long as it is on screen the
-            ruling can be taken back with one click. A sweep's tally lands here too, without the
-            button — there is nothing to undo about an empty row leaving.
+            This page carried its own Border with its own three columns and its own "Geri al"
+            key, and so did five other screens. Anybody adding a seventh: bind the view model's
+            UndoSlot here instead. A ruling is said in the page rather than as a toast that
+            slides away, and a sweep's tally lands in the same slot with no inverse — there is
+            nothing to undo about an empty row leaving, and the strip hides the button for it.
         -->
-        <Border Grid.Row="2" Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,0,0,8"
-                Visibility="{Binding Notice, Converter={StaticResource NullToCollapsed}}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock Grid.Column="0" Text="{Binding Notice}" Style="{StaticResource Secondary}"
-                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-
-                <ui:Button Grid.Column="1" Content="{loc:T ledgerpage.geri-al}" Appearance="Transparent"
-                           Margin="8,0,0,0" Command="{Binding UndoCommand}"
-                           Visibility="{Binding CanUndo, Converter={StaticResource BoolToVisibility}}" />
-
-                <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
-                           Command="{Binding ClearNoticeCommand}" />
-            </Grid>
-        </Border>
+        <controls:UndoBar Grid.Row="2" Slot="{Binding Undo}" Margin="0,0,0,8" />
 
         <!-- Entries -->
         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"

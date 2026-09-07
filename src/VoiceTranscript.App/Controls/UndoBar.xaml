@@ -1,0 +1,51 @@
+﻿<UserControl x:Class="VoiceTranscript.App.Controls.UndoBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:VoiceTranscript.App"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Visibility="{Binding Slot.Notice, RelativeSource={RelativeSource Self},
+                                  Converter={StaticResource NullToCollapsed}, FallbackValue=Collapsed}">
+
+    <!--
+        What was just done, and the way back.
+
+        Six screens made rulings the user could take back — the ledger, the promises, the to-do
+        list, the contacts page, a conversation's Defter tab and the contact card — and each had
+        its own copy of this Border: the same three columns, the same ✕, six different label
+        keys, and two of them offering "Geri al" whether or not there was anything to take back.
+        The copies were identical enough that nobody noticed the two broken ones. This is that
+        strip, once. Anything holding an <see cref="ViewModels.UndoSlot"/> shows it with
+        <c>&lt;controls:UndoBar Slot="{Binding …}" /&gt;</c> and inherits every fix made here.
+
+        It is said in the page rather than as a toast that slides away: a ruling stays until it
+        is closed, and for as long as it is on screen it can be undone with one click. A sweep's
+        tally lands here too, without the button — there is nothing to undo about an empty row
+        leaving, which is what CanUndo is for.
+
+        The whole control collapses when there is nothing to say, so the margin a page gives it
+        does not leave a gap on a page that is not saying anything.
+    -->
+    <Border Style="{StaticResource SettingCard}" Padding="10,6"
+            DataContext="{Binding Slot, RelativeSource={RelativeSource AncestorType=UserControl}}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="{Binding Notice}" Style="{StaticResource Secondary}"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+            <ui:Button Grid.Column="1" Content="{loc:T undobar.geri-al}" Appearance="Transparent"
+                       Margin="8,0,0,0" Command="{Binding UndoCommand}"
+                       Visibility="{Binding CanUndo, Converter={StaticResource BoolToVisibility}}" />
+
+            <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
+                       ToolTip="{loc:T undobar.kapat}" Command="{Binding ClearCommand}" />
+        </Grid>
+    </Border>
+</UserControl>

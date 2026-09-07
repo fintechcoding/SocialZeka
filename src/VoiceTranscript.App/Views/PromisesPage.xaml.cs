@@ -42,7 +42,7 @@ public partial class PromisesPage
         if (EditPromiseWindow.Open(Window.GetWindow(this), repository, card.Commitment) is { } undo
             && DataContext is PromisesViewModel model)
         {
-            model.Offer(undo);
+            model.Undo.Offer(undo);
         }
     }
 

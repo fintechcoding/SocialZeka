@@ -506,32 +506,13 @@
                         </StackPanel>
 
                         <!--
-                            What was just done to a row here, and the way back.
+                            What was just done to a row here, and the way back — the shared strip.
 
                             Said in the tab rather than as a toast: a ruling on a promise is the kind of act that
                             must not be one click away with no way back, and for as long as this line is on screen
-                            it can be taken back with one.
+                            it can be taken back with one. A hand-built copy of the strip stood here.
                         -->
-                        <Border Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,0,0,10"
-                                Visibility="{Binding LedgerUndo.Notice, Converter={StaticResource NullToCollapsed}}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0" Text="{Binding LedgerUndo.Notice}" Style="{StaticResource Secondary}"
-                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-
-                                <ui:Button Grid.Column="1" Content="{loc:T callwindow.geri-al}" Appearance="Transparent"
-                                           Margin="8,0,0,0" Command="{Binding LedgerUndo.UndoCommand}"
-                                           Visibility="{Binding LedgerUndo.CanUndo, Converter={StaticResource BoolToVisibility}}" />
-
-                                <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
-                                           Command="{Binding LedgerUndo.ClearCommand}" />
-                            </Grid>
-                        </Border>
+                        <controls:UndoBar Slot="{Binding LedgerUndo}" Margin="0,0,0,10" />
 
                         <!--
                             An action rather than an empty page.

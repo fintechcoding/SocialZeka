@@ -24,6 +24,7 @@ namespace VoiceTranscript.Tests;
 /// it read", the count is of the page's own <c>IsEmpty</c> notification, which every one of these
 /// view models raises once per refresh and nowhere else.
 /// </summary>
+[Collection(ChangeBroadcastCollection.Name)]
 public sealed class RepeatedWorkTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"vt-tekrar-{Guid.NewGuid():N}");
@@ -245,11 +246,11 @@ public sealed class RepeatedWorkTests : IDisposable
         var card = Assert.Single(page.Theirs);
 
         Assert.Equal(0, Refreshes(page, () => page.DismissCommand.Execute(card)));
-        Assert.NotNull(page.Notice);
-        Assert.True(page.CanUndo);
+        Assert.NotNull(page.Undo.Notice);
+        Assert.True(page.Undo.CanUndo);
 
-        Assert.Equal(0, Refreshes(page, () => page.UndoCommand.Execute(null)));
-        Assert.False(page.CanUndo);
+        Assert.Equal(0, Refreshes(page, () => page.Undo.UndoCommand.Execute(null)));
+        Assert.False(page.Undo.CanUndo);
 
         // The one refresh is the shell's, and after it the page says what it should.
         WhileTheShellIsListening(page.Refresh, () => page.DismissCommand.Execute(card));
@@ -299,7 +300,7 @@ public sealed class RepeatedWorkTests : IDisposable
         Assert.False(page.IsSelecting);
         Assert.Equal(2, page.DismissedCount);
 
-        Assert.Equal(0, Refreshes(page, () => page.UndoCommand.Execute(null), "HasAnything"));
+        Assert.Equal(0, Refreshes(page, () => page.Undo.UndoCommand.Execute(null), "HasAnything"));
     }
 
     /// <summary>
