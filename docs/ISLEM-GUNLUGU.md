@@ -3082,3 +3082,75 @@ bildirim eklendi; uyarıların tamamının nereye çıkacağı ayrı bir karar.
 çivili olduğunun ölçüsü.
 
 **Doğrulama.** 1438 C# testi (1433 geçti, 5 atlandı; taban 1431/1426/5). Python çalıştırılmadı.
+
+## 2026-09-07 — İki makine, tek kişi: çekirdek yarısı (şema v22)
+
+`3527a12` + `8995543`. Kullanıcı uygulamayı birden fazla bilgisayarda kullandığını söyledi ve
+denetim sessiz kayıplar buldu. Bu paket ekranları değil, altındaki makineyi kuruyor.
+
+**Üç tablo.** `archive_identity` tek satır, kimliği makine üretiyor ama **yalnız canlı arşivde**;
+göç, içe aktarmanın açtığı kopyada da koşuyor ve orada üretilen bir kimlik gelen arşivin bu
+bilgisayar olduğunu iddia etmesine yol açardı. `archive_link` tanışılmış öteki arşivleri tutuyor;
+`written_at` NULL "bilinmiyor" demek, "eski" değil — ikisinin ayrı kalması gerekiyor çünkü ekran
+"o günden sonra orada ne olduğunu bilmiyorum" diyecek. `import_leftover` getirilemeyen kararları
+tutuyor, çözüldüğünde kapanıyor ama silinmiyor, ve parmak izi üstünde tekil — yoksa "burada
+kalsın" dediğin bir karar her gidiş dönüşte yeniden soru olurdu.
+
+Üçü de arşiv birleştirmede **kopyalanmıyor** ve sebebi kodda yazılı: gezen bir kimlik iki arşivin
+tek ada sahip çıkması, gezen bir bağ arşivin hiç görmediği bir makineyle tanıştığını iddia etmesi,
+gezen bir getirilemeyen ise öteki makinenin sorularının bu kuyruğa düşmesi demek.
+
+**Ortak görüşmelerin üstündeki kararlar artık geçiyor:** söz kararları, görüşme notları, etiketler,
+kulak teyitleri, öneri kararları, pano kartları, ve kişi kartı alanları. Kural tek: **boş olan yere
+yazmak birleştirme değil taşımadır.** İki taraf da farklı yazmışsa buradaki kalıyor, gelen
+getirilemeyenler listesine düşüyor.
+
+**Sert değişmez koda gömüldü:** görülen sayı, taşınan artı zaten aynı olan artı listeye giren
+sayısına eşit olmak zorunda. Eşitlik bozulursa günlüğe yazılıyor ve işlem geri alınıyor — arşiv
+dokunulmadan kalıyor, dosya diskte duruyor. Taşımayı kapatan anahtar bile **saymayı ve listeye
+yazmayı durdurmuyor**, yani kapatmak sessiz kayba dönmüyor.
+
+**Geri yükleme artık ayarları ezmiyor.** Burada bir ayar dosyası varsa dokunulmuyor, gelen
+"önceki" klasörüne alınıyor. Hiç yoksa gelen yerine konuyor, çünkü boş yere yazmak taşımadır.
+
+**Mutasyon: 17 kırım, her biri geri alındı.** Biri (M4, çakışmayı sessizce düşürmek) yalnız kendi
+testini değil ilgisiz bir birleştirme testini de kırdı — çünkü değişmez bütün içe aktarmayı
+reddetti. Doğru davranış.
+
+**Bir bulgu, yama değil karar istiyor:** `Database.Migrate` taban şemayı adımlardan **önce**
+uyguluyor, yani SQL'i yalnız `CREATE TABLE` olan bir göç adımı hiçbir veritabanında çalışamaz.
+v18, v19, v20 ve v22 için bu böyle. Etkin kaynak `Schema.Statements`.
+
+**Doğrulama.** 1465 C# testi (1460 geçti, 5 atlandı).
+
+## 2026-09-07 — Arayüz bütünlük sözleşmesi: kod yarısı
+
+`dcfb72e` + `e2f02e9`. Sekiz kural. Ajanın kendi ölçümü planınkinden büyük çıktı ve kendi
+ölçümüne güvendi, ki doğrusu buydu.
+
+| Kural | Önce | Sonra |
+|---|---|---|
+| K1 kavram kaydı | 8 kavram, 0 kayıtlı | 0 kayıtsız |
+| K1 rozet tek kaynak | 14 emoji sabiti | 0 |
+| K3 tek saat | 23 elle yazılmış saat | 0 |
+| K4 kullanıcının kalemi | 7 | 0 |
+| K10 onay kutuları | 25 çağrı yeri | 0 |
+| K11 tarih cetveli | 72 çağrı, 18 biçim | 30'a çivilendi |
+| K12 metin cetveli | 738 | 681'e çivilendi |
+
+**Kullanıcının göreceği tek değişiklik zaman damgasında ve kasıtlı.** Paylaşılan saat artık saat
+farkında: bir saatin altında `dd:ss`, üstünde `s:dd:ss`. Önceden bir aile `mm\:ss` kullanıp saati
+tamamen düşürüyordu — bir buçuk saatlik görüşmenin doksanıncı dakikası otuzuncu dakika gibi
+görünüyordu. Öteki aile toplam dakika yazıyordu (`90:00`). İkisi de artık `1:30:00`. Bir saatin
+altında hiçbir şey değişmiyor. Gerekçe: kaydırma çubuğunda bulunamayan bir zaman damgası kayda
+adres değildir, ve bir alıntıyı kanıt yapan tek şey o adresin çalışması.
+
+**K4 bilerek boru hattına genişletilmedi.** Kullanıcının düzelttiği cümleyi saklanan bir makine
+satırına yazmak, o cümle yeniden düzenlendiği anda bayatlayan bir kopya üretir ve yeniden koşum
+modeli kendisiyle değil kullanıcıyla karşılaştırmaya başlar.
+
+**Dört ihlal işaretleme tarafında kilitli** ve teste adlarıyla yazıldı: üç anahtar "gizle" adını
+taşıyıp "Reddet" yazıyor, biri de iki ayrı anlamı ("açık" tema ve "açık" söz) tek anahtarda
+topluyor.
+
+**Doğrulama.** 1474 C# testi (1469 geçti, 5 atlandı).

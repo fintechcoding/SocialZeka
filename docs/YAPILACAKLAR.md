@@ -1540,6 +1540,24 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   çiziliyor. Arşiv 500 görüşmeye çıkınca sık kelimeler tavana dayanır ve pencere donar.
   **Kapandı** (`paket-yapilacaklar`): iki iç içe liste uç uca serilip sanallaştıran `CleanList`'e
   bağlandı. 500 sonuçta kurulan satır 500 → 9, görsel öğe 4744 → 240, tek yerleşim 1149 → 128 ms.
+- [ ] **GOC-ADIMI-OLU — Yalnız CREATE TABLE içeren göç adımı hiçbir veritabanında koşamıyor.**
+  `Database.Migrate` taban şemayı (`Schema.Statements`, hepsi CREATE TABLE IF NOT EXISTS)
+  adımlardan ÖNCE uyguluyor. Yani v18, v19, v20 ve v22 adımlarının SQL'i etkin değil; etkin
+  kaynak taban şema. Testler de bunu yakalayamıyor. Yama değil karar gerekiyor: ya adımlar
+  tabandan önce koşsun, ya da yalnız-CREATE adımların belge olduğu yazılsın.
+- [ ] **TEST-KIRILGAN — `ShellRefreshTests` ve `RepeatedWorkTests` paralel yükte kırılabiliyor.**
+  İki makine paketinin ajanı, kendi değişikliği olmayan taban üzerinde iki testin paralel koşumda
+  düşüp tek başına geçtiğini ölçtü. Süreç geneli bir durum paylaşımı olabilir; `AudioMaterialiser`
+  için daha önce aynı sınıf bir sorun bulunup koleksiyona alınmıştı.
+- [ ] **K9-KILITLI — Bütünlük sözleşmesinin dört ihlali işaretleme tarafında.** `callwindow.gizle`,
+  `contactspage.gizle`, `overviewpage.gizle` adları "gizle" ama değerleri "Reddet"; her biri aynı
+  sayfadaki bir `*.reddet` anahtarının kopyası, çözüm işaretlemeyi ona yöneltip eskisini silmek.
+  Dördüncüsü `settingswindow.acik` ile `promisespage.acik` çakışması: biri açık tema, biri açık
+  söz; İngilizcede tek karşılık ikisine birden hizmet etmiyor, ayarlardaki anahtar yeniden
+  adlandırılmalı.
+- [ ] **FOTO-YEDEK — Kişi fotoğrafları yedeğe hiç girmiyor.** Kişi kartı alanları artık iki makine
+  arasında geçtiği için, taşınan bir fotoğraf yolu bu makinede olmayan bir dosyayı adlandırabilir.
+  Yol dürüstçe taşınıyor, baytlar taşınmıyor.
 - [ ] **Ç2 — Genel bakış merkezli çevre sekmeleri (şema v22)** — PLAN-IKINCI-TUR §6. Kullanıcı
   çip değil SEKME istedi ve Genel bakış'ta istedi. Ç'nin şeması ve Çevreler penceresi kalır;
   gizleme tamamen düşer (iki mekanizma aynı işi yapmaz). Şerit YALNIZ "Son görüşmeler"i süzer;
