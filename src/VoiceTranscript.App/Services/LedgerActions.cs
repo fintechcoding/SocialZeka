@@ -266,7 +266,7 @@ public static class LedgerActions
         return new PendingUndo(
             LedgerVerb.Postpone,
             deadline is { } day
-                ? string.Format(Localisation.T("ledgeractions.ertelendi-n"), Label(commitment), $"{day:d MMMM yyyy}")
+                ? string.Format(Localisation.T("ledgeractions.ertelendi-n"), Label(commitment), Dates.DayAndYear(day))
                 : string.Format(Localisation.T("ledgeractions.vade-kaldirildi-n"), Label(commitment)),
             () =>
             {
@@ -315,7 +315,7 @@ public static class LedgerActions
             cleared
                 ? string.Format(Localisation.T("ledgeractions.duzeltme-kaldirildi-n"), Label(commitment))
                 : string.Format(Localisation.T("ledgeractions.duzenlendi-n"),
-                    Shorten(string.IsNullOrWhiteSpace(obligation) ? commitment.Obligation : obligation.Trim())),
+                    Shorten((commitment with { UserObligation = obligation }).EffectiveObligation.Trim())),
             () =>
             {
                 repository.SetUserObligation(commitment.Id, wordingBefore);

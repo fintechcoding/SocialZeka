@@ -36,7 +36,7 @@ public sealed partial class TranscriptLine(
     /// </summary>
     [ObservableProperty] private bool _isCurrent;
 
-    public string Timestamp => $"{StartMs / 60000:00}:{StartMs / 1000 % 60:00}";
+    public string Timestamp => Timestamps.Clip(StartMs);
 
     /// <summary>Shown when the transcriber was unsure, so the user knows to listen rather than trust.</summary>
     public string? Warning => LowConfidence ? "ses net değil" : SuspectedEcho ? "yankı" : null;
@@ -51,7 +51,7 @@ public sealed record FlagView(Flag Flag)
 {
     public string Summary => Flag.Summary;
     public string Quote => Flag.Quote.Trim();
-    public string Timestamp => $"{Flag.QuoteStartMs / 60000:00}:{Flag.QuoteStartMs / 1000 % 60:00}";
+    public string Timestamp => Timestamps.Clip(Flag.QuoteStartMs);
     public string? CounterQuote => Flag.CounterQuote?.Trim();
     public bool HasCounter => Flag.CounterQuote is not null;
 
@@ -67,19 +67,7 @@ public sealed record FlagView(Flag Flag)
 
     public bool HasCaveat => Caveat is not null;
 
-    public string Icon => Flag.Kind switch
-    {
-        FlagKind.OverdueCommitment => "⏰",
-        FlagKind.MovedDeadline => "📅",
-        FlagKind.ChangedAmount => "₺",
-        FlagKind.Contradiction => "⚠",
-        FlagKind.EvadedQuestion => "?",
-        FlagKind.PressureTactic => "!",
-        FlagKind.ScamPattern => "⚑",
-        FlagKind.TimelineMismatch => "🕐",
-        FlagKind.VagueShift => "≈",
-        _ => "•",
-    };
+    public string Icon => Services.RowBadges.Flag(Flag.Kind);
 
     public string Kind => Flag.Kind switch
     {
@@ -103,7 +91,7 @@ public sealed record ContactRow(Contact Contact, int OpenFlags, string? PhotoPat
 
     public string Name => Contact.Name;
     public string Detail => Contact.LastCallAt is { } last
-        ? $"{Contact.CallCount} görüşme · {last.ToLocalTime():d MMM}"
+        ? $"{Contact.CallCount} görüşme · {Dates.Day(last.ToLocalTime())}"
         : $"{Contact.CallCount} görüşme";
 
     public bool HasFlags => OpenFlags > 0;

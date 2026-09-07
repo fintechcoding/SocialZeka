@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using VoiceTranscript.Core.Text;
 using Wpf.Ui.Controls;
 
 namespace VoiceTranscript.App.Services;
@@ -18,8 +19,15 @@ public static class Dialogs
     /// <summary>Asks a yes/no question. True only on the affirmative.</summary>
     public static async Task<bool> ConfirmAsync(
         Window? owner, string title, string message,
-        string okText = "Evet", string cancelText = "Vazgeç")
+        string? okText = null, string? cancelText = null)
     {
+        // Null rather than a literal default: a default parameter has to be a compile-time
+        // constant, and a constant is exactly what a translated word cannot be. These two were
+        // the last Turkish left standing in the English interface, on the buttons of the most
+        // irreversible question the product asks.
+        okText ??= Localisation.T("dialogs.evet");
+        cancelText ??= Localisation.T("dialogs.vazgec");
+
         if (HostOf(owner) is not { } host)
         {
             return System.Windows.MessageBox.Show(
@@ -63,13 +71,15 @@ public static class Dialogs
     /// beside it already warned that losing the password loses the backup.
     /// </param>
     public static async Task<string?> AskPasswordAsync(
-        Window? owner, string title, string message, string okText = "Tamam", bool confirm = false)
+        Window? owner, string title, string message, string? okText = null, bool confirm = false)
     {
+        okText ??= Localisation.T("dialogs.tamam");
+
         var box = new Wpf.Ui.Controls.PasswordBox { Margin = new Thickness(0, 12, 0, 0), MinWidth = 280 };
 
         var reveal = new System.Windows.Controls.CheckBox
         {
-            Content = "Parolayı göster",
+            Content = Localisation.T("dialogs.parolayi-goster"),
             Margin = new Thickness(0, 8, 0, 0),
         };
 
@@ -100,7 +110,7 @@ public static class Dialogs
         {
             Margin = new Thickness(0, 8, 0, 0),
             MinWidth = 280,
-            PlaceholderText = "Parolayı tekrar yaz",
+            PlaceholderText = Localisation.T("dialogs.parolayi-tekrar-yaz"),
             Visibility = confirm ? Visibility.Visible : Visibility.Collapsed,
         };
 
@@ -133,7 +143,7 @@ public static class Dialogs
             Title = title,
             Content = panel,
             PrimaryButtonText = okText,
-            CloseButtonText = "Vazgeç",
+            CloseButtonText = Localisation.T("dialogs.vazgec"),
             DefaultButton = ContentDialogButton.Primary,
         };
 
@@ -153,7 +163,7 @@ public static class Dialogs
 
             if (box.Password == again.Password) return;
 
-            complaint.Text = "İki parola aynı değil.";
+            complaint.Text = Localisation.T("dialogs.iki-parola-ayni-degil");
             complaint.Visibility = Visibility.Visible;
             again.Password = "";
             again.Focus();
@@ -180,7 +190,7 @@ public static class Dialogs
         {
             Title = title,
             Content = Wrapped(message),
-            CloseButtonText = "Tamam",
+            CloseButtonText = Localisation.T("dialogs.tamam"),
         };
 
         await dialog.ShowAsync();

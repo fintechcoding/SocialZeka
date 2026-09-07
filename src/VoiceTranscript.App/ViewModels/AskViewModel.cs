@@ -21,7 +21,7 @@ public sealed record CitationView(Excerpt Excerpt)
 
     public string When => Excerpt.CallStartedAt.ToLocalTime().ToString("d MMMM yyyy HH:mm");
 
-    public string At => $"{Excerpt.StartMs / 60000:00}:{Excerpt.StartMs / 1000 % 60:00}";
+    public string At => Timestamps.Clip(Excerpt.StartMs);
 
     public long CallId => Excerpt.CallId;
 }
@@ -55,7 +55,7 @@ public sealed class AskExchangeView
         Stamp = string.Format(
             Localisation.T("askpage.modelin-gorusu-imza"),
             stored.ModelUsed ?? "model",
-            stored.AskedAt.ToLocalTime().ToString("d MMMM yyyy"));
+            Dates.DayAndYear(stored.AskedAt.ToLocalTime()));
 
         // What the question was narrowed to when it was asked. Absent when it ranged over
         // everything, because "Kapsam: her şey" is a label that says nothing.
@@ -67,8 +67,8 @@ public sealed class AskExchangeView
         {
             parts.Add(string.Format(
                 Localisation.T("askpage.tarih-araligi"),
-                stored.Since?.ToLocalTime().ToString("d MMMM yyyy") ?? "…",
-                stored.Until?.ToLocalTime().ToString("d MMMM yyyy") ?? "…"));
+                stored.Since?.ToLocalTime() is { } since ? Dates.DayAndYear(since) : "…",
+                stored.Until?.ToLocalTime() is { } until ? Dates.DayAndYear(until) : "…"));
         }
 
         Scope = parts.Count == 0

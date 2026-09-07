@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.Views;
 
@@ -49,7 +50,7 @@ public partial class MoveCallWindow
         _app = app;
 
         HeadlineText.Text =
-            $"{startedAt.ToLocalTime():d MMMM, HH:mm} · {duration:mm\\:ss} · şu an {currentContactName} altında.";
+            $"{Dates.Moment(startedAt.ToLocalTime())} · {Timestamps.Length(duration)} · şu an {currentContactName} altında.";
 
         // Said plainly, because it is the part people do not expect. A call is not one row: the
         // promises and figures taken out of it are filed against the same person, and they travel

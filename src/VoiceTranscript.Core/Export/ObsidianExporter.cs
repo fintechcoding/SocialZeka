@@ -226,14 +226,14 @@ public sealed class ObsidianExporter(Repository repository, ObsidianOptions opti
             foreach (var commitment in commitments)
             {
                 var who = commitment.ByMe ? "Ben" : contact.Name;
-                var due = commitment.DeadlineDate is { } date
+                var due = commitment.EffectiveDeadline is { } date
                     ? $" — {date:d MMMM yyyy}"
                     : commitment.DeadlineRaw is { } raw ? $" — {raw}" : "";
 
                 var overdue = commitment.IsOverdue(today) ? " ⚠️ **süresi geçti**" : "";
                 var conditional = commitment.IsConditional ? " *(koşullu)*" : "";
 
-                builder.AppendLine($"- **{who}**: {commitment.Obligation}{due}{overdue}{conditional}");
+                builder.AppendLine($"- **{who}**: {commitment.EffectiveObligation}{due}{overdue}{conditional}");
                 builder.AppendLine($"  - \"{commitment.Quote.Trim()}\"");
             }
         }
@@ -300,14 +300,7 @@ public sealed class ObsidianExporter(Repository repository, ObsidianOptions opti
 
     private static string Quote(string value) => $"\"{value.Replace("\"", "'")}\"";
 
-    private static string Duration(TimeSpan value) =>
-        value.TotalHours >= 1
-            ? value.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
-            : value.ToString(@"m\:ss", CultureInfo.InvariantCulture);
+    private static string Duration(TimeSpan value) => Text.Timestamps.Length(value);
 
-    private static string Timestamp(int milliseconds)
-    {
-        var total = milliseconds / 1000;
-        return $"{total / 60:00}:{total % 60:00}";
-    }
+    private static string Timestamp(int milliseconds) => Text.Timestamps.Clip(milliseconds);
 }

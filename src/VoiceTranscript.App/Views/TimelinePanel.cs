@@ -171,7 +171,7 @@ public sealed class TimelinePanel : Panel
             var y = Math.Round(second * density) + 0.5;
 
             var label = new FormattedText(
-                $"{second / 60:00}:{second % 60:00}",
+                Core.Text.Timestamps.ClipFromSeconds(second),
                 CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, 10.0, faint, dpi);
 
             // The rule stops either side of its own label rather than running through it.

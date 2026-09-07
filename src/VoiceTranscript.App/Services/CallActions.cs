@@ -2,6 +2,7 @@
 using System.Windows;
 using VoiceTranscript.App.Views;
 using VoiceTranscript.Core.Domain;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.Services;
 
@@ -47,15 +48,13 @@ public static class CallActions
     {
         // Not while the worker is reading it: the files would go from under a transcription and
         // the row would come back as a failure a minute later. Stop it first, then delete.
-        if (await IsInFlightAsync(owner, call, "silinemez")) return false;
+        if (await IsInFlightAsync(owner, call, Localisation.T("callactions.silinemez"))) return false;
 
         var confirmed = await Dialogs.ConfirmAsync(
             owner,
-            "Görüşmeyi sil",
-            $"{Describe(call, contactName)}\n\n" +
-            "Ses kaydı, döküm, özet ve bu görüşmeden çıkan defter kayıtları kalıcı olarak silinecek. " +
-            "Kişi ve diğer görüşmeleri kalır. Geri alınamaz.",
-            okText: "Sil");
+            Localisation.T("callactions.gorusmeyi-sil"),
+            string.Format(Localisation.T("callactions.gorusmeyi-sil-n"), Describe(call, contactName)),
+            okText: Localisation.T("callactions.sil"));
 
         if (!confirmed) return false;
 
@@ -66,9 +65,10 @@ public static class CallActions
         {
             await Dialogs.InfoAsync(
                 owner,
-                "Silme tamamlanmadı",
-                "Kayıt silindi ama bazı ses dosyaları kaldırılamadı — büyük ihtimalle hâlâ çalınıyor:\n\n" +
-                string.Join("\n", result.FilesLeftBehind.Select(Path.GetFileName)));
+                Localisation.T("callactions.silme-tamamlanmadi"),
+                string.Format(
+                    Localisation.T("callactions.silme-tamamlanmadi-n"),
+                    string.Join("\n", result.FilesLeftBehind.Select(Path.GetFileName))));
         }
 
         return true;
@@ -80,8 +80,8 @@ public static class CallActions
         var current = App.Repository.GetCall(call.Id)?.State;
         if (current is not (ProcessingState.Transcribing or ProcessingState.Analysing)) return false;
 
-        await Dialogs.InfoAsync(owner, "Şu an işleniyor",
-            $"Bu görüşme şu an işleniyor ve {verb}. Durum › İşlemler'den durdurabilir, sonra yeniden deneyebilirsin.");
+        await Dialogs.InfoAsync(owner, Localisation.T("callactions.su-an-isleniyor"),
+            string.Format(Localisation.T("callactions.su-an-isleniyor-n"), verb));
         return true;
     }
 
@@ -122,10 +122,10 @@ public static class CallActions
 
         if (current is ProcessingState.Queued or ProcessingState.Transcribing or ProcessingState.Analysing)
         {
-            _ = Dialogs.InfoAsync(owner, "Zaten sırada",
-                current == ProcessingState.Queued
-                    ? "Bu görüşme zaten işlenmek üzere sırada."
-                    : "Bu görüşme şu an işleniyor. Bitince yeniden işleyebilirsin; durdurmak için Durum › İşlemler.");
+            _ = Dialogs.InfoAsync(owner, Localisation.T("callactions.zaten-sirada"),
+                Localisation.T(current == ProcessingState.Queued
+                    ? "callactions.zaten-sirada-aciklama"
+                    : "callactions.bitince-yeniden-islenebilir"));
             return false;
         }
 
@@ -134,22 +134,19 @@ public static class CallActions
         // settings say not to transcribe.
         if (kind == ReprocessKind.Transcribe && !HasAudio(call))
         {
-            _ = Dialogs.InfoAsync(owner, "Ses yok",
-                "Bu kaydın ses dosyası yok — saklama süresi dolduğu için silinmiş ya da hiç yazılmamış olabilir. Yeniden yazıya dökülemez; metin duruyorsa yeniden çözümlenebilir.");
+            _ = Dialogs.InfoAsync(owner, Localisation.T("callactions.ses-yok"), Localisation.T("callactions.ses-yok-aciklama"));
             return false;
         }
 
         if (kind == ReprocessKind.Analyse && App.Repository.CountSegments(call.Id) == 0)
         {
-            _ = Dialogs.InfoAsync(owner, "Metin yok",
-                "Bu kaydın metni yok; önce yazıya dökülmesi gerekiyor.");
+            _ = Dialogs.InfoAsync(owner, Localisation.T("callactions.metin-yok"), Localisation.T("callactions.metin-yok-aciklama"));
             return false;
         }
 
         if (kind == ReprocessKind.Transcribe && call.Kind == CallKind.Group && !App.Settings.TranscribeGroupCalls)
         {
-            _ = Dialogs.InfoAsync(owner, "Grup araması",
-                "Grup aramaları ayarlarda açılmadıkça yazıya dökülmez: karşı taraf tek akışta karışık gelir, kim ne dedi ayrılamaz.");
+            _ = Dialogs.InfoAsync(owner, Localisation.T("callactions.grup-aramasi"), Localisation.T("callactions.grup-aramasi-aciklama"));
             return false;
         }
 
@@ -177,8 +174,7 @@ public static class CallActions
 
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
-            await Dialogs.InfoAsync(owner, "Ses dosyası",
-                "Bu görüşmenin ses dosyası bulunamadı. Kayıt tamamlanmamış ya da silinmiş olabilir.");
+            await Dialogs.InfoAsync(owner, Localisation.T("callactions.ses-dosyasi"), Localisation.T("callactions.ses-dosyasi-bulunamadi"));
             return;
         }
 
@@ -192,7 +188,8 @@ public static class CallActions
         }
         catch (Exception ex)
         {
-            await Dialogs.InfoAsync(owner, "Ses dosyası", $"Klasör açılamadı: {ex.Message}");
+            await Dialogs.InfoAsync(owner, Localisation.T("callactions.ses-dosyasi"),
+                string.Format(Localisation.T("callactions.klasor-acilamadi-n"), ex.Message));
         }
     }
 }

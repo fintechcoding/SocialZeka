@@ -315,8 +315,7 @@ public sealed class NotionExporter(Repository repository, NotionOptions options,
         return blocks;
     }
 
-    private static string Stamp(int milliseconds) =>
-        TimeSpan.FromMilliseconds(milliseconds).ToString(@"mm\:ss");
+    private static string Stamp(int milliseconds) => Text.Timestamps.Clip(milliseconds);
 
     /// <summary>Splits text into chunks Notion will accept, preferring paragraph boundaries.</summary>
     private static IEnumerable<string> Split(string text)

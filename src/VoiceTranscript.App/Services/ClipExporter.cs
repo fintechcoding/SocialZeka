@@ -122,7 +122,7 @@ public sealed class ClipExporter(Repository repository)
                 .Where(s => s.EndMs > fromMs && s.StartMs < toMs)
                 .OrderBy(s => s.StartMs)
                 .Select(s =>
-                    $"[{TimeSpan.FromMilliseconds(s.StartMs):mm\\:ss}] "
+                    $"[{Core.Text.Timestamps.Clip(s.StartMs)}] "
                     + $"{Core.Text.SpeakerText.For(s.IsMe, contactName)}: {s.Text}")
                 .ToList();
 
@@ -132,7 +132,7 @@ public sealed class ClipExporter(Repository repository)
             {
                 $"{contactName ?? "İsimsiz"} ile görüşme",
                 $"{startedAt.ToLocalTime():d MMMM yyyy dddd, HH:mm}",
-                $"Kesit: {TimeSpan.FromMilliseconds(fromMs):mm\\:ss} – {TimeSpan.FromMilliseconds(toMs):mm\\:ss}",
+                $"Kesit: {Core.Text.Timestamps.Clip(fromMs)} – {Core.Text.Timestamps.Clip(toMs)}",
                 new string('-', 40),
                 "",
             };

@@ -33,7 +33,7 @@ public sealed record PromiseLine(long? ContactId, long CallId, int StartMs, bool
     /// <summary>Long lines are cut so the card cannot grow taller than the promise it is about.</summary>
     public const int MaxLength = 140;
 
-    public string Timestamp => PromiseCard.Clock(StartMs);
+    public string Timestamp => Timestamps.Clip(StartMs);
 
     /// <summary>Who said it. Two words, because the transcript knows only which file the audio was in.</summary>
     public string Speaker => IsMe ? Localisation.T("promisespage.sen") : Localisation.T("promisespage.o");
@@ -292,7 +292,7 @@ public sealed partial class PromiseCard : ObservableObject
         }
     }
 
-    public string Timestamp => Clock(Commitment.QuoteStartMs);
+    public string Timestamp => Timestamps.Clip(Commitment.QuoteStartMs);
     public string Quote => Commitment.Quote.Trim();
 
     public string? HintText => Hint is { } hint && IsOpen
@@ -308,12 +308,9 @@ public sealed partial class PromiseCard : ObservableObject
     [ObservableProperty] private bool _isPostponing;
     [ObservableProperty] private DateTime? _postponeTo;
 
-    /// <summary>mm:ss, the one place this page turns a millisecond into a time.</summary>
-    internal static string Clock(int ms) => $"{ms / 60000:00}:{ms / 1000 % 60:00}";
+    private static string Day(DateOnly day) => Dates.Day(day);
 
-    private static string Day(DateOnly day) => day.ToDateTime(TimeOnly.MinValue).ToString("d MMM");
-
-    private static string Stamp(DateTimeOffset? at) => at is { } when ? when.ToLocalTime().ToString("d MMM") : "";
+    private static string Stamp(DateTimeOffset? at) => at is { } when ? Dates.Day(when.ToLocalTime()) : "";
 }
 
 /// <summary>

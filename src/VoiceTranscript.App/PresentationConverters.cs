@@ -99,9 +99,7 @@ public sealed class DurationConverter : IValueConverter
             _ => TimeSpan.Zero,
         };
 
-        return span.TotalHours >= 1
-            ? $"{(int)span.TotalHours}:{span.Minutes:00}:{span.Seconds:00}"
-            : $"{span.Minutes}:{span.Seconds:00}";
+        return Timestamps.Length(span);
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -131,7 +129,7 @@ public sealed class RelativeDateConverter : IValueConverter
         var days = (today - day).TotalDays;
         if (days < 7) return $"{local:dddd} {local:HH:mm}";
 
-        return local.Year == today.Year ? $"{local:d MMMM HH:mm}" : $"{local:d MMMM yyyy}";
+        return local.Year == today.Year ? $"{local:d MMMM HH:mm}" : Dates.DayAndYear(local);
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

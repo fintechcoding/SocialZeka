@@ -9,6 +9,7 @@ using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Storage;
 using Wpf.Ui.Controls;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -468,11 +469,11 @@ public sealed partial class HealthViewModel : ObservableObject
         // only irreversible button on the page.
         var agreed = await Services.Dialogs.ConfirmAsync(
             System.Windows.Application.Current?.MainWindow,
-            $"{doomed.Count} kayıt kaldırılsın mı?",
-            "Sesleri, dökümleri, defter kayıtları ve notlarıyla birlikte silinecek"
-            + (withText > 0 ? $" — {withText} tanesinin metni var" : "")
-            + ". Bu geri alınamaz.",
-            okText: "Kaldır");
+            string.Format(Localisation.T("healthpage.n-kayit-kaldirilsin-mi"), doomed.Count),
+            string.Format(
+                Localisation.T("healthpage.kaldirilacaklar-n"),
+                withText > 0 ? string.Format(Localisation.T("healthpage.n-tanesinin-metni-var"), withText) : ""),
+            okText: Localisation.T("healthpage.kaldir"));
 
         if (!agreed) return;
 
@@ -638,13 +639,13 @@ public sealed partial class HealthViewModel : ObservableObject
                     // encryption, and the message afterwards says which of the two happened.
                     var password = await Services.Dialogs.AskPasswordAsync(
                         System.Windows.Application.Current?.MainWindow,
-                        "Yedeği parolayla koru",
-                        "Yedekte bütün görüşmelerin metni var" +
-                        (request == DataRequest.BackupWithAudio ? " ve ses kayıtları da" : "") +
-                        ". Parola verirsen dosya yalnızca bu uygulamayla ve bu parolayla açılır — "
-                        + "parolayı kaybedersen yedek de kaybolur, kurtarma yolu yok. "
-                        + "Boş bırakırsan şifrelenmez.",
-                        okText: "Devam",
+                        Localisation.T("healthpage.yedegi-parolayla-koru"),
+                        string.Format(
+                            Localisation.T("healthpage.yedek-parolasi-n"),
+                            request == DataRequest.BackupWithAudio
+                                ? Localisation.T("healthpage.ve-ses-kayitlari-da")
+                                : ""),
+                        okText: Localisation.T("healthpage.devam"),
                         confirm: true);
 
                     if (password is null) { DataMessage = "Yedekleme iptal edildi."; break; }
@@ -677,10 +678,9 @@ public sealed partial class HealthViewModel : ObservableObject
                     {
                         password = await Services.Dialogs.AskPasswordAsync(
                             System.Windows.Application.Current?.MainWindow,
-                            "Bu yedek parolalı",
-                            "Yazıldığı sıradaki parolayı gir. Yanlış parolayla hiçbir şey geri "
-                            + "yüklenmez — mevcut verilerine dokunulmaz.",
-                            okText: "Aç");
+                            Localisation.T("healthpage.bu-yedek-parolali"),
+                            Localisation.T("healthpage.yedek-parolasi-geri-yukle"),
+                            okText: Localisation.T("healthpage.ac"));
 
                         if (string.IsNullOrEmpty(password))
                         {
@@ -706,10 +706,9 @@ public sealed partial class HealthViewModel : ObservableObject
                     {
                         password = await Services.Dialogs.AskPasswordAsync(
                             System.Windows.Application.Current?.MainWindow,
-                            "Bu yedek parolalı",
-                            "Yazıldığı sıradaki parolayı gir. Yanlış parolayla hiçbir şey içe "
-                            + "aktarılmaz — mevcut arşivine dokunulmaz.",
-                            okText: "Aç");
+                            Localisation.T("healthpage.bu-yedek-parolali"),
+                            Localisation.T("healthpage.yedek-parolasi-ice-aktar"),
+                            okText: Localisation.T("healthpage.ac"));
 
                         if (string.IsNullOrEmpty(password))
                         {

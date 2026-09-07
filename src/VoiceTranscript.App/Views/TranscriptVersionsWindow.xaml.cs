@@ -58,7 +58,7 @@ public partial class TranscriptVersionsWindow
         if (version.SpeechCoverage is { } coverage)
             figures += $" · konuşmanın %{coverage * 100:0}'i";
 
-        figures += $" · {TimeSpan.FromMilliseconds(version.SpokenMs):mm\\:ss} konuşma";
+        figures += $" · {Core.Text.Timestamps.Length(TimeSpan.FromMilliseconds(version.SpokenMs))} konuşma";
 
         return new Row(
             version.Id,

@@ -55,7 +55,7 @@ public partial class LabelCallWindow
         _suggestedContactId = suggestedContactId;
         _app = app;
 
-        HeadlineText.Text = $"{duration:mm\\:ss} uzunluğunda bir {app} görüşmesi kaydedildi.";
+        HeadlineText.Text = $"{Core.Text.Timestamps.Length(duration)} uzunluğunda bir {app} görüşmesi kaydedildi.";
 
         AudioText.Text = audioSummary;
         AudioText.Foreground = (System.Windows.Media.Brush)FindResource(

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using VoiceTranscript.App.ViewModels;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.Views;
 
@@ -156,7 +157,9 @@ public partial class ContactWindow
         // One click used to be a permanent DELETE. A fact the user typed deserves at least the
         // one-sentence pause every other destructive action in this product gets.
         var confirmed = await Services.Dialogs.ConfirmAsync(
-            this, "Bilgiyi sil", $"\"{field.Label}: {field.Value}\" silinsin mi?", okText: "Sil");
+            this, Localisation.T("contactwindow.bilgiyi-sil"),
+            string.Format(Localisation.T("contactwindow.bilgiyi-sil-n"), field.Label, field.Value),
+            okText: Localisation.T("contactwindow.sil"));
 
         if (confirmed) ViewModel?.RemoveField(field);
     }

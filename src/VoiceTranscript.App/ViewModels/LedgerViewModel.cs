@@ -118,7 +118,7 @@ public sealed partial class LedgerEntry : ObservableObject
     /// <summary>True while the page is in select mode and this row can be picked.</summary>
     [ObservableProperty] private bool _showSelector;
 
-    public string Timestamp => $"{QuoteStartMs / 60000:00}:{QuoteStartMs / 1000 % 60:00}";
+    public string Timestamp => Timestamps.Clip(QuoteStartMs);
 
     public bool HasCounter => !string.IsNullOrWhiteSpace(CounterQuote);
 

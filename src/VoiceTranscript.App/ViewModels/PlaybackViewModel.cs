@@ -141,8 +141,7 @@ public sealed partial class PlaybackViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(DurationText));
     }
 
-    private static string Format(TimeSpan t) =>
-        t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{t.Minutes}:{t.Seconds:00}";
+    private static string Format(TimeSpan t) => Timestamps.Length(t);
 
     /// <summary>
     /// Reads both recordings and builds the drawing.

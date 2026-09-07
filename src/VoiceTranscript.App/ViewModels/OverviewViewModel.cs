@@ -70,7 +70,7 @@ public sealed record RecentCall(
 
     public bool HasTags => Tags.Count > 0;
 
-    public string When => Call.StartedAt.ToLocalTime().ToString("d MMMM, HH:mm");
+    public string When => Dates.Moment(Call.StartedAt.ToLocalTime());
 
     /// <summary>Which application this came through, for the badge on the row.</summary>
     public string AppName => Call.App.ToString();
@@ -224,15 +224,15 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
     public sealed record OverdueItem(Commitment Commitment, string ContactName)
     {
         public int DaysLate =>
-            DateOnly.FromDateTime(DateTime.Now).DayNumber - (Commitment.DeadlineDate?.DayNumber ?? 0);
+            DateOnly.FromDateTime(DateTime.Now).DayNumber - (Commitment.EffectiveDeadline?.DayNumber ?? 0);
 
         public bool ByMe => Commitment.ByMe;
 
         /// <summary>Who owes whom, said plainly: "Sen → Uliana: evrak" is a different sentence
         /// from "Uliana: evrak", and the two used to be indistinguishable here.</summary>
         public string Line => ByMe
-            ? $"Sen → {ContactName}: {Commitment.Obligation}"
-            : $"{ContactName}: {Commitment.Obligation}";
+            ? $"Sen → {ContactName}: {Commitment.EffectiveObligation}"
+            : $"{ContactName}: {Commitment.EffectiveObligation}";
 
         public string Quote => Commitment.Quote.Trim();
     }
@@ -487,7 +487,7 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
             Due.Add(new DueCard(
                 card.CallId,
                 string.IsNullOrWhiteSpace(card.Title)
-                    ? $"{name ?? "İsimsiz"} · {call.StartedAt.ToLocalTime():d MMM}"
+                    ? $"{name ?? "İsimsiz"} · {Dates.Day(call.StartedAt.ToLocalTime())}"
                     : card.Title!,
                 card.RemindOn!.Value));
         }
@@ -695,7 +695,7 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
                 promises.GetValueOrDefault(date, [])));
         }
 
-        CalendarTitle = CalendarMonth.ToDateTime(TimeOnly.MinValue).ToString("MMMM yyyy");
+        CalendarTitle = Dates.Month(CalendarMonth);
 
         // The pick survives a rebuild only while its day still has something to show.
         SelectedCalendarDay = SelectedCalendarDay is { } picked
@@ -714,7 +714,7 @@ public sealed record DayAction(ActionItem Item, string ContactName)
     public bool IsDue => Item.DeadlineDate is { } day && day <= DateOnly.FromDateTime(DateTime.Today);
 
     public string? DueText => Item.DeadlineDate is { } day
-        ? day.ToDateTime(TimeOnly.MinValue).ToString("d MMM")
+        ? Dates.Day(day)
         : null;
 }
 
@@ -769,13 +769,13 @@ public sealed record PanelCard(
 {
     public bool HasPhoto => PhotoPath is not null;
 
-    public string When => StartedAt.ToLocalTime().ToString("d MMMM, HH:mm");
+    public string When => Dates.Moment(StartedAt.ToLocalTime());
 
     public bool HasSummary => SummaryLine is not null;
     public bool HasTags => Tags.Count > 0;
     public bool HasReminder => RemindOn is not null;
 
-    public string ReminderText => RemindOn is { } day ? $"Hatırlat: {day:d MMM}" : "";
+    public string ReminderText => RemindOn is { } day ? $"Hatırlat: {Dates.Day(day)}" : "";
 }
 
 /// <summary>One reminder that has come due, as the first screen lists it.</summary>
@@ -785,5 +785,5 @@ public sealed record DueCard(long CallId, string Title, DateOnly Day)
         ? "bugün"
         : Day < DateOnly.FromDateTime(DateTime.Now)
             ? $"{(DateOnly.FromDateTime(DateTime.Now).DayNumber - Day.DayNumber)} gün geçti"
-            : Day.ToString("d MMM");
+            : Dates.Day(Day);
 }

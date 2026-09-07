@@ -84,19 +84,9 @@ public sealed partial class MirrorMoment : ObservableObject
 
     /// <summary>"04 Eyl · Gürhan · 12:41" — the three facts that place a moment.</summary>
     public string Head =>
-        $"{At.ToLocalTime():d MMM} · {ContactName} · {Timestamp}";
+        $"{Dates.Day(At.ToLocalTime())} · {ContactName} · {Timestamp}";
 
-    public string Timestamp
-    {
-        get
-        {
-            var t = TimeSpan.FromMilliseconds(StartMs);
-
-            return t.TotalHours >= 1
-                ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
-                : $"{t.Minutes:00}:{t.Seconds:00}";
-        }
-    }
+    public string Timestamp => Timestamps.Clip(StartMs);
 
     /// <summary>What kind of moment this is, in the user's words. A disclosure says its shape, never its value.</summary>
     public string KindText => Kind switch
