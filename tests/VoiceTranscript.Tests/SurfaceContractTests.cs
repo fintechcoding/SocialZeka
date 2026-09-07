@@ -417,24 +417,21 @@ public class SurfaceContractTests
     /// "Görüşme" the tab title and "görüşme" the counter suffix are one word and two jobs, and
     /// case is left standing so they stay apart.
     ///
-    /// Four keys are named here as still wrong and still unfixable from this half of the
-    /// package: each needs one token changed inside a <c>{loc:T …}</c> in a .xaml file, and the
-    /// markup belongs to the other half. They are listed one by one rather than as a rule with a
-    /// hole in it — a fifth turns this red.
+    /// One key is named here as still wrong. Three of the original four were closed once the
+    /// markup could be edited: two "gizle" keys that read "Reddet" (one a duplicate of the
+    /// page's own reddet key, deleted; one renamed to say what it does) and the "açık" homograph,
+    /// where the light theme now has its own name so it cannot collide with an open promise.
+    /// The last one lives in a file another package is rewriting and is listed by name rather
+    /// than as a rule with a hole in it — a second turns this red.
     /// </summary>
     [Fact]
     public void KeysThatNameTheSameActCarryTheSameWords()
     {
         // "Reddet" under a key called gizle: the word was renamed on screen when the user asked
-        // for the refusal to be called a refusal, and the three keys kept the old name. Fixing
-        // them means renaming the key, and the key is written into the markup at
-        // CallWindow.xaml:1005, ContactsPage.xaml:681 and OverviewPage.xaml:728.
-        string[] pinnedByMarkup = ["callwindow.gizle", "contactspage.gizle", "overviewpage.gizle"];
-
-        // "Açık" is the light theme in one place and an open promise in the other — one Turkish
-        // word, two concepts, and no English that serves both. The fix is to say which is which
-        // in the key name; settingswindow.acik is written into SettingsWindow.xaml:204.
-        const string HomographPinnedByMarkup = "acik";
+        // for the refusal to be called a refusal, and the keys kept the old name. The remaining
+        // one is written into OverviewPage.xaml, which the circles package is rewriting; it is
+        // pinned rather than raced, and closing it is one token in that markup.
+        string[] pinnedByMarkup = ["overviewpage.gizle"];
 
         var tr = Dictionary("tr");
         var en = Dictionary("en");
@@ -495,8 +492,10 @@ public class SurfaceContractTests
             .OrderBy(line => line, StringComparer.Ordinal)
             .ToList();
 
+        // No exception left: the light theme now says which "açık" it is, so nothing shares a
+        // tail and a Turkish word while carrying two different English ones.
         Assert.True(
-            diverged.All(line => line.StartsWith(HomographPinnedByMarkup + " ", StringComparison.Ordinal)),
+            diverged.Count == 0,
             "Aynı eylemi adlandıran anahtarlar ayrışmış: " + string.Join("; ", diverged));
     }
 

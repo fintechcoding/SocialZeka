@@ -691,7 +691,7 @@
                                                                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
                                                                                 <ui:Button Content="{loc:T contactspage.yaptim}" Padding="8,3" Margin="0,0,4,0"
                                                                                            Click="CallActionDone_Click" />
-                                                                                <ui:Button Content="{loc:T contactspage.gizle}" Padding="8,3" Appearance="Transparent"
+                                                                                <ui:Button Content="{loc:T contactspage.reddet}" Padding="8,3" Appearance="Transparent"
                                                                                            Click="CallActionHide_Click"
                                                                                            ToolTip="{loc:T contactspage.bir-daha-onerilmez}" />
                                                                             </StackPanel>

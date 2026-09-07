@@ -201,7 +201,7 @@
                                 <ComboBox Grid.Column="2" MinWidth="150" VerticalAlignment="Center"
                                           SelectedValue="{Binding ThemeChoice}" SelectedValuePath="Tag">
                                     <ComboBoxItem Content="{loc:T settingswindow.sistemi-izle}" Tag="system" />
-                                    <ComboBoxItem Content="{loc:T settingswindow.acik}" Tag="light" />
+                                    <ComboBoxItem Content="{loc:T settingswindow.acik-tema}" Tag="light" />
                                     <ComboBoxItem Content="{loc:T settingswindow.koyu}" Tag="dark" />
                                 </ComboBox>
                             </Grid>
