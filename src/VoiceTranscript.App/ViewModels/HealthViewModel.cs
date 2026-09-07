@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -194,6 +195,7 @@ public sealed partial class HealthViewModel : ObservableObject
             UpdateQueue();
             UpdateDisk();
             UpdateCloud();
+            UpdateArchiveIdentity();
 
             await CheckWorkerAsync(Item("Yazıya dökme"));
         }
@@ -547,6 +549,167 @@ public sealed partial class HealthViewModel : ObservableObject
         return Task.CompletedTask;
     }
 
+    // ---- which machine this archive is ---------------------------------------
+    //
+    // At the top of Veriler, above the buttons, because you cannot know what you are moving until
+    // you know which machine you are on. Everything below this card writes or reads a file that
+    // will be carried to another computer, and until now neither end of that carry had a name.
+    //
+    // Somebody who uses one computer sees two facts and no more: what this archive is called and
+    // how much is in it. The twin lines only exist once an import has actually happened, so the
+    // whole second half of the card is absent for them rather than empty.
+
+    /// <summary>
+    /// What the user calls this computer. The only part of the identity anybody types.
+    ///
+    /// Written through on change rather than behind a Save button, like every other setting on
+    /// this page. Blank clears it back to unnamed rather than storing an empty string — "" and
+    /// "never named" look identical on screen and only one of them is what an untouched field
+    /// holds.
+    /// </summary>
+    public string? ArchiveName
+    {
+        get => _archiveName;
+        set
+        {
+            if (value == _archiveName) return;
+
+            _archiveName = value;
+            _repository.SetArchiveLabel(value);
+            OnPropertyChanged();
+        }
+    }
+
+    private string? _archiveName;
+
+    /// <summary>How much is in here: exact counts, and what it weighs on disk.</summary>
+    [ObservableProperty] private string _archiveSize = "";
+
+    /// <summary>Which schema this archive speaks, for standing beside a backup's own.</summary>
+    [ObservableProperty] private string _archiveSchema = "";
+
+    /// <summary>
+    /// One sentence per machine this archive has heard from, most recent first.
+    ///
+    /// The sentence that matters is the last clause of each: after the day the file was written,
+    /// this machine knows nothing about what happened over there. An archive that said only "last
+    /// imported on the 20th" would let somebody believe the two are in step.
+    /// </summary>
+    public ObservableCollection<string> Twins { get; } = [];
+
+    public bool HasTwins => Twins.Count > 0;
+
+    /// <summary>How many questions an import left behind and nobody has answered.</summary>
+    [ObservableProperty] private int _openLeftovers;
+
+    public bool HasLeftovers => OpenLeftovers > 0;
+
+    partial void OnOpenLeftoversChanged(int value) => OnPropertyChanged(nameof(HasLeftovers));
+
+    /// <summary>When a backup was last written from this machine, or that none ever was.</summary>
+    [ObservableProperty] private string _lastBackup = "";
+
+    private void UpdateArchiveIdentity()
+    {
+        var identity = _repository.EnsureArchiveIdentity();
+        var (calls, contacts) = _repository.ArchiveSize();
+
+        _archiveName = identity.Label;
+        OnPropertyChanged(nameof(ArchiveName));
+
+        // The two counts are read out of the database and not rounded: this card is what somebody
+        // compares against the backup they are about to take, and a rounded count cannot be
+        // compared with anything.
+        ArchiveSize = string.Format(
+            CultureInfo.CurrentCulture,
+            Localisation.T("healthpage.arsiv-buyuklugu"),
+            calls, contacts, Human(ArchiveBytes()));
+
+        ArchiveSchema = string.Format(
+            CultureInfo.CurrentCulture, Localisation.T("healthpage.sema-surumu"), Schema.Version);
+
+        Twins.Clear();
+        foreach (var link in _repository.ArchiveLinks()) Twins.Add(Describe(link));
+        OnPropertyChanged(nameof(HasTwins));
+
+        OpenLeftovers = _repository.OpenLeftoverCount();
+
+        LastBackup = _settings().LastBackupAt is { } taken
+            ? string.Format(
+                CultureInfo.CurrentCulture,
+                Localisation.T("healthpage.son-yedek"),
+                Dates.Moment(taken.ToLocalTime()))
+            : Localisation.T("healthpage.hic-yedek-alinmadi");
+    }
+
+    /// <summary>
+    /// What the archive weighs: the database, the recordings and the photos.
+    ///
+    /// Not the whole data folder. That also holds the downloaded speech models, which are
+    /// gigabytes, belong to the installation rather than to the archive, and would make a card
+    /// about "how much of my life is in here" report the same number on an empty machine.
+    /// </summary>
+    private long ArchiveBytes()
+    {
+        var database = 0L;
+
+        try
+        {
+            if (File.Exists(_paths.DatabaseFile)) database = new FileInfo(_paths.DatabaseFile).Length;
+        }
+        catch (IOException)
+        {
+            // Being written to right now. Its size is not worth failing the card over.
+        }
+
+        return database + DirectorySize(_paths.Recordings) + DirectorySize(_paths.Photos);
+    }
+
+    /// <summary>
+    /// One machine, when it was last heard from, and the honest silence after that.
+    ///
+    /// A file with no manifest gives no date at all, and the sentence says so rather than naming
+    /// the day the import happened: those are two different facts, and turning one into the other
+    /// would let somebody believe the other machine was current when the file was a year old.
+    /// </summary>
+    private static string Describe(ArchiveLink link) => string.Format(
+        CultureInfo.CurrentCulture,
+        Localisation.T("healthpage.ikiz-satiri"),
+        link.Display,
+        Dates.DayAndYear(link.ImportedAt.ToLocalTime()),
+        HowLongAgo(link.ImportedAt),
+        link.WrittenAt is { } written
+            ? string.Format(
+                CultureInfo.CurrentCulture,
+                Localisation.T("healthpage.ikizin-yedek-gunu"),
+                Dates.DayAndYear(written.ToLocalTime()))
+            : Localisation.T("healthpage.ikizin-yedek-gunu-bilinmiyor"));
+
+    /// <summary>Days rather than a date, because "17 gün önce" is the part somebody reacts to.</summary>
+    private static string HowLongAgo(DateTimeOffset moment)
+    {
+        var days = (DateTime.Today - moment.ToLocalTime().Date).Days;
+
+        return days switch
+        {
+            <= 0 => Localisation.T("healthpage.bugun"),
+            1 => Localisation.T("healthpage.dun"),
+            _ => string.Format(CultureInfo.CurrentCulture, Localisation.T("healthpage.gun-once"), days),
+        };
+    }
+
+    /// <summary>Raised when the user asks to see what an import could not carry.</summary>
+    public event EventHandler? LeftoversRequested;
+
+    [RelayCommand]
+    private void ShowLeftovers() => LeftoversRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>The archive the page hands to the windows it opens. One repository, one archive.</summary>
+    public Repository Repository => _repository;
+
+    /// <summary>Re-reads the card, for a window that closes having changed what it says.</summary>
+    public void RefreshArchiveIdentity() => UpdateArchiveIdentity();
+
     // ---- data ownership ------------------------------------------------------
 
     [ObservableProperty] private string? _dataMessage;
@@ -654,6 +817,12 @@ public sealed partial class HealthViewModel : ObservableObject
                         path, includeAudio: request == DataRequest.BackupWithAudio, progress,
                         password: string.IsNullOrEmpty(password) ? null : password);
 
+                    // Remembered so the next transfer does not start by finding this folder
+                    // again, and stamped so the card above can say how old the last copy is. Both
+                    // are written only after the file exists: a backup that threw halfway is not
+                    // a backup that was taken.
+                    RememberBackup(Path.GetDirectoryName(path), DateTimeOffset.Now);
+
                     DataMessage = string.IsNullOrEmpty(password)
                         ? $"Yedek yazıldı: {result.Files} dosya, {result.SizeText}."
                         : $"Yedek yazıldı ve parolayla korundu: {result.Files} dosya, {result.SizeText}.";
@@ -717,27 +886,33 @@ public sealed partial class HealthViewModel : ObservableObject
                         }
                     }
 
+                    // Shown before a single row is merged, because the questions it answers —
+                    // whose archive is this, how old is it, IS THE AUDIO IN IT — could previously
+                    // only be answered by importing and then noticing. A backup with no manifest
+                    // is offered as "kaynak bilinmiyor" and a backup from a newer build is offered
+                    // with a warning: neither is refused, because both import perfectly well.
+                    if (!await PreviewAsync(service, path, password)) { DataMessage = "İçe aktarma iptal edildi."; break; }
+
                     var merged = await service.ImportAsync(path, progress, password: password);
 
-                    // Said as a sentence rather than a number, because "12 görüşme eklendi, 39
-                    // zaten vardı" is the answer to the question somebody actually has: did it
-                    // take, and did it touch what was already here.
-                    var parts = new List<string> { $"{merged.Calls} görüşme" };
+                    // The folder is remembered from a read as well as from a write: the file a
+                    // second machine imports lives in the same place a first machine wrote it to,
+                    // and this is the machine that will write the return trip.
+                    RememberBackup(Path.GetDirectoryName(path), at: null);
 
-                    if (merged.Contacts > 0) parts.Add($"{merged.Contacts} kişi");
-                    if (merged.Segments > 0) parts.Add($"{merged.Segments} konuşma satırı");
-                    if (merged.Recordings > 0) parts.Add($"{merged.Recordings} ses kaydı");
-
-                    DataMessage = merged.Calls == 0 && merged.AlreadyHere > 0
-                        ? $"Yeni bir şey yok: {merged.AlreadyHere} görüşmenin hepsi zaten arşivinde."
-                        : $"İçe aktarıldı: {string.Join(", ", parts)}."
-                          + (merged.AlreadyHere > 0
-                              ? $" {merged.AlreadyHere} görüşme zaten vardı, olduğu gibi bırakıldı."
-                              : "");
+                    // Four numbers, and they are the ones §7.2 asks for: how many arrived, how
+                    // many were already here, how many of the DECISIONS on those were carried,
+                    // and how many could not be. The last two had no answer at all before, because
+                    // nothing was carrying them and nothing was counting.
+                    DataMessage = ImportSentence(merged);
 
                     // Every list that shows calls re-reads on this. Without it the import lands in
                     // the database and the screens keep showing what they read before it.
                     if (merged.Calls > 0 || merged.Contacts > 0) Services.CallActions.NotifyChanged();
+
+                    // The card above is now out of date in three ways at once: a new twin, a new
+                    // size, and a list of questions that was empty a second ago.
+                    UpdateArchiveIdentity();
                     break;
                 }
             }
@@ -751,6 +926,128 @@ public sealed partial class HealthViewModel : ObservableObject
             IsArchiving = false;
         }
     }
+
+    /// <summary>
+    /// What is in this backup, said before anything is merged.
+    ///
+    /// The file is opened and its manifest read — for an encrypted archive that costs a full pass,
+    /// which is the honest price of a sealed container and cheaper than the alternative, which was
+    /// finding out afterwards.
+    ///
+    /// THREE THINGS IT WILL NOT DO. It does not call a file without a manifest broken: every
+    /// backup written before this feature looks exactly like that and every one of them still
+    /// imports, so the reading is "kaynak bilinmiyor" and the button still says İçe aktar. It does
+    /// not refuse a backup from a newer build: the merge intersects the columns of both databases,
+    /// so what that build added is left behind — which is right, and is the wrong thing to keep
+    /// quiet about, so it is a line of its own. And it does not stay silent about the audio: the
+    /// default backup button leaves it out, and somebody who carries such a file to their other
+    /// computer arrives with conversations that cannot be played or transcribed again.
+    /// </summary>
+    /// <returns>False when the user closed the preview without going on.</returns>
+    private async Task<bool> PreviewAsync(Core.Storage.BackupService service, string path, string? password)
+    {
+        var manifest = await service.ReadManifestAsync(path, password);
+
+        return await Services.Dialogs.ConfirmAsync(
+            System.Windows.Application.Current?.MainWindow,
+            Localisation.T("healthpage.bu-yedekte-ne-var"),
+            PreviewText(manifest, _repository.ArchiveSize()),
+            okText: Localisation.T("healthpage.ice-aktar"));
+    }
+
+    /// <summary>
+    /// The words of the preview, as a function of the manifest and of this archive.
+    ///
+    /// Separate from the dialog so it can be read without a screen — the three sentences it has to
+    /// get right (unknown source, no audio, a newer build) are the ones a person acts on, and a
+    /// test that had to open a window would not be run.
+    /// </summary>
+    public static string PreviewText(BackupManifest? manifest, (int Calls, int Contacts) here)
+    {
+        var lines = new List<string>();
+
+        if (manifest is null)
+        {
+            lines.Add(Localisation.T("healthpage.kaynak-bilinmiyor"));
+            lines.Add(Localisation.T("healthpage.kaynak-bilinmiyor-aciklama"));
+        }
+        else
+        {
+            lines.Add(string.Format(
+                CultureInfo.CurrentCulture,
+                Localisation.T("healthpage.yedegi-yazan"),
+                manifest.Display,
+                Dates.Moment(manifest.WrittenAt.ToLocalTime())));
+
+            lines.Add(string.Format(
+                CultureInfo.CurrentCulture,
+                Localisation.T("healthpage.yedegin-icerigi"),
+                manifest.Calls,
+                manifest.Contacts,
+                Localisation.T(manifest.IncludesAudio
+                    ? "healthpage.yedekte-ses-var"
+                    : "healthpage.yedekte-ses-yok"),
+                manifest.SchemaVersion));
+        }
+
+        // Beside this archive's own, because the only useful reading of "23 görüşme" is against
+        // the number already here.
+        lines.Add(string.Format(
+            CultureInfo.CurrentCulture,
+            Localisation.T("healthpage.bu-arsiv-yan-yana"),
+            here.Calls, here.Contacts, Schema.Version));
+
+        if (manifest?.FromANewerBuild == true)
+        {
+            lines.Add(string.Format(
+                CultureInfo.CurrentCulture,
+                Localisation.T("healthpage.daha-yeni-bir-surumden"),
+                manifest.SchemaVersion,
+                Schema.Version));
+        }
+
+        return string.Join("\n\n", lines);
+    }
+
+    /// <summary>
+    /// What an import did, in the four numbers §7.2 asks for.
+    ///
+    /// How many conversations arrived, how many were already here, how many of the DECISIONS on
+    /// those were carried, and how many could not be. The last two had no answer at all before
+    /// this package, because nothing was carrying them and nothing was counting — and every one of
+    /// them is read straight off what the merge returned, never estimated and never rounded.
+    /// </summary>
+    public static string ImportSentence(ImportResult result) => string.Format(
+        CultureInfo.CurrentCulture,
+        Localisation.T("healthpage.ice-aktarma-sonucu"),
+        result.Calls,
+        result.AlreadyHere,
+        result.DecisionSummary.Carried,
+        result.DecisionSummary.Left);
+
+    /// <summary>
+    /// Keeps the folder a transfer used, and — for a write — when it happened.
+    ///
+    /// One remembered string is most of the cost of carrying an archive between two computers:
+    /// the folder somebody always uses had to be found again in a file dialog, on both machines,
+    /// on every transfer. Saved here rather than by the page because the page has no Save button
+    /// and this is not a setting anybody goes looking for.
+    /// </summary>
+    private void RememberBackup(string? folder, DateTimeOffset? at)
+    {
+        if (string.IsNullOrWhiteSpace(folder)) return;
+
+        SettingsWriteRequested?.Invoke(this, (folder, at));
+        UpdateArchiveIdentity();
+    }
+
+    /// <summary>
+    /// Raised so the window can persist the change; the view model does not own the file.
+    ///
+    /// The same division as the log level beside it: only one place in the application writes
+    /// settings.json, and it is not a view model.
+    /// </summary>
+    public event EventHandler<(string Folder, DateTimeOffset? At)>? SettingsWriteRequested;
 
     /// <summary>Runs the full hardware measurement. Slow, so it has its own button.</summary>
     [RelayCommand]

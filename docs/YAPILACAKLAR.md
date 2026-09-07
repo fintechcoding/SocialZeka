@@ -1555,9 +1555,22 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   Dördüncüsü `settingswindow.acik` ile `promisespage.acik` çakışması: biri açık tema, biri açık
   söz; İngilizcede tek karşılık ikisine birden hizmet etmiyor, ayarlardaki anahtar yeniden
   adlandırılmalı.
-- [ ] **FOTO-YEDEK — Kişi fotoğrafları yedeğe hiç girmiyor.** Kişi kartı alanları artık iki makine
-  arasında geçtiği için, taşınan bir fotoğraf yolu bu makinede olmayan bir dosyayı adlandırabilir.
-  Yol dürüstçe taşınıyor, baytlar taşınmıyor.
+- [x] **FOTO-YEDEK — Kişi fotoğrafları yedeğe hiç girmiyor** — **BİTTİ** (7 Eylül, Paket D ekran).
+  Fotoğraflar artık arşivin dördüncü ön eki: `photos/`, ses anahtarının ARKASINDA değil, her zaman
+  (her fotoğraf girerken 512 piksele küçültülüyor, yani boyut gerekçesi yok). İçe aktarma geldiği
+  adla alıyor — `contact_profile.photo_file` yol değil ad tutuyor, o yüzden ad korununca satır
+  fotoğrafını buluyor — ve burada aynı adda bir dosya varsa dokunmuyor. Geri yükleme de kayıtlarla
+  aynı yoldan yerine koyuyor. Fotoğrafsız eski bir yedekte `photos/` klasörü hiç yok; hiçbir şey
+  benimsenmiyor ve içe aktarma eskisi gibi davranıyor.
+- [ ] **AKTARIM-TIK — Tek yönlü aktarım 10 tık; §7.3 en çok 6 diyor.** Sayılan (7 Eylül, aynı
+  yöntemle önce ve sonra): **önce 13** — A'da Durum, Veriler, Yedekle, kayıt penceresinde klasör,
+  Kaydet, parola Devam (6); B'de Durum, Veriler, İçe aktar, açma penceresinde klasör, dosya, Aç,
+  onay (7). **Sonra 10** — klasör hatırlandığı ve dosya adı önerildiği için her iki dosya
+  penceresi tek tık; körlemesine onay yerine önizleme (aynı tık, dolu içerik). Kalan on tıkın
+  **dördü iki makinede ekrana gitmek** (Durum + Veriler sekmesi), biri parola teklifi, biri kayıt
+  penceresinin Kaydet'i. Altıya inmenin iki yolu var ve ikisi de bu paketin dışında bir karar
+  ister: Veriler sekmesinin açılışta hatırlanması, ve parola teklifinin her yedekte sorulan bir
+  pencere yerine kartta duran bir tercih olması.
 - [ ] **NOBETCI-METIN — Süzgeç nöbetçi değerleri hâlâ metin.** Kişi penceresinin durum ve
   sıralama açılırları sabit Türkçe metni değer olarak kullanıyor (`StateFilter != AllStates`).
   Aynam'ın motor açılırı bunu **sözlükten gelen** bir metinle yapıyor, yani dil değiştirilince
@@ -1568,11 +1581,16 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   gizleme tamamen düşer (iki mekanizma aynı işi yapmaz). Şerit YALNIZ "Son görüşmeler"i süzer;
   üstteki dört sayı, Dikkat kartları ve sağ sütun hiçbir sekmede değişmez. Süzgeç SQL'e iner,
   çünkü Genel bakış'ta kesim süzgeçten önce (12 satır). 4-6 gün.
-- [ ] **D — İki makine, tek kişi (şema v22'nin yanında)** — PLAN-IKINCI-TUR §7. Kullanıcı
-  uygulamayı birden fazla PC'de kullanıyor. Bugün paylaşılan bir görüşmenin üstündeki kararlar
-  hiç taşınmıyor, kişi profili bütün satır olarak düşüyor, geri yükleme ayar dosyasını eziyor,
-  varsayılan yedek sesi almıyor ve bunu söylemiyor. Arşiv künyesi + içe aktarma önizlemesi +
-  "Getirilmeyenler" listesi. **Kişi profilinin alan alan birleşmesi Ç2'den ÖNCE girmeli.** ~1 hafta.
+- [x] **D — İki makine, tek kişi (şema v22'nin yanında)** — **BİTTİ** (7 Eylül; çekirdek + ekran).
+  PLAN-IKINCI-TUR §7. Çekirdek şemayı, künyeyi, karar birleştirmeyi ve getirilmeyenler tablosunu
+  getirdi; ekran yarısı üçünü de görünür yaptı: Sağlık → Veriler'in başındaki **arşiv künyesi**
+  (adı kullanıcı yazar; ikizi yoksa ikiz satırı hiç çizilmez), dosya seçilir seçilmez gelen
+  **içe aktarma önizlemesi** (künyesiz yedek "kaynak bilinmiyor", daha yeni sürümden gelen yedek
+  reddedilmiyor, uyarıyla sunuluyor) ve **"Getirilmeyenler" penceresi** (her satırda iki taraf yan
+  yana ve üç cevap). Uygulama yarısı `LeftoverResolution`'da: her cevap yazılmadan önce arşive
+  soruluyor, yazılamayacak bir düğme hiç çizilmiyor ve **niye çizilmediği cümleyle söyleniyor**.
+  **Açık kalan:** §7.3'ün üçüncü ölçüsü (tek yönlü aktarım 13 → en çok 6 tık) **karşılanmadı**;
+  ölçülen 13 → 10. Aşağıya `AKTARIM-TIK` olarak yazıldı.
 - [x] **Ç — Çevreler (çip + gizleme)** — **DEVREDİLDİ.** Kullanıcı çip yerine sekme ve
   Genel bakış istedi; tasarım **Ç2**'ye taşındı (PLAN-IKINCI-TUR §6) ve gizleme mekanizması
   tamamen düştü. Şeması ve Çevreler penceresi Ç2'de aynen yaşıyor.

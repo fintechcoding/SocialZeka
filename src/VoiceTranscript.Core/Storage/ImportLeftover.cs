@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
+using VoiceTranscript.Core.Domain;
 using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.Core.Storage;
@@ -66,6 +69,180 @@ public static class LeftoverKinds
 
     /// <summary>Something on a person's card: their birthday, their photo, the note about them.</summary>
     public const string Person = "kisi";
+}
+
+/// <summary>
+/// The columns a person-card leftover can be about.
+///
+/// <c>import_leftover.field</c> holds a database column name for <see cref="LeftoverKinds.Person"/>
+/// — the merge reads the shared columns of <c>contact_profile</c> at run time, so that nothing has
+/// to be remembered when a schema step adds one. The three this build knows how to write back are
+/// named here, once, because both the screen (which word goes on the row) and the resolution
+/// (which writer to call) have to agree about them.
+/// </summary>
+public static class LeftoverFields
+{
+    /// <summary>The stored file name of the person's photo.</summary>
+    public const string Photo = "photo_file";
+
+    public const string BirthDate = "birth_date";
+
+    /// <summary>What the user wrote about the person, on <c>contact.notes</c>.</summary>
+    public const string PersonNote = "notes";
+}
+
+/// <summary>
+/// The three kinds of decision whose stored value is a DESCRIPTION rather than the thing itself,
+/// written and read back in one place.
+///
+/// A note is its own text and a tag is its own word, so the leftover row holds them verbatim. A
+/// promise ruling is four columns, a suggestion ruling is two, and a board card is three; there
+/// is one column to put them in, so the merge writes them as one short line. That line is the one
+/// the user reads on the leftover row and the one a resolution has to turn back into columns
+/// before it can be applied — which makes the format a contract with two ends, and a contract
+/// with two ends written in two files drifts.
+///
+/// So both ends live here. <see cref="DecisionMerge"/> composes with these and the screen takes
+/// them apart with these, and a round-trip test holds them to each other. The wording is
+/// unchanged from what the merge already wrote: the text goes into the fingerprint, so a new
+/// spelling would ask every question a second time on archives that have already answered.
+/// </summary>
+public static class LeftoverValue
+{
+    /// <summary>Between the parts. A middle dot with spaces, as the rest of the product writes lists.</summary>
+    private const string Between = " · ";
+
+    /// <summary>What a field holds when the other machine left it empty.</summary>
+    private const string Nothing = "-";
+
+    // ---- a promise ruling ---------------------------------------------------
+
+    /// <summary>
+    /// A ruling reduced to what it says, with the stamps left out.
+    ///
+    /// Two machines that agree the promise was kept will not agree on the millisecond the button
+    /// was pressed, and comparing the stamps would make every agreement look like a conflict and
+    /// fill the user's list with questions that have one answer.
+    /// </summary>
+    public static string Promise(long status, long dismissed, string? deadline, string? obligation) =>
+        $"durum={status}"
+        + $"{Between}susturuldu={dismissed}"
+        + $"{Between}tarih={deadline ?? Nothing}"
+        + $"{Between}söz={obligation ?? Nothing}";
+
+    /// <summary>The four parts of a promise ruling, as they were before <see cref="Promise"/>.</summary>
+    /// <param name="Status">One of <see cref="CommitmentStatus"/>.</param>
+    /// <param name="Dismissed">Whether the user silenced it.</param>
+    /// <param name="Deadline">The date the user typed, or null.</param>
+    /// <param name="Obligation">The wording the user corrected to, or null.</param>
+    public readonly record struct PromiseRuling(
+        CommitmentStatus Status, bool Dismissed, DateOnly? Deadline, string? Obligation);
+
+    // The obligation is last and takes everything after "söz=", so a sentence containing the
+    // separator cannot split a ruling into the wrong number of parts. The date before it is
+    // non-greedy for the same reason from the other side.
+    private static readonly Regex PromisePattern = new(
+        @"^durum=(-?\d+) · susturuldu=(-?\d+) · tarih=(.*?) · söz=(.*)$",
+        RegexOptions.Singleline | RegexOptions.Compiled);
+
+    /// <summary>Reads one back, or null when the text is not a ruling this build wrote.</summary>
+    public static PromiseRuling? ReadPromise(string? text)
+    {
+        if (text is null) return null;
+
+        var match = PromisePattern.Match(text);
+        if (!match.Success) return null;
+
+        if (!int.TryParse(match.Groups[1].Value, CultureInfo.InvariantCulture, out var status)) return null;
+        if (!Enum.IsDefined((CommitmentStatus)status)) return null;
+
+        return new PromiseRuling(
+            (CommitmentStatus)status,
+            match.Groups[2].Value != "0",
+            Day(match.Groups[3].Value),
+            Words(match.Groups[4].Value));
+    }
+
+    // ---- a suggestion ruling ------------------------------------------------
+
+    /// <summary>What was decided about a suggested next move, and where it was sent.</summary>
+    public static string Suggestion(long status, string? routedNote) =>
+        $"durum={status}" + (routedNote is null ? "" : $"{Between}{routedNote}");
+
+    /// <param name="Status">One of <see cref="ActionStatus"/>.</param>
+    /// <param name="RoutedNote">Where the user sent it, or null.</param>
+    public readonly record struct SuggestionRuling(ActionStatus Status, string? RoutedNote);
+
+    private static readonly Regex SuggestionPattern = new(
+        @"^durum=(-?\d+)(?: · (.*))?$", RegexOptions.Singleline | RegexOptions.Compiled);
+
+    /// <summary>Reads one back, or null when the text is not a ruling this build wrote.</summary>
+    public static SuggestionRuling? ReadSuggestion(string? text)
+    {
+        if (text is null) return null;
+
+        var match = SuggestionPattern.Match(text);
+        if (!match.Success) return null;
+
+        if (!int.TryParse(match.Groups[1].Value, CultureInfo.InvariantCulture, out var status)) return null;
+        if (!Enum.IsDefined((ActionStatus)status)) return null;
+
+        return new SuggestionRuling(
+            (ActionStatus)status,
+            match.Groups[2].Success ? Words(match.Groups[2].Value) : null);
+    }
+
+    // ---- a board card -------------------------------------------------------
+
+    /// <summary>Where the conversation was filed, what it was called there, and when it comes back.</summary>
+    public static string Board(string lane, string? title, string? remindOn) =>
+        lane + (title is null ? "" : Between + title) + (remindOn is null ? "" : Between + remindOn);
+
+    /// <param name="Lane">One of <see cref="BoardLane"/>.</param>
+    public readonly record struct BoardCardValue(string Lane, string? Title, DateOnly? RemindOn);
+
+    /// <summary>
+    /// Reads one back, or null when the text is not a card this build wrote.
+    ///
+    /// The lane is first and is one of four known words, so it is read by name rather than by
+    /// position — a text whose first part is not a lane is not a card and is refused rather than
+    /// guessed at. The reminder is last and is a sortable date, which is what tells it apart from
+    /// a title: the two middle possibilities are otherwise indistinguishable, and a title read as
+    /// a date would put a reminder on a day nobody chose.
+    /// </summary>
+    public static BoardCardValue? ReadBoard(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return null;
+
+        var parts = text.Split(Between);
+        if (!BoardLane.IsKnown(parts[0])) return null;
+
+        var rest = parts.Skip(1).ToList();
+        DateOnly? remindOn = null;
+
+        if (rest.Count > 0 && Day(rest[^1]) is { } day)
+        {
+            remindOn = day;
+            rest.RemoveAt(rest.Count - 1);
+        }
+
+        // Rejoined rather than taken as one part: a title the user wrote with a middle dot in it
+        // is still one title, and splitting it would rename their card.
+        return new BoardCardValue(
+            parts[0], rest.Count == 0 ? null : Words(string.Join(Between, rest)), remindOn);
+    }
+
+    // ---- the two shapes every part is written in ----------------------------
+
+    private static string? Words(string value) =>
+        value is Nothing || string.IsNullOrWhiteSpace(value) ? null : value;
+
+    /// <summary>A stored day, or null — for "-", for a blank, and for anything not a day.</summary>
+    private static DateOnly? Day(string value) =>
+        DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out var day)
+            ? day
+            : null;
 }
 
 /// <summary>How the user answered a leftover. Written into <c>import_leftover.resolution</c>.</summary>

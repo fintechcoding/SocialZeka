@@ -282,11 +282,11 @@ internal sealed class DecisionMerge(
     /// was pressed, and comparing the stamps would make every agreement look like a conflict and
     /// fill the user's list with questions that have one answer.
     /// </summary>
-    private static string Describe(PromiseRow row) =>
-        $"durum={row.status}"
-        + $" · susturuldu={row.dismissed_by_user}"
-        + $" · tarih={row.user_deadline_date ?? "-"}"
-        + $" · söz={row.user_obligation ?? "-"}";
+    /// The wording itself belongs to <see cref="LeftoverValue"/>, not to this file: the screen
+    /// that resolves the row has to read it back into columns before it can apply it, and a
+    /// format written in one place and parsed in another is a format that drifts.
+    private static string Describe(PromiseRow row) => LeftoverValue.Promise(
+        row.status, row.dismissed_by_user, row.user_deadline_date, row.user_obligation);
 
     private sealed class PromiseRow
     {
@@ -550,7 +550,7 @@ internal sealed class DecisionMerge(
     }
 
     private static string Describe(ActionRow row) =>
-        $"durum={row.status}" + (row.routed_note is null ? "" : $" · {row.routed_note}");
+        LeftoverValue.Suggestion(row.status, row.routed_note);
 
     private sealed class ActionRow
     {
@@ -608,7 +608,7 @@ internal sealed class DecisionMerge(
     }
 
     private static string Describe(string lane, string? title, string? remindOn) =>
-        lane + (title is null ? "" : $" · {title}") + (remindOn is null ? "" : $" · {remindOn}");
+        LeftoverValue.Board(lane, title, remindOn);
 
     private sealed class BoardRow
     {

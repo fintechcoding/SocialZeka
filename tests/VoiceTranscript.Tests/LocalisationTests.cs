@@ -13,6 +13,7 @@ namespace VoiceTranscript.Tests;
 /// layout problem rather than a missing string. So the dictionaries are checked against each
 /// other and against the markup, which is where the keys are actually used.
 /// </summary>
+[Collection(InterfaceLanguageCollection.Name)]
 public class LocalisationTests
 {
     private static readonly string Root = FindRepositoryRoot();

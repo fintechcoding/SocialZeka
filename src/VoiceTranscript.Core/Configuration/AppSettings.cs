@@ -663,6 +663,31 @@ public sealed record AppSettings
     /// </summary>
     public int AudioRetentionDays { get; init; }
 
+    // ---- carrying the archive between two machines --------------------------
+
+    /// <summary>
+    /// The folder the last backup was written to or read from.
+    ///
+    /// Somebody who uses this on two computers carries a file between them, and did it from
+    /// scratch every time: the file dialog opened wherever Windows last felt like, and the folder
+    /// they always use — a stick, a synced folder — had to be found again, on both machines, on
+    /// every transfer. One remembered string is a third of the cost of the whole operation.
+    ///
+    /// Not carried by a restore: <see cref="Storage.BackupService.ApplyPendingRestore"/> parks the
+    /// incoming settings rather than applying them, so this stays a fact about THIS machine's
+    /// disk, which is the only kind of fact it can be.
+    /// </summary>
+    public string? BackupFolder { get; init; }
+
+    /// <summary>
+    /// When a backup was last written from this machine.
+    ///
+    /// So the screen can say it. No such field existed anywhere in the code base, which left the
+    /// one question somebody asks before carrying an archive across — is the file I am about to
+    /// take actually current — with no answer but memory.
+    /// </summary>
+    public DateTimeOffset? LastBackupAt { get; init; }
+
     // ---- storage ------------------------------------------------------------
 
     /// <summary>Overrides the data directory. Rejected if it resolves inside a cloud-sync folder.</summary>

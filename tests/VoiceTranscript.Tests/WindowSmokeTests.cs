@@ -208,6 +208,12 @@ public class WindowSmokeTests
                     repository,
                     new VoiceTranscript.Core.Domain.Contact { Id = 1, Name = "Serdal" }), failures);
 
+                // "Getirilmeyenler". A window rather than a page, so none of the eight page rules
+                // reaches it and this is the only thing that proves its markup parses — and it
+                // builds its whole list on construction, so the queries behind a leftover row run
+                // here too.
+                Build("Getirilmeyenler", () => new LeftoversWindow(repository), failures);
+
                 // Constructed only, never shown, so the fetch its Loaded handler starts never
                 // runs — which is what makes this safe to build against a real HttpClient with
                 // no network.
