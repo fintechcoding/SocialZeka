@@ -1583,7 +1583,7 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   Aynam'ın motor açılırı bunu **sözlükten gelen** bir metinle yapıyor, yani dil değiştirilince
   karşılaştırma tutmuyor — bugün gerçekten bozuk olan tek yer burası. K8 çipleri kapsıyor,
   açılırları kapsamıyor.
-- [ ] **Ç2 — Genel bakış merkezli çevre sekmeleri (şema v22)** — PLAN-IKINCI-TUR §6. Kullanıcı
+- [x] **Ç2 — Genel bakış merkezli çevre sekmeleri (şema v22)** — PLAN-IKINCI-TUR §6. Kullanıcı
   çip değil SEKME istedi ve Genel bakış'ta istedi. Ç'nin şeması ve Çevreler penceresi kalır;
   gizleme tamamen düşer (iki mekanizma aynı işi yapmaz). Şerit YALNIZ "Son görüşmeler"i süzer;
   üstteki dört sayı, Dikkat kartları ve sağ sütun hiçbir sekmede değişmez. Süzgeç SQL'e iner,
@@ -1605,7 +1605,7 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   SQL'den çekiyor. Sayılar arşivin tamamından. "Çevresiz" kaldırılamaz, seçim kalıcı değil,
   dörtten fazla çevrede şerit açılır kutuya dönüyor. Gizleme yazılmadı. Tohumlar Aile ve İş.
   Genel bakış'ın satır başına kişi sorgusu da kapandı.
-- [ ] **D — İki makine, tek kişi (şema v22'nin yanında)** — PLAN-IKINCI-TUR §7. Kullanıcı
+- [x] **D — İki makine, tek kişi (şema v22'nin yanında)** — PLAN-IKINCI-TUR §7. Kullanıcı
   uygulamayı birden fazla PC'de kullanıyor. Bugün paylaşılan bir görüşmenin üstündeki kararlar
   hiç taşınmıyor, kişi profili bütün satır olarak düşüyor, geri yükleme ayar dosyasını eziyor,
   varsayılan yedek sesi almıyor ve bunu söylemiyor. Arşiv künyesi + içe aktarma önizlemesi +
@@ -1614,7 +1614,7 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   Genel bakış istedi; tasarım **Ç2**'ye taşındı (PLAN-IKINCI-TUR §6) ve gizleme mekanizması
   tamamen düştü. Şeması ve Çevreler penceresi Ç2'de aynen yaşıyor.
 
-- [ ] **B — Arayüz bütünlük sözleşmesi** (3-4 gün, şema yok). 12 kural, 12 test; K1-K10 sert
+- [x] **B — Arayüz bütünlük sözleşmesi** (3-4 gün, şema yok). 12 kural, 12 test; K1-K10 sert
   sıfır (63 nokta), K11 (40 tarih çağrısı / 14 biçim) ve K12 (422 gömülü dize) çivilenir.
 - [x] **Y — Yapılacaklar'ın üç kusuru** (1 gün). action_item.quote hiç okunmuyor (kanıt zemini o
   ekranda tamamen kayıp); yapılacağa kişi seçilemiyor; hatırlatma board_card.remind_on olduğu

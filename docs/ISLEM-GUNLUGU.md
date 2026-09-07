@@ -3250,3 +3250,47 @@ yüzünden görünüşü, kaçırma değil.
 **Bulunan ama düzeltilmeyen:** getirilemeyen satır alıntıyı saklıyor ama sözün yönünü, teyidin
 milisaniyesini ve önerinin metnini saklamıyor; bir görüşmede aynı sözleri taşıyan iki satır varsa
 "ötekini al" reddediliyor. Çekirdeğin saklama biçimini değiştirmek yerine etrafından dolaşıldı.
+
+## 2026-09-07 — Aile ve iş sekmeleri (şema v23; ikinci tur tamam)
+
+`7d0f84f` + `e8e7938`. Kullanıcının kendi isteği, kendi cümlesiyle: "son görüşmelerde aile diye de
+ayrım olsa, bazı kişileri aileye aktarsam, tablı olsa, aileyi seçince ayrı filtrelenmiş hâlini
+görsem". Tohum çevreler yine kendi seçimi: **Aile ve İş**.
+
+**Şerit yalnız bir bölümü süzüyor, ve bu testle kanıtlı.** Üstteki dört sayı, Dikkat kartları,
+vadesi geçen sözler satırı ve sağ sütun her sekmede birebir aynı. Testin ilk hâli **bozuk bir
+yapıda da geçti** — sekme değiştirmek zaten sayıları yeniden hesaplamıyordu — ve ajan bunu görüp
+testi güçlendirdi: artık her sekmede sayfayı tazeleyip karşılaştırıyor, ki "Aile" açıkken gelen
+bir görüşmenin yaptığı da tam budur.
+
+**Süzgeç SQL'e indi, çünkü inmek zorundaydı.** Genel bakış on iki satır istiyor ve LIMIT süzgeçten
+önce koşuyor. Testi bunu gösteriyor: 20 eski aile görüşmesi ve 12 yeni iş görüşmesi olan bir
+arşivde süzgeçsiz on iki satırın hepsi iş; "Aile" sekmesinde on iki aile satırı gelmek zorunda.
+Bellekte süzülseydi sıfır satır görünürdü. Sekme sayıları tüm arşivden tek bir gruplamayla
+geliyor ve toplamları arşivin toplamına eşit — bu da ayrıca çivili.
+
+**Planlanan indeks yazılamadı ve sebebi ciddi.** `contact_profile(circle_folded)` üstündeki indeks,
+göç adımının eklediği bir sütuna bakıyor; ama taban şema adımlardan **önce** uygulandığı için
+indeks "böyle bir sütun yok" diye patlıyor — **var olan her veritabanında**, yani uygulama
+açılmıyor. Yeni yazılan göç testi bunu yakaladı. İndeks iki yerden de kaldırıldı, gerekçe sütunun
+yanına yazıldı, ve `GOC-ADIMI-OLU` maddesinin ikinci sonucu olarak kaydedildi.
+
+**Atama iki makine arasında geçiyor ve bu varsayılmadı, kanıtlandı.** Ajan gerçekten bir arşivi
+yedekleyip ötekine aktaran bir test yazdı. Çevrelerin **kelimeleri** kopya listesine bir satırla
+girdi; **kimin hangi çevrede olduğu** ise kişi profilinin alan alan birleşmesiyle taşınıyor, ki o
+sabah girmişti ve sütunlarını çalışma anında okuyor. Zor durum da sınandı: iki makinenin de tanıdığı
+bir kişi, burada bir şey yazılmamışsa ötekinin çevresini alıyor; burada zaten dosyalanmışsa
+kimse onu yerinden oynatmıyor.
+
+**Gizleme yazılmadı**, sözleşmede olduğu gibi: çok seçimli aç/kapa, kalıcı gizleme tercihi ve
+"{n} görüşme gizli" satırı yok. Sekme onun yerine geçti. "Çevresiz" sekmesi kaldırılamıyor,
+seçim kalıcı değil, dörtten fazla çevrede şerit açılır kutuya dönüyor.
+
+**Silinen çevre veriyi silmiyor.** Tanımı silmek atamaları bırakıyor; o kişiler her yerde
+çevresiz okunuyor, böylece kovaların toplamı arşivin toplamına eşit kalıyor. Kullanıcı iki tohumu
+da silerse şerit çizilmiyor ama **"Çevreleri düzenle…" ekranda kalıyor** — son çevreyi silmek,
+yeni bir tane yapmanın yolunu silmek olamaz.
+
+**Doğrulama.** 1502 C# testi (1497 geçti, 5 atlandı), iki ardışık koşumda aynı. On beş mutasyon.
+Ayrıca göç, **kullanıcının gerçek arşivinin bir kopyası üzerinde** 19'dan 23'e koşturuldu: 52
+görüşme, 2825 satır, 133 iddia yerinde; bütünlük denetimi temiz, yabancı anahtar sorunu yok.
