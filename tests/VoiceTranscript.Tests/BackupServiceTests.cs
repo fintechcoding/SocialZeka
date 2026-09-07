@@ -159,6 +159,71 @@ public class BackupServiceTests : IDisposable
         Assert.False(BackupService.HasPendingRestore(_paths));
     }
 
+    /// <summary>
+    /// A restore puts the conversations back and leaves THIS machine's settings alone.
+    ///
+    /// Goes red the day a restore starts replacing settings.json again. It used to, and the damage
+    /// is specific: the other computer's microphone and speaker identity, its API keys and its
+    /// data root land here, so a restore taken to recover an archive silently repoints the
+    /// recorder at a device that does not exist on this machine. <c>MergeArchive</c>'s own
+    /// documentation forbids exactly this, and the restore was doing it anyway.
+    ///
+    /// The incoming file is not deleted either — it goes into the aside folder under a name that
+    /// says what it is, because a restore must destroy nothing.
+    /// </summary>
+    [Fact]
+    public async Task ARestoreLeavesThisMachinesSettingsAlone()
+    {
+        File.WriteAllText(_paths.SettingsFile, """{"AsrModelId":"oteki-makinenin-modeli"}""");
+
+        var backup = await _backup.BackupAsync(Destination("oteki.zip"));
+
+        // What this machine has now, written after the backup was taken: what a restore must not
+        // touch, and what the old behaviour replaced.
+        File.WriteAllText(_paths.SettingsFile, """{"AsrModelId":"bu-makinenin-modeli"}""");
+
+        await _backup.StageRestoreAsync(backup.Path);
+        new Database(_paths.DatabaseFile).ClearPool();
+
+        var aside = BackupService.ApplyPendingRestore(_paths);
+
+        Assert.NotNull(aside);
+        Assert.Contains("bu-makinenin-modeli", File.ReadAllText(_paths.SettingsFile));
+
+        // And the other machine's settings are set down beside the previous data rather than
+        // thrown away, so a value can still be copied out of them by hand.
+        var carried = Path.Combine(aside!, "yedekten-gelen-settings.json");
+        Assert.True(File.Exists(carried), "yedekten gelen ayar dosyası kenara alınmadı");
+        Assert.Contains("oteki-makinenin-modeli", File.ReadAllText(carried));
+    }
+
+    /// <summary>
+    /// The other half of the same rule: a restore onto an installation with no settings at all
+    /// puts the backup's settings in place.
+    ///
+    /// Writing into an empty place is a move, not a merge — there is nothing here to displace, so
+    /// nothing is being overwritten. Goes red when the fix above is taken too far and a restore
+    /// after a dead laptop comes back with no API keys and no audio devices, which would trade one
+    /// silent loss for another.
+    /// </summary>
+    [Fact]
+    public async Task ARestoreOntoAnInstallationWithNoSettingsBringsThemBack()
+    {
+        File.WriteAllText(_paths.SettingsFile, """{"AsrModelId":"kaybolan-makine"}""");
+
+        var backup = await _backup.BackupAsync(Destination("olen-dizustu.zip"));
+
+        await _backup.StageRestoreAsync(backup.Path);
+        new Database(_paths.DatabaseFile).ClearPool();
+
+        File.Delete(_paths.SettingsFile);
+
+        BackupService.ApplyPendingRestore(_paths);
+
+        Assert.True(File.Exists(_paths.SettingsFile), "boş yere yazmak taşımadır — ayarlar gelmedi");
+        Assert.Contains("kaybolan-makine", File.ReadAllText(_paths.SettingsFile));
+    }
+
     [Fact]
     public void ApplyingWithNothingStagedDoesNothingAtAll()
     {

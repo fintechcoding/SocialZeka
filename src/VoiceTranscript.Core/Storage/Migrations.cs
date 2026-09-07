@@ -1,4 +1,4 @@
-﻿namespace VoiceTranscript.Core.Storage;
+namespace VoiceTranscript.Core.Storage;
 
 /// <summary>
 /// Ordered changes for databases created before the current schema.
@@ -493,6 +493,60 @@ public static class Migrations
             [
                 "ALTER TABLE consistency_note ADD COLUMN observations TEXT;",
                 "ALTER TABLE flag ADD COLUMN transcript_version_id INTEGER REFERENCES transcript_version(id) ON DELETE SET NULL;",
+            ]),
+
+        // v22 — the archive learns that it is one of two, and that an import can fail to carry
+        // something without anybody being told.
+        //
+        // Three tables and no ALTER, so an existing database gains all of this without a single
+        // row being rewritten. Nothing is backfilled and the reason is the same in all three:
+        //
+        //   archive_identity is created EMPTY. The id is generated on the next start by
+        //   Repository.EnsureArchiveIdentity, not here, so a database that is copied around
+        //   during a migration cannot end up with two computers holding the same name.
+        //
+        //   archive_link stays empty for imports that already happened. There is no record of
+        //   when they ran or what they came from, and writing a guess would make the archive
+        //   claim to have heard from a machine on a date it invented. NULL means "bilinmiyor".
+        //
+        //   import_leftover stays empty because the decisions those imports dropped are already
+        //   gone — this is the table that stops it happening again, not one that can recover it.
+        new(22, "Arşivin künyesi, tanıdığı ikizler ve içe aktarmanın getiremedikleri",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS archive_identity (
+                    id         INTEGER PRIMARY KEY CHECK (id = 1),
+                    archive_id TEXT    NOT NULL,
+                    label      TEXT,
+                    created_at TEXT    NOT NULL
+                );
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS archive_link (
+                    archive_id  TEXT PRIMARY KEY,
+                    label       TEXT,
+                    written_at  TEXT,
+                    imported_at TEXT NOT NULL
+                );
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS import_leftover (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fingerprint       TEXT    NOT NULL UNIQUE,
+                    source_archive_id TEXT,
+                    kind              TEXT    NOT NULL,
+                    call_id           INTEGER REFERENCES call(id) ON DELETE CASCADE,
+                    contact_id        INTEGER REFERENCES contact(id) ON DELETE CASCADE,
+                    field             TEXT    NOT NULL,
+                    mine              TEXT,
+                    theirs            TEXT,
+                    quote             TEXT,
+                    noticed_at        TEXT    NOT NULL,
+                    resolution        TEXT,
+                    resolved_at       TEXT
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS ix_leftover_open ON import_leftover(resolution, noticed_at DESC);",
             ]),
     ];
 }

@@ -381,14 +381,28 @@ public partial class App : Application
         // held, which is why it is staged when the user asks and put into place here.
         if (Core.Storage.BackupService.ApplyPendingRestore(Paths) is { } aside)
         {
+            // Read again, because the restore may have put a settings file where there was none —
+            // the fresh-install-after-a-dead-laptop case. Settings were loaded further up, before
+            // the file existed, so without this the first thing that saves would write the
+            // defaults over what was just restored. A restore onto a working installation does
+            // not touch settings at all, so this re-read costs it nothing.
+            Settings = AppSettings.Load(Paths.SettingsFile);
+
             MessageBox.Show(
-                "Yedek geri yüklendi.\n\nÖnceki verilerin silinmedi, şu klasöre alındı:\n" + aside,
+                "Yedek geri yüklendi.\n\nÖnceki verilerin silinmedi, şu klasöre alındı:\n" + aside
+                + "\n\nBu bilgisayarın ayarlarına dokunulmadı: mikrofon, hoparlör ve anahtarlar "
+                + "olduğu gibi kaldı. Yedekteki ayar dosyası da o klasörde duruyor.",
                 AppPaths.ApplicationName, MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         var database = new Database(Paths.DatabaseFile);
         database.Migrate();
         Repository = new Repository(database);
+
+        // This archive learns its own name, once, on the first start after the schema step. It is
+        // what lets the other computer say where a backup came from — and, for somebody who only
+        // ever uses one machine, a row nothing will ever read.
+        Repository.EnsureArchiveIdentity();
 
         // Tag looks, read once: every pill on every list draws from this cache, not from disk.
         Services.TagPalette.Load(Repository);
