@@ -1545,10 +1545,10 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   adımlardan ÖNCE uyguluyor. Yani v18, v19, v20 ve v22 adımlarının SQL'i etkin değil; etkin
   kaynak taban şema. Testler de bunu yakalayamıyor. Yama değil karar gerekiyor: ya adımlar
   tabandan önce koşsun, ya da yalnız-CREATE adımların belge olduğu yazılsın.
-- [ ] **TEST-KIRILGAN — `ShellRefreshTests` ve `RepeatedWorkTests` paralel yükte kırılabiliyor.**
-  İki makine paketinin ajanı, kendi değişikliği olmayan taban üzerinde iki testin paralel koşumda
-  düşüp tek başına geçtiğini ölçtü. Süreç geneli bir durum paylaşımı olabilir; `AudioMaterialiser`
-  için daha önce aynı sınıf bir sorun bulunup koleksiyona alınmıştı.
+- [x] **TEST-KIRILGAN** — **ÇÖZÜLDÜ** (7 Eylül, bütünlüğün ekran yarısı). Sebep statik
+  değişiklik yayınıydı: kendi tazelemesini sayan bir test sınıfı, paralel koşan başka bir
+  sınıfın verdiği kararları da sayıyordu. Yayına dokunan beş sınıf tek koleksiyona alındı;
+  ölçüm 18 koşumda 4 kırılmadan 12 koşumda 0'a indi.
 - [ ] **K9-KILITLI — Bütünlük sözleşmesinin dört ihlali işaretleme tarafında.** `callwindow.gizle`,
   `contactspage.gizle`, `overviewpage.gizle` adları "gizle" ama değerleri "Reddet"; her biri aynı
   sayfadaki bir `*.reddet` anahtarının kopyası, çözüm işaretlemeyi ona yöneltip eskisini silmek.
@@ -1558,6 +1558,11 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
 - [ ] **FOTO-YEDEK — Kişi fotoğrafları yedeğe hiç girmiyor.** Kişi kartı alanları artık iki makine
   arasında geçtiği için, taşınan bir fotoğraf yolu bu makinede olmayan bir dosyayı adlandırabilir.
   Yol dürüstçe taşınıyor, baytlar taşınmıyor.
+- [ ] **NOBETCI-METIN — Süzgeç nöbetçi değerleri hâlâ metin.** Kişi penceresinin durum ve
+  sıralama açılırları sabit Türkçe metni değer olarak kullanıyor (`StateFilter != AllStates`).
+  Aynam'ın motor açılırı bunu **sözlükten gelen** bir metinle yapıyor, yani dil değiştirilince
+  karşılaştırma tutmuyor — bugün gerçekten bozuk olan tek yer burası. K8 çipleri kapsıyor,
+  açılırları kapsamıyor.
 - [ ] **Ç2 — Genel bakış merkezli çevre sekmeleri (şema v22)** — PLAN-IKINCI-TUR §6. Kullanıcı
   çip değil SEKME istedi ve Genel bakış'ta istedi. Ç'nin şeması ve Çevreler penceresi kalır;
   gizleme tamamen düşer (iki mekanizma aynı işi yapmaz). Şerit YALNIZ "Son görüşmeler"i süzer;

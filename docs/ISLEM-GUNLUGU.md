@@ -3154,3 +3154,49 @@ taşıyıp "Reddet" yazıyor, biri de iki ayrı anlamı ("açık" tema ve "açı
 topluyor.
 
 **Doğrulama.** 1474 C# testi (1469 geçti, 5 atlandı).
+
+## 2026-09-07 — Arayüz bütünlük sözleşmesi: ekran yarısı
+
+`7505f1e` + `577269c`. Dört kural, dördü de sıfıra indi.
+
+| Kural | Önce | Sonra |
+|---|---|---|
+| K5 tek geri alma | 6 elle kopyalanmış şerit, 3 kendi alanını taşıyan görünüm modeli, **2** düğmesine hiç bağlı olmayan şerit | 0 |
+| K6 sayfa iskeleti | 5 sayfa | 0 |
+| K7 boş durum | 5 sayfada 6 öğe | 0 |
+| K8 süzgecin kimliği | 18 metin parametresi, 10 çipin seçimi işaretlemede | 0 |
+
+**Planın iki sayısı ve bir gerekçesi düzeltildi, ve düzeltme doğru.**
+
+Plan K8 için "İngilizce arayüzde çipler hiç seçili görünmüyor" diyordu. **Bu bugün doğru değil**:
+karşılaştırmanın iki tarafı da aynı Türkçe sabiti kullanıyor, o yüzden çipler yanıyor. Kural yine
+geçerli — süzgecin kimliği ekranda okunan metin olmamalı — ama gerekçesi başka: K12 o sabitleri
+sözlüğe taşıdığı gün çipler kararırdı. Ajan bunun yerine **bugün yaşayan bir yalan** buldu ve onu
+düzeltti: kişi penceresinde "Temizle" tarih süzgecini temizliyor ama dönem çipini yanık
+bırakıyordu, yani şerit "Bu ay" derken liste her şeyi gösteriyordu.
+
+K7 için plan "4 sayfa" diyordu; soru "sayfada bir boş durum var mı" ise doğru. "Liste boşken
+gösterilen şey ortak denetim mi" diye sorulunca **5 sayfada 6 öğe** çıkıyor: Genel bakış'ın bir
+boş durumu vardı ama iki boş listeyi gri satırla ve elle kurulmuş bir panoyla karşılıyordu.
+
+K6 için `AiStatusPage` ve `ProcessingPage` dışarıda: adları sayfa ama `HealthPage` içindeki
+sekmeler, ve onlara 28 piksellik sayfa başlığı vermek bütünlüğü bozmak olurdu. Test bunu elle
+tutulan bir listeden değil, işaretlemeden türetiyor.
+
+**Altı boş durum gerçekten yazıldı**, gri bir satır değil: Yapılacaklar, Sözler, Aynam'ın anlar
+listesi, Takvim'in seçili günü, Genel bakış'ın panosu ve Bugün sekmesi. Her biri orada ne
+görüneceğini ve nasıl görüneceğini anlatıyor.
+
+**Kırılganlık ölçüldü, teşhis edildi ve düzeltildi.** Ajan tabanı 18 kez koştu (18/18 temiz),
+kendi testlerini ekleyip 12 kez koştu (12/12 temiz), kendi dalını 18 kez koştu ve **4 kırılma**
+gördü. Sebep kendi değişikliği değildi: `LedgerActions.Changed` ve `CallActions.Changed` statik,
+yani kendi tazelemesini sayan bir test sınıfı, paralel koşan başka bir sınıfın verdiği kararları
+da sayıyordu. Yayına dokunan beş test sınıfı tek koleksiyona alındı. Sonrası 12/12 temiz.
+Bu, daha önce YAPILACAKLAR'a "TEST-KIRILGAN" diye yazılan maddenin cevabıdır.
+
+**Bulunan ama düzeltilmeyen üç şey**, hepsi aynı hastalığın başka biçimi: kişi penceresinin durum
+ve sıralama açılırları sabit Türkçe metni nöbetçi değer olarak kullanıyor; Aynam'ın motor
+açılırı bunu **sözlükten gelen** bir metinle yapıyor, yani dil değiştirilince karşılaştırma
+tutmuyor — planın "İngilizce bozar" hikâyesinin bugün gerçekten doğru olduğu tek yer burası.
+
+**Doğrulama.** 1478 C# testi (1473 geçti, 5 atlandı), üç ardışık koşumda da temiz.
