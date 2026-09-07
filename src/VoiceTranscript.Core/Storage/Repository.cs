@@ -673,12 +673,17 @@ public sealed class Repository(Database database)
 
         connection.Execute(
             """
-            INSERT INTO contact_profile (contact_id, photo_file, birth_date, updated_at)
-            SELECT @intoContactId, photo_file, birth_date, updated_at
+            INSERT INTO contact_profile (contact_id, photo_file, birth_date, circle_folded, updated_at)
+            SELECT @intoContactId, photo_file, birth_date, circle_folded, updated_at
             FROM contact_profile WHERE contact_id = @fromContactId
             ON CONFLICT(contact_id) DO UPDATE SET
                 photo_file = COALESCE(contact_profile.photo_file, excluded.photo_file),
-                birth_date = COALESCE(contact_profile.birth_date, excluded.birth_date);
+                birth_date = COALESCE(contact_profile.birth_date, excluded.birth_date),
+                -- The circle follows the person too. Two people turning out to be one keeps the
+                -- circle the surviving contact was already in; the other's is used only where
+                -- nobody had said anything, which is a move into an empty place rather than a
+                -- decision taken on the user's behalf.
+                circle_folded = COALESCE(contact_profile.circle_folded, excluded.circle_folded);
             """,
             new { intoContactId, fromContactId }, transaction);
 
@@ -755,15 +760,63 @@ public sealed class Repository(Database database)
         return connection.QueryFirstOrDefault<CallRow>("SELECT * FROM call WHERE id = @id;", new { id })?.ToModel();
     }
 
-    public IReadOnlyList<Call> ListCalls(long? contactId = null, int limit = 200)
+    /// <summary>
+    /// The newest calls, optionally one person's and optionally one circle's.
+    ///
+    /// The circle goes into the SQL rather than being applied to what comes back, and that is the
+    /// whole reason this parameter exists. The first screen asks for twelve rows: THE CUT HAPPENS
+    /// BEFORE ANY FILTER. Narrowing those twelve in memory would show two rows on the "Aile" tab
+    /// of an archive holding forty-one family conversations, and the honest reading of that screen
+    /// is "my family calls are gone". Each tab therefore asks the database for its own newest
+    /// twelve.
+    ///
+    /// A circle nobody has defined any more does not narrow anything, and the people in it fall
+    /// back into "Çevresiz" — see <see cref="CallCountsByCircle"/> for why that is the only
+    /// arrangement in which every conversation is reachable from some tab.
+    /// </summary>
+    public IReadOnlyList<Call> ListCalls(long? contactId = null, int limit = 200, CircleFilter? circle = null)
     {
         using var connection = Open();
 
-        var sql = contactId is null
-            ? "SELECT * FROM call ORDER BY started_at DESC LIMIT @limit;"
-            : "SELECT * FROM call WHERE contact_id = @contactId ORDER BY started_at DESC LIMIT @limit;";
+        var conditions = new List<string>();
 
-        return [.. connection.Query<CallRow>(sql, new { contactId, limit }).Select(r => r.ToModel())];
+        if (contactId is not null) conditions.Add("c.contact_id = @contactId");
+
+        if (circle is { Without: true })
+        {
+            // No profile row, no circle written, or a circle whose definition is gone. All three
+            // are the same thing on screen: this person is in no circle the user can point at.
+            // An unnamed recording has no person at all and lands here too, which is right — it
+            // belongs to nobody, and the tab that can never be removed is where it must be found.
+            conditions.Add(
+                """
+                NOT EXISTS (
+                    SELECT 1 FROM contact_profile p
+                      JOIN contact_circle d ON d.circle_folded = p.circle_folded
+                     WHERE p.contact_id = c.contact_id)
+                """);
+        }
+        else if (circle?.Folded is { } folded)
+        {
+            conditions.Add(
+                """
+                EXISTS (
+                    SELECT 1 FROM contact_profile p
+                      JOIN contact_circle d ON d.circle_folded = p.circle_folded
+                     WHERE p.contact_id = c.contact_id AND d.circle_folded = @folded)
+                """);
+        }
+
+        var where = conditions.Count == 0 ? "" : "WHERE " + string.Join(" AND ", conditions) + " ";
+
+        var sql = $"SELECT c.* FROM call c {where}ORDER BY c.started_at DESC LIMIT @limit;";
+
+        return
+        [
+            .. connection
+                .Query<CallRow>(sql, new { contactId, limit, folded = circle?.Folded })
+                .Select(r => r.ToModel()),
+        ];
     }
 
     /// <summary>
@@ -1603,6 +1656,13 @@ public sealed class Repository(Database database)
             // The habit dictionary likewise: a stem already here, by kind and folded spelling,
             // keeps its endings and its spelling; the archive's other stems are added.
             Copy(connection, transaction, "habit_lexicon");
+
+            // Circles, on exactly the same terms: keyed by the folded word, so a circle defined
+            // on both computers keeps this one's colour and the other machine's circles arrive
+            // beside it. This is the half of the concept that needs carrying by hand — WHICH
+            // circle each person is in rides across inside contact_profile, which MergeFields
+            // already merges column by column, reading its columns at run time.
+            Copy(connection, transaction, "contact_circle");
 
             // And now the half the copy above cannot reach: what the user DECIDED on a
             // conversation that exists on both machines. Every rule and every count is in
@@ -5809,6 +5869,236 @@ public sealed class Repository(Database database)
         {
             SaveTagDef(new TagDef(tag, icon, color, position++));
         }
+    }
+
+    // ---- circles: the user's own groups of people ------------------------------------------
+
+    /// <summary>Every circle the user has defined, in the order they arranged them.</summary>
+    public IReadOnlyList<Circle> Circles()
+    {
+        using var connection = Open();
+
+        // Tuple then map, for the same reason TagDefs does it: SQLite hands position back as
+        // Int64 and Dapper will not narrow it into the record's int on its own.
+        return
+        [
+            .. connection
+                .Query<(string Circle, string Icon, string Color, long Position)>(
+                    "SELECT circle, icon, color, position FROM contact_circle ORDER BY position, circle_folded;")
+                .Select(row => new Circle(row.Circle, row.Icon, row.Color, (int)row.Position)),
+        ];
+    }
+
+    /// <summary>Creates or renames-in-place a circle. Identity is the Turkish-folded spelling.</summary>
+    public void SaveCircle(Circle circle)
+    {
+        var trimmed = circle.Name.Trim();
+        if (trimmed.Length == 0) return;
+
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO contact_circle (circle_folded, circle, icon, color, position)
+            VALUES (@folded, @circle, @icon, @color, @position)
+            ON CONFLICT(circle_folded) DO UPDATE SET
+                circle = excluded.circle, icon = excluded.icon,
+                color = excluded.color, position = excluded.position;
+            """,
+            new
+            {
+                folded = Text.TurkishText.NormalizeForSearch(trimmed),
+                circle = trimmed,
+                icon = circle.Icon,
+                color = circle.Color,
+                position = circle.Position,
+            });
+    }
+
+    /// <summary>
+    /// Removes a circle's definition. Every assignment stays exactly where it is.
+    ///
+    /// The same rule as <see cref="DeleteTagDef"/>, and it is not a technicality: the assignments
+    /// are the user's own data and deleting a word must never delete what somebody spent an
+    /// evening filing. The people fall back into "Çevresiz" while the word is gone, and the
+    /// moment it is written again — same spelling, folded — they are all back in it.
+    /// </summary>
+    public void DeleteCircle(string circle)
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            "DELETE FROM contact_circle WHERE circle_folded = @folded;",
+            new { folded = Text.TurkishText.NormalizeForSearch(circle.Trim()) });
+    }
+
+    /// <summary>
+    /// Renames a circle in place, taking everybody in it along.
+    ///
+    /// The identity of a circle is its folded spelling, so "Aile" → "Ailem" is a new key: saving
+    /// the new definition and deleting the old one would leave every person pointing at a word
+    /// that no longer exists, and the user — who typed one letter — would watch a tab that said
+    /// 41 become a tab that says 0. So the assignments move with the name, in one transaction.
+    ///
+    /// Renaming a circle onto a name that already exists merges the two, and that is the honest
+    /// outcome: after it, one word means one set of people, and nobody was dropped on the way.
+    /// </summary>
+    public void RenameCircle(string fromFolded, Circle to)
+    {
+        var trimmed = to.Name.Trim();
+        if (trimmed.Length == 0) return;
+
+        var folded = Text.TurkishText.NormalizeForSearch(trimmed);
+
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        connection.Execute(
+            """
+            INSERT INTO contact_circle (circle_folded, circle, icon, color, position)
+            VALUES (@folded, @circle, @icon, @color, @position)
+            ON CONFLICT(circle_folded) DO UPDATE SET
+                circle = excluded.circle, icon = excluded.icon,
+                color = excluded.color, position = excluded.position;
+            """,
+            new { folded, circle = trimmed, icon = to.Icon, color = to.Color, position = to.Position },
+            transaction);
+
+        if (!string.Equals(folded, fromFolded, StringComparison.Ordinal))
+        {
+            connection.Execute(
+                "UPDATE contact_profile SET circle_folded = @folded WHERE circle_folded = @fromFolded;",
+                new { folded, fromFolded }, transaction);
+
+            connection.Execute(
+                "DELETE FROM contact_circle WHERE circle_folded = @fromFolded;",
+                new { fromFolded }, transaction);
+        }
+
+        transaction.Commit();
+    }
+
+    /// <summary>
+    /// The two starting circles, written once into an empty table.
+    ///
+    /// Aile and İş, chosen by the user themselves — not three, and not the application's guess.
+    /// They are ordinary rows: renameable, deletable, and nothing re-seeds them afterwards, so a
+    /// circle somebody deleted stays deleted. An empty strip would have been the honest zero, but
+    /// it would also have meant the first visit offers nothing to press — the same reason the tag
+    /// wardrobe ships with six words in it.
+    /// </summary>
+    public void SeedDefaultCircles()
+    {
+        using var connection = Open();
+
+        var existing = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM contact_circle;");
+        if (existing > 0) return;
+
+        var position = 0;
+        foreach (var (circle, icon, color) in new[]
+                 {
+                     ("Aile", "Home24", "#8764B8"),
+                     ("İş", "Briefcase24", "#0078D4"),
+                 })
+        {
+            SaveCircle(new Circle(circle, icon, color, position++));
+        }
+    }
+
+    /// <summary>
+    /// Which circle each person is in, by contact id — one query, never one per row.
+    ///
+    /// Only people whose circle still has a definition are listed. A row pointing at a word the
+    /// user has since deleted reads as no circle at all, everywhere, which is the same answer
+    /// <see cref="ListCalls"/> and <see cref="CallCountsByCircle"/> give: one rule, so a screen
+    /// cannot show a dot for a circle that has no tab.
+    /// </summary>
+    public IReadOnlyDictionary<long, Circle> CirclesByContact()
+    {
+        using var connection = Open();
+
+        return connection
+            .Query<(long ContactId, string Circle, string Icon, string Color, long Position)>(
+                """
+                SELECT p.contact_id AS ContactId, d.circle AS Circle, d.icon AS Icon,
+                       d.color AS Color, d.position AS Position
+                  FROM contact_profile p
+                  JOIN contact_circle d ON d.circle_folded = p.circle_folded;
+                """)
+            .ToDictionary(
+                row => row.ContactId,
+                row => new Circle(row.Circle, row.Icon, row.Color, (int)row.Position));
+    }
+
+    /// <summary>The circle written on a person, defined or not — what the editor shows and writes.</summary>
+    public string? CircleOf(long contactId)
+    {
+        using var connection = Open();
+
+        return connection.QueryFirstOrDefault<string?>(
+            "SELECT circle_folded FROM contact_profile WHERE contact_id = @contactId;",
+            new { contactId });
+    }
+
+    /// <summary>
+    /// Puts a person in a circle, or takes them out of every circle when given null.
+    ///
+    /// Written the moment it is chosen, with no Save button — the same behaviour as
+    /// <see cref="SetBirthDate"/> and the note editor, because a screen where some edits are kept
+    /// and others need a button is a screen where somebody loses work.
+    ///
+    /// The pipeline never calls this. A circle is the user's word for a group of people, and
+    /// nothing measured, transcribed or inferred may put anybody into one.
+    /// </summary>
+    public void SetContactCircle(long contactId, string? circle)
+    {
+        var folded = string.IsNullOrWhiteSpace(circle)
+            ? null
+            : Text.TurkishText.NormalizeForSearch(circle.Trim());
+
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO contact_profile (contact_id, circle_folded, updated_at)
+            VALUES (@contactId, @folded, @now)
+            ON CONFLICT(contact_id) DO UPDATE SET
+                circle_folded = @folded, updated_at = @now;
+            """,
+            new { contactId, folded, now = Iso(DateTimeOffset.UtcNow) });
+    }
+
+    /// <summary>
+    /// How many conversations each circle holds, across THE WHOLE ARCHIVE.
+    ///
+    /// Before the filter, always. A tab that counted only what it is showing would say "Aile 12"
+    /// on a screen holding twelve rows, which tells the user nothing they could not already see
+    /// and hides the number they actually want. The ledger and the promises page have counted
+    /// this way from the beginning.
+    ///
+    /// A call whose person is in a circle whose definition has been deleted counts as uncircled,
+    /// and so does a call nobody has named. That is what makes the arithmetic close: every
+    /// conversation in the archive is counted in exactly one bucket, so the tabs always add up to
+    /// the total and nothing can be reachable from no tab at all.
+    /// </summary>
+    /// <returns>Folded circle to count, plus the count of everything in no circle.</returns>
+    public (IReadOnlyDictionary<string, int> ByCircle, int Uncircled) CallCountsByCircle()
+    {
+        using var connection = Open();
+
+        var rows = connection.Query<(string? Circle, long Count)>(
+            """
+            SELECT d.circle_folded AS Circle, COUNT(*) AS Count
+              FROM call c
+              LEFT JOIN contact_profile p ON p.contact_id = c.contact_id
+              LEFT JOIN contact_circle d ON d.circle_folded = p.circle_folded
+             GROUP BY d.circle_folded;
+            """).ToList();
+
+        return (
+            rows.Where(r => r.Circle is not null)
+                .ToDictionary(r => r.Circle!, r => (int)r.Count, StringComparer.Ordinal),
+            (int)rows.Where(r => r.Circle is null).Sum(r => r.Count));
     }
 
     /// <summary>

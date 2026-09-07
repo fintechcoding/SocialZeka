@@ -53,6 +53,12 @@
             <local:FilterToAppearanceConverter x:Key="FilterAppearance" />
             <local:BoolToCursorConverter x:Key="HandWhenTrue" />
 
+            <!-- A circle's colour, and the pill that says which tab is chosen. The tab carries
+                 its own IsSelected, so the strip reads the selection from the view model rather
+                 than deciding for itself which pill looks pressed. -->
+            <local:HexToBrushConverter x:Key="HexBrush" />
+            <local:SelectedToAppearanceConverter x:Key="SelectedAppearance" />
+
         </ResourceDictionary>
     </Application.Resources>
 </Application>

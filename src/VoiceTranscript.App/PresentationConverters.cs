@@ -538,6 +538,61 @@ public sealed class SymbolFromNameConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>
+/// A stored hex colour as a brush — a circle's dot, drawn from the word the user coloured.
+///
+/// Cached and frozen because this runs per dot per row per repaint, and never throws: a colour
+/// written by an older or newer version of the application must leave the row grey rather than
+/// take a list down.
+/// </summary>
+public sealed class HexToBrushConverter : IValueConverter
+{
+    private static readonly Dictionary<string, SolidColorBrush> Cache = new(StringComparer.Ordinal);
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var hex = value as string ?? "";
+        if (hex.Length == 0) return Brushes.Transparent;
+
+        lock (Cache)
+        {
+            if (Cache.TryGetValue(hex, out var cached)) return cached;
+
+            try
+            {
+                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                brush.Freeze();
+                Cache[hex] = brush;
+                return brush;
+            }
+            catch (FormatException)
+            {
+                return Brushes.Gray;
+            }
+        }
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// The chosen tab is filled, the rest are quiet.
+///
+/// Takes the flag the view model holds rather than comparing a label to a word: which tab is
+/// selected is a fact the screen reads, never one it decides for itself.
+/// </summary>
+public sealed class SelectedToAppearanceConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is true
+            ? Wpf.Ui.Controls.ControlAppearance.Primary
+            : Wpf.Ui.Controls.ControlAppearance.Secondary;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>True when the bound value's name equals the parameter — nav radios reflecting the
 /// current page even when navigation happened from the keyboard or the palette.</summary>
 public sealed class EqualsParameterConverter : IValueConverter

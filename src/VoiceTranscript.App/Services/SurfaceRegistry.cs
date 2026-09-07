@@ -85,6 +85,9 @@ public static class SurfaceRegistry
     /// <summary>The model's reading of a person or a call. Signed, dated, and switchable off.</summary>
     public const string Reading = "Okuma";
 
+    /// <summary>The user's own word for a group of people: "Aile", "İş". Never a judgement.</summary>
+    public const string Circle = "Çevre";
+
     public static IReadOnlyList<ConceptRow> All { get; } =
     [
         new(Promise, Ground.Evidence, ["Tutuldu", "Reddet"],
@@ -191,6 +194,35 @@ public static class SurfaceRegistry
             // The call's reading can be re-run or thrown away, which is housekeeping on a paid
             // request. Disagreeing with it — a judgement kept beside it — is the contact card's.
             new("Görüşme penceresi", typeof(CallWindowViewModel), "CallWindow.xaml", Completeness.ReadOnly),
+        ]),
+
+        // "Çevreye al" is the one verb, and it is an act on a PERSON — the same rule that keeps
+        // "Kur" out of the reminder row above. Naming a circle, colouring it and deleting it are
+        // acts on the vocabulary, which lives in one editor and is not a thing the user points at
+        // on a row.
+        //
+        // The two Full surfaces are the two places somebody is actually filed: the circles window
+        // (where the whole archive is filed in one sitting, most talked-to first) and the person's
+        // own card (where the one who was just recorded is filed on the spot). Both write the
+        // moment the choice is made.
+        //
+        // The three read-only surfaces are where a circle is USED rather than set, and one of
+        // them is a difference this registry exists to record: the first screen offers circles as
+        // a tab strip and the Görüşmeler page as a dropdown. The two screens ask different
+        // questions — "bugün ne oldu" against "şunu bul" — and the difference is deliberate.
+        new(Circle, Ground.UserWriting, ["Çevreye al"],
+        [
+            new("Çevreler penceresi", typeof(Views.CirclesWindow), "CirclesWindow.xaml", Completeness.Full,
+                new VerbBinding("Çevreye al", "Assign_Changed")),
+
+            // A property rather than a command, like the birth date beside it: choosing writes,
+            // and there is no button to press or to forget.
+            new("Kişi penceresi", typeof(ContactWindowViewModel), "ContactWindow.xaml", Completeness.Full,
+                new VerbBinding("Çevreye al", "PersonCircle")),
+
+            new("Genel bakış", typeof(OverviewViewModel), "OverviewPage.xaml", Completeness.ReadOnly),
+            new("Görüşmeler", typeof(CallsViewModel), "CallsPage.xaml", Completeness.ReadOnly),
+            new("Aynam", typeof(MirrorViewModel), "MirrorPage.xaml", Completeness.ReadOnly),
         ]),
     ];
 

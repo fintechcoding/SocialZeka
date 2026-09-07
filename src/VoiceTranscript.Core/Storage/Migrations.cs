@@ -548,5 +548,38 @@ public static class Migrations
                 """,
                 "CREATE INDEX IF NOT EXISTS ix_leftover_open ON import_leftover(resolution, noticed_at DESC);",
             ]),
+
+        // v23 — circles: the user's own groups of people, and which one each person is in.
+        //
+        // One table and one column. The ALTER is the half that matters here, and it is worth
+        // saying why: on a database that already exists the baseline's CREATE TABLE IF NOT EXISTS
+        // walks straight past contact_profile, so the new column can arrive only from this step.
+        // The CREATE TABLE below is the opposite case — the baseline creates it on every
+        // database, this one included, BEFORE these steps run (YAPILACAKLAR, GOC-ADIMI-OLU), so
+        // it stands here as the record of when the table arrived rather than as the thing that
+        // makes it exist. Both halves are in the baseline as well, which is the rule.
+        //
+        // Nothing is backfilled and nothing honestly could be: nobody has yet said which people
+        // are family. NULL means "in no circle", and that is a place with a tab of its own rather
+        // than a gap — the person recorded five minutes ago is there, and can never silently
+        // vanish.
+        //
+        // And no index on the new column, which is the same ordering problem seen from the other
+        // side: the baseline would have to create it before this ALTER runs, over a column that
+        // is not there yet, and every existing database would fail to open. The reasoning is
+        // written where the column is declared.
+        new(23, "Çevreler: kullanıcının kendi grupları ve kişinin hangisinde olduğu",
+            [
+                """
+                CREATE TABLE IF NOT EXISTS contact_circle (
+                    circle_folded TEXT    PRIMARY KEY,
+                    circle        TEXT    NOT NULL,
+                    icon          TEXT    NOT NULL,
+                    color         TEXT    NOT NULL,
+                    position      INTEGER NOT NULL DEFAULT 0
+                );
+                """,
+                "ALTER TABLE contact_profile ADD COLUMN circle_folded TEXT;",
+            ]),
     ];
 }

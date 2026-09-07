@@ -142,8 +142,8 @@ public class SurfaceContractTests
     /// Goes red when a concept the user sees has no row, or has a row that does not say what it
     /// is: which of the three grounds it stands on, what can be done to it, and where it appears.
     ///
-    /// The eight are the things a person points at on screen — a promise, a suggestion, a
-    /// finding, a to-do, a reminder, a moment, a person, a reading. An unregistered ninth is not
+    /// The nine are the things a person points at on screen — a promise, a suggestion, a finding,
+    /// a to-do, a reminder, a moment, a person, a reading, a circle. An unregistered tenth is not
     /// a missing line in a file; it is a concept whose verbs nobody decided, which is how the
     /// same act ends up on three screens under three names and absent from the fourth.
     /// </summary>
@@ -154,7 +154,7 @@ public class SurfaceContractTests
         {
             SurfaceRegistry.Promise, SurfaceRegistry.Suggestion, SurfaceRegistry.Finding,
             SurfaceRegistry.Todo, SurfaceRegistry.Reminder, SurfaceRegistry.Moment,
-            SurfaceRegistry.Person, SurfaceRegistry.Reading,
+            SurfaceRegistry.Person, SurfaceRegistry.Reading, SurfaceRegistry.Circle,
         };
 
         Assert.Equal(expected.Length, SurfaceRegistry.All.Count);

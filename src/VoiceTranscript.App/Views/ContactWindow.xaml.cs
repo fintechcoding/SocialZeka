@@ -46,6 +46,19 @@ public partial class ContactWindow
     }
 
     /// <summary>
+    /// The circles, opened from the card of the person being filed.
+    ///
+    /// The dropdown beside it offers what exists; this is how a circle that does not exist yet
+    /// gets made, without the user having to go and find the first screen to do it.
+    /// </summary>
+    private void EditCircles_Click(object sender, RoutedEventArgs e)
+    {
+        new CirclesWindow(App.Repository) { Owner = this }.ShowDialog();
+
+        if (DataContext is ContactWindowViewModel model) model.Refresh();
+    }
+
+    /// <summary>
     /// "Sözler sayfasında aç": the main window's own page, raised in front.
     ///
     /// This window is not inside the shell, so it cannot navigate itself there — it asks the main

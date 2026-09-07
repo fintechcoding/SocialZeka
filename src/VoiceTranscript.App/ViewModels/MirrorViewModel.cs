@@ -253,18 +253,57 @@ public sealed partial class MirrorViewModel : ObservableObject
     public void LoadContacts()
     {
         var previous = SelectedContact?.Id;
+        var previousCircle = SelectedContact?.CircleFolded;
 
         _loading = true;
 
         ContactChoices.Clear();
         ContactChoices.Add(new ContactChoice(null, Localisation.T("mirrorpage.herkes")));
 
-        foreach (var contact in _repository.ListContacts())
-            ContactChoices.Add(new ContactChoice(contact.Id, contact.Name));
+        // The circles, above the people. This is the only change this page needed, and what it
+        // adds is a question rather than a control: "iş görüşmelerinde sözü ne sıklıkta
+        // kesiyorum" had nowhere to be asked before.
+        foreach (var circle in _repository.Circles())
+        {
+            ContactChoices.Add(new ContactChoice(
+                null,
+                circle.Name,
+                Core.Text.TurkishText.NormalizeForSearch(circle.Name.Trim()),
+                Localisation.T("mirrorpage.cevreler")));
+        }
 
-        SelectedContact = ContactChoices.FirstOrDefault(c => c.Id == previous) ?? ContactChoices[0];
+        foreach (var contact in _repository.ListContacts())
+        {
+            ContactChoices.Add(new ContactChoice(
+                contact.Id, contact.Name, null, Localisation.T("mirrorpage.kisiler")));
+        }
+
+        SelectedContact =
+            ContactChoices.FirstOrDefault(c => previousCircle is not null
+                ? string.Equals(c.CircleFolded, previousCircle, StringComparison.Ordinal)
+                : c.CircleFolded is null && c.Id == previous)
+            ?? ContactChoices[0];
 
         _loading = false;
+    }
+
+    /// <summary>
+    /// The same list, in its two halves — circles, then people.
+    ///
+    /// A view rather than a second collection so there is still exactly one list: two would
+    /// drift, and the one the dropdown showed would be the one nobody updated.
+    /// </summary>
+    public System.ComponentModel.ICollectionView ContactView
+    {
+        get
+        {
+            var view = System.Windows.Data.CollectionViewSource.GetDefaultView(ContactChoices);
+
+            if (view.GroupDescriptions is { Count: 0 })
+                view.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(ContactChoice.Group)));
+
+            return view;
+        }
     }
 
     public void Refresh()
@@ -306,6 +345,23 @@ public sealed partial class MirrorViewModel : ObservableObject
                 x.snapshot.Talk,
                 x.row.LikelyNoHeadphones))
             .ToList();
+
+        // A circle is a set of people, so it narrows the same way a person does — before the
+        // engine choices are built, so the engine dropdown never offers one with nothing behind
+        // it. In memory rather than in SQL because this page reads a period whole and counts it;
+        // there is no twelve-row cut here for a filter to arrive too late for.
+        if (SelectedContact?.CircleFolded is { } circle)
+        {
+            var members = _repository.CirclesByContact()
+                .Where(pair => string.Equals(
+                    Core.Text.TurkishText.NormalizeForSearch(pair.Value.Name.Trim()),
+                    circle,
+                    StringComparison.Ordinal))
+                .Select(pair => pair.Key)
+                .ToHashSet();
+
+            all = [.. all.Where(s => s.ContactId is { } id && members.Contains(id))];
+        }
 
         RebuildEngineChoices(all);
 

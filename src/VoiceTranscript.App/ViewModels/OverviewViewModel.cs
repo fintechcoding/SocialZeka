@@ -63,8 +63,17 @@ public sealed record AttentionItem(
 }
 
 public sealed record RecentCall(
-    Call Call, string ContactName, IReadOnlyList<string>? TagList = null)
+    Call Call, string ContactName, IReadOnlyList<string>? TagList = null, Circle? Circle = null)
 {
+    /// <summary>The circle this person is in, as an eight-pixel dot rather than another pill.</summary>
+    public bool HasCircle => Circle is not null;
+
+    /// <summary>The dot's colour. Empty when there is no circle, and then nothing is drawn.</summary>
+    public string CircleColor => Circle?.Color ?? "";
+
+    /// <summary>Named on hover: a colour alone is a code the user has to learn.</summary>
+    public string CircleName => Circle?.Name ?? "";
+
     /// <summary>The user's labels, on the first list they look at — where "tehdit" must show.</summary>
     public IReadOnlyList<string> Tags => TagList ?? [];
 
@@ -134,6 +143,76 @@ public sealed record RecentCall(
 
     /// <summary>Said on the row once the sweep has taken the audio and only the text is left.</summary>
     public bool AudioGone => !HasAudio && Call.State is ProcessingState.Analysed or ProcessingState.Transcribed;
+}
+
+/// <summary>
+/// Which slice of the archive one tab of the strip stands for.
+///
+/// An enum rather than the tab's label, because the label is a word in one language and the
+/// selection is not: "Hepsi" and "Çevresiz" are the same two tabs in English, and a filter whose
+/// identity is a sentence stops matching the moment the interface changes language. A named
+/// circle carries its folded spelling beside this, which is the user's own data rather than the
+/// interface's vocabulary.
+/// </summary>
+public enum CircleTabKind
+{
+    /// <summary>The whole archive. Where every launch starts, and never remembered otherwise.</summary>
+    All,
+
+    /// <summary>One circle the user defined.</summary>
+    Circle,
+
+    /// <summary>Everybody in no circle — the tab that cannot be removed.</summary>
+    Uncircled,
+}
+
+/// <summary>
+/// One entry of a circle dropdown: everything, one circle, or the people in none.
+///
+/// The same identity the strip carries, so the Görüşmeler page's dropdown and the first screen's
+/// tabs are the same concept in two shapes rather than two half-alike features. The two screens
+/// ask different questions — "bugün ne oldu" against "şunu bul" — and that is why one is tabs and
+/// the other a dropdown; the registry records the difference.
+/// </summary>
+public sealed record CircleChoice(CircleTabKind Kind, string Name, string? Folded, string Color)
+{
+    public bool HasColor => Color.Length > 0;
+}
+
+/// <summary>
+/// One tab of the strip over "Son görüşmeler".
+///
+/// The count is of the WHOLE archive, before any filtering — the same arithmetic the ledger and
+/// the promises page have always used. A tab that counted what it is showing would say "Aile 12"
+/// on a screen holding twelve rows, which tells the user nothing.
+/// </summary>
+public sealed partial class CircleTab(
+    CircleTabKind kind, string name, string? folded, string color, int count) : ObservableObject
+{
+    public CircleTabKind Kind { get; } = kind;
+
+    /// <summary>What the tab says. The user's own word for a circle; from the dictionary for the other two.</summary>
+    public string Name { get; } = name;
+
+    /// <summary>The folded identity of a named circle; null for "Hepsi" and "Çevresiz".</summary>
+    public string? Folded { get; } = folded;
+
+    public string Color { get; } = color;
+
+    public bool HasColor => Color.Length > 0;
+
+    public int Count { get; } = count;
+
+    /// <summary>Selection lives here so no chip has to decide for itself whether it looks chosen.</summary>
+    [ObservableProperty] private bool _isSelected;
+
+    /// <summary>What this tab asks the database for.</summary>
+    public CircleFilter Filter => Kind switch
+    {
+        CircleTabKind.Circle => CircleFilter.OfFolded(Folded ?? ""),
+        CircleTabKind.Uncircled => CircleFilter.NoCircle,
+        _ => CircleFilter.Everything,
+    };
 }
 
 /// <summary>
@@ -285,18 +364,8 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
 
         HasAnyData = calls > 0;
 
-        Recent.Clear();
-
-        var recent = repository.ListCalls(limit: 12);
-        var recentTags = repository.TagsOf(recent.Select(c => c.Id));
-
-        foreach (var call in recent)
-        {
-            var name = call.ContactId is { } id ? repository.GetContact(id)?.Name : null;
-
-            Recent.Add(new RecentCall(
-                call, name ?? "İsimsiz", recentTags.GetValueOrDefault(call.Id, [])));
-        }
+        LoadCircles();
+        LoadRecent();
 
         Overdue.Clear();
         foreach (var (commitment, name) in repository.OverdueCommitments(DateOnly.FromDateTime(DateTime.Now)))
@@ -306,6 +375,154 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
 
         RebuildAttention();
     }
+
+    // ---- the circle strip ---------------------------------------------------------------
+    //
+    // THE STRIP FILTERS ONE SECTION. The four figures at the top, the attention cards, the
+    // overdue-promises line and the whole right-hand column are the same on every tab, and that
+    // is not a layout preference. The card at the top is one sentence about the archive; a number
+    // that shrinks because of a filter tells the user their archive shrank, which is a lie rather
+    // than a display choice. The attention cards are "worth interrupting you for", and one of
+    // their seven reasons — a recording nobody has named — belongs to no person and therefore to
+    // no circle, so filtering them would hide it for ever. A family promise is still overdue on
+    // the İş tab. And the right-hand column is the pile the user arranged with their own hands;
+    // it does not answer to a filter over what the machine listed.
+
+    /// <summary>The tabs, in the user's own order: Hepsi, their circles, then Çevresiz.</summary>
+    public ObservableCollection<CircleTab> Circles { get; } = [];
+
+    /// <summary>
+    /// Whether the strip is worth drawing at all: two tabs mean nothing to choose between.
+    /// </summary>
+    public bool HasCircleStrip => Circles.Count > 2;
+
+    /// <summary>
+    /// Over four circles the strip stops reading as tabs.
+    ///
+    /// Written before it happens rather than after: seven pills wrap onto a second line, and a
+    /// wrapped tab strip does not look like tabs any more. Past the threshold the same tabs are
+    /// offered as one dropdown, which is what the Görüşmeler page uses at every size.
+    /// </summary>
+    public bool CirclesAreADropdown => Circles.Count > 6;
+
+    public bool CirclesAreAStrip => HasCircleStrip && !CirclesAreADropdown;
+
+    /// <summary>
+    /// The chosen tab. Held for the session and NEVER PERSISTED: every launch opens on "Hepsi".
+    ///
+    /// A remembered selection would leave last night's family call behind a closed door — the
+    /// user would open the application to a screen that looks complete and is not. The cost of
+    /// forgetting is one click; the cost of remembering is a conversation nobody sees.
+    /// </summary>
+    [ObservableProperty] private CircleTab? _selectedCircle;
+
+    /// <summary>True while the strip is being rebuilt; one load at the end rather than one each.</summary>
+    private bool _buildingCircles;
+
+    partial void OnSelectedCircleChanged(CircleTab? value)
+    {
+        foreach (var tab in Circles) tab.IsSelected = ReferenceEquals(tab, value);
+
+        if (!_buildingCircles) LoadRecent();
+    }
+
+    /// <summary>Chosen from the strip. The dropdown form writes the same property directly.</summary>
+    [RelayCommand]
+    private void SelectCircle(CircleTab? tab)
+    {
+        if (tab is not null) SelectedCircle = tab;
+    }
+
+    /// <summary>
+    /// Rebuilds the tabs from the whole archive, keeping the tab the user is looking at.
+    ///
+    /// One query for every count. The selection survives a refresh — a call arriving while the
+    /// user is reading the Aile tab must not throw them back to Hepsi — but a circle that has
+    /// been deleted since cannot be selected, and then the strip falls back to Hepsi rather than
+    /// to an empty list with no explanation.
+    /// </summary>
+    private void LoadCircles()
+    {
+        var previousKind = SelectedCircle?.Kind ?? CircleTabKind.All;
+        var previousFolded = SelectedCircle?.Folded;
+
+        var (byCircle, uncircled) = repository.CallCountsByCircle();
+
+        _buildingCircles = true;
+
+        Circles.Clear();
+
+        Circles.Add(new CircleTab(
+            CircleTabKind.All, Localisation.T("overviewpage.cevre-hepsi"), null, "",
+            byCircle.Values.Sum() + uncircled));
+
+        foreach (var circle in repository.Circles())
+        {
+            var folded = Core.Text.TurkishText.NormalizeForSearch(circle.Name.Trim());
+
+            Circles.Add(new CircleTab(
+                CircleTabKind.Circle, circle.Name, folded, circle.Color,
+                byCircle.GetValueOrDefault(folded)));
+        }
+
+        // Always last, always there. A person recorded five minutes ago is in no circle, and a
+        // tab that could be taken away is a conversation that can vanish.
+        Circles.Add(new CircleTab(
+            CircleTabKind.Uncircled, Localisation.T("overviewpage.cevresiz"), null, "", uncircled));
+
+        SelectedCircle =
+            Circles.FirstOrDefault(t => t.Kind == previousKind
+                                        && string.Equals(t.Folded, previousFolded, StringComparison.Ordinal))
+            ?? Circles[0];
+
+        _buildingCircles = false;
+
+        OnPropertyChanged(nameof(HasCircleStrip));
+        OnPropertyChanged(nameof(CirclesAreADropdown));
+        OnPropertyChanged(nameof(CirclesAreAStrip));
+    }
+
+    /// <summary>
+    /// The newest twelve of the chosen tab — asked of the database, not sieved out of a shared
+    /// twelve.
+    ///
+    /// The cut comes before the filter on this screen: <c>ListCalls(limit: 12)</c> and then a
+    /// filter in memory would show two rows on a tab whose circle holds forty-one conversations.
+    /// So the circle travels into the query.
+    ///
+    /// Two queries for the names and the circles, never two per row. This screen used to ask the
+    /// database for each row's contact by id — twelve rows, twelve extra queries — and the
+    /// circles would have made it twenty-four. One list, one dictionary, the pattern the
+    /// Görüşmeler page already uses.
+    /// </summary>
+    private void LoadRecent()
+    {
+        var recent = repository.ListCalls(limit: 12, circle: SelectedCircle?.Filter);
+        var tags = repository.TagsOf(recent.Select(c => c.Id));
+        var names = repository.ListContacts().ToDictionary(c => c.Id, c => c.Name);
+        var circles = repository.CirclesByContact();
+
+        Recent.Clear();
+
+        foreach (var call in recent)
+        {
+            var name = call.ContactId is { } id ? names.GetValueOrDefault(id) : null;
+
+            Recent.Add(new RecentCall(
+                call,
+                name ?? "İsimsiz",
+                tags.GetValueOrDefault(call.Id, []),
+                call.ContactId is { } contact ? circles.GetValueOrDefault(contact) : null));
+        }
+
+        OnPropertyChanged(nameof(RecentIsEmpty));
+    }
+
+    /// <summary>
+    /// True when the chosen tab has nothing in it — said on screen, with the way back one click
+    /// away, rather than an empty space under a strip.
+    /// </summary>
+    public bool RecentIsEmpty => Recent.Count == 0;
 
     /// <summary>"3 sözün vadesi geçti — 1 senin, 2 sana verilen": the one line the home screen keeps.</summary>
     public string OverdueLine => string.Format(
@@ -447,12 +664,17 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
         var cards = repository.OpenBoardCards();
         var tags = repository.TagsOf(cards.Select(c => c.CallId));
 
+        // One list, one dictionary — the pattern the Görüşmeler page uses. Both loops below used
+        // to ask the database for each card's contact by id, for names that come back in a single
+        // query.
+        var names = repository.ListContacts().ToDictionary(c => c.Id, c => c.Name);
+
         foreach (var card in cards)
         {
             var call = repository.GetCall(card.CallId);
             if (call is null) continue;
 
-            var name = call.ContactId is { } cid ? repository.GetContact(cid)?.Name : null;
+            var name = call.ContactId is { } cid ? names.GetValueOrDefault(cid) : null;
 
             // The first sentence of the machine's summary, when there is one. The card is a
             // pointer, not a claim: the quotes and their timestamps live in the window it opens.
@@ -482,7 +704,7 @@ public sealed partial class OverviewViewModel(Repository repository, Func<AppSet
             var call = repository.GetCall(card.CallId);
             if (call is null) continue;
 
-            var name = call.ContactId is { } id ? repository.GetContact(id)?.Name : null;
+            var name = call.ContactId is { } id ? names.GetValueOrDefault(id) : null;
 
             Due.Add(new DueCard(
                 card.CallId,

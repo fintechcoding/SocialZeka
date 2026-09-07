@@ -29,6 +29,20 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
     public ObservableCollection<ContactChoice> ContactChoices { get; } = [];
     public ObservableCollection<string> TagChoices { get; } = [];
 
+    /// <summary>
+    /// The circles, as one more dropdown beside the other five.
+    ///
+    /// A dropdown here and tabs on the first screen, deliberately. This page's question is "şunu
+    /// bul" and it already carries five filters; a sixth strip of pills above them would be a
+    /// second way of choosing on a screen that has one. The first screen's question is "bugün ne
+    /// oldu", where one press has to be the whole gesture.
+    ///
+    /// Narrowed in memory here, and in SQL on the first screen — because here the two thousand
+    /// rows are already in hand and the search box has to keep beating every filter, while there
+    /// the cut to twelve happens in the query, before any filter could run.
+    /// </summary>
+    public ObservableCollection<CircleChoice> CircleChoices { get; } = [];
+
     public IReadOnlyList<SearchPeriod> Periods { get; } =
         [SearchPeriod.Anytime, SearchPeriod.Today, SearchPeriod.Yesterday, SearchPeriod.LastWeek, SearchPeriod.LastMonth, SearchPeriod.LastYear];
 
@@ -47,13 +61,15 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
     [ObservableProperty] private string _appChoice = Any;
     [ObservableProperty] private string _stateChoice = Any;
     [ObservableProperty] private string _tagChoice = Any;
+    [ObservableProperty] private CircleChoice? _circleChoice;
     [ObservableProperty] private string _query = "";
     [ObservableProperty] private int _count;
     [ObservableProperty] private int _total;
 
     public bool IsEmpty => Count == 0;
     public bool IsFiltered => SelectedContact?.Id is not null || Period != SearchPeriod.Anytime
-                              || AppChoice != Any || StateChoice != Any || TagChoice != Any || Query.Trim().Length > 0;
+                              || AppChoice != Any || StateChoice != Any || TagChoice != Any
+                              || CircleChoice is { Kind: not CircleTabKind.All } || Query.Trim().Length > 0;
 
     public string CountText => Count == Total ? $"{Total} görüşme" : $"{Count} / {Total} görüşme";
 
@@ -65,6 +81,7 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
     partial void OnAppChoiceChanged(string value) => RebuildUnlessSetting();
     partial void OnStateChoiceChanged(string value) => RebuildUnlessSetting();
     partial void OnTagChoiceChanged(string value) => RebuildUnlessSetting();
+    partial void OnCircleChoiceChanged(CircleChoice? value) => RebuildUnlessSetting();
     partial void OnQueryChanged(string value) => RebuildUnlessSetting();
 
     private void RebuildUnlessSetting()
@@ -79,6 +96,8 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
     {
         var previousContact = SelectedContact?.Id;
         var previousTag = TagChoice;
+        var previousCircle = CircleChoice?.Folded;
+        var previousCircleKind = CircleChoice?.Kind ?? CircleTabKind.All;
 
         var contacts = repository.ListContacts();
 
@@ -96,10 +115,32 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
         // through to "İsimsiz" exactly as it did when the lookup came back empty.
         var names = contacts.ToDictionary(c => c.Id, c => c.Name);
 
+        // One more dictionary, on the same terms: which circle each person is in, read once for
+        // the whole page rather than once per row.
+        var circles = repository.CirclesByContact();
+
         _all = [.. calls.Select(call => new RecentCall(
             call,
             call.ContactId is { } id ? names.GetValueOrDefault(id) ?? "İsimsiz" : "İsimsiz",
-            tags.GetValueOrDefault(call.Id, [])))];
+            tags.GetValueOrDefault(call.Id, []),
+            call.ContactId is { } contact ? circles.GetValueOrDefault(contact) : null))];
+
+        CircleChoices.Clear();
+        CircleChoices.Add(new CircleChoice(
+            CircleTabKind.All, Localisation.T("callspage.cevre-hepsi"), null, ""));
+
+        foreach (var circle in repository.Circles())
+        {
+            CircleChoices.Add(new CircleChoice(
+                CircleTabKind.Circle,
+                circle.Name,
+                TurkishText.NormalizeForSearch(circle.Name.Trim()),
+                circle.Color));
+        }
+
+        // Never removable, here as on the first screen: somebody named five minutes ago is here.
+        CircleChoices.Add(new CircleChoice(
+            CircleTabKind.Uncircled, Localisation.T("callspage.cevresiz"), null, ""));
 
         TagChoices.Clear();
         TagChoices.Add(Any);
@@ -108,10 +149,15 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
 
         Total = _all.Count;
 
-        // Restore what the user had chosen; one rebuild for both.
+        // Restore what the user had chosen; one rebuild for all three. A circle that has been
+        // deleted since falls back to "Hepsi" rather than to an empty list nobody asked for.
         _settingFilters = true;
         SelectedContact = ContactChoices.FirstOrDefault(c => c.Id == previousContact) ?? ContactChoices[0];
         TagChoice = TagChoices.Contains(previousTag) ? previousTag : Any;
+        CircleChoice = CircleChoices.FirstOrDefault(
+                           c => c.Kind == previousCircleKind
+                                && string.Equals(c.Folded, previousCircle, StringComparison.Ordinal))
+                       ?? CircleChoices[0];
         _settingFilters = false;
 
         Rebuild();
@@ -120,7 +166,7 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
     /// <summary>The list, narrowed and grouped by day, newest first.</summary>
     private void Rebuild()
     {
-        var rows = Filter(_all, SelectedContact?.Id, Period, AppChoice, StateChoice, TagChoice, Query);
+        var rows = Filter(_all, SelectedContact?.Id, Period, AppChoice, StateChoice, TagChoice, Query, CircleChoice);
 
         Groups.Clear();
         var today = DateOnly.FromDateTime(DateTime.Today);
@@ -142,7 +188,8 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
 
     /// <summary>Pure, so it can be tested without a window: which rows survive which filters.</summary>
     public static IReadOnlyList<RecentCall> Filter(
-        IReadOnlyList<RecentCall> all, long? contactId, SearchPeriod period, string app, string state, string tag, string query)
+        IReadOnlyList<RecentCall> all, long? contactId, SearchPeriod period, string app, string state,
+        string tag, string query, CircleChoice? circle = null)
     {
         var since = period.Since();
         var until = period.Until();
@@ -155,8 +202,28 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
             && (app == Any || string.Equals(r.Call.App.ToString(), app, StringComparison.OrdinalIgnoreCase))
             && MatchesState(r, state)
             && (tag == Any || r.Tags.Contains(tag, StringComparer.CurrentCultureIgnoreCase))
+            && MatchesCircle(r, circle)
             && (needle.Length == 0 || TurkishText.NormalizeForSearch(r.ContactName).Contains(needle)))];
     }
+
+    /// <summary>
+    /// Which rows a circle admits.
+    ///
+    /// A row whose person is in a circle the user has since deleted counts as being in none —
+    /// the same answer the first screen's SQL gives, so the two screens cannot disagree about
+    /// where somebody is. <see cref="RecentCall.Circle"/> is already null in that case: it is
+    /// built from the definitions, not from the raw column.
+    /// </summary>
+    private static bool MatchesCircle(RecentCall row, CircleChoice? circle) => circle?.Kind switch
+    {
+        CircleTabKind.Uncircled => row.Circle is null,
+        CircleTabKind.Circle => row.Circle is not null
+                                && string.Equals(
+                                    TurkishText.NormalizeForSearch(row.Circle.Name.Trim()),
+                                    circle.Folded,
+                                    StringComparison.Ordinal),
+        _ => true,
+    };
 
     private static bool MatchesState(RecentCall row, string state) => state switch
     {
@@ -177,6 +244,7 @@ public sealed partial class CallsViewModel(Repository repository) : ObservableOb
         AppChoice = Any;
         StateChoice = Any;
         TagChoice = Any;
+        CircleChoice = CircleChoices.FirstOrDefault();
         Query = "";
         _settingFilters = false;
 

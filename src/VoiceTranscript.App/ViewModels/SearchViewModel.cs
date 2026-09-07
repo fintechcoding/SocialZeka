@@ -53,8 +53,15 @@ public static class SearchPeriodExtensions
     };
 }
 
-/// <summary>One entry in the contact filter. Null identity means everybody.</summary>
-public sealed record ContactChoice(long? Id, string Name);
+/// <summary>
+/// One entry in the contact filter. Null identity means everybody.
+///
+/// <paramref name="CircleFolded"/> is what lets one of these stand for a GROUP of people rather
+/// than one person, which is how Aynam offers circles without growing a second dropdown.
+/// <paramref name="Group"/> is the heading it sits under, so circles and people can share one
+/// list and still be told apart.
+/// </summary>
+public sealed record ContactChoice(long? Id, string Name, string? CircleFolded = null, string Group = "");
 
 /// <summary>
 /// One line of the results list: either a person's heading, or one matched sentence.

@@ -123,9 +123,25 @@
 
             <TextBlock Grid.Column="0" Text="{loc:T mirrorpage.aynam}" Style="{StaticResource PageTitle}" />
 
-            <ComboBox Grid.Column="1" ItemsSource="{Binding ContactChoices}" SelectedItem="{Binding SelectedContact}"
+            <!--
+                One dropdown in two halves: the circles, then the people. What this adds is a
+                QUESTION rather than a control — "iş görüşmelerinde sözü ne sıklıkta kesiyorum"
+                could not be asked before — and nothing else on the page changes.
+            -->
+            <ComboBox Grid.Column="1" ItemsSource="{Binding ContactView}" SelectedItem="{Binding SelectedContact}"
                       DisplayMemberPath="Name" MinWidth="170" VerticalAlignment="Center" Margin="12,0,0,0"
-                      ToolTip="{loc:T mirrorpage.kisiye-gore-suz}" />
+                      ToolTip="{loc:T mirrorpage.kisiye-gore-suz}">
+                <ComboBox.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource Caption}"
+                                           FontWeight="SemiBold" Margin="0,4,0,2" />
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                    </GroupStyle>
+                </ComboBox.GroupStyle>
+            </ComboBox>
 
             <ComboBox Grid.Column="2" ItemsSource="{Binding EngineChoices}" SelectedItem="{Binding EngineChoice}"
                       MinWidth="150" VerticalAlignment="Center" Margin="8,0,0,0"

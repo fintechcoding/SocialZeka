@@ -1545,6 +1545,12 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   adımlardan ÖNCE uyguluyor. Yani v18, v19, v20 ve v22 adımlarının SQL'i etkin değil; etkin
   kaynak taban şema. Testler de bunu yakalayamıyor. Yama değil karar gerekiyor: ya adımlar
   tabandan önce koşsun, ya da yalnız-CREATE adımların belge olduğu yazılsın.
+  **Aynı sıranın ikinci sonucu, v23'te ölçüldü (Ç2):** taban, bir adımın eklediği sütunun
+  üzerine İNDEKS de koyamaz. `contact_profile.circle_folded` için planlanan `ix_profile_circle`
+  tabana yazıldığında, sütunu henüz olmayan her mevcut veritabanında `ApplyBaseline` "no such
+  column" ile patlıyor — yani uygulama hiç açılmıyor. Yeni bir migration testi bunu yakaladı;
+  indeks iki yerden de kaldırıldı (gerekçe `Schema.cs`'te sütunun yanında). Karar verilene kadar
+  kural şu: **bir göç adımının eklediği sütuna indeks konamaz.**
 - [x] **TEST-KIRILGAN** — **ÇÖZÜLDÜ** (7 Eylül, bütünlüğün ekran yarısı). Sebep statik
   değişiklik yayınıydı: kendi tazelemesini sayan bir test sınıfı, paralel koşan başka bir
   sınıfın verdiği kararları da sayıyordu. Yayına dokunan beş sınıf tek koleksiyona alındı;
@@ -1592,6 +1598,18 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   soruluyor, yazılamayacak bir düğme hiç çizilmiyor ve **niye çizilmediği cümleyle söyleniyor**.
   **Açık kalan:** §7.3'ün üçüncü ölçüsü (tek yönlü aktarım 13 → en çok 6 tık) **karşılanmadı**;
   ölçülen 13 → 10. Aşağıya `AKTARIM-TIK` olarak yazıldı.
+- [x] **Ç2 — Genel bakış merkezli çevre sekmeleri** — **YAPILDI** (7 Eylül, dal `paket-c2`),
+  şema **v23** (v22'yi iki-makine paketi aldı). PLAN-IKINCI-TUR §6. Şerit yalnız "Son
+  görüşmeler"i süzüyor; üstteki dört sayı, Dikkat kartları, vadesi geçen sözler satırı ve sağ
+  sütun her sekmede aynı — testle. Süzgeç `ListCalls`'a indi, her sekme kendi son 12'sini
+  SQL'den çekiyor. Sayılar arşivin tamamından. "Çevresiz" kaldırılamaz, seçim kalıcı değil,
+  dörtten fazla çevrede şerit açılır kutuya dönüyor. Gizleme yazılmadı. Tohumlar Aile ve İş.
+  Genel bakış'ın satır başına kişi sorgusu da kapandı.
+- [ ] **D — İki makine, tek kişi (şema v22'nin yanında)** — PLAN-IKINCI-TUR §7. Kullanıcı
+  uygulamayı birden fazla PC'de kullanıyor. Bugün paylaşılan bir görüşmenin üstündeki kararlar
+  hiç taşınmıyor, kişi profili bütün satır olarak düşüyor, geri yükleme ayar dosyasını eziyor,
+  varsayılan yedek sesi almıyor ve bunu söylemiyor. Arşiv künyesi + içe aktarma önizlemesi +
+  "Getirilmeyenler" listesi. **Kişi profilinin alan alan birleşmesi Ç2'den ÖNCE girmeli.** ~1 hafta.
 - [x] **Ç — Çevreler (çip + gizleme)** — **DEVREDİLDİ.** Kullanıcı çip yerine sekme ve
   Genel bakış istedi; tasarım **Ç2**'ye taşındı (PLAN-IKINCI-TUR §6) ve gizleme mekanizması
   tamamen düştü. Şeması ve Çevreler penceresi Ç2'de aynen yaşıyor.

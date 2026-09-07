@@ -416,6 +416,50 @@ public sealed class RepeatedWorkTests : IDisposable
         Assert.Contains("Sinan", page.Groups.SelectMany(g => g.Calls).Select(r => r.ContactName));
     }
 
+    // ---- C2: the first screen's names and circles -------------------------------------------
+
+    /// <summary>
+    /// Goes red when the first screen asks the database for each row's contact, or for each row's
+    /// circle.
+    ///
+    /// It used to do the first: twelve rows, twelve extra questions, for names one query returns
+    /// whole. The circles could have made it twenty-four — a dot on a row is the easiest place in
+    /// the product to put a query inside a loop, and nobody would ever see it. So the cost of the
+    /// screen must not depend on how many people are in the archive.
+    /// </summary>
+    [Fact]
+    public void TheFirstScreenNamesAndColoursItsRowsFromTwoListsItReadsOnce()
+    {
+        _repo.SeedDefaultCircles();
+
+        var gurhan = Person("Gürhan");
+        _repo.SetContactCircle(gurhan, "Aile");
+        Call(gurhan, 3);
+        Call(gurhan, 2);
+
+        var screen = new OverviewViewModel(_repo, () => new AppSettings(), _paths);
+
+        var twoPeople = Cost(screen.Refresh);
+
+        Assert.Equal(2, screen.Recent.Count);
+        Assert.All(screen.Recent, row => Assert.Equal("Aile", row.CircleName));
+
+        // Five more people, each with a conversation and a circle of their own. Five more rows to
+        // name and to colour, and not one more question asked.
+        foreach (var name in new[] { "Uliana", "Serdal", "Samet", "Sinan", "Mustafa" })
+        {
+            var person = Person(name);
+            _repo.SetContactCircle(person, "İş");
+            Call(person, 4);
+        }
+
+        var sevenPeople = Cost(screen.Refresh);
+
+        Assert.Equal(twoPeople, sevenPeople);
+        Assert.Equal(7, screen.Recent.Count);
+        Assert.Contains(screen.Recent, row => row.CircleName == "İş");
+    }
+
     // ---- D: the contacts page's transcript -------------------------------------------------
 
     /// <summary>

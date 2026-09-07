@@ -72,7 +72,17 @@
                     </Border>
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="{StaticResource TextBody}" />
+                        <StackPanel Orientation="Horizontal">
+                            <!-- The circle, as an eight-pixel dot: this list builds two thousand
+                                 rows without virtualisation and rebuilds them on every keystroke
+                                 of the search box, so the mark has to be the cheapest thing that
+                                 can carry a colour. -->
+                            <Ellipse Width="8" Height="8" Margin="0,0,7,0" VerticalAlignment="Center"
+                                     Fill="{Binding CircleColor, Converter={StaticResource HexBrush}}"
+                                     ToolTip="{Binding CircleName}"
+                                     Visibility="{Binding HasCircle, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="{StaticResource TextBody}" />
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                             <TextBlock Style="{StaticResource Caption}" Text="{Binding Call.StartedAt, Converter={StaticResource RelativeDate}}" />
                             <TextBlock Style="{StaticResource Caption}" Text=" · "
@@ -168,6 +178,22 @@
             <ComboBox ItemsSource="{Binding AppChoices}" SelectedItem="{Binding AppChoice}" MinWidth="110" Margin="0,0,8,6" />
             <ComboBox ItemsSource="{Binding StateChoices}" SelectedItem="{Binding StateChoice}" MinWidth="150" Margin="0,0,8,6" />
             <ComboBox ItemsSource="{Binding TagChoices}" SelectedItem="{Binding TagChoice}" MinWidth="120" Margin="0,0,8,6" />
+            <!-- The circles, as a dropdown rather than a strip: this page already carries five
+                 filters, and its question is "şunu bul". The first screen asks "bugün ne oldu"
+                 and answers it in one press, which is why the same concept is tabs there. -->
+            <ComboBox ItemsSource="{Binding CircleChoices}" SelectedItem="{Binding CircleChoice}"
+                      MinWidth="130" Margin="0,0,8,6" ToolTip="{loc:T callspage.cevre}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"
+                                     Fill="{Binding Color, Converter={StaticResource HexBrush}}"
+                                     Visibility="{Binding HasColor, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
             <ui:TextBox Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" MinWidth="200" Margin="0,0,8,6"
                         PlaceholderText="{loc:T callspage.kisi-adi}" Icon="{ui:SymbolIcon Search24}" />
             <ui:Button Content="{loc:T callspage.temizle}" Appearance="Transparent" Margin="0,0,0,6" Click="Clear_Click"
