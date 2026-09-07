@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using VoiceTranscript.App.ViewModels;
 using VoiceTranscript.Core.Export;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.Views;
 
@@ -298,8 +299,8 @@ public partial class ContactsPage
 
         if (string.IsNullOrWhiteSpace(vault) || !Directory.Exists(vault))
         {
-            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Dışa aktarma",
-                "Obsidian kasası ayarlanmamış. Ayarlar → Dışa aktarma bölümünden bir klasör seç.");
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this),
+                Localisation.T("contactspage.disa-aktarma"), Localisation.T("contactspage.obsidian-kasasi-ayarlanmamis"));
             return;
         }
 
@@ -308,12 +309,13 @@ public partial class ContactsPage
             var path = new ObsidianExporter(App.Repository, new ObsidianOptions { VaultPath = vault })
                 .ExportContact(contact.Contact.Id);
 
-            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Dışa aktarma", $"Yazıldı:\n{path}");
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), Localisation.T("contactspage.disa-aktarma"),
+                string.Format(Localisation.T("contactspage.yazildi-n"), path));
         }
         catch (Exception ex)
         {
-            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Dışa aktarma",
-                $"Dışa aktarılamadı: {ex.Message}");
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), Localisation.T("contactspage.disa-aktarma"),
+                string.Format(Localisation.T("contactspage.disa-aktarilamadi-n"), ex.Message));
         }
     }
 
@@ -330,11 +332,9 @@ public partial class ContactsPage
         if (ViewModel is not { SelectedContact: { } contact } model) return;
 
         var confirmed = await Services.Dialogs.ConfirmAsync(
-            Window.GetWindow(this), "Kişiyi sil",
-            $"{contact.Name} ile ilgili her şey kalıcı olarak silinecek:\n\n" +
-            "• ses kayıtları\n• görüşme metinleri\n• arama dizini\n• çıkarılmış olgular ve defter\n\n" +
-            "Bu işlem geri alınamaz. Devam edilsin mi?",
-            okText: "Sil", cancelText: "Vazgeç");
+            Window.GetWindow(this), Localisation.T("contactspage.kisiyi-sil-onay"),
+            string.Format(Localisation.T("contactspage.kisiyi-sil-onay-n"), contact.Name),
+            okText: Localisation.T("contactspage.sil"), cancelText: Localisation.T("contactspage.vazgec"));
 
         if (!confirmed) return;
 
@@ -353,12 +353,12 @@ public partial class ContactsPage
                   + "(dosya kullanımda olabilir):" + Environment.NewLine + Environment.NewLine
                   + string.Join(Environment.NewLine, result.FilesLeftBehind.Take(5));
 
-            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Kişiyi sil", message);
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), Localisation.T("contactspage.kisiyi-sil-onay"), message);
         }
         catch (Exception ex)
         {
-            await Services.Dialogs.InfoAsync(Window.GetWindow(this), "Kişiyi sil",
-                $"Silinemedi: {ex.Message}");
+            await Services.Dialogs.InfoAsync(Window.GetWindow(this), Localisation.T("contactspage.kisiyi-sil-onay"),
+                string.Format(Localisation.T("contactspage.silinemedi-n"), ex.Message));
         }
     }
 

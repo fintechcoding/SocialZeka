@@ -3,6 +3,7 @@ using System.Windows.Input;
 using VoiceTranscript.App.ViewModels;
 using VoiceTranscript.Core.Analysis;
 using VoiceTranscript.Core.Domain;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.Views;
 
@@ -384,7 +385,7 @@ public partial class CallWindow
         var result = exporter.ExportExchange(
             model.CallId, from, to, dialog.FileName, model.ContactName);
 
-        await Services.Dialogs.InfoAsync(this, "Ses kesiti", result.Message);
+        await Services.Dialogs.InfoAsync(this, Localisation.T("callwindow.ses-kesiti"), result.Message);
 
         Services.AppLog.Write(
             "kesit", result.Ok ? "görüşmeden kesit yazıldı" : $"kesit alınamadı: {result.Message}");

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VoiceTranscript.Core.Storage;
+using VoiceTranscript.Core.Text;
 
 namespace VoiceTranscript.App.ViewModels;
 
@@ -36,16 +37,7 @@ public sealed record CalendarEntry(
     long? CallId,
     long? ContactId = null)
 {
-    public string Glyph => Kind switch
-    {
-        CalendarEntryKind.Reminder => "🔔",
-        CalendarEntryKind.OwnPromise or CalendarEntryKind.TheirPromise => "🤝",
-        CalendarEntryKind.Birthday => "🎂",
-
-        // Hollow on purpose: a suggestion the user never confirmed must read weaker than
-        // anything they wrote themselves.
-        _ => "○",
-    };
+    public string Glyph => Services.RowBadges.Calendar(Kind);
 
     /// <summary>
     /// Colour follows the product's existing language: red is a reminder, MeBrush is the user's
@@ -235,7 +227,7 @@ public sealed partial class CalendarViewModel(Repository repository) : Observabl
                 byDay.GetValueOrDefault(date, [])));
         }
 
-        Title = Month.ToDateTime(TimeOnly.MinValue).ToString("MMMM yyyy");
+        Title = Dates.Month(Month);
 
         // The pick survives a rebuild by date; arriving fresh on the current month it lands on
         // today, so the agenda has something honest to say immediately.

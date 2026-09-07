@@ -51,7 +51,8 @@ public partial class SettingsWindow
         }
         catch (Exception ex)
         {
-            _ = Services.Dialogs.InfoAsync(this, "Veri klasörü", $"Klasör açılamadı: {ex.Message}");
+            _ = Services.Dialogs.InfoAsync(this, Localisation.T("settingswindow.veri-klasoru"),
+                string.Format(Localisation.T("settingswindow.klasor-acilamadi-n"), ex.Message));
         }
     }
 

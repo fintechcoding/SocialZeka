@@ -38,7 +38,7 @@ public partial class EditPromiseWindow
         MachineReading.Text = string.Format(Localisation.T("editpromisewindow.makinenin-okudugu-n"), commitment.Obligation);
 
         SpokenDate.Text = commitment.DeadlineDate is { } spoken
-            ? string.Format(Localisation.T("editpromisewindow.soylenen-tarih-n"), $"{spoken:d MMMM yyyy}")
+            ? string.Format(Localisation.T("editpromisewindow.soylenen-tarih-n"), Dates.DayAndYear(spoken))
             : !string.IsNullOrWhiteSpace(commitment.DeadlineRaw)
                 ? string.Format(Localisation.T("editpromisewindow.soylenen-tarih-n"), commitment.DeadlineRaw)
                 : Localisation.T("editpromisewindow.soylenen-bir-tarih-yok");

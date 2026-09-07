@@ -554,7 +554,7 @@ public partial class App : Application
         Orchestrator.StateChanged += (_, state) => AppLog.Write("kayıt", $"durum → {state}");
 
         Orchestrator.CallFinished += (_, finished) => AppLog.Write("kayıt",
-            $"görüşme #{finished.CallId} bitti · {finished.Duration:mm\\:ss} · {finished.App} " +
+            $"görüşme #{finished.CallId} bitti · {Timestamps.Length(finished.Duration)} · {finished.App} " +
             $"· başlık {(finished.ObservedTitle is null ? "yok" : "var")}");
 
         var health = new ViewModels.HealthViewModel(

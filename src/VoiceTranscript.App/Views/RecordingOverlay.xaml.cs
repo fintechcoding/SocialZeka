@@ -209,10 +209,7 @@ public partial class RecordingOverlay
         };
     }
 
-    private static string Format(TimeSpan elapsed) =>
-        elapsed.TotalHours >= 1
-            ? $"{(int)elapsed.TotalHours}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
-            : $"{elapsed.Minutes}:{elapsed.Seconds:00}";
+    private static string Format(TimeSpan elapsed) => Timestamps.Length(elapsed);
 
     private void Stop_Click(object sender, RoutedEventArgs e) => StopRequested?.Invoke(this, EventArgs.Empty);
 

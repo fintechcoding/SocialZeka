@@ -83,11 +83,10 @@ public sealed class TodoEntry(
     public bool HasQuote => Quote is not null && QuoteStartMs is not null && CallId is not null;
 
     /// <summary>
-    /// The moment, as a clock. Borrowed from <see cref="PromiseCard.Clock"/> on purpose: the
-    /// product has one way of writing the instant a quote was said, and an eighth hand-rolled
-    /// "ms / 60000" here would be one more line for the single-clock rule to hunt down.
+    /// The moment, as a clock. The product has one way of writing the instant a quote was said,
+    /// and it lives in <see cref="Timestamps"/> rather than on whichever page needed it first.
     /// </summary>
-    public string QuoteTimestamp => QuoteStartMs is { } ms ? PromiseCard.Clock(ms) : "";
+    public string QuoteTimestamp => QuoteStartMs is { } ms ? Timestamps.Clip(ms) : "";
 
     public bool HasCall => CallId is not null;
     public bool CanDelete => Kind == TodoEntryKind.Manual;
@@ -117,7 +116,7 @@ public sealed class TodoEntry(
     public string DueText => Due is { } d
         ? d == DateOnly.FromDateTime(DateTime.Today) ? Localisation.T("todopage.bugun")
         : d == DateOnly.FromDateTime(DateTime.Today).AddDays(1) ? Localisation.T("todopage.yarin")
-        : d.ToString("d MMM")
+        : Dates.Day(d)
         : "";
 
     public bool IsOverdue => !IsDone && Due is { } d && d < DateOnly.FromDateTime(DateTime.Today);
@@ -129,12 +128,7 @@ public sealed class TodoEntry(
         _ => "",
     };
 
-    public string Glyph => Kind switch
-    {
-        TodoEntryKind.Action => "💡",
-        TodoEntryKind.Reminder => "⏰",
-        _ => "☐",
-    };
+    public string Glyph => Services.RowBadges.Todo(Kind);
 }
 
 /// <summary>

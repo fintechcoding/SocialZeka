@@ -79,11 +79,9 @@ public partial class HealthPage
             // somebody would really regret. The current data is kept either way, and saying so
             // is what makes the answer easy to give.
             var confirmed = await Services.Dialogs.ConfirmAsync(
-                Window.GetWindow(this), "Yedekten geri yükle",
-                "Bu yedek uygulama yeniden başlatıldığında yerine konacak.\n\n" +
-                "Şu anki verilerin silinmeyecek; yanında bir klasöre alınacak, " +
-                "böylece yanlış dosya seçtiysen geri dönebilirsin.\n\nDevam edilsin mi?",
-                okText: "Geri yükle");
+                Window.GetWindow(this), Localisation.T("healthpage.yedekten-geri-yukle-onay"),
+                Localisation.T("healthpage.yedekten-geri-yukle-onay-aciklama"),
+                okText: Localisation.T("healthpage.geri-yukle"));
 
             if (!confirmed) return;
         }
@@ -93,11 +91,9 @@ public partial class HealthPage
             // Said plainly because the two neighbouring buttons do opposite things, and the one
             // that keeps everything is the one that needs to say so out loud.
             var confirmed = await Services.Dialogs.ConfirmAsync(
-                Window.GetWindow(this), "Yedeği içe aktar",
-                "Bu yedekteki görüşmeler mevcut arşivine EKLENİR. Şu anki hiçbir şey silinmez " +
-                "ve değiştirilmez; aynı görüşme her ikisinde de varsa buradaki olduğu gibi kalır.\n\n" +
-                "Yeniden başlatma gerekmez.\n\nDevam edilsin mi?",
-                okText: "İçe aktar");
+                Window.GetWindow(this), Localisation.T("healthpage.yedegi-ice-aktar-onay"),
+                Localisation.T("healthpage.yedegi-ice-aktar-onay-aciklama"),
+                okText: Localisation.T("healthpage.ice-aktar"));
 
             if (!confirmed) return;
         }
@@ -218,10 +214,9 @@ public partial class HealthPage
     private async void ClearLog_Click(object sender, RoutedEventArgs e)
     {
         var confirmed = await Services.Dialogs.ConfirmAsync(
-            Window.GetWindow(this), "Günlüğü temizle",
-            "Günlük dosyaları silinecek. Bu, uygulamanın ne yaptığının tek kaydı — bildirmek "
-            + "istediğin bir hata varsa önce \"Günlüğü kopyala\" ile al.\n\nDevam edilsin mi?",
-            okText: "Temizle");
+            Window.GetWindow(this), Localisation.T("healthpage.gunlugu-temizle"),
+            Localisation.T("healthpage.gunlugu-temizle-aciklama"),
+            okText: Localisation.T("healthpage.temizle"));
 
         if (!confirmed) return;
 

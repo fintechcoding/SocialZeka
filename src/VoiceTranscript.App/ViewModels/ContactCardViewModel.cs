@@ -66,7 +66,7 @@ public sealed partial class PatternQuoteRow(Repository.PatternQuote quote, bool 
     public bool LowConfidence => Quote.LowConfidence;
 
     public string When =>
-        $"{Quote.CallStartedAt.ToLocalTime():d MMM HH:mm} · {Quote.StartMs / 60000:00}:{Quote.StartMs / 1000 % 60:00}";
+        $"{Quote.CallStartedAt.ToLocalTime():d MMM HH:mm} · {Timestamps.Clip(Quote.StartMs)}";
 
     /// <summary>What the user last said about this sentence by ear, or null when nobody listened.</summary>
     [ObservableProperty] private string? _verdictText;
@@ -157,7 +157,7 @@ public sealed partial class PatternRow : ObservableObject
 public sealed record JourneyStop(Repository.FigureStop Stop, bool IsLast)
 {
     public string Value => Stop.Value.Trim();
-    public string When => Stop.CallStartedAt.ToLocalTime().ToString("d MMM");
+    public string When => Dates.Day(Stop.CallStartedAt.ToLocalTime());
     public long CallId => Stop.CallId;
     public int StartMs => Stop.StartMs;
     public bool LowConfidence => Stop.LowConfidence;
@@ -186,7 +186,7 @@ public sealed record OwnWordRow(Repository.OwnWord Word)
     public bool IsPromise => Word.IsPromise;
 
     public string? DeadlineText => Word.Deadline is { } due
-        ? string.Format(Localisation.T("contactcard.vade-d"), due.ToDateTime(TimeOnly.MinValue).ToString("d MMM"))
+        ? string.Format(Localisation.T("contactcard.vade-d"), Dates.Day(due))
         : null;
 
     public bool HasDeadline => DeadlineText is not null;
@@ -236,7 +236,7 @@ public sealed record CardPromise(Repository.PromiseRow Row, DateOnly Today)
     public string HeadText => DaysLate > 0
         ? string.Format(Localisation.T("contactcard.n-gun-gecti"), DaysLate)
         : Commitment.EffectiveDeadline is { } due
-            ? string.Format(Localisation.T("contactcard.vade-d"), due.ToDateTime(TimeOnly.MinValue).ToString("d MMM"))
+            ? string.Format(Localisation.T("contactcard.vade-d"), Dates.Day(due))
             : Localisation.T("contactcard.tarihsiz");
 }
 

@@ -17,7 +17,7 @@ namespace VoiceTranscript.App.ViewModels;
 public sealed record FlowEvent(
     DateTimeOffset When, string Kind, string Title, string? Detail, long? CallId)
 {
-    public string Month => When.ToLocalTime().ToString("MMMM yyyy");
+    public string Month => Dates.Month(When.ToLocalTime());
 
     public string WhenText => When.ToLocalTime().ToString("d MMM, HH:mm");
 
@@ -67,7 +67,7 @@ public sealed record ContactCall(
 
     /// <summary>Third cell: the reminder hanging on this conversation, when one is set.</summary>
     public string ReminderChip => RemindOn is { } day
-        ? day.ToDateTime(TimeOnly.MinValue).ToString("d MMM")
+        ? Dates.Day(day)
         : "";
 
     public long Id => Call.Id;
@@ -82,7 +82,7 @@ public sealed record ContactCall(
 
     /// <summary>The month heading this row sits under. Months, because a person talked with for
     /// years produces a list where day headings would outnumber the rows.</summary>
-    public string Month => Call.StartedAt.ToLocalTime().ToString("MMMM yyyy");
+    public string Month => Dates.Month(Call.StartedAt.ToLocalTime());
 
     public bool HasTags => Tags.Count > 0;
 
@@ -115,21 +115,10 @@ public sealed record ContactHit(SearchHit Hit)
     public bool IsMe => Hit.IsMe;
     public string Speaker => SpeakerText.For(Hit.IsMe, null);
 
-    public string When
-    {
-        get
-        {
-            // Hour-aware: "mm\:ss" drops the hour, and a match at minute 65 must not claim
-            // to be at minute 5 — the timestamp is what makes the hit playable evidence.
-            var t = TimeSpan.FromMilliseconds(Hit.StartMs);
-
-            var position = t.TotalHours >= 1
-                ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
-                : $"{t.Minutes:00}:{t.Seconds:00}";
-
-            return $"{Hit.CallStartedAt.ToLocalTime():d MMM yyyy} · {position}";
-        }
-    }
+    // A match at minute 65 must not claim to be at minute 5: the timestamp is what makes the
+    // hit playable evidence rather than a sentence somebody says was said.
+    public string When =>
+        $"{Hit.CallStartedAt.ToLocalTime():d MMM yyyy} · {Timestamps.Clip(Hit.StartMs)}";
 }
 
 /// <summary>
@@ -324,7 +313,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
 
         var away = next.DayNumber - today.DayNumber;
 
-        var line = $"{day:d MMMM yyyy} · {age} yaşında";
+        var line = $"{Dates.DayAndYear(day)} · {age} yaşında";
 
         if (away == 0) return line + " · bugün doğum günü 🎂";
         if (away <= 30) return line + $" · {away} gün sonra doğum günü";
@@ -660,7 +649,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
             var who = commitment.ByMe ? "Sen" : "O";
             Flow.Add(new FlowEvent(
                 At(commitment.CallId), "soz",
-                $"Söz ({who}): {commitment.Obligation}", commitment.Quote, commitment.CallId));
+                $"Söz ({who}): {commitment.EffectiveObligation}", commitment.Quote, commitment.CallId));
         }
 
         foreach (var call in calls)
@@ -675,7 +664,7 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         {
             Flow.Add(new FlowEvent(
                 day.ToDateTime(TimeOnly.MinValue), "hatirlatma",
-                $"Hatırlatma · {day:d MMMM yyyy}", null, callId));
+                $"Hatırlatma · {Dates.DayAndYear(day)}", null, callId));
         }
 
         var sorted = Flow.OrderByDescending(f => f.When).ToList();

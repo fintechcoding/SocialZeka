@@ -52,21 +52,10 @@ public sealed partial class ChatTurn(
     public bool HasNote => Note is not null;
 
     /// <summary>
-    /// Hour-aware on purpose: "mm\:ss" silently drops the hour, so on the long calls this
-    /// product explicitly supports, a line spoken at 1:05:00 claimed to be at 05:00 — a wrong
-    /// timestamp under a verbatim quote, which is the one lie this product must never tell.
+    /// The one clock, which is hour-aware for a reason worth remembering: a line spoken at
+    /// 1:05:00 once claimed to be at 05:00, a wrong timestamp under a verbatim quote.
     /// </summary>
-    public string Time
-    {
-        get
-        {
-            var t = TimeSpan.FromMilliseconds(StartMs);
-
-            return t.TotalHours >= 1
-                ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
-                : $"{t.Minutes:00}:{t.Seconds:00}";
-        }
-    }
+    public string Time => Timestamps.Clip(StartMs);
 
     /// <summary>Highlighted while the player is inside this turn.</summary>
     [ObservableProperty] private bool _isCurrent;
@@ -469,7 +458,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             ? null
             : string.Format(
                 Localisation.T("callwindow.hesaplandi-d"),
-                stored.CreatedAt.ToLocalTime().ToString("d MMMM yyyy"),
+                Dates.DayAndYear(stored.CreatedAt.ToLocalTime()),
                 _repository.ListTranscriptVersions(CallId)
                     .FirstOrDefault(v => v.Id == stored.TranscriptVersionId)?.Engine
                 ?? current?.Engine ?? "?");
@@ -808,8 +797,8 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         ConsistencyWarning = stored?.Note;
 
         ConsistencyStamp =
-            lastRun is { } run ? $"{run.Engine} · {run.StartedAt.ToLocalTime():d MMMM yyyy}"
-            : stored is { } note ? $"{note.ModelUsed ?? "model"} · {note.CreatedAt.ToLocalTime():d MMMM yyyy}"
+            lastRun is { } run ? $"{run.Engine} · {Dates.DayAndYear(run.StartedAt.ToLocalTime())}"
+            : stored is { } note ? $"{note.ModelUsed ?? "model"} · {Dates.DayAndYear(note.CreatedAt.ToLocalTime())}"
             : ConsistencyFindings.Count > 0 ? "önceki koşum"
             : null;
 
@@ -1181,7 +1170,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
                 string.Format(
                     Localisation.T("callwindow.modelin-gorusu-imza"),
                     stored.ModelUsed ?? "model",
-                    stored.AskedAt.ToLocalTime().ToString("d MMMM yyyy")),
+                    Dates.DayAndYear(stored.AskedAt.ToLocalTime())),
                 stale,
                 stored.Insufficient));
         }
@@ -1407,7 +1396,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             foreach (var observation in report.Observations) ConsistencyObservations.Add(observation);
 
             ConsistencyWarning = report.Warning;
-            ConsistencyStamp = $"{model} · {DateTime.Now:d MMMM yyyy}";
+            ConsistencyStamp = $"{model} · {Dates.DayAndYear(DateTime.Now)}";
 
             ConsistencyMessage = report.Findings.Count == 0
                 ? report.Insufficient
@@ -1468,7 +1457,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         ActionsStamp = lastRun is { } run
             ? string.Format(
                 Localisation.T("callwindow.son-cikarim-imzasi"),
-                run.Engine, run.StartedAt.ToLocalTime().ToString("d MMMM yyyy"))
+                run.Engine, Dates.DayAndYear(run.StartedAt.ToLocalTime()))
             : null;
 
         if (Actions.Count == 0 && lastRun is not null)
@@ -1558,7 +1547,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             && ReadingAnalysis.FromStored(stored.Json) is { } report)
         {
             Reading = report;
-            ReadingStamp = $"{stored.ModelUsed ?? "model"} · {stored.CreatedAt.ToLocalTime():d MMMM yyyy}";
+            ReadingStamp = $"{stored.ModelUsed ?? "model"} · {Dates.DayAndYear(stored.CreatedAt.ToLocalTime())}";
         }
         else
         {
@@ -1602,7 +1591,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             }
 
             Reading = report;
-            ReadingStamp = $"{model} · {DateTime.Now:d MMMM yyyy}";
+            ReadingStamp = $"{model} · {Dates.DayAndYear(DateTime.Now)}";
             OnPropertyChanged(nameof(HasReading));
             RefreshFreshness();
         }
@@ -1645,7 +1634,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             && DeceptionAnalysis.FromStored(stored.Json) is { } report)
         {
             Deception = report;
-            DeceptionStamp = $"{stored.ModelUsed ?? "model"} · {stored.CreatedAt.ToLocalTime():d MMMM yyyy}";
+            DeceptionStamp = $"{stored.ModelUsed ?? "model"} · {Dates.DayAndYear(stored.CreatedAt.ToLocalTime())}";
         }
         else
         {
@@ -1690,7 +1679,7 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
             }
 
             Deception = report;
-            DeceptionStamp = $"{model} · {DateTime.Now:d MMMM yyyy}";
+            DeceptionStamp = $"{model} · {Dates.DayAndYear(DateTime.Now)}";
             RefreshFreshness();
             OnPropertyChanged(nameof(HasDeception));
             OnPropertyChanged(nameof(DeceptionLevelLine));
@@ -1761,7 +1750,7 @@ public sealed record ActionRow(ActionItem Item)
     /// "still worth doing" and "this was about a deadline that has passed".
     /// </summary>
     public string Stamp =>
-        $"{Item.ModelUsed ?? "model"} · {Item.CreatedAt.ToLocalTime():d MMMM yyyy}";
+        $"{Item.ModelUsed ?? "model"} · {Dates.DayAndYear(Item.CreatedAt.ToLocalTime())}";
 
     public bool HasDeadline => Item.DeadlineDate is not null || Item.DeadlineRaw is not null;
 
@@ -1828,9 +1817,8 @@ public sealed record ConsistencyRow(Flag Flag, Repository Repository)
         : null;
 
     public string CounterHeading => CounterIsElsewhere
-        ? Repository.GetCall(Flag.CounterCallId ?? 0)?.StartedAt.ToLocalTime()
-              .ToString("d MMMM yyyy") is { } day
-            ? $"Önceki görüşme · {day}:"
+        ? Repository.GetCall(Flag.CounterCallId ?? 0)?.StartedAt.ToLocalTime() is { } at
+            ? $"Önceki görüşme · {Dates.DayAndYear(at)}:"
             : "Önceki görüşme:"
         : "Karşı ifade:";
 

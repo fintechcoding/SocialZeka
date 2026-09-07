@@ -118,8 +118,8 @@ public sealed record SearchResult(SearchHit Hit, string Query = "") : SearchRow
 
     public string Who => SpeakerText.For(Hit.IsMe, Hit.ContactName);
     public string ContactName => Hit.ContactName ?? "İsimsiz görüşme";
-    public string When => Hit.CallStartedAt.ToLocalTime().ToString("d MMMM yyyy");
-    public string Timestamp => $"{Hit.StartMs / 60000:00}:{Hit.StartMs / 1000 % 60:00}";
+    public string When => Dates.DayAndYear(Hit.CallStartedAt.ToLocalTime());
+    public string Timestamp => Timestamps.Clip(Hit.StartMs);
     public string Text => Hit.Text.Trim();
     public bool IsMe => Hit.IsMe;
 }

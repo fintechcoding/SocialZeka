@@ -209,7 +209,7 @@ public partial class CallerOverlay
         // The user's own date and wording, when they gave one: the strip says what they decided,
         // not what the machine first heard.
         var when = commitment.EffectiveDeadline is { } due
-            ? due.ToDateTime(TimeOnly.MinValue).ToString("d MMM")
+            ? Dates.Day(due)
             : commitment.DeadlineRaw is { Length: > 0 } raw ? raw : null;
 
         return new CommitmentLine(
