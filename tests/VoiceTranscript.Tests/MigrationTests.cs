@@ -653,6 +653,119 @@ public sealed class MigrationTests : IDisposable
     }
 
     /// <summary>
+    /// v22: the archive learns that it is one of two.
+    ///
+    /// Goes red when an upgraded database cannot say who it is, who it has heard from, or what an
+    /// import could not carry — and, more sharply, when any of the three NULLs stops meaning what
+    /// it has to mean.
+    ///
+    /// The identity must be ONE row: two would be two answers to "which computer is this", and the
+    /// CHECK is the only thing stopping a second. It must also be created EMPTY — a migration runs
+    /// against whatever file it is pointed at, including the copy an import unpacks, and an id
+    /// minted there would make the incoming archive claim to be this computer.
+    ///
+    /// archive_link.written_at must stay nullable and undefaulted. NULL there is "bilinmiyor", and
+    /// §7.2's sentence — "o günden sonra orada ne olduğunu bilmiyorum" — is only sayable while
+    /// unknown and long-ago are different things. Nothing is backfilled for the same reason:
+    /// imports that already happened left no record of when or from where.
+    ///
+    /// import_leftover.fingerprint must stay UNIQUE. Without it a repeated import files the same
+    /// question again, including one the user has already answered, which is the failure the
+    /// designer named by name.
+    /// </summary>
+    [Fact]
+    public void TheTwentySecondStepAddsTheTwoMachineTables()
+    {
+        new Database(_path).Migrate();
+
+        foreach (var column in new[] { "archive_id", "label", "created_at" })
+            Assert.True(ColumnExistsIn("archive_identity", column), column);
+
+        foreach (var column in new[] { "archive_id", "label", "written_at", "imported_at" })
+            Assert.True(ColumnExistsIn("archive_link", column), column);
+
+        foreach (var column in new[]
+                 {
+                     "fingerprint", "source_archive_id", "kind", "call_id", "contact_id",
+                     "field", "mine", "theirs", "quote", "noticed_at", "resolution", "resolved_at",
+                 })
+        {
+            Assert.True(ColumnExistsIn("import_leftover", column), column);
+        }
+
+        using var connection = new Database(_path).Open();
+
+        // Nothing is invented for a database that already exists.
+        foreach (var table in new[] { "archive_identity", "archive_link", "import_leftover" })
+        {
+            using var count = connection.CreateCommand();
+            count.CommandText = $"SELECT COUNT(*) FROM {table};";
+            Assert.Equal(0L, count.ExecuteScalar());
+        }
+
+        // One row, and the CHECK is what says so.
+        using (var second = connection.CreateCommand())
+        {
+            second.CommandText =
+                """
+                INSERT INTO archive_identity (id, archive_id, created_at) VALUES (1, 'a', '2026-09-07T00:00:00Z');
+                INSERT INTO archive_identity (id, archive_id, created_at) VALUES (2, 'b', '2026-09-07T00:00:00Z');
+                """;
+            Assert.ThrowsAny<SqliteException>(() => second.ExecuteNonQuery());
+        }
+
+        // "Not known" must stay tellable from "long ago", and from "answered".
+        foreach (var (table, column) in new[]
+                 {
+                     ("archive_link", "written_at"),
+                     ("archive_link", "label"),
+                     ("archive_identity", "label"),
+                     ("import_leftover", "resolution"),
+                     ("import_leftover", "mine"),
+                 })
+        {
+            using var nullable = connection.CreateCommand();
+            nullable.CommandText =
+                $"SELECT \"notnull\" FROM pragma_table_info('{table}') WHERE name = '{column}';";
+            Assert.Equal(0L, nullable.ExecuteScalar());
+
+            using var blank = connection.CreateCommand();
+            blank.CommandText =
+                $"SELECT IFNULL(dflt_value, '') FROM pragma_table_info('{table}') WHERE name = '{column}';";
+            Assert.Equal("", blank.ExecuteScalar());
+        }
+
+        // What this machine always knows stays required.
+        using (var required = connection.CreateCommand())
+        {
+            required.CommandText =
+                "SELECT \"notnull\" FROM pragma_table_info('archive_link') WHERE name = 'imported_at';";
+            Assert.Equal(1L, required.ExecuteScalar());
+        }
+
+        // The same question twice is one row, which is what makes a repeated import ask nothing.
+        using (var twice = connection.CreateCommand())
+        {
+            twice.CommandText =
+                """
+                DELETE FROM archive_identity;
+                INSERT INTO import_leftover (fingerprint, kind, field, noticed_at)
+                     VALUES ('aynisi', 'soz', 'karar', '2026-09-07T00:00:00Z');
+                INSERT INTO import_leftover (fingerprint, kind, field, noticed_at)
+                     VALUES ('aynisi', 'soz', 'karar', '2026-09-08T00:00:00Z');
+                """;
+            Assert.ThrowsAny<SqliteException>(() => twice.ExecuteNonQuery());
+        }
+
+        using (var index = connection.CreateCommand())
+        {
+            index.CommandText =
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'ix_leftover_open';";
+            Assert.Equal(1L, index.ExecuteScalar());
+        }
+    }
+
+    /// <summary>
     /// The general form of the test above: every table, every column, compared between a
     /// database that walked the steps and one born fresh. The spot checks catch the column
     /// somebody thought to assert; this catches the one they forgot — a column in the step but

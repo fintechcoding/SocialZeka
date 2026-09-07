@@ -1,4 +1,4 @@
-﻿namespace VoiceTranscript.Core.Storage;
+namespace VoiceTranscript.Core.Storage;
 
 /// <summary>
 /// The SQLite schema, applied by <see cref="Database"/> on open.
@@ -17,7 +17,7 @@
 /// </summary>
 public static class Schema
 {
-    public const int Version = 21;
+    public const int Version = 22;
 
     public static readonly string[] Statements =
     [
@@ -1010,5 +1010,112 @@ public static class Schema
         """,
         "CREATE INDEX IF NOT EXISTS ix_ask_call ON ask_exchange(call_id, asked_at);",
         "CREATE INDEX IF NOT EXISTS ix_ask_asked ON ask_exchange(asked_at DESC);",
+
+        // ---- two machines, one person (v22) -------------------------------------------------
+        //
+        // The user runs this on more than one computer and carries the archive between them with
+        // a backup and an import. The product was never designed for that, and the three tables
+        // below are what an import needs in order to be honest about it: who wrote the file, who
+        // this archive is, and what the merge could not decide on its own.
+        //
+        // NONE OF THE THREE IS COPIED BY A MERGE. Repository.MergeArchive names its tables one by
+        // one, and these are deliberately absent from that list: an identity that travelled would
+        // make two archives claim to be the same machine, a link that travelled would let this
+        // archive say it had heard from a computer it has never met, and a leftover that travelled
+        // would put the other machine's unanswered questions in this machine's queue.
+
+        // Who this archive is, so the other one can say where a backup came from.
+        //
+        // ONE ROW, and the CHECK is what says so — this is the archive's own name, not a list, and
+        // a second row would mean two answers to "which computer is this". The id is generated
+        // here and never edited; label is the ONLY column the user writes ("İş bilgisayarı"), and
+        // NULL there means they have not named it, never that it is unnamed by design.
+        """
+        CREATE TABLE IF NOT EXISTS archive_identity (
+            id         INTEGER PRIMARY KEY CHECK (id = 1),
+            archive_id TEXT    NOT NULL,
+            label      TEXT,
+            created_at TEXT    NOT NULL
+        );
+        """,
+
+        // The other archives this one has met, and when it last heard from each.
+        //
+        // A row appears the moment an import from that archive succeeds, and NOT BEFORE. There is
+        // deliberately no backfill: imports that already happened left no record of when or from
+        // where, so inventing a date would be the archive stating something it does not know.
+        //
+        // written_at is when the BACKUP was written on the other machine — NULL means the file
+        // carried no manifest and the date is NOT KNOWN. It must never be read as "old": "o
+        // günden sonra orada ne olduğunu bilmiyorum" is the honest sentence, and it needs the
+        // difference between an unknown date and a distant one.
+        //
+        // imported_at is NOT NULL because it is the one thing this machine always knows: it is
+        // the instant the merge ran, here, now.
+        """
+        CREATE TABLE IF NOT EXISTS archive_link (
+            archive_id  TEXT PRIMARY KEY,
+            label       TEXT,
+            written_at  TEXT,
+            imported_at TEXT NOT NULL
+        );
+        """,
+
+        // The decisions an import could not carry, one row each.
+        //
+        // The hard invariant of the two-machine work is that nothing the user decided is dropped
+        // in silence: every incoming ruling on a conversation that exists on both machines is
+        // either applied or written here. Applying is the ordinary case — "writing into an empty
+        // place is a move, not a merge" — and this table is what is left when both machines wrote
+        // something different and the local value therefore stands.
+        //
+        // CLOSED, NEVER DELETED. resolution NULL means the question is still open; a row that has
+        // been answered keeps its answer forever, because the alternative is that the next round
+        // trip asks it again. That is not hypothetical: a weekly two-machine user would be handed
+        // the same "leave mine" question every week for the rest of the archive's life.
+        //
+        // fingerprint is what makes that possible and what makes a repeated import of the SAME
+        // file add nothing. It is built from the kind, a natural anchor that survives both
+        // machines' row ids (the conversation's instant, the folded quote, the folded person), the
+        // field, and the incoming value — so the same disagreement produces the same row, while a
+        // genuinely different incoming value is a new question and gets a new row.
+        //
+        // mine NULL means there was nothing here to lose and the row is not a conflict at all —
+        // it is a decision that could not be placed, most often because the conversation was
+        // transcribed again on one machine and the quote it was anchored to no longer matches.
+        """
+        CREATE TABLE IF NOT EXISTS import_leftover (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            -- Stable across imports and across round trips. UNIQUE is the idempotence.
+            fingerprint       TEXT    NOT NULL UNIQUE,
+
+            -- Which archive it came from. NULL when the backup carried no manifest.
+            source_archive_id TEXT,
+
+            -- 'soz' | 'not' | 'etiket' | 'kulak' | 'oneri' | 'pano' | 'kisi'
+            kind              TEXT    NOT NULL,
+
+            call_id           INTEGER REFERENCES call(id) ON DELETE CASCADE,
+            contact_id        INTEGER REFERENCES contact(id) ON DELETE CASCADE,
+
+            -- Which field disagreed, in the archive's own column name.
+            field             TEXT    NOT NULL,
+
+            -- What it says here, and what the other machine says. mine NULL: nothing here.
+            mine              TEXT,
+            theirs            TEXT,
+
+            -- The words the decision hangs on, so the row can be shown in context.
+            quote             TEXT,
+
+            noticed_at        TEXT    NOT NULL,
+
+            -- NULL while open. 'burada' | 'oteki' | 'ikisi' once the user has answered.
+            resolution        TEXT,
+            resolved_at       TEXT
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_leftover_open ON import_leftover(resolution, noticed_at DESC);",
     ];
 }

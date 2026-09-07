@@ -25,12 +25,17 @@ public sealed record DeletionResult(int FilesRemoved, IReadOnlyList<string> File
 public sealed record ImportedCall(long Id, string? MicPath, string? FarPath, DateTimeOffset StartedAt);
 
 /// <summary>What a merge actually added, for the sentence the user reads afterwards.</summary>
+/// <param name="Decisions">
+/// What happened to the rulings on conversations both machines already had. Carried, already the
+/// same, or left in a list — and the three add up to what was seen, always.
+/// </param>
 public sealed record MergeCounts(
     int Contacts,
     int Calls,
     int Segments,
     int AlreadyHere,
-    IReadOnlyList<ImportedCall> NewCalls);
+    IReadOnlyList<ImportedCall> NewCalls,
+    DecisionCounts Decisions);
 
 public sealed record SearchHit(
     long CallId,
@@ -447,9 +452,18 @@ public sealed class Repository(Database database)
     /// was narrowed BY — so a call moved to another person must take its questions with it, and a
     /// merge must carry "what I asked about Ahmet" onto the surviving Ahmet. Left out, the scope
     /// line under a stored answer would go on naming a person the conversation is no longer with.
+    ///
+    /// import_leftover is here for the action_item reason, sharpened. Its contact_id is ON DELETE
+    /// CASCADE, so a leftover filed against a person would be destroyed the moment two spellings
+    /// of that person were merged — and a leftover is by construction a decision the archive has
+    /// promised not to lose. Losing one inside an operation whose whole purpose is to lose nothing
+    /// would be the package's own invariant broken by the feature next door.
     /// </summary>
     private static readonly string[] LedgerTables =
-        ["commitment", "claim", "flag", "action_item", "tactic_evidence", "speech_act", "ask_exchange"];
+    [
+        "commitment", "claim", "flag", "action_item", "tactic_evidence", "speech_act",
+        "ask_exchange", "import_leftover",
+    ];
 
     /// <summary>
     /// How many ledger rows a call produced.
@@ -1230,6 +1244,13 @@ public sealed class Repository(Database database)
     ///     because two transcripts of one conversation interleaved is not a better archive.
     ///   * Everything hanging off a genuinely new call — segments, ledger, suggestions, notes,
     ///     tags, runs — comes with it, with the identifiers rewritten.
+    ///   * The DECISIONS on a call that is already here cross too, one at a time, under the rule
+    ///     "writing into an empty place is a move, not a merge". That is <see cref="DecisionMerge"/>
+    ///     and it is the half that used to be missing entirely: the promise rulings, notes, tags
+    ///     and ear verdicts made on the other computer never reached a shared conversation, which
+    ///     on a two-machine archive is most of them. Nothing is overwritten there either — where
+    ///     both machines decided differently the local value stands and the incoming one becomes
+    ///     a row in <c>import_leftover</c>, so no decision is dropped in silence.
     ///
     /// The columns are read from both databases and intersected at run time rather than listed
     /// here. An archive written by an older build is missing columns this one has; one written by
@@ -1239,11 +1260,31 @@ public sealed class Repository(Database database)
     /// Settings are deliberately not merged. They carry this machine's audio devices and this
     /// machine's API keys, and importing somebody's conversations must not quietly repoint the
     /// recorder or replace a working key.
+    ///
+    /// Three tables are deliberately absent from every copy below, and their absence is load
+    /// bearing. <c>archive_identity</c> is who THIS computer is; copied, two archives would claim
+    /// the same name and neither could say where a backup came from. <c>archive_link</c> is who
+    /// this computer has heard from directly; copied, it would let the archive claim to have met
+    /// a machine it has never seen. <c>import_leftover</c> is this computer's own queue of
+    /// unanswered questions; copied, the other machine's would arrive as if they were the user's
+    /// to answer here, twice.
     /// </summary>
     /// <param name="importedDatabaseFile">
     /// The archive's database, already brought up to the current schema by the caller.
     /// </param>
-    public MergeCounts MergeArchive(string importedDatabaseFile)
+    /// <param name="carryDecisions">
+    /// The rollback switch §7.3 asks for. False stops the rulings on shared conversations being
+    /// applied — and does NOT stop them being counted and listed, so turning the feature off
+    /// degrades it to "you decide" rather than back to the silent loss it replaced.
+    /// </param>
+    /// <param name="sourceArchiveId">
+    /// Which archive this file came from, when it said so. Written onto the leftovers so a screen
+    /// can name the other machine; null when the backup carried no manifest.
+    /// </param>
+    public MergeCounts MergeArchive(
+        string importedDatabaseFile,
+        bool carryDecisions = true,
+        string? sourceArchiveId = null)
     {
         using var connection = Open();
 
@@ -1259,6 +1300,7 @@ public sealed class Repository(Database database)
                 CREATE TEMP TABLE map_contact (old INTEGER PRIMARY KEY, new INTEGER NOT NULL);
                 CREATE TEMP TABLE map_call    (old INTEGER PRIMARY KEY, new INTEGER NOT NULL);
                 CREATE TEMP TABLE new_call    (old INTEGER PRIMARY KEY);
+                CREATE TEMP TABLE new_contact (old INTEGER PRIMARY KEY);
                 CREATE TEMP TABLE map_version (old INTEGER PRIMARY KEY, new INTEGER NOT NULL);
                 """,
                 transaction: transaction);
@@ -1275,9 +1317,26 @@ public sealed class Repository(Database database)
                 """,
                 transaction: transaction);
 
+            // The same question for people, and asked for the same reason. It is what separates
+            // "this person's card arrived whole" from "two computers each filled in half of it",
+            // and it has to be asked before the contact copy below makes every one of them look
+            // like somebody who was always here.
+            connection.Execute(
+                """
+                INSERT INTO new_contact (old)
+                SELECT s.id FROM gelen.contact s
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM main.contact m
+                     WHERE m.name_normalised = s.name_normalised AND m.app = s.app);
+                """,
+                transaction: transaction);
+
             var alreadyHere = connection.ExecuteScalar<int>(
                 "SELECT (SELECT COUNT(*) FROM gelen.call) - (SELECT COUNT(*) FROM new_call);",
                 transaction: transaction);
+
+            var decisions = new DecisionMerge(
+                connection, transaction, sourceArchiveId, DateTimeOffset.UtcNow);
 
             var contacts = Copy(connection, transaction, "contact", where:
                 """
@@ -1294,6 +1353,11 @@ public sealed class Repository(Database database)
                   JOIN main.contact m ON m.name_normalised = s.name_normalised AND m.app = s.app;
                 """,
                 transaction: transaction);
+
+            // Counted here, before MergeFields below writes anything into a person's card. After
+            // it, a field this machine had left blank is no longer blank, and every move would be
+            // miscounted as an agreement.
+            decisions.NoticePersonCards();
 
             var toContact = new Dictionary<string, string> { ["contact_id"] = "map_contact" };
 
@@ -1540,6 +1604,36 @@ public sealed class Repository(Database database)
             // keeps its endings and its spelling; the archive's other stems are added.
             Copy(connection, transaction, "habit_lexicon");
 
+            // And now the half the copy above cannot reach: what the user DECIDED on a
+            // conversation that exists on both machines. Every rule and every count is in
+            // <see cref="DecisionMerge"/>; this is only where it runs, and it runs last because
+            // it needs both maps and every row those maps point at.
+            decisions.CarryCallDecisions(carryDecisions);
+            var written = decisions.Flush();
+
+            var counts = decisions.Counts;
+
+            // §7.3's first measure, as an assertion rather than as a hope.
+            //
+            // "Kayıp yok: düşen sayısı, uygulanan artı listeye girene eşit — sert değişmez, her
+            // zaman." A decision that is neither applied, nor already here, nor in the list has
+            // been dropped, and dropping one is the single thing this whole package exists to
+            // stop. So the merge is REFUSED rather than committed: the transaction is abandoned
+            // untouched, the file the user chose is still on disk, and they can import it again
+            // once the fault is fixed. A loud failure is recoverable; a quiet one is not.
+            if (!counts.Balances)
+            {
+                CoreLog.Write("veri",
+                    $"ice aktarma geri alindi — karar sayimi tutmadi: gorulen {counts.Seen} != "
+                    + $"getirilen {counts.Carried} + ayni {counts.AlreadySame} + listede {counts.Left}");
+
+                throw new InvalidOperationException(
+                    "İçe aktarma geri alındı: getirilen kararların sayımı tutmadı, "
+                    + $"bu yüzden hiçbir şey yazılmadı ({counts.Seen} karar görüldü, "
+                    + $"{counts.Carried + counts.AlreadySame + counts.Left} tanesi yerine kondu). "
+                    + "Arşivine dokunulmadı, dosya duruyor.");
+            }
+
             var arrived = connection.Query<ImportedCallRow>(
                 """
                 SELECT m.id, m.mic_path, m.far_path, m.started_at
@@ -1564,10 +1658,20 @@ public sealed class Repository(Database database)
                 $"ice aktarma: {calls} gorusme, {contacts} kisi, {segments} satir eklendi; "
                 + $"{alreadyHere} gorusme zaten vardi");
 
+            // Its own line, because it answers a different question and one that had no answer at
+            // all before: of the decisions made on the conversations both machines already had,
+            // how many crossed. "listede" counts what is waiting for the user; "yeni satir" is how
+            // many of those were not already waiting from a previous import of the same file.
+            CoreLog.Write("veri",
+                $"kararlar: {counts.Seen} gorulen · {counts.Carried} getirildi · "
+                + $"{counts.AlreadySame} zaten ayni · {counts.Left} listede ({written} yeni satir)"
+                + (carryDecisions ? "" : " · karar birlestirme KAPALI"));
+
             return new MergeCounts(
                 contacts, calls, segments, alreadyHere,
                 [.. arrived.Select(r => new ImportedCall(
-                    r.id, r.mic_path, r.far_path, ParseIso(r.started_at)))]);
+                    r.id, r.mic_path, r.far_path, ParseIso(r.started_at)))],
+                counts);
         }
         finally
         {
@@ -1578,6 +1682,7 @@ public sealed class Repository(Database database)
                 DROP TABLE IF EXISTS map_contact;
                 DROP TABLE IF EXISTS map_call;
                 DROP TABLE IF EXISTS new_call;
+                DROP TABLE IF EXISTS new_contact;
                 DROP TABLE IF EXISTS map_version;
                 """);
 
@@ -1707,6 +1812,220 @@ public sealed class Repository(Database database)
         [.. connection
             .Query<ColumnRow>($"PRAGMA {schema}.table_info(\"{table}\");", transaction: transaction)
             .Select(r => r.name)];
+
+    // ---- two machines, one person -------------------------------------------
+
+    /// <summary>
+    /// This archive's own name, generating it the first time it is asked for.
+    ///
+    /// Generated here rather than in the migration on purpose. A migration runs against whatever
+    /// file it is pointed at, including the COPY an import unpacks and brings up to date — and an
+    /// id minted there would make the incoming archive claim to be this computer. This runs only
+    /// against the live archive, on start, once.
+    ///
+    /// INSERT OR IGNORE against a table whose primary key is CHECKed to be 1, so two callers
+    /// racing produce one identity rather than two.
+    /// </summary>
+    public ArchiveIdentity EnsureArchiveIdentity()
+    {
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT OR IGNORE INTO archive_identity (id, archive_id, label, created_at)
+            VALUES (1, @id, NULL, @now);
+            """,
+            new { id = Guid.NewGuid().ToString("N"), now = Iso(DateTimeOffset.UtcNow) });
+
+        return ReadIdentity(connection)!;
+    }
+
+    /// <summary>This archive's name, or null if it has never been asked for one.</summary>
+    public ArchiveIdentity? ArchiveIdentityOrNull()
+    {
+        using var connection = Open();
+        return ReadIdentity(connection);
+    }
+
+    private static ArchiveIdentity? ReadIdentity(SqliteConnection connection)
+    {
+        var row = connection.QueryFirstOrDefault<IdentityRow>(
+            "SELECT archive_id, label, created_at FROM archive_identity WHERE id = 1;");
+
+        return row is null ? null : new ArchiveIdentity(row.archive_id, row.label, ParseIso(row.created_at));
+    }
+
+    /// <summary>
+    /// What the user calls this computer. The only column of the identity they write.
+    ///
+    /// Blank clears it back to unnamed rather than storing an empty string: "" and "not named"
+    /// look the same on a screen and only one of them is what a never-filled field holds.
+    ///
+    /// Creates the identity if there is none. A bare UPDATE would have silently done nothing on an
+    /// archive that had never been backed up — the label typed, accepted, and gone.
+    /// </summary>
+    public void SetArchiveLabel(string? label)
+    {
+        var text = string.IsNullOrWhiteSpace(label) ? null : label.Trim();
+
+        EnsureArchiveIdentity();
+
+        using var connection = Open();
+        connection.Execute(
+            "UPDATE archive_identity SET label = @text WHERE id = 1;", new { text });
+    }
+
+    private sealed class IdentityRow
+    {
+        public string archive_id { get; set; } = "";
+        public string? label { get; set; }
+        public string created_at { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Records that this archive heard from another one, now.
+    ///
+    /// Written only when an import actually succeeded. <paramref name="writtenAt"/> null means the
+    /// file carried no manifest, and it stays null: there is no honest date to put there, and a
+    /// screen must be able to say "bilinmiyor" rather than name a day this machine invented.
+    /// </summary>
+    public void RecordArchiveLink(
+        string archiveId, string? label, DateTimeOffset? writtenAt, DateTimeOffset importedAt)
+    {
+        if (string.IsNullOrWhiteSpace(archiveId)) return;
+
+        using var connection = Open();
+
+        connection.Execute(
+            """
+            INSERT INTO archive_link (archive_id, label, written_at, imported_at)
+            VALUES (@archiveId, @label, @writtenAt, @importedAt)
+            ON CONFLICT(archive_id) DO UPDATE SET
+                -- A machine that has since been given a name should be shown by it; one whose
+                -- backup no longer says gives up nothing it already had.
+                label       = COALESCE(excluded.label, archive_link.label),
+                written_at  = COALESCE(excluded.written_at, archive_link.written_at),
+                imported_at = excluded.imported_at;
+            """,
+            new
+            {
+                archiveId,
+                label = string.IsNullOrWhiteSpace(label) ? null : label.Trim(),
+                writtenAt = writtenAt is { } w ? Iso(w) : null,
+                importedAt = Iso(importedAt),
+            });
+    }
+
+    /// <summary>The other archives this one has met, most recently heard from first.</summary>
+    public IReadOnlyList<ArchiveLink> ArchiveLinks()
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection
+                .Query<LinkRow>(
+                    "SELECT archive_id, label, written_at, imported_at FROM archive_link "
+                    + "ORDER BY imported_at DESC;")
+                .Select(r => new ArchiveLink(
+                    r.archive_id, r.label,
+                    r.written_at is null ? null : ParseIso(r.written_at),
+                    ParseIso(r.imported_at))),
+        ];
+    }
+
+    private sealed class LinkRow
+    {
+        public string archive_id { get; set; } = "";
+        public string? label { get; set; }
+        public string? written_at { get; set; }
+        public string imported_at { get; set; } = "";
+    }
+
+    /// <summary>
+    /// What the imports could not carry, newest first.
+    ///
+    /// Open rows by default, because that is the list with a question in it. The answered ones are
+    /// kept forever — a resolution is what stops the same question being asked on the next round
+    /// trip — and are read back only when somebody wants to see what they already decided.
+    /// </summary>
+    public IReadOnlyList<ImportLeftover> Leftovers(bool includeResolved = false)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection
+                .Query<LeftoverRow>(
+                    "SELECT id, fingerprint, source_archive_id, kind, call_id, contact_id, "
+                    + "field, mine, theirs, quote, noticed_at, resolution, resolved_at "
+                    + "FROM import_leftover "
+                    + (includeResolved ? "" : "WHERE resolution IS NULL ")
+                    + "ORDER BY noticed_at DESC, id DESC;")
+                .Select(r => r.ToModel()),
+        ];
+    }
+
+    /// <summary>How many questions are still waiting. What a badge on the screen reads.</summary>
+    public int OpenLeftoverCount()
+    {
+        using var connection = Open();
+        return connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM import_leftover WHERE resolution IS NULL;");
+    }
+
+    /// <summary>
+    /// Closes one question with the user's answer.
+    ///
+    /// Closing is all this does. APPLYING the answer — writing the other machine's value over the
+    /// local one, or keeping both — belongs to whichever screen offered the choice, because only
+    /// it knows what "keep both" means for a tag as against a promise. Recording the ruling and
+    /// carrying it out are separate on purpose: a row must never end up marked answered because
+    /// something failed halfway through acting on it.
+    /// </summary>
+    /// <returns>False when the row is gone or the resolution is not one of the three.</returns>
+    public bool ResolveLeftover(long id, string resolution)
+    {
+        if (!LeftoverResolutions.IsKnown(resolution)) return false;
+
+        using var connection = Open();
+
+        return connection.Execute(
+            "UPDATE import_leftover SET resolution = @resolution, resolved_at = @now WHERE id = @id;",
+            new { id, resolution, now = Iso(DateTimeOffset.UtcNow) }) > 0;
+    }
+
+    /// <summary>How much this archive holds, for the manifest a backup carries.</summary>
+    public (int Calls, int Contacts) ArchiveSize()
+    {
+        using var connection = Open();
+
+        return (
+            connection.ExecuteScalar<int>("SELECT COUNT(*) FROM call;"),
+            connection.ExecuteScalar<int>("SELECT COUNT(*) FROM contact;"));
+    }
+
+    private sealed class LeftoverRow
+    {
+        public long id { get; set; }
+        public string fingerprint { get; set; } = "";
+        public string? source_archive_id { get; set; }
+        public string kind { get; set; } = "";
+        public long? call_id { get; set; }
+        public long? contact_id { get; set; }
+        public string field { get; set; } = "";
+        public string? mine { get; set; }
+        public string? theirs { get; set; }
+        public string? quote { get; set; }
+        public string noticed_at { get; set; } = "";
+        public string? resolution { get; set; }
+        public string? resolved_at { get; set; }
+
+        public ImportLeftover ToModel() => new(
+            id, fingerprint, source_archive_id, kind, call_id, contact_id,
+            field, mine, theirs, quote, ParseIso(noticed_at), resolution,
+            resolved_at is null ? null : ParseIso(resolved_at));
+    }
 
     // ---- what this call has been transcribed as -----------------------------
 

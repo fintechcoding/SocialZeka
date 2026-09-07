@@ -1,4 +1,4 @@
-﻿using System.IO.Compression;
+using System.IO.Compression;
 using VoiceTranscript.Core.Configuration;
 using VoiceTranscript.Core.Export;
 
@@ -26,8 +26,31 @@ public sealed record ArchiveResult(string Path, int Files, long Bytes)
     }
 }
 
-/// <summary>What an import added to the archive that was already here.</summary>
-public sealed record ImportResult(int Contacts, int Calls, int Segments, int Recordings, int AlreadyHere);
+/// <summary>
+/// What an import added to the archive that was already here.
+///
+/// Written so the sentence afterwards can be arithmetic rather than reassurance. §7.2 asks for
+/// four numbers in particular — how many conversations arrived, how many were already here, how
+/// many of the DECISIONS on those were carried, and how many could not be — and the last two are
+/// the ones that had no answer at all before, because nothing was carrying them and nothing was
+/// counting.
+/// </summary>
+/// <param name="Source">
+/// Who wrote the file, if it said. Null means the backup carried no manifest, which is what every
+/// backup written before this feature looks like: UNKNOWN, never corrupt.
+/// </param>
+public sealed record ImportResult(
+    int Contacts,
+    int Calls,
+    int Segments,
+    int Recordings,
+    int AlreadyHere,
+    BackupManifest? Source = null,
+    DecisionCounts? Decisions = null)
+{
+    /// <summary>Never null for the caller, so a screen does not have to ask twice.</summary>
+    public DecisionCounts DecisionSummary => Decisions ?? DecisionCounts.None;
+}
 
 /// <summary>
 /// Getting the archive out, in one piece and in a form that outlives this application.
@@ -75,11 +98,29 @@ public sealed class BackupService(AppPaths paths, Repository repository)
         // it on is the one with room for it.
         var plainPath = password is null ? destination : destination + ".hazirlaniyor";
 
+        // Read before the zip is opened, because both touch the database and the identity has to
+        // exist before it can be written down. A backup is also the moment this archive first
+        // needs a name at all: nothing before it ever had to say who wrote something.
+        var manifest = BuildManifest(includeAudio);
+
         var files = 0;
 
         await Task.Run(() =>
         {
             using var archive = ZipFile.Open(plainPath, ZipArchiveMode.Create);
+
+            // Who wrote this, when, how much is in it, and — the question nobody was answering —
+            // WHETHER THE AUDIO IS THERE. The default backup button leaves it out, so somebody
+            // carrying a file to their other computer arrives with conversations that cannot be
+            // played or transcribed again, and until now found that out by trying.
+            //
+            // At the root rather than under data/, so it is not one of the files a restore puts
+            // into place: it describes the archive, it is not part of it.
+            using (var entry = archive.CreateEntry(BackupManifest.EntryName, CompressionLevel.Optimal).Open())
+            using (var writer = new StreamWriter(entry))
+            {
+                writer.Write(manifest.ToJson());
+            }
 
             // The database first, and with its journal: SQLite in WAL mode keeps recent writes
             // in a side file, so copying only the main file can silently lose the last minutes.
@@ -178,6 +219,89 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             : $"Yedek hazır ve şifrelendi: {files} dosya.");
 
         return new ArchiveResult(destination, files, size);
+    }
+
+    /// <summary>
+    /// What this archive says about itself, for the file it is about to write.
+    ///
+    /// <see cref="Repository.EnsureArchiveIdentity"/> rather than a read, because a machine that
+    /// has never been backed up has never needed a name and would otherwise write an anonymous
+    /// file — which is exactly the file the other computer cannot say anything true about.
+    /// </summary>
+    private BackupManifest BuildManifest(bool includeAudio)
+    {
+        var identity = repository.EnsureArchiveIdentity();
+        var (calls, contacts) = repository.ArchiveSize();
+
+        return new BackupManifest(
+            identity.Id,
+            identity.Label,
+            DateTimeOffset.Now,
+            calls,
+            contacts,
+            includeAudio,
+            Schema.Version,
+            Update.AppVersion.OfRunningApplication().ToString());
+    }
+
+    /// <summary>
+    /// Reads what a backup file says about itself, without importing it.
+    ///
+    /// This is what a preview screen calls the moment the user picks a file: whose archive it is,
+    /// when it was written, how many conversations, WHETHER THE AUDIO IS IN IT, and what schema it
+    /// speaks — before a single row is merged.
+    ///
+    /// Null means the file has no manifest, and the only correct reading of that is UNKNOWN. Every
+    /// backup written before this feature existed looks exactly like this and every one of them
+    /// still imports perfectly; calling such a file damaged would be the application lying about
+    /// its own older self.
+    ///
+    /// An encrypted archive has to be decrypted to be read, so this costs a full pass over the
+    /// file for those. That is the honest price of a sealed container — there is nothing to peek
+    /// at — and the alternative, saying "bilinmiyor" for a file that plainly does say, would be
+    /// worse than slow.
+    /// </summary>
+    public async Task<BackupManifest?> ReadManifestAsync(
+        string archivePath,
+        string? password = null,
+        CancellationToken ct = default)
+    {
+        if (!File.Exists(archivePath))
+            throw new FileNotFoundException("Yedek dosyası bulunamadı.", archivePath);
+
+        var opened = await OpenForReadingAsync(
+            archivePath, password, "kunye.acilan", progress: null, ct);
+
+        try
+        {
+            return await Task.Run(() => ReadManifestFromZip(opened), ct);
+        }
+        finally
+        {
+            if (opened != archivePath) TryDelete(opened);
+        }
+    }
+
+    private static BackupManifest? ReadManifestFromZip(string zipPath)
+    {
+        try
+        {
+            using var archive = ZipFile.OpenRead(zipPath);
+
+            var entry = archive.GetEntry(BackupManifest.EntryName);
+            if (entry is null) return null;
+
+            using var stream = entry.Open();
+            using var reader = new StreamReader(stream);
+
+            return BackupManifest.FromJson(reader.ReadToEnd());
+        }
+        catch (Exception e) when (e is InvalidDataException or IOException)
+        {
+            // Unknown, like every other way of failing to read one. A manifest is a courtesy the
+            // file pays to the screen; nothing about the import depends on it.
+            return null;
+        }
     }
 
     /// <summary>
@@ -319,7 +443,13 @@ public sealed class BackupService(AppPaths paths, Repository repository)
 
                     var name = entry.FullName.Replace('\\', '/');
 
-                    if (!name.StartsWith("data/", StringComparison.Ordinal)
+                    // The manifest is the third thing allowed out, by exact name rather than by
+                    // prefix — it is one known file at the root, not a folder somebody could
+                    // smuggle a tree into.
+                    var isManifest = name == BackupManifest.EntryName;
+
+                    if (!isManifest
+                        && !name.StartsWith("data/", StringComparison.Ordinal)
                         && !name.StartsWith("recordings/", StringComparison.Ordinal))
                     {
                         continue;
@@ -330,7 +460,11 @@ public sealed class BackupService(AppPaths paths, Repository repository)
 
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                     entry.ExtractToFile(target, overwrite: true);
-                    extracted++;
+
+                    // Deliberately not counted. "extracted == 0" below is how a file that is not a
+                    // backup is refused, and a zip holding nothing but a manifest is not a backup:
+                    // counting it would make an empty stranger pass as one.
+                    if (!isManifest) extracted++;
                 }
             }, ct);
         }
@@ -407,18 +541,40 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             archive.Migrate();
             archive.ClearPool();
 
+            // Read from what was unpacked rather than from the file, so an encrypted archive is
+            // not decrypted a second time just to learn who wrote it.
+            var manifest = BackupManifest.FromJson(ReadStagedManifest(staging));
+
+            CoreLog.Write("veri", manifest is null
+                ? "yedegin kunyesi yok: kaynak bilinmiyor (eski surumden yazilmis olabilir)"
+                : $"yedegin kunyesi: {manifest.ArchiveId[..Math.Min(8, manifest.ArchiveId.Length)]} · "
+                  + $"sema v{manifest.SchemaVersion} · {manifest.Calls} gorusme · "
+                  + $"ses {(manifest.IncludesAudio ? "dahil" : "haric")}"
+                  + (manifest.FromANewerBuild ? " · DAHA YENI BIR SURUMDEN" : ""));
+
             progress?.Report("Görüşmeler birleştiriliyor…");
 
-            var merged = await Task.Run(() => repository.MergeArchive(incoming), ct);
+            var merged = await Task.Run(
+                () => repository.MergeArchive(incoming, sourceArchiveId: manifest?.ArchiveId), ct);
 
             progress?.Report("Ses kayıtları yerine konuyor…");
 
             var recordings = await Task.Run(() => AdoptRecordings(merged.NewCalls, staging), ct);
 
+            // Written only now, and only when the file said who wrote it. An import that threw
+            // above never gets here, so the archive never claims to have heard from a machine
+            // whose backup it could not actually take.
+            if (manifest is not null)
+            {
+                repository.RecordArchiveLink(
+                    manifest.ArchiveId, manifest.Label, manifest.WrittenAt, DateTimeOffset.Now);
+            }
+
             CoreLog.Write("veri", $"ice aktarma bitti: {merged.Calls} gorusme, {recordings} ses dosyasi");
 
             return new ImportResult(
-                merged.Contacts, merged.Calls, merged.Segments, recordings, merged.AlreadyHere);
+                merged.Contacts, merged.Calls, merged.Segments, recordings, merged.AlreadyHere,
+                manifest, merged.Decisions);
         }
         finally
         {
@@ -430,6 +586,22 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             {
                 // Left for the next import to clear. Not worth failing an import that worked.
             }
+        }
+    }
+
+    /// <summary>The manifest text from an unpacked archive, or null when it carried none.</summary>
+    private static string? ReadStagedManifest(string staging)
+    {
+        var path = Path.Combine(staging, BackupManifest.EntryName);
+
+        try
+        {
+            return File.Exists(path) ? File.ReadAllText(path) : null;
+        }
+        catch (IOException)
+        {
+            // Unknown, not broken. Nothing about the merge depends on this file.
+            return null;
         }
     }
 
@@ -549,6 +721,20 @@ public sealed class BackupService(AppPaths paths, Repository repository)
     ///
     /// Returns where the previous data was moved to, so it can be named to the user. Nothing is
     /// deleted: if the restore turns out to be the wrong one, what they had is still on disk.
+    ///
+    /// WHAT A RESTORE DOES WITH SETTINGS, because it changed and the old behaviour was a fault
+    /// this application documented and then committed anyway:
+    ///
+    ///   * settings.json exists here → IT IS NOT TOUCHED. The incoming one is parked in the aside
+    ///     folder, unopened, so nothing is destroyed and the user can copy from it by hand.
+    ///   * settings.json does not exist here → the incoming one is put in place.
+    ///
+    /// That is the merge's own rule — writing into an empty place is a move, not a merge — and it
+    /// answers both cases the same way. Restoring onto a working installation used to overwrite
+    /// this machine's microphone and speaker identity, its API keys and its data root with another
+    /// computer's, which is precisely what <see cref="Repository.MergeArchive"/> says out loud it
+    /// refuses to do. Restoring onto a fresh install after a dead laptop finds nothing here and
+    /// still gets everything back, because there is nothing to displace.
     /// </summary>
     public static string? ApplyPendingRestore(AppPaths paths)
     {
@@ -574,8 +760,8 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             if (File.Exists(path)) File.Move(path, Path.Combine(aside, Path.GetFileName(path)), overwrite: true);
         }
 
-        if (File.Exists(paths.SettingsFile))
-            File.Move(paths.SettingsFile, Path.Combine(aside, "settings.json"), overwrite: true);
+        // Asked before anything moves, because the answer decides where the incoming copy goes.
+        var settingsHere = File.Exists(paths.SettingsFile);
 
         var data = Path.Combine(staging, "data");
 
@@ -585,11 +771,31 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             {
                 var name = Path.GetFileName(file);
 
-                var target = name == "settings.json"
-                    ? paths.SettingsFile
-                    : Path.Combine(Path.GetDirectoryName(paths.DatabaseFile)!, name);
+                if (name == "settings.json")
+                {
+                    // This machine's own settings stay exactly where they are. The other one's are
+                    // set down beside the previous data — named for what it is, so somebody who
+                    // does want a value out of it knows which file to open — rather than deleted,
+                    // because a restore must not destroy anything, and rather than applied,
+                    // because a restore must not repoint this machine's microphone.
+                    File.Move(
+                        file,
+                        Path.Combine(aside, settingsHere ? "yedekten-gelen-settings.json" : "settings.json"),
+                        overwrite: true);
 
-                File.Move(file, target, overwrite: true);
+                    if (!settingsHere)
+                    {
+                        // Nothing here to displace, so the backup's settings are simply taken —
+                        // the dead-laptop case, where refusing them would lose the API keys and
+                        // the audio devices for no benefit at all. Copied out of the aside folder
+                        // rather than moved straight in, so the untouched original is still there.
+                        File.Copy(Path.Combine(aside, "settings.json"), paths.SettingsFile, overwrite: true);
+                    }
+
+                    continue;
+                }
+
+                File.Move(file, Path.Combine(Path.GetDirectoryName(paths.DatabaseFile)!, name), overwrite: true);
             }
         }
 
