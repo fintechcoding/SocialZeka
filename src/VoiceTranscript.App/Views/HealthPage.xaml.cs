@@ -19,12 +19,16 @@ public partial class HealthPage
             {
                 previous.DataActionRequested -= OnDataAction;
                 previous.SettingsChangeRequested -= OnLogDetailChanged;
+                previous.SettingsWriteRequested -= OnBackupRemembered;
+                previous.LeftoversRequested -= OnLeftoversRequested;
             }
 
             if (e.NewValue is HealthViewModel next)
             {
                 next.DataActionRequested += OnDataAction;
                 next.SettingsChangeRequested += OnLogDetailChanged;
+                next.SettingsWriteRequested += OnBackupRemembered;
+                next.LeftoversRequested += OnLeftoversRequested;
             }
         };
     }
@@ -86,24 +90,27 @@ public partial class HealthPage
             if (!confirmed) return;
         }
 
-        if (request == HealthViewModel.DataRequest.ImportAndMerge)
-        {
-            // Said plainly because the two neighbouring buttons do opposite things, and the one
-            // that keeps everything is the one that needs to say so out loud.
-            var confirmed = await Services.Dialogs.ConfirmAsync(
-                Window.GetWindow(this), Localisation.T("healthpage.yedegi-ice-aktar-onay"),
-                Localisation.T("healthpage.yedegi-ice-aktar-onay-aciklama"),
-                okText: Localisation.T("healthpage.ice-aktar"));
-
-            if (!confirmed) return;
-        }
-
+        // An import used to ask "are you sure" and say nothing about the file. That question is
+        // now the preview inside the view model, which asks the same thing while actually showing
+        // what is in the archive — whose it is, when it was written, and whether the audio is in
+        // it. Two dialogs would be one too many.
         await model.RunDataActionAsync(request, path);
     }
 
+    /// <summary>
+    /// Where the file dialogs open, and what they arrive with already typed in.
+    ///
+    /// The remembered folder is the whole of the saving. Somebody carrying an archive between two
+    /// computers did it from scratch every time: the dialog opened wherever Windows last felt
+    /// like, and the folder they always use — a stick, a synced folder — had to be found again on
+    /// both machines, on every transfer. Now the backup dialog opens there with the file name
+    /// already written, and the import dialog opens there with the newest backup in it already
+    /// picked, so each of them is one click.
+    /// </summary>
     private static string? Ask(HealthViewModel.DataRequest request)
     {
         var stamp = DateTime.Now.ToString("yyyy-MM-dd");
+        var folder = Remembered();
 
         switch (request)
         {
@@ -113,9 +120,10 @@ public partial class HealthPage
                 var dialog = new Microsoft.Win32.SaveFileDialog
                 {
                     Title = "Yedeği nereye kaydedelim?",
-                    FileName = $"VoiceTranscript-{stamp}.zip",
+                    FileName = $"SocialZeka-{stamp}.zip",
                     Filter = "Yedek dosyası (*.zip)|*.zip",
                     DefaultExt = ".zip",
+                    InitialDirectory = folder ?? "",
                 };
 
                 return dialog.ShowDialog() == true ? dialog.FileName : null;
@@ -132,24 +140,22 @@ public partial class HealthPage
             }
 
             case HealthViewModel.DataRequest.ImportAndMerge:
-            {
-                var dialog = new Microsoft.Win32.OpenFileDialog
-                {
-                    Title = "Hangi yedek içe aktarılsın?",
-                    Filter = "Yedek dosyası (*.zip)|*.zip",
-                    CheckFileExists = true,
-                };
-
-                return dialog.ShowDialog() == true ? dialog.FileName : null;
-            }
-
             case HealthViewModel.DataRequest.RestoreFromBackup:
             {
                 var dialog = new Microsoft.Win32.OpenFileDialog
                 {
-                    Title = "Hangi yedekten geri yüklensin?",
+                    Title = request == HealthViewModel.DataRequest.ImportAndMerge
+                        ? "Hangi yedek içe aktarılsın?"
+                        : "Hangi yedekten geri yüklensin?",
                     Filter = "Yedek dosyası (*.zip)|*.zip",
                     CheckFileExists = true,
+                    InitialDirectory = folder ?? "",
+
+                    // The newest backup in the remembered folder, already selected. It is the one
+                    // somebody wants in almost every case — they wrote it on the other machine an
+                    // hour ago — and it is only a suggestion: the dialog is still open, and the
+                    // preview afterwards names the file before anything is merged.
+                    FileName = Newest(folder) ?? "",
                 };
 
                 return dialog.ShowDialog() == true ? dialog.FileName : null;
@@ -158,6 +164,63 @@ public partial class HealthPage
             default:
                 return null;
         }
+    }
+
+    /// <summary>The folder the last transfer used, if it is still there.</summary>
+    private static string? Remembered() =>
+        App.Settings.BackupFolder is { } folder && System.IO.Directory.Exists(folder) ? folder : null;
+
+    /// <summary>The most recently written backup in that folder, by name, or null.</summary>
+    private static string? Newest(string? folder)
+    {
+        if (folder is null) return null;
+
+        try
+        {
+            return System.IO.Directory.EnumerateFiles(folder, "*.zip")
+                .OrderByDescending(System.IO.File.GetLastWriteTimeUtc)
+                .Select(System.IO.Path.GetFileName)
+                .FirstOrDefault();
+        }
+        catch (System.IO.IOException)
+        {
+            // An unplugged stick, a folder that has gone. The dialog simply opens with nothing
+            // suggested, which is where it started.
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Persists the remembered folder and the moment of the last backup.
+    ///
+    /// The same division as the log level above: only one place in the application writes
+    /// settings.json, and it is not a view model.
+    /// </summary>
+    private void OnBackupRemembered(object? sender, (string Folder, DateTimeOffset? At) written)
+    {
+        App.Settings = App.Settings with
+        {
+            BackupFolder = written.Folder,
+            LastBackupAt = written.At ?? App.Settings.LastBackupAt,
+        };
+
+        App.Settings.Save(App.Paths.SettingsFile);
+    }
+
+    /// <summary>Opens the list of decisions an import could not carry.</summary>
+    private void OnLeftoversRequested(object? sender, EventArgs e)
+    {
+        if (DataContext is not HealthViewModel model) return;
+
+        new LeftoversWindow(model.Repository) { Owner = Window.GetWindow(this) }.ShowDialog();
+
+        // The window closes with rows answered, so the count beside the button is stale the
+        // moment it does.
+        model.RefreshArchiveIdentity();
     }
 
     /// <summary>

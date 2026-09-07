@@ -286,6 +286,106 @@
                 <StackPanel MaxWidth="860" HorizontalAlignment="Left">
 
             <!--
+                ==================== which machine this archive is ====================
+
+                Before the buttons, and deliberately: you cannot know what you are moving until you
+                know which machine you are on. Everything below this card writes or reads a file
+                that will be carried to another computer, and until now neither end of that carry
+                had a name — an import was an anonymous file arriving from nowhere, and "when did I
+                last hear from over there" had no answer because there was nothing to be the
+                subject of the sentence.
+
+                Somebody who uses one computer sees the name and the size and nothing else. The
+                twin block only exists once an import has actually happened, so it is ABSENT for
+                them rather than empty — an empty region explaining a feature they do not use is
+                still a region they have to read past.
+            -->
+            <Border Style="{StaticResource HeroCard}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0" Symbol="Desktop24" FontSize="22" Margin="0,0,16,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{loc:T healthpage.bu-arsiv}" FontWeight="SemiBold"
+                                       FontSize="{StaticResource TextSubtitle}" />
+                            <TextBlock Style="{StaticResource Secondary}" Margin="0,4,0,0">
+                                <Run Text="{Binding ArchiveSize, Mode=OneWay}" /><Run Text=" · " /><Run
+                                    Text="{Binding ArchiveSchema, Mode=OneWay}" />
+                            </TextBlock>
+                        </StackPanel>
+
+                        <!-- The one column of the identity the user writes. Nothing else ever
+                             writes it: the id underneath is the machine's and is never edited,
+                             because it is what two archives recognise each other by. -->
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center" MinWidth="240">
+                            <TextBlock Text="{loc:T healthpage.bu-bilgisayarin-adi}" Style="{StaticResource Caption}" />
+                            <ui:TextBox Margin="0,4,0,0"
+                                        PlaceholderText="{loc:T healthpage.bu-bilgisayarin-adi-ornek}"
+                                        Text="{Binding ArchiveName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Caption}" Margin="38,10,0,0" TextWrapping="Wrap"
+                               Text="{Binding LastBackup, Mode=OneWay}" />
+
+                    <StackPanel Visibility="{Binding HasTwins, Converter={StaticResource BoolToVisibility}}">
+                        <Border Style="{StaticResource Hairline}" Margin="0,14,0,12" />
+
+                        <TextBlock Text="{loc:T healthpage.haber-aldigin-makineler}" Style="{StaticResource StatLabel}" />
+
+                        <ItemsControl ItemsSource="{Binding Twins}" Margin="0,6,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,6"
+                                               FontSize="{StaticResource TextSecondary}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!--
+                What an import could not carry.
+
+                Absent until there is something in it. A permanently present "0 bekliyor" is a
+                row that teaches people to stop reading the row.
+            -->
+            <Border Style="{StaticResource SettingCard}"
+                    Visibility="{Binding HasLeftovers, Converter={StaticResource BoolToVisibility}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="QuestionCircle24" FontSize="18" Margin="0,0,14,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{loc:T healthpage.getirilmeyenler}" FontSize="{StaticResource TextBody}" />
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap">
+                            <Run Text="{Binding OpenLeftovers, Mode=OneWay}" /><Run Text=" " /><Run
+                                Text="{loc:T healthpage.getirilmeyenler-aciklama}" />
+                        </TextBlock>
+                    </StackPanel>
+
+                    <ui:Button Grid.Column="2" Content="{loc:T healthpage.goster}" MinWidth="120" Margin="14,0,0,0"
+                               Command="{Binding ShowLeftoversCommand}" />
+                </Grid>
+            </Border>
+
+            <!--
                 Data ownership.
 
                 A product that keeps years of somebody's conversations owes them a way to take

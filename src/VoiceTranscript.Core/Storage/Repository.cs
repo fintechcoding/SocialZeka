@@ -1995,6 +1995,45 @@ public sealed class Repository(Database database)
             new { id, resolution, now = Iso(DateTimeOffset.UtcNow) }) > 0;
     }
 
+    /// <summary>
+    /// Asks the question again, because the answer was taken back.
+    ///
+    /// The counterpart of <see cref="ResolveLeftover"/> and, like it, only bookkeeping: putting
+    /// back what the answer wrote belongs to <see cref="LeftoverResolution.Undo"/>. The stamp goes
+    /// with the answer — a row that is open again was never decided, and leaving the old date on
+    /// it would make the list say somebody ruled on something they are still being asked about.
+    /// </summary>
+    public bool ReopenLeftover(long id)
+    {
+        using var connection = Open();
+
+        return connection.Execute(
+            "UPDATE import_leftover SET resolution = NULL, resolved_at = NULL WHERE id = @id;",
+            new { id }) > 0;
+    }
+
+    /// <summary>
+    /// Every promise of one conversation, ruled on or not.
+    ///
+    /// Its own query because the only other way in is the whole ledger, which reads every
+    /// commitment in the archive to answer a question about one call — and the caller here is
+    /// resolving a leftover, where the point of the read is to find out whether exactly ONE
+    /// promise carries the words a ruling arrived under.
+    /// </summary>
+    public IReadOnlyList<Commitment> CommitmentsOnCall(long callId)
+    {
+        using var connection = Open();
+
+        return
+        [
+            .. connection
+                .Query<CommitmentRow>(
+                    "SELECT * FROM commitment WHERE call_id = @callId ORDER BY id;",
+                    new { callId })
+                .Select(r => r.ToModel()),
+        ];
+    }
+
     /// <summary>How much this archive holds, for the manifest a backup carries.</summary>
     public (int Calls, int Contacts) ArchiveSize()
     {

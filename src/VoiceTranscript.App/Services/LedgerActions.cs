@@ -22,6 +22,15 @@ public enum LedgerVerb
 
     /// <summary>One sentence held two readings; the user said which one they meant.</summary>
     Pick,
+
+    /// <summary>
+    /// A question an import left behind was answered: take theirs, keep mine, keep both.
+    ///
+    /// Not a ledger row, and named here anyway because the strip that says what just happened is
+    /// the same strip. A second kind of undo record with a second control to show it is exactly
+    /// the six hand-copied strips this file exists to have ended.
+    /// </summary>
+    Settle,
 }
 
 /// <summary>

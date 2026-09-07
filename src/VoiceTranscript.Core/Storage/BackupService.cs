@@ -139,6 +139,27 @@ public sealed class BackupService(AppPaths paths, Repository repository)
                 files++;
             }
 
+            // Contact photos, always — never behind the audio switch.
+            //
+            // They never entered a backup at all, and that stopped being merely a gap the day the
+            // person card began crossing between machines: the photo's FILENAME travels in
+            // contact_profile, so the other computer took a name pointing at a file that was only
+            // ever on this disk, and drew an empty frame for a face the user had chosen. The
+            // bytes are nothing to carry — the store shrinks every photo to 512 pixels on its
+            // longest edge — so there is no size argument for leaving them out, which is the
+            // argument the audio switch exists for.
+            if (Directory.Exists(paths.Photos))
+            {
+                foreach (var file in Directory.EnumerateFiles(paths.Photos, "*", SearchOption.AllDirectories))
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var relative = Path.GetRelativePath(paths.Photos, file).Replace('\\', '/');
+                    Add(archive, file, $"photos/{relative}");
+                    files++;
+                }
+            }
+
             if (!includeAudio) return;
 
             progress?.Report("Ses kayıtları ekleniyor…");
@@ -450,7 +471,8 @@ public sealed class BackupService(AppPaths paths, Repository repository)
 
                     if (!isManifest
                         && !name.StartsWith("data/", StringComparison.Ordinal)
-                        && !name.StartsWith("recordings/", StringComparison.Ordinal))
+                        && !name.StartsWith("recordings/", StringComparison.Ordinal)
+                        && !name.StartsWith("photos/", StringComparison.Ordinal))
                     {
                         continue;
                     }
@@ -560,6 +582,7 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             progress?.Report("Ses kayıtları yerine konuyor…");
 
             var recordings = await Task.Run(() => AdoptRecordings(merged.NewCalls, staging), ct);
+            var photos = await Task.Run(() => AdoptPhotos(staging), ct);
 
             // Written only now, and only when the file said who wrote it. An import that threw
             // above never gets here, so the archive never claims to have heard from a machine
@@ -570,7 +593,8 @@ public sealed class BackupService(AppPaths paths, Repository repository)
                     manifest.ArchiveId, manifest.Label, manifest.WrittenAt, DateTimeOffset.Now);
             }
 
-            CoreLog.Write("veri", $"ice aktarma bitti: {merged.Calls} gorusme, {recordings} ses dosyasi");
+            CoreLog.Write("veri",
+                $"ice aktarma bitti: {merged.Calls} gorusme, {recordings} ses dosyasi, {photos} fotograf");
 
             return new ImportResult(
                 merged.Contacts, merged.Calls, merged.Segments, recordings, merged.AlreadyHere,
@@ -651,6 +675,49 @@ public sealed class BackupService(AppPaths paths, Repository repository)
 
                 File.Move(found, target, overwrite: true);
                 return target;
+            }
+        }
+
+        return adopted;
+    }
+
+    /// <summary>
+    /// Moves the archive's contact photos into this installation's photos folder.
+    ///
+    /// Kept under the name they arrived with, which is what makes this work at all: the profile
+    /// column holds a FILE NAME rather than a path, so a photo that keeps its name is still found
+    /// by the row that came with it — including the row that merged into a person already here.
+    /// The name carries the other machine's contact id and a millisecond, so two archives naming
+    /// the same file are two copies of the same photo rather than two photos.
+    ///
+    /// A name already taken here is left alone. Overwriting would replace a face the user chose
+    /// on THIS machine with one from somewhere else, silently, in the one operation that promises
+    /// not to touch what is already here.
+    /// </summary>
+    /// <returns>How many photos this import actually brought in.</returns>
+    private int AdoptPhotos(string staging)
+    {
+        var source = Path.Combine(staging, "photos");
+        if (!Directory.Exists(source)) return 0;
+
+        Directory.CreateDirectory(paths.Photos);
+        var adopted = 0;
+
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var target = Path.Combine(paths.Photos, Path.GetFileName(file));
+            if (File.Exists(target)) continue;
+
+            try
+            {
+                File.Move(file, target);
+                adopted++;
+            }
+            catch (IOException)
+            {
+                // One unreadable photo is not worth failing an import that otherwise worked. The
+                // card falls back to initials, which is what it already does for a person nobody
+                // ever chose a picture for.
             }
         }
 
@@ -799,14 +866,21 @@ public sealed class BackupService(AppPaths paths, Repository repository)
             }
         }
 
-        var recordings = Path.Combine(staging, "recordings");
-
-        if (Directory.Exists(recordings))
+        // The photos travel beside the recordings, and are put back the same way: a restored
+        // archive whose person cards name files that were never restored would draw empty frames
+        // for every face in it.
+        foreach (var (folder, into) in new[]
+                 {
+                     ("recordings", paths.Recordings),
+                     ("photos", paths.Photos),
+                 })
         {
-            foreach (var file in Directory.EnumerateFiles(recordings, "*", SearchOption.AllDirectories))
+            var from = Path.Combine(staging, folder);
+            if (!Directory.Exists(from)) continue;
+
+            foreach (var file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
             {
-                var relative = Path.GetRelativePath(recordings, file);
-                var target = Path.Combine(paths.Recordings, relative);
+                var target = Path.Combine(into, Path.GetRelativePath(from, file));
 
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 File.Move(file, target, overwrite: true);

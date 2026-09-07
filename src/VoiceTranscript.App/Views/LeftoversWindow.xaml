@@ -1,0 +1,159 @@
+<Window x:Class="VoiceTranscript.App.Views.LeftoversWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:VoiceTranscript.App"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:controls="clr-namespace:VoiceTranscript.App.Controls"
+        xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance vm:LeftoversViewModel}"
+        Title="{loc:T leftoverswindow.baslik}"
+        Width="820" Height="640"
+        WindowStartupLocation="CenterOwner">
+
+    <!--
+        The decisions an import could not carry, one row each.
+
+        A window rather than a page, and deliberately: this is a queue somebody works through after
+        carrying an archive across, not a place in the product they navigate to. It is opened from
+        the sentence the import writes and from the card beside it on Sağlık → Veriler.
+
+        THE ROW IS A PIECE OF EVIDENCE, NOT A RECOMMENDATION. What is written here and what is
+        written over there sit in two columns with a line between them, the same size, in the same
+        colour, and neither is pre-selected. The product's three grounds — what was said, what the
+        machine thinks, what the user decided — are never allowed to blur into each other, and two
+        machines' worth of the third ground is the same rule applied twice.
+    -->
+    <Grid Margin="20,16,20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="{loc:T leftoverswindow.baslik}" Style="{StaticResource PageTitle}" />
+
+        <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitle}" Margin="0,2,0,10"
+                   Text="{loc:T leftoverswindow.aciklama}" />
+
+        <!-- The answered rows are kept forever, because an answer is what stops the same question
+             being asked on the next round trip. They are not in the way by default. -->
+        <ui:ToggleSwitch Grid.Row="2" Margin="0,0,0,10" HorizontalAlignment="Left"
+                         Content="{loc:T leftoverswindow.cevapladiklarimi-goster}"
+                         IsChecked="{Binding ShowAnswered, Mode=TwoWay}" />
+
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Somebody who uses one computer sees this and nothing else, ever. It has to
+                     say what would be here rather than that there is nothing. -->
+                <StackPanel Style="{StaticResource EmptyState}"
+                            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
+                    <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="38" HorizontalAlignment="Center"
+                                   Margin="0,0,0,14"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T leftoverswindow.bos-baslik}" />
+                    <TextBlock Style="{StaticResource EmptyBody}" Text="{loc:T leftoverswindow.bos-govde}" />
+                </StackPanel>
+
+                <ItemsControl ItemsSource="{Binding Rows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource SettingCard}" Margin="0,0,0,10" Padding="16,14">
+                                <StackPanel>
+                                    <!-- What kind of decision, and what it was about. -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Kind}" FontWeight="SemiBold"
+                                                   FontSize="{StaticResource TextBody}" />
+                                        <TextBlock Text="{Binding Where}" Style="{StaticResource Secondary}"
+                                                   Margin="10,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <!-- The words the decision hangs on, when it hangs on words.
+                                         The carrying rule of the product: a ruling is shown with
+                                         the sentence it was made about. -->
+                                    <TextBlock Text="{Binding Quote}" Style="{StaticResource Caption}"
+                                               Margin="0,6,0,0" TextWrapping="Wrap" FontStyle="Italic"
+                                               Visibility="{Binding Quote, Converter={StaticResource NullToCollapsed}}" />
+
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                                            <TextBlock Text="{loc:T leftoverswindow.burada}"
+                                                       Style="{StaticResource StatLabel}" />
+                                            <TextBlock Text="{Binding Mine}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                       FontSize="{StaticResource TextSecondary}" />
+                                        </StackPanel>
+
+                                        <!-- The visible boundary. Two values in one region read as
+                                             one claim with a comma in it. -->
+                                        <Border Grid.Column="1" Width="1" VerticalAlignment="Stretch"
+                                                Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                                        <StackPanel Grid.Column="2" Margin="14,0,0,0">
+                                            <TextBlock Text="{loc:T leftoverswindow.otekinde}"
+                                                       Style="{StaticResource StatLabel}" />
+                                            <TextBlock Text="{Binding Theirs}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                       FontSize="{StaticResource TextSecondary}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- The user's own answer, in the user's own region. -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0"
+                                                Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}">
+                                        <ui:Button Content="{loc:T leftoverswindow.otekini-al}" MinWidth="120"
+                                                   Margin="0,0,8,0"
+                                                   Command="{Binding DataContext.TakeTheirsCommand,
+                                                             RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                   CommandParameter="{Binding}"
+                                                   Visibility="{Binding CanTakeTheirs, Converter={StaticResource BoolToVisibility}}" />
+
+                                        <ui:Button Content="{loc:T leftoverswindow.burada-kalsin}" MinWidth="120"
+                                                   Margin="0,0,8,0"
+                                                   Command="{Binding DataContext.KeepMineCommand,
+                                                             RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                   CommandParameter="{Binding}" />
+
+                                        <ui:Button Content="{loc:T leftoverswindow.ikisi-de-tut}" MinWidth="120"
+                                                   Command="{Binding DataContext.KeepBothCommand,
+                                                             RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                   CommandParameter="{Binding}"
+                                                   Visibility="{Binding CanKeepBoth, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+
+                                    <!-- Why a button is missing. A row with fewer choices than its
+                                         neighbour and nothing explaining the difference reads as
+                                         the product being unreliable. -->
+                                    <TextBlock Text="{Binding Refusal}" Style="{StaticResource Caption}"
+                                               Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Visibility="{Binding HasRefusal, Converter={StaticResource BoolToVisibility}}" />
+
+                                    <TextBlock Text="{Binding Answer}" Margin="0,12,0,0"
+                                               FontSize="{StaticResource TextSecondary}"
+                                               Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                               Visibility="{Binding IsAnswered, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <controls:UndoBar Grid.Row="4" Slot="{Binding Undo}" Margin="0,10,0,0" />
+
+        <ui:Button Grid.Row="5" Content="{loc:T leftoverswindow.kapat}" MinWidth="110" Margin="0,12,0,0"
+                   HorizontalAlignment="Right" Click="Close_Click" />
+
+        <ContentPresenter x:Name="DialogHost" Grid.Row="0" Grid.RowSpan="6" />
+    </Grid>
+</Window>
