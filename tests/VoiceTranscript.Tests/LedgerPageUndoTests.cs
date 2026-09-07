@@ -16,6 +16,7 @@ namespace VoiceTranscript.Tests;
 /// hidden, select mode touches exactly what was ticked, and the verbs that do not belong here
 /// (anything about promises) are gone with the promises themselves.
 /// </summary>
+[Collection(ChangeBroadcastCollection.Name)]
 public sealed class LedgerPageUndoTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"vt-ledgerpage-{Guid.NewGuid():N}");
@@ -119,15 +120,15 @@ public sealed class LedgerPageUndoTests : IDisposable
         _model.DismissCommand.Execute(FindingRow(id));
 
         Assert.False(Shows(id));
-        Assert.True(_model.CanUndo);
-        Assert.NotNull(_model.Notice);
+        Assert.True(_model.Undo.CanUndo);
+        Assert.NotNull(_model.Undo.Notice);
         Assert.DoesNotContain(id, OpenFindings());
 
-        Ruling(() => _model.UndoCommand.Execute(null));
+        Ruling(() => _model.Undo.UndoCommand.Execute(null));
 
         Assert.True(Shows(id));
-        Assert.False(_model.CanUndo);
-        Assert.Null(_model.Notice);
+        Assert.False(_model.Undo.CanUndo);
+        Assert.Null(_model.Undo.Notice);
         Assert.Contains(id, OpenFindings());
     }
 
@@ -156,7 +157,7 @@ public sealed class LedgerPageUndoTests : IDisposable
         _model.RestoreCommand.Execute(FindingRow(first));
 
         Assert.Contains(first, OpenFindings());
-        Assert.True(_model.CanUndo);
+        Assert.True(_model.Undo.CanUndo);
 
         _model.Refresh();
         Assert.Equal(1, _model.DismissedCount);
@@ -195,7 +196,7 @@ public sealed class LedgerPageUndoTests : IDisposable
         Assert.Equal([b], OpenFindings());
         Assert.Equal(2, _model.DismissedCount);
 
-        Ruling(() => _model.UndoCommand.Execute(null));
+        Ruling(() => _model.Undo.UndoCommand.Execute(null));
 
         Assert.Equal([a, b, c], OpenFindings());
         Assert.Equal(0, _model.DismissedCount);

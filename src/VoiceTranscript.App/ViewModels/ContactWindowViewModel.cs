@@ -159,6 +159,21 @@ public sealed record ContactHit(SearchHit Hit)
 /// on the page, where the thing being repaired is the thing under the pointer. A window that also
 /// offered them would be a second place to do the same job, and the two would drift.
 /// </summary>
+/// <summary>
+/// The period chips above one person's conversations: one click, no calendar.
+///
+/// A value rather than the words on the button, so the row means the same thing in either
+/// language and a translated label cannot stop a chip looking selected.
+/// </summary>
+public enum CallPeriodPreset
+{
+    All,
+    Week,
+    Month,
+    Quarter,
+    Year,
+}
+
 public sealed partial class ContactWindowViewModel : ObservableObject
 {
     private readonly Repository _repository;
@@ -360,18 +375,14 @@ public sealed partial class ContactWindowViewModel : ObservableObject
     // chips, and everything rarer folds into a labelled panel behind a badge that counts what
     // is on. Seven bare controls in a row taught nobody anything; the user said so.
 
-    public const string PresetAll = "Tümü";
-    public const string PresetWeek = "Bu hafta";
-    public const string PresetMonth = "Bu ay";
-    public const string PresetQuarter = "3 ay";
-    public const string PresetYear = "1 yıl";
+    [ObservableProperty] private CallPeriodPreset _periodPreset = CallPeriodPreset.All;
 
-    [ObservableProperty] private string _periodPreset = PresetAll;
-
-    partial void OnPeriodPresetChanged(string value)
+    partial void OnPeriodPresetChanged(CallPeriodPreset value)
     {
         // One reload, not three: the preset writes both dates through the fields and refreshes
-        // itself, so choosing "Bu ay" is one click and one query.
+        // itself, so choosing "Bu ay" is one click and one query. The outer guard is restored
+        // rather than cleared, because ResetFilters sets this from inside its own guarded block.
+        var outer = _reloading;
         _reloading = true;
 
         var today = DateTime.Today;
@@ -379,15 +390,15 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         (FilterFrom, FilterTo) = value switch
         {
             // Monday-first, like the calendar: "bu hafta" starts where the week visibly starts.
-            PresetWeek => (today.AddDays(-(((int)today.DayOfWeek + 6) % 7)), (DateTime?)null),
-            PresetMonth => (new DateTime(today.Year, today.Month, 1), (DateTime?)null),
-            PresetQuarter => (today.AddMonths(-3), (DateTime?)null),
-            PresetYear => (today.AddYears(-1), (DateTime?)null),
+            CallPeriodPreset.Week => (today.AddDays(-(((int)today.DayOfWeek + 6) % 7)), (DateTime?)null),
+            CallPeriodPreset.Month => (new DateTime(today.Year, today.Month, 1), (DateTime?)null),
+            CallPeriodPreset.Quarter => (today.AddMonths(-3), (DateTime?)null),
+            CallPeriodPreset.Year => (today.AddYears(-1), (DateTime?)null),
             _ => ((DateTime?)null, (DateTime?)null),
         };
 
-        _reloading = false;
-        LoadCalls();
+        _reloading = outer;
+        if (!outer) LoadCalls();
     }
 
     /// <summary>How many advanced filters are on — the number on the Filtreler badge.</summary>
@@ -401,8 +412,14 @@ public sealed partial class ContactWindowViewModel : ObservableObject
     /// <summary>Whether the advanced panel is open. State only; the view draws it.</summary>
     [ObservableProperty] private bool _filtersOpen;
 
+    /// <summary>
+    /// The chip's own value, parsed. The parameter used to be the Turkish phrase printed on the
+    /// button — "Tümü", "Bu hafta", "1 yıl" — so the filter's identity was a sentence in one
+    /// language rather than a value.
+    /// </summary>
     [RelayCommand]
-    private void SetPreset(string preset) => PeriodPreset = preset;
+    private void SetPreset(string preset) =>
+        PeriodPreset = Enum.TryParse<CallPeriodPreset>(preset, out var parsed) ? parsed : CallPeriodPreset.All;
 
     /// <summary>One line saying what the list is currently NOT showing — a silent filter is a
     /// list that looks like data loss.</summary>
@@ -421,6 +438,10 @@ public sealed partial class ContactWindowViewModel : ObservableObject
         OnlyNoted = false;
         TagFilter = AllTags;
         SortOrder = SortNewest;
+
+        // Temizle cleared the dates the preset had written and left the preset chip lit, so the
+        // bar said "Bu ay" over a list that was showing everything.
+        PeriodPreset = CallPeriodPreset.All;
         _reloading = false;
 
         LoadCalls();

@@ -12,6 +12,22 @@ namespace VoiceTranscript.App.ViewModels;
 
 /// <summary>How far back the "Gidişat" sparklines are drawn. The two compared numbers beside them
 /// are always <see cref="ContactTrend.WindowMonths"/> against the same again, and the caption says so.</summary>
+/// <summary>
+/// Which machinery wrote the pattern rows on show.
+///
+/// The split is the plan's rule about grounds made operable: Rule and Audit are deterministic
+/// checks over the transcript, Assessment is every row a model labelled. Choosing one of the
+/// first two makes it impossible for a model's count to be on screen at all; choosing the third
+/// shows nothing but badged rows.
+/// </summary>
+public enum PatternSource
+{
+    All,
+    Rule,
+    Audit,
+    Assessment,
+}
+
 public enum CardPeriod
 {
     Months3,
@@ -317,17 +333,19 @@ public sealed partial class ContactCardViewModel : ObservableObject
     // model labelled. Choosing one of the first two makes it impossible for a model's count to
     // be on screen at all; choosing the third shows nothing but badged rows.
 
-    public const string SourceAll = "Hepsi";
-    public const string SourceRule = "Kural";
-    public const string SourceAudit = "Denetim";
-    public const string SourceAssessment = "Degerlendirme";
+    [ObservableProperty] private PatternSource _sourceFilter = PatternSource.All;
 
-    [ObservableProperty] private string _sourceFilter = SourceAll;
+    partial void OnSourceFilterChanged(PatternSource value) => ApplySourceFilter();
 
-    partial void OnSourceFilterChanged(string value) => ApplySourceFilter();
-
+    /// <summary>
+    /// The chip's own value, parsed. The parameter used to be the Turkish word on the button —
+    /// "Hepsi", "Kural" — so the filter's identity was a sentence in one language, and the day
+    /// those words were translated the chips would have compared an English label against a
+    /// Turkish constant and none of them would have looked selected.
+    /// </summary>
     [RelayCommand]
-    private void SetSource(string source) => SourceFilter = source;
+    private void SetSource(string source) =>
+        SourceFilter = Enum.TryParse<PatternSource>(source, out var parsed) ? parsed : PatternSource.All;
 
     [ObservableProperty] private CardPeriod _period = CardPeriod.Months12;
 
@@ -737,9 +755,9 @@ public sealed partial class ContactCardViewModel : ObservableObject
 
     private bool Matches(PatternRow row) => SourceFilter switch
     {
-        SourceRule => !row.IsModelLabel && row.Source == Flag.Sources.Pipeline,
-        SourceAudit => !row.IsModelLabel && row.Source == Flag.Sources.Consistency,
-        SourceAssessment => row.IsModelLabel,
+        PatternSource.Rule => !row.IsModelLabel && row.Source == Flag.Sources.Pipeline,
+        PatternSource.Audit => !row.IsModelLabel && row.Source == Flag.Sources.Consistency,
+        PatternSource.Assessment => row.IsModelLabel,
         _ => true,
     };
 

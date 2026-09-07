@@ -1,9 +1,10 @@
-<UserControl x:Class="VoiceTranscript.App.Views.TodoPage"
+﻿<UserControl x:Class="VoiceTranscript.App.Views.TodoPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:VoiceTranscript.App"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:controls="clr-namespace:VoiceTranscript.App.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -175,32 +176,18 @@
         </Border>
 
         <!--
-            What just happened, and the way back.
+            What just happened, and the way back — the shared strip, not a copy of it.
 
             Refusing a suggestion is permanent: it is recorded so the same one is never proposed
             again. That is exactly the kind of act that must not be one click away with no way
             back, and exactly the kind that should not raise a dialog either — so it happens, it
             is said quietly, and it can be undone for as long as this line is on screen.
+
+            The copy that stood here bound UndoDismissCommand and ClearNoticeCommand: a third
+            name for the two verbs the ledger and the promises already had, on a page that
+            behaves identically to both.
         -->
-        <Border Grid.Row="3" Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,0,0,8"
-                Visibility="{Binding Notice, Converter={StaticResource NullToCollapsed}}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock Grid.Column="0" Text="{Binding Notice}" Style="{StaticResource Secondary}"
-                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-
-                <ui:Button Grid.Column="1" Content="{loc:T todopage.geri-al}" Appearance="Transparent"
-                           Margin="8,0,0,0" Command="{Binding UndoDismissCommand}" />
-
-                <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
-                           Command="{Binding ClearNoticeCommand}" />
-            </Grid>
-        </Border>
+        <controls:UndoBar Grid.Row="3" Slot="{Binding Undo}" Margin="0,0,0,8" />
 
         <!--
             Which source, for when the blended list is not the question being asked.
@@ -225,8 +212,16 @@
 
         <ScrollViewer Grid.Row="5" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <TextBlock Text="{loc:T todopage.bos}" Style="{StaticResource Caption}" Margin="4,8"
-                           Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+                <!-- An empty list is the first thing somebody sees on a new machine, and one
+                     grey line saying "yok" tells them nothing about what would be here. -->
+                <StackPanel Style="{StaticResource EmptyState}"
+                            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
+                    <ui:SymbolIcon Symbol="ClipboardTaskListLtr24" FontSize="38" HorizontalAlignment="Center"
+                                   Margin="0,0,0,14"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T todopage.bos-baslik}" />
+                    <TextBlock Style="{StaticResource EmptyBody}" Text="{loc:T todopage.bos}" />
+                </StackPanel>
 
                 <StackPanel Visibility="{Binding HasOverdue, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Text="{loc:T todopage.gecikmis}" Style="{StaticResource GroupHeader}" Margin="4,0,0,4"

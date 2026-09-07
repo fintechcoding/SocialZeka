@@ -26,6 +26,7 @@ namespace VoiceTranscript.Tests;
 /// pages and the real archive the way the window does. The handful of things that can only be
 /// read out of the source say so in their own doc comments.
 /// </summary>
+[Collection(ChangeBroadcastCollection.Name)]
 public sealed class ShellRefreshTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"vt-tazeleme-{Guid.NewGuid():N}");

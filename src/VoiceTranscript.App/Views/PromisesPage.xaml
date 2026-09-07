@@ -1,9 +1,10 @@
-<UserControl x:Class="VoiceTranscript.App.Views.PromisesPage"
+﻿<UserControl x:Class="VoiceTranscript.App.Views.PromisesPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:VoiceTranscript.App"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:VoiceTranscript.App.ViewModels"
+             xmlns:controls="clr-namespace:VoiceTranscript.App.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -398,8 +399,16 @@
 
         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
             <Grid>
-                <TextBlock Text="{loc:T promisespage.bos}" Style="{StaticResource Caption}" Margin="4,8"
-                           Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+                <!-- Two ways to land here: no promises at all, or a chip that happens to be
+                     empty. The body says both, because from the page they look identical. -->
+                <StackPanel Style="{StaticResource EmptyState}"
+                            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
+                    <ui:SymbolIcon Symbol="Handshake24" FontSize="38" HorizontalAlignment="Center"
+                                   Margin="0,0,0,14"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    <TextBlock Style="{StaticResource EmptyTitle}" Text="{loc:T promisespage.bos-baslik}" />
+                    <TextBlock Style="{StaticResource EmptyBody}" Text="{loc:T promisespage.bos}" />
+                </StackPanel>
 
                 <!-- Two columns, by who owes whom. The two sides read differently: one is a list of
                      things to do, the other a list of things to ask about. -->
@@ -438,25 +447,12 @@
             </Grid>
         </ScrollViewer>
 
-        <!-- What just happened, and the way back. -->
-        <Border Grid.Row="4" Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,8,0,0"
-                Visibility="{Binding Notice, Converter={StaticResource NullToCollapsed}}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+        <!--
+            What just happened, and the way back — the shared strip, not a copy of it.
 
-                <TextBlock Grid.Column="0" Text="{Binding Notice}" Style="{StaticResource Secondary}"
-                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-
-                <ui:Button Grid.Column="1" Content="{loc:T promisespage.geri-al}" Appearance="Transparent"
-                           Margin="8,0,0,0" Command="{Binding UndoCommand}" />
-
-                <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
-                           Command="{Binding ClearNoticeCommand}" />
-            </Grid>
-        </Border>
+            The copy that stood here was one of two that never asked whether there was anything
+            to take back: its "Geri al" was drawn whenever the line was.
+        -->
+        <controls:UndoBar Grid.Row="4" Slot="{Binding Undo}" Margin="0,8,0,0" />
     </Grid>
 </UserControl>

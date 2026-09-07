@@ -12,6 +12,11 @@
              d:DataContext="{d:DesignInstance vm:ContactsViewModel}">
 
     <Grid Margin="{StaticResource PadPage}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
         <Grid.ColumnDefinitions>
             <!--
                 Narrower, and the reader decides how narrow.
@@ -26,8 +31,16 @@
             <ColumnDefinition Width="*" MinWidth="360" />
         </Grid.ColumnDefinitions>
 
+        <!-- The page said what it was only in the rail. Every other page names itself on the
+             page as well, and a screen that does not is the one somebody lands on from a
+             keyboard shortcut and has to work out. -->
+        <StackPanel Grid.Row="0" Grid.ColumnSpan="3">
+            <TextBlock Text="{loc:T contactspage.kisiler}" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}" Text="{loc:T contactspage.aciklama}" />
+        </StackPanel>
+
         <!-- Contact list -->
-        <Grid Grid.Column="0">
+        <Grid Grid.Row="1" Grid.Column="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -158,7 +171,7 @@
 
         <!-- The divider IS the handle: a separate one-pixel line beside a drag target is two
              things where the eye sees one. -->
-        <GridSplitter Grid.Column="1" Width="9" Margin="12,0" HorizontalAlignment="Center"
+        <GridSplitter Grid.Row="1" Grid.Column="1" Width="9" Margin="12,0" HorizontalAlignment="Center"
                       VerticalAlignment="Stretch" Background="Transparent"
                       ShowsPreview="False" Cursor="SizeWE"
                       ToolTip="{loc:T contactspage.surukleyerek-genislet}">
@@ -173,7 +186,7 @@
         </GridSplitter>
 
         <!-- Detail -->
-        <Grid Grid.Column="2">
+        <Grid Grid.Row="1" Grid.Column="2">
 
             <!-- Nothing selected. -->
             <StackPanel Style="{StaticResource EmptyState}"
@@ -750,28 +763,10 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <!-- What was just turned down, and the way back — said here, above
-                                 the list it left, for as long as the line is on screen. -->
-                            <Border Grid.Row="0" Style="{StaticResource SettingCard}" Padding="10,6" Margin="0,0,0,8"
-                                    Visibility="{Binding LedgerUndo.Notice, Converter={StaticResource NullToCollapsed}}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <TextBlock Grid.Column="0" Text="{Binding LedgerUndo.Notice}" Style="{StaticResource Secondary}"
-                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-
-                                    <ui:Button Grid.Column="1" Content="{loc:T contactspage.geri-al}" Appearance="Transparent"
-                                               Margin="8,0,0,0" Command="{Binding LedgerUndo.UndoCommand}"
-                                               Visibility="{Binding LedgerUndo.CanUndo, Converter={StaticResource BoolToVisibility}}" />
-
-                                    <ui:Button Grid.Column="2" Content="✕" Appearance="Transparent" Padding="8,2"
-                                               Command="{Binding LedgerUndo.ClearCommand}" />
-                                </Grid>
-                            </Border>
+                            <!-- What was just turned down, and the way back — the shared strip,
+                                 said here, above the list it left. A hand-built copy of it
+                                 stood here; it is the same three columns everywhere. -->
+                            <controls:UndoBar Grid.Row="0" Slot="{Binding LedgerUndo}" Margin="0,0,0,8" />
 
                             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                                           Visibility="{Binding HasFlags, Converter={StaticResource BoolToVisibility}}">

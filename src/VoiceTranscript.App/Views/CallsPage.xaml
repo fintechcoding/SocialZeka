@@ -1,4 +1,4 @@
-<UserControl x:Class="VoiceTranscript.App.Views.CallsPage"
+﻿<UserControl x:Class="VoiceTranscript.App.Views.CallsPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:VoiceTranscript.App"
@@ -139,12 +139,18 @@
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="{loc:T callspage.gorusmeler}" Style="{StaticResource PageTitle}" />
-            <TextBlock Grid.Column="1" Text="{Binding CountText}" Style="{StaticResource Caption}" VerticalAlignment="Bottom" Margin="0,0,0,6" />
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:T callspage.gorusmeler}" Style="{StaticResource PageTitle}" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CountText}" Style="{StaticResource Caption}" VerticalAlignment="Bottom" Margin="0,0,0,6" />
+            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource PageSubtitle}"
+                       Text="{loc:T callspage.aciklama}" />
         </Grid>
 
         <!-- Whatever the user knows about the call they want: who, when, which app, what

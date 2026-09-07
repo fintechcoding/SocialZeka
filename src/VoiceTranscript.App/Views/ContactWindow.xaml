@@ -211,20 +211,20 @@
                             <!-- The period, as words. One click, no calendar. -->
                             <StackPanel Grid.Column="0" Orientation="Horizontal">
                                 <ui:Button Content="{loc:T contactwindow.tumu}" Padding="10,4" Margin="0,0,4,0"
-                                           Command="{Binding SetPresetCommand}" CommandParameter="Tümü"
-                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Tümü}" />
+                                           Command="{Binding SetPresetCommand}" CommandParameter="All"
+                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=All}" />
                                 <ui:Button Content="{loc:T contactwindow.bu-hafta}" Padding="10,4" Margin="0,0,4,0"
-                                           Command="{Binding SetPresetCommand}" CommandParameter="Bu hafta"
-                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Bu hafta}" />
+                                           Command="{Binding SetPresetCommand}" CommandParameter="Week"
+                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Week}" />
                                 <ui:Button Content="{loc:T contactwindow.bu-ay}" Padding="10,4" Margin="0,0,4,0"
-                                           Command="{Binding SetPresetCommand}" CommandParameter="Bu ay"
-                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Bu ay}" />
+                                           Command="{Binding SetPresetCommand}" CommandParameter="Month"
+                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Month}" />
                                 <ui:Button Content="3 ay" Padding="10,4" Margin="0,0,4,0"
-                                           Command="{Binding SetPresetCommand}" CommandParameter="3 ay"
-                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=3 ay}" />
+                                           Command="{Binding SetPresetCommand}" CommandParameter="Quarter"
+                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Quarter}" />
                                 <ui:Button Content="{loc:T contactwindow.1-yil}" Padding="10,4" Margin="0,0,12,0"
-                                           Command="{Binding SetPresetCommand}" CommandParameter="1 yıl"
-                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=1 yıl}" />
+                                           Command="{Binding SetPresetCommand}" CommandParameter="Year"
+                                           Appearance="{Binding PeriodPreset, Converter={StaticResource FilterAppearance}, ConverterParameter=Year}" />
                             </StackPanel>
 
                             <TextBlock Grid.Column="1" Style="{StaticResource Caption}"

@@ -15,6 +15,7 @@ namespace VoiceTranscript.Tests;
 /// which is the one place somebody looks to check whether they really did it. A list that can
 /// only lose items teaches people not to tick anything, and then the feature is decoration.
 /// </summary>
+[Collection(ChangeBroadcastCollection.Name)]
 public class SuggestionsOnTheTodoPageTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"vt-todo-{Guid.NewGuid():N}");
@@ -158,7 +159,7 @@ public class SuggestionsOnTheTodoPageTests : IDisposable
         _model.Refresh();
         _model.DismissCommand.Execute(Everything().Single(e => e.Id == id));
 
-        Assert.Equal(string.Format(Localisation.T("todopage.reddedildi-n"), "Reddedilecek"), _model.Notice);
+        Assert.Equal(string.Format(Localisation.T("todopage.reddedildi-n"), "Reddedilecek"), _model.Undo.Notice);
     }
 
     /// <summary>A hidden suggestion is hidden. It is not finished, and it is not waiting.</summary>

@@ -248,14 +248,14 @@ public sealed class ContactCardTests : IDisposable
         Assert.True(model.IsModelLabel);
 
         // "Kural" cannot put a model's label on the screen at all.
-        card.SetSourceCommand.Execute(ContactCardViewModel.SourceRule);
+        card.SetSourceCommand.Execute(nameof(PatternSource.Rule));
         Assert.Equal(nameof(FlagKind.PressureTactic), Assert.Single(card.Patterns).Kind);
 
         // And "Değerlendirme" shows nothing else.
-        card.SetSourceCommand.Execute(ContactCardViewModel.SourceAssessment);
+        card.SetSourceCommand.Execute(nameof(PatternSource.Assessment));
         Assert.True(Assert.Single(card.Patterns).IsModelLabel);
 
-        card.SetSourceCommand.Execute(ContactCardViewModel.SourceAll);
+        card.SetSourceCommand.Execute(nameof(PatternSource.All));
         Assert.Equal(2, card.Patterns.Count);
     }
 

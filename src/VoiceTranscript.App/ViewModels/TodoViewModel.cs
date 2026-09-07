@@ -215,12 +215,12 @@ public sealed partial class TodoViewModel(Repository repository, bool showDone =
     /// say so quietly, and offer to undo for as long as the line is on screen. A confirmation
     /// dialog would be worse: it interrupts the list to ask about the least consequential thing
     /// on it, and people learn to dismiss it without reading.
+    ///
+    /// The shared slot, not a third pair of commands: this page used to call the same two verbs
+    /// UndoDismiss and ClearNotice, so a page that behaved exactly like the ledger and the
+    /// promises had to be bound differently from both.
     /// </summary>
-    [ObservableProperty] private string? _notice;
-
-    private long _undoActionId;
-
-    public bool CanUndo => _undoActionId != 0;
+    public UndoSlot Undo { get; } = new();
 
     /// <summary>Raised when a row wants its conversation opened; the page owns the window.</summary>
     public event EventHandler<TodoEntry>? OpenCallRequested;
@@ -404,38 +404,23 @@ public sealed partial class TodoViewModel(Repository repository, bool showDone =
     {
         if (entry is null || entry.Kind != TodoEntryKind.Action) return;
 
-        repository.SetActionStatus(entry.ActionId, ActionStatus.Hidden);
+        var id = entry.ActionId;
+
+        repository.SetActionStatus(id, ActionStatus.Hidden);
 
         // The notice is put up before the change is announced, so the one refresh the
-        // announcement causes sees the page exactly as it will be drawn.
-        _undoActionId = entry.ActionId;
-        Notice = string.Format(Localisation.T("todopage.reddedildi-n"), Shorten(entry.Text));
+        // announcement causes sees the page exactly as it will be drawn. The slot takes the
+        // notice down before running the inverse, for the same reason.
+        Undo.Offer(new Services.PendingUndo(
+            Services.LedgerVerb.Dismiss,
+            string.Format(Localisation.T("todopage.reddedildi-n"), Shorten(entry.Text)),
+            () =>
+            {
+                repository.SetActionStatus(id, ActionStatus.Open);
+                Services.CallActions.NotifyChanged();
+            }));
 
-        OnPropertyChanged(nameof(CanUndo));
         Services.CallActions.NotifyChanged();
-    }
-
-    [RelayCommand]
-    private void UndoDismiss()
-    {
-        if (_undoActionId == 0) return;
-
-        repository.SetActionStatus(_undoActionId, ActionStatus.Open);
-
-        _undoActionId = 0;
-        Notice = null;
-
-        OnPropertyChanged(nameof(CanUndo));
-        Services.CallActions.NotifyChanged();
-    }
-
-    [RelayCommand]
-    private void ClearNotice()
-    {
-        _undoActionId = 0;
-        Notice = null;
-
-        OnPropertyChanged(nameof(CanUndo));
     }
 
     /// <summary>Enough of the line to recognise it, not enough to fill the bar.</summary>

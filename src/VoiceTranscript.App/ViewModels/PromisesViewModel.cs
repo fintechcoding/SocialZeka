@@ -392,12 +392,23 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     public string MineHeader => string.Format(Localisation.T("promisespage.senin-verdiklerin-n"), Mine.Count);
     public string TheirsHeader => string.Format(Localisation.T("promisespage.sana-verilenler-n"), Theirs.Count);
 
-    /// <summary>What just happened, and the way back — the same quiet pattern as the to-do page.</summary>
-    [ObservableProperty] private string? _notice;
-
-    private PendingUndo? _pending;
-
-    public bool CanUndo => _pending is not null;
+    /// <summary>
+    /// What just happened, and the way back — the shared slot, shown by the shared strip.
+    ///
+    /// Every verb on this page hands a <see cref="PendingUndo"/> to it, the edit dialog's
+    /// included: ✎ used to drop its undo on the floor and was the only ruling here that could
+    /// not be taken back.
+    ///
+    /// Offering does not re-read the page and does not announce anything, and that is
+    /// deliberate: every verb goes through <see cref="LedgerActions"/>, which writes the row and
+    /// raises its own Changed, and the shell answers that by re-reading all ten pages — this one
+    /// among them — before the verb has even returned. Refreshing here as well made one "Tutuldu"
+    /// read this page three times and the other nine twice, each pass carrying the ledger query,
+    /// a verdict query per conversation and the "tutuldu mu?" scan. A verb added here that writes
+    /// without going through LedgerActions announces the change itself — not by refreshing this
+    /// one page.
+    /// </summary>
+    public UndoSlot Undo { get; } = new();
 
     partial void OnFilterChanged(PromiseFilter value) => Refresh();
     partial void OnPersonFilterChanged(string value) => Refresh();
@@ -627,7 +638,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
         // Which conversation closed it, when the page has an idea: the "tutuldu mu?" line is the
         // only thing on the page that points at one, and without it fulfilled_by_call_id was
         // never written by any path in the product.
-        Offer(LedgerActions.Fulfil(repository, card.Commitment, card.Hint?.CallId));
+        Undo.Offer(LedgerActions.Fulfil(repository, card.Commitment, card.Hint?.CallId));
     }
 
     [RelayCommand]
@@ -635,7 +646,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (card is null || !card.CanFulfil) return;
 
-        Offer(LedgerActions.Abandon(repository, card.Commitment));
+        Undo.Offer(LedgerActions.Abandon(repository, card.Commitment));
     }
 
     [RelayCommand]
@@ -643,7 +654,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (card is null || !card.CanReopen) return;
 
-        Offer(LedgerActions.Reopen(repository, card.Commitment));
+        Undo.Offer(LedgerActions.Reopen(repository, card.Commitment));
     }
 
     [RelayCommand]
@@ -651,7 +662,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (card is null || !card.CanDismiss) return;
 
-        Offer(LedgerActions.Dismiss(repository, card.Commitment));
+        Undo.Offer(LedgerActions.Dismiss(repository, card.Commitment));
     }
 
     [RelayCommand]
@@ -661,7 +672,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
 
         // A refusal is either a tombstone on the row or a ruling on the moment; one button lifts
         // whichever one is standing.
-        Offer(card.IsNotAPromise
+        Undo.Offer(card.IsNotAPromise
             ? LedgerActions.ClearPromiseJudgement(repository, card.Commitment)
             : LedgerActions.Restore(repository, card.Commitment));
     }
@@ -686,7 +697,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (card is null || card.PostponeTo is not { } picked) return;
 
-        Offer(LedgerActions.SetUserDeadline(repository, card.Commitment, DateOnly.FromDateTime(picked)));
+        Undo.Offer(LedgerActions.SetUserDeadline(repository, card.Commitment, DateOnly.FromDateTime(picked)));
     }
 
     /// <summary>Back to the spoken date. The machine's column was never touched; only the user's is cleared.</summary>
@@ -695,7 +706,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (card is null || !card.HasUserDeadline) return;
 
-        Offer(LedgerActions.SetUserDeadline(repository, card.Commitment, null));
+        Undo.Offer(LedgerActions.SetUserDeadline(repository, card.Commitment, null));
     }
 
     // ---- S3: "ne zamana?" ---------------------------------------------------------------------
@@ -727,7 +738,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (card is null || !card.NeedsDeadline) return;
 
-        Offer(LedgerActions.KeepUndated(repository, card.Commitment));
+        Undo.Offer(LedgerActions.KeepUndated(repository, card.Commitment));
     }
 
     /// <summary>Takes "tarihsiz kalsın" back: the strip asks again.</summary>
@@ -736,14 +747,14 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (card is null || !card.KeepsUndated) return;
 
-        Offer(LedgerActions.ClearPromiseJudgement(repository, card.Commitment, VerdictKind.PromiseDeadline));
+        Undo.Offer(LedgerActions.ClearPromiseJudgement(repository, card.Commitment, VerdictKind.PromiseDeadline));
     }
 
     private void SetDeadline(PromiseCard? card, DateOnly day)
     {
         if (card is null || !card.CanPostpone) return;
 
-        Offer(LedgerActions.SetUserDeadline(repository, card.Commitment, day));
+        Undo.Offer(LedgerActions.SetUserDeadline(repository, card.Commitment, day));
     }
 
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
@@ -773,7 +784,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (card is null || card.IsDismissed) return;
 
-        Offer(LedgerActions.JudgePromise(repository, card.Commitment, value));
+        Undo.Offer(LedgerActions.JudgePromise(repository, card.Commitment, value));
     }
 
     // ---- S2: one sentence, two promises -------------------------------------------------------
@@ -788,7 +799,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (card is null || !card.IsGrouped) return;
 
-        Offer(LedgerActions.PickCommitment(
+        Undo.Offer(LedgerActions.PickCommitment(
             repository, card.Commitment, [.. card.Candidates.Select(k => k.Commitment)]));
     }
 
@@ -798,7 +809,7 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     {
         if (card is null || !card.IsGrouped) return;
 
-        Offer(LedgerActions.KeepAllCandidates(repository, card.Commitment));
+        Undo.Offer(LedgerActions.KeepAllCandidates(repository, card.Commitment));
     }
 
     // ---- listening -----------------------------------------------------------------------------
@@ -845,51 +856,4 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
         if (card is not null) card.IsAroundOpen = !card.IsAroundOpen;
     }
 
-    // ---- the notice ----------------------------------------------------------------------------
-
-    [RelayCommand]
-    private void Undo()
-    {
-        if (_pending is not { } pending) return;
-
-        // The notice is taken down before the inverse is written, not after: writing it announces
-        // the change, the shell re-reads this page inside that announcement, and a refresh that
-        // ran while the notice still stood would draw the "Geri al" bar over rows that had
-        // already come back.
-        _pending = null;
-        Notice = null;
-        OnPropertyChanged(nameof(CanUndo));
-
-        pending.Undo();
-    }
-
-    [RelayCommand]
-    private void ClearNotice()
-    {
-        _pending = null;
-        Notice = null;
-        OnPropertyChanged(nameof(CanUndo));
-    }
-
-    /// <summary>
-    /// Shows what a verb did and keeps its inverse ready. Every verb on this page hands one of
-    /// these back — including the edit dialog's, whose undo used to be dropped on the floor and
-    /// left ✎ as the only ruling here that could not be taken back.
-    ///
-    /// It does not re-read the page and it does not announce anything. Both used to happen here,
-    /// and both were already done: every verb goes through <see cref="LedgerActions"/>, which
-    /// writes the row and raises its own Changed, and the shell answers that by re-reading all
-    /// ten pages — this one among them — before the verb has even returned. So one "Tutuldu"
-    /// re-read the promises page three times and the other nine twice, and each of those extra
-    /// passes carried the whole page: the ledger query, a verdict query per conversation and the
-    /// "tutuldu mu?" scan. If a verb is ever added here that writes without going through
-    /// LedgerActions, it announces the change itself — not by refreshing this one page.
-    /// </summary>
-    public void Offer(PendingUndo undo)
-    {
-        _pending = undo;
-        Notice = undo.Sentence;
-
-        OnPropertyChanged(nameof(CanUndo));
-    }
 }
