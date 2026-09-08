@@ -112,6 +112,82 @@ public sealed class MirrorPageTests : IDisposable
     private static string Rate(double perMinute) => MirrorViewModel.Format(HabitMetric.Profanity, perMinute);
 
     /// <summary>
+    /// A sentence is one row, however many times the habit is in it.
+    ///
+    /// The counter reports a moment per occurrence, which is right: the figures are counts of
+    /// words. The screen shows the sentence a moment sits in, so a sentence with three of them
+    /// arrived as three rows printing the same words — measured on this archive, one conversation
+    /// held eighty-two lines that produced more than one moment and the busiest produced ten. The
+    /// user read it as the application repeating itself, and they were not wrong about what they
+    /// were seeing.
+    /// </summary>
+    [Fact]
+    public void OneSentenceIsOneRowHoweverManyTimesTheWordIsInIt()
+    {
+        var gurhan = Contact("Gürhan");
+
+        Call(gurhan, DateTimeOffset.Now.AddDays(-1), "nova-3",
+            [$"{Swear} dedim {Swear} yine dedim {Swear} bir daha", "Sonra sakinleştim"]);
+
+        var page = Page();
+
+        var moment = Assert.Single(page.Moments);
+
+        Assert.Equal(3, moment.Occurrences);
+        Assert.Equal("×3", moment.OccurrencesLabel);
+        Assert.True(moment.HasManyOccurrences);
+        Assert.Contains(Swear, moment.Context);
+    }
+
+    /// <summary>Two different sentences stay two rows: the grouping is by line, not by call.</summary>
+    [Fact]
+    public void TwoSentencesStayTwoRows()
+    {
+        var gurhan = Contact("Gürhan");
+
+        Call(gurhan, DateTimeOffset.Now.AddDays(-1), "nova-3",
+            [$"{Swear} dedim ona", $"{Swear} yine dedim"]);
+
+        var page = Page();
+
+        Assert.Equal(2, page.Moments.Count);
+        Assert.All(page.Moments, m => Assert.Equal(1, m.Occurrences));
+    }
+
+    /// <summary>
+    /// Ruling on a sentence reaches every occurrence in it.
+    ///
+    /// The row is a sentence and the ruling is about the sentence: "yanlış duyulmuş" on a line
+    /// holding three means all three were misheard. Ruling on one of three would move the figure
+    /// by a third and read as a bug — the user would mark it and watch the count barely change.
+    /// </summary>
+    [Fact]
+    public void RulingOnASentenceReachesEveryOccurrenceInIt()
+    {
+        var gurhan = Contact("Gürhan");
+
+        var call = Call(gurhan, DateTimeOffset.Now.AddDays(-1), "nova-3",
+            [$"{Swear} dedim {Swear} yine dedim {Swear} bir daha"]);
+
+        var page = Page();
+        var moment = Assert.Single(page.Moments);
+
+        page.MisheardCommand.Execute(moment);
+
+        // Every position the row stands for, not only the first. Compared as sets so the test
+        // measures the rule rather than the fixture: without word timings every hit in a line
+        // shares one millisecond, and counting rows would then prove nothing.
+        var judged = _repo.Verdicts(call).Select(v => v.StartMs).ToHashSet();
+        var carried = moment.AlsoInThisLine.Select(p => p.StartMs).Append(moment.StartMs).ToHashSet();
+
+        Assert.Equal(carried, judged);
+        Assert.All(_repo.Verdicts(call), v => Assert.Equal(VerdictValue.Misheard, v.Value));
+
+        // And the ruling comes back on the row, so the user can see what they said about it.
+        Assert.Equal(VerdictValue.Misheard, Assert.Single(Page().Moments).Verdict);
+    }
+
+    /// <summary>
     /// Goes red when a period chip narrows the moments but not the figures, or the other way
     /// round — the state where a rate on a card describes a different set of conversations from
     /// the list underneath it.
