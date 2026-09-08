@@ -46,7 +46,8 @@ public sealed partial class MirrorMoment : ObservableObject
     public MirrorMoment(
         long callId, long? contactId, string contactName, DateTimeOffset at,
         string kind, string lexeme, string quoteFolded, int startMs,
-        string context, HabitBucket bucket, VerdictValue? verdict)
+        string context, HabitBucket bucket, VerdictValue? verdict,
+        IReadOnlyList<(int StartMs, string QuoteFolded)>? alsoInThisLine = null)
     {
         CallId = callId;
         ContactId = contactId;
@@ -59,7 +60,30 @@ public sealed partial class MirrorMoment : ObservableObject
         Context = context;
         Bucket = bucket;
         Verdict = verdict;
+        AlsoInThisLine = alsoInThisLine ?? [];
     }
+
+    /// <summary>
+    /// The other times the same habit was said in this very sentence, beside the first.
+    ///
+    /// A row is a LINE the user can hear, not a word position. One sentence carrying four
+    /// "yani"s used to be four rows, each printing the whole sentence again — measured on this
+    /// archive, one conversation had eighty-two lines that produced more than one moment and the
+    /// busiest produced ten, so the screen showed the same words ten times over and the user read
+    /// it as the application repeating itself.
+    ///
+    /// Kept rather than collapsed away, because a ruling is per position: saying "yanlış
+    /// duyulmuş" about a line has to reach every occurrence in it, or the count would not move.
+    /// </summary>
+    public IReadOnlyList<(int StartMs, string QuoteFolded)> AlsoInThisLine { get; }
+
+    /// <summary>How many times the habit was said in this line, at least one.</summary>
+    public int Occurrences => 1 + AlsoInThisLine.Count;
+
+    /// <summary>"×3" for a line that carries three, empty for a line that carries one.</summary>
+    public string OccurrencesLabel => Occurrences > 1 ? $"×{Occurrences}" : "";
+
+    public bool HasManyOccurrences => Occurrences > 1;
 
     public long CallId { get; }
     public long? ContactId { get; }
@@ -631,8 +655,22 @@ public sealed partial class MirrorViewModel : ObservableObject
                 .Distinct()
                 .ToDictionary(id => id, id => _repository.GetSegments(id));
 
-            foreach (var (candidate, ruling) in shown)
+            // One row per SENTENCE, not per word.
+            //
+            // The counter reports a moment per occurrence, which is right — the figures are
+            // counts of words. The screen shows the sentence each moment sits in, so a sentence
+            // with four "yani"s in it arrived as four rows printing the same words. Grouped by
+            // the line they resolve to, and by the habit, so "küfür ×2" is one row the user can
+            // hear once and rule on once.
+            var grouped = shown
+                .Select(x => (x.Candidate, x.Ruling, Line: LineOf(lines[x.Candidate.CallId], x.Candidate.StartMs)))
+                .GroupBy(x => (x.Candidate.CallId, Line: x.Line?.StartMs ?? x.Candidate.StartMs, x.Candidate.Kind))
+                .Select(g => g.OrderBy(x => x.Candidate.StartMs).ToList());
+
+            foreach (var group in grouped)
             {
+                var (candidate, ruling, line) = group[0];
+
                 Moments.Add(new MirrorMoment(
                     candidate.CallId,
                     candidate.ContactId,
@@ -644,9 +682,12 @@ public sealed partial class MirrorViewModel : ObservableObject
                     candidate.Lexeme,
                     candidate.QuoteFolded,
                     candidate.StartMs,
-                    Context(lines[candidate.CallId], candidate.StartMs),
+                    Text(line),
                     candidate.Bucket,
-                    ruling));
+                    // The line's ruling is the first one given inside it: a sentence somebody has
+                    // already called misheard is a sentence they have listened to.
+                    group.Select(x => x.Ruling).FirstOrDefault(r => r is not null),
+                    [.. group.Skip(1).Select(x => (x.Candidate.StartMs, x.Candidate.QuoteFolded))]));
             }
         }
 
@@ -729,17 +770,32 @@ public sealed partial class MirrorViewModel : ObservableObject
     /// The line a moment was said in, shortened around it. The words are the evidence; without
     /// them the list is a column of timestamps somebody has to click to understand.
     /// </summary>
-    public static string Context(IReadOnlyList<Segment> segments, int startMs)
-    {
-        var line = segments
+    public static string Context(IReadOnlyList<Segment> segments, int startMs) =>
+        Text(LineOf(segments, startMs));
+
+    /// <summary>
+    /// The user's own line a moment was said in, or null when none can be found.
+    ///
+    /// Always the user's own side: the two channels are recorded separately and their lines
+    /// overlap in time, so a moment at 01:11 can sit inside both somebody else's sentence and
+    /// the user's. Aynam counts only the user (SpeechHabits skips every segment where IsMe is
+    /// false), and the sentence shown beside a count has to come from the same side as the count.
+    ///
+    /// Split out of <see cref="Context"/> so the screen can group by the line rather than by the
+    /// word: it is the identity of the row, not only its text.
+    /// </summary>
+    public static Segment? LineOf(IReadOnlyList<Segment> segments, int startMs) =>
+        segments
             .Where(s => s.IsMe && s.StartMs <= startMs && startMs <= s.EndMs)
             .OrderBy(s => s.EndMs - s.StartMs)
             .FirstOrDefault()
-            ?? segments
-                .Where(s => s.IsMe)
-                .OrderBy(s => Math.Abs(s.StartMs - startMs))
-                .FirstOrDefault();
+        ?? segments
+            .Where(s => s.IsMe)
+            .OrderBy(s => Math.Abs(s.StartMs - startMs))
+            .FirstOrDefault();
 
+    private static string Text(Segment? line)
+    {
         if (line is null) return "";
 
         var text = line.Text.Trim();
@@ -802,15 +858,26 @@ public sealed partial class MirrorViewModel : ObservableObject
     {
         if (moment is null) return;
 
-        _repository.SaveVerdict(new Verdict
+        // Every occurrence in the line, not only the first.
+        //
+        // The row is a sentence and the ruling is about the sentence: "yanlış duyulmuş" on a line
+        // holding three "yani"s means all three were misheard. Written per position because that
+        // is how a verdict is matched back (see Ruling), and because the counts are counts of
+        // words — ruling on one of three would move the figure by a third and read as a bug.
+        var positions = new[] { (moment.StartMs, moment.QuoteFolded) }.Concat(moment.AlsoInThisLine);
+
+        foreach (var (startMs, quoteFolded) in positions)
         {
-            CallId = moment.CallId,
-            Kind = VerdictKindFor(moment.Kind),
-            QuoteFolded = moment.QuoteFolded,
-            StartMs = moment.StartMs,
-            Value = value,
-            DecidedAt = DateTimeOffset.UtcNow,
-        });
+            _repository.SaveVerdict(new Verdict
+            {
+                CallId = moment.CallId,
+                Kind = VerdictKindFor(moment.Kind),
+                QuoteFolded = quoteFolded,
+                StartMs = startMs,
+                Value = value,
+                DecidedAt = DateTimeOffset.UtcNow,
+            });
+        }
 
         Services.HabitRecount.Run(_repository, moment.CallId);
         Refresh();
