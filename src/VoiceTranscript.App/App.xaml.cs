@@ -759,7 +759,14 @@ public partial class App : Application
     public static Services.UpdateService? Updates { get; private set; }
 
     /// <summary>
-    /// Looks for a newer version and, if there is one, offers it.
+    /// The daily re-check, once startup has built it. Held so shutdown can stop its tick and
+    /// unhook it from the power events it listens to.
+    /// </summary>
+    private static Services.UpdateScheduler? _updateSchedule;
+
+    /// <summary>
+    /// Looks for a newer version and, if there is one, offers it — at startup, and then once a
+    /// day for as long as the application stays open.
     ///
     /// Everything about this is deliberately unassertive. It runs on a background task after the
     /// window exists, every failure is swallowed, and it never installs anything on its own — the
@@ -769,6 +776,11 @@ public partial class App : Application
     /// The delay before checking is not politeness. Startup is already doing the things that
     /// matter — opening the database, starting the watcher, picking up the backlog — and a network
     /// call competing with those is a worse first minute for no gain.
+    ///
+    /// The startup check used to be the only one, and this application lives in the tray for
+    /// weeks: a copy left open since yesterday afternoon never learned about a release published
+    /// this morning. So the same check is now owed once a day after the last one, whoever made
+    /// it, and runs when the recorder is idle. What it finds goes down the one path below.
     /// </summary>
     private static async Task CheckForUpdateAsync(MainWindow window)
     {
@@ -788,32 +800,43 @@ public partial class App : Application
                 await window.Dispatcher.InvokeAsync(() => Notify(window, failed));
             }
 
+            var schedule = new Services.UpdateScheduler(
+                Updates,
+                () => Settings,
+                saved =>
+                {
+                    Settings = saved;
+                    saved.Save(Paths.SettingsFile);
+
+                    // The moved stamp is the one visible sign that a quiet check happened at
+                    // all; the tab computes its text from settings and has to be told.
+                    window.Dispatcher.InvokeAsync(() =>
+                    {
+                        if (window.DataContext is ViewModels.ShellViewModel shell)
+                            shell.Update.RefreshLastChecked();
+                    });
+                },
+                RecorderIsIdle,
+                check => OfferIfNewAsync(window, check));
+
+            _updateSchedule = schedule;
+
+            // A check postponed by a call runs when the call ends. The recorder already announces
+            // this to anyone listening; it is not asked to do anything more.
+            Orchestrator.StateChanged += (_, state) =>
+            {
+                if (state == Services.OrchestratorState.Idle) _ = schedule.NotifyIdleAsync();
+            };
+
+            // The tick and the resume hook start whether or not the switch is on: the switch is
+            // read at every tick, so turning it on this afternoon takes effect without a restart.
+            schedule.Start();
+
             if (!Settings.CheckForUpdates) return;
 
             await Task.Delay(TimeSpan.FromSeconds(20));
 
-            var check = await Updates.CheckAsync();
-
-            if (!check.Available || check.Release is null)
-            {
-                if (check.Message is { } message) AppLog.Write("güncelleme", message);
-                return;
-            }
-
-            var release = check.Release;
-
-            // Compared rather than matched, so skipping 1.2.0 does not also skip 1.3.0 — one
-            // dismissal must not silence updates for good.
-            if (Core.Update.AppVersion.Parse(Settings.SkippedUpdateVersion) is { } skipped
-                && release.Version <= skipped)
-            {
-                AppLog.Write("güncelleme", $"{release.Version} atlanmış sürüm, sorulmuyor");
-                return;
-            }
-
-            AppLog.Write("güncelleme", $"{release.Version} bulundu");
-
-            await window.Dispatcher.InvokeAsync(() => OfferUpdate(window, release));
+            await schedule.CheckNowAsync();
         }
         catch (Exception e)
         {
@@ -821,6 +844,44 @@ public partial class App : Application
             // is actually for.
             AppLog.Error("güncelleme", e, "denetim sırasında beklenmeyen hata");
         }
+    }
+
+    /// <summary>
+    /// Idle as the daily check needs it: nothing being recorded, by detection or by hand, and
+    /// nothing being transcribed. Read from what the recorder already publishes — the same two
+    /// properties the update guard reads — so the recording path is neither touched nor asked.
+    /// Ringing counts as busy: a call is seconds away, and a check can wait a quarter of an hour.
+    /// </summary>
+    private static bool RecorderIsIdle() =>
+        Orchestrator is null
+        || (Orchestrator.State == Services.OrchestratorState.Idle && !Orchestrator.IsManualRecording);
+
+    /// <summary>
+    /// What a check found, made into the offer — or into a log line. One path for the startup
+    /// check and the daily one, so the two cannot disagree about what a skipped version means.
+    /// </summary>
+    private static async Task OfferIfNewAsync(MainWindow window, Services.UpdateCheck check)
+    {
+        if (!check.Available || check.Release is null)
+        {
+            if (check.Message is { } message) AppLog.Write("güncelleme", message);
+            return;
+        }
+
+        var release = check.Release;
+
+        // Compared rather than matched, so skipping 1.2.0 does not also skip 1.3.0 — one
+        // dismissal must not silence updates for good.
+        if (Core.Update.AppVersion.Parse(Settings.SkippedUpdateVersion) is { } skipped
+            && release.Version <= skipped)
+        {
+            AppLog.Write("güncelleme", $"{release.Version} atlanmış sürüm, sorulmuyor");
+            return;
+        }
+
+        AppLog.Write("güncelleme", $"{release.Version} bulundu");
+
+        await window.Dispatcher.InvokeAsync(() => OfferUpdate(window, release));
     }
 
     private static void OfferUpdate(MainWindow window, Core.Update.Release release)
@@ -1027,6 +1088,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _updateSchedule?.Dispose();
         Orchestrator?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);

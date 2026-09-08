@@ -53,11 +53,21 @@ public sealed partial class UpdateViewModel(
         : $"Son denetim: {when.ToLocalTime():d MMMM HH:mm}";
 
     /// <summary>
-    /// Whether the application looks for new versions on its own.
+    /// The stamp moved under this model — the startup or the daily check wrote it, not the button.
+    /// The text is computed from settings, so the binding has to be told; without this the tab
+    /// would show the last button press for ever and the user would have no way to see that the
+    /// daily check is alive.
+    /// </summary>
+    public void RefreshLastChecked() => OnPropertyChanged(nameof(LastCheckedText));
+
+    /// <summary>
+    /// Whether the application looks for new versions on its own — at startup, and once a day
+    /// after the last look while it stays running.
     ///
     /// Read at startup and, until this existed, settable nowhere — so somebody who did not want
     /// their machine contacting GitHub had no way to say so. It only ever looks; nothing installs
-    /// without being asked.
+    /// without being asked. One switch for both: "check at startup but not tomorrow" is not a
+    /// preference anybody holds, and two switches would be two ways to be contacted or not.
     /// </summary>
     public bool CheckAutomatically
     {

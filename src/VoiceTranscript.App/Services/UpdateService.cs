@@ -10,7 +10,13 @@ namespace VoiceTranscript.App.Services;
 /// <param name="Available">A newer release exists and passed every check.</param>
 /// <param name="Release">The release, when there is one worth offering.</param>
 /// <param name="Message">Why nothing is being offered, when nothing is. Null on success.</param>
-public sealed record UpdateCheck(bool Available, Release? Release, string? Message);
+/// <param name="Failed">
+/// True when no answer was had: the server could not be reached, refused, or sent something that
+/// was not a release. "Nothing to offer" is not a failure — up to date, a draft, a pre-release are
+/// answers. The daily re-check uses the distinction to decide whether the next look is in an hour
+/// or in a day: a check on a network that is not back yet must not count as the day's check.
+/// </param>
+public sealed record UpdateCheck(bool Available, Release? Release, string? Message, bool Failed = false);
 
 /// <summary>
 /// Finds out whether a newer version has been published, and installs it when told to.
@@ -74,13 +80,17 @@ public sealed class UpdateService(HttpClient http, AppPaths paths)
             using var response = await http.SendAsync(request, deadline.Token);
 
             if (!response.IsSuccessStatusCode)
-                return new UpdateCheck(false, null, $"Güncelleme sunucusu {(int)response.StatusCode} döndürdü.");
+                return new UpdateCheck(false, null, $"Güncelleme sunucusu {(int)response.StatusCode} döndürdü.", Failed: true);
 
             var body = await response.Content.ReadAsStringAsync(deadline.Token);
             var (release, rejection) = ReleaseAssets.Read(body);
 
+            // A body that is not JSON is what a captive portal answers with — a 200 and a login
+            // page — which is exactly the network a laptop meets in the first minute after a
+            // resume. That is "no answer", not "nothing to offer".
             if (release is null)
-                return new UpdateCheck(false, null, ReleaseAssets.Explain(rejection));
+                return new UpdateCheck(false, null, ReleaseAssets.Explain(rejection),
+                    Failed: rejection == ReleaseRejection.NotJson);
 
             if (release.Version <= running)
                 return new UpdateCheck(false, null, $"En güncel sürümü kullanıyorsun ({running}).");
@@ -89,12 +99,12 @@ public sealed class UpdateService(HttpClient http, AppPaths paths)
         }
         catch (Exception e) when (e is HttpRequestException or OperationCanceledException or IOException)
         {
-            return new UpdateCheck(false, null, "Güncelleme denetlenemedi: internete ulaşılamadı.");
+            return new UpdateCheck(false, null, "Güncelleme denetlenemedi: internete ulaşılamadı.", Failed: true);
         }
         catch (Exception e)
         {
             AppLog.Error("güncelleme", e, "denetim başarısız");
-            return new UpdateCheck(false, null, "Güncelleme denetlenemedi.");
+            return new UpdateCheck(false, null, "Güncelleme denetlenemedi.", Failed: true);
         }
     }
 

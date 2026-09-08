@@ -1420,5 +1420,6 @@
   "circleswindow.kisiler-cok-konusulandan-aza": "Kişiler (çok konuşulandan aza)",
   "circleswindow.cevresiz": "Çevresiz",
   "circleswindow.n-gorusme": "{0} görüşme",
-  "circleswindow.n-m-kisi-bir-cevrede": "{0} / {1} kişi bir çevrede"
+  "circleswindow.n-m-kisi-bir-cevrede": "{0} / {1} kişi bir çevrede",
+  "healthpage.kendiliginden-denetle-acilista-ve-gunde-bir": "Kendiliğinden denetle: açılışta ve günde bir"
 }
