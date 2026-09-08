@@ -358,6 +358,34 @@ public sealed class AnalysisPipelineTests : IDisposable
     /// <summary>The same, but with the summary step on, for the tests that are about it.</summary>
     private static readonly AnalysisOptions SummarisingOptions = Options with { WriteSummary = true };
 
+    /// <summary>
+    /// A hosted model is given room to write what it found; a local one is not.
+    ///
+    /// Measured on a real 120-line chunk of the user's archive: the findings came to 3.729 tokens
+    /// and the model needed every one. At 2.048 the reply was truncated, the section discarded,
+    /// and a 692-line conversation produced an empty ledger. A ceiling costs nothing until it is
+    /// used, so the only reason to keep it low is a local context window that has to hold the
+    /// prompt as well — which is why the two are not one number.
+    /// </summary>
+    [Theory]
+    [InlineData(true, AnalysisOptions.CloudLedgerTokens)]
+    [InlineData(false, AnalysisOptions.LocalLedgerTokens)]
+    public async Task TheLedgerStepAsksForRoomToWriteWhatItFound(bool hosted, int expected)
+    {
+        var (call, _) = SeedCall(CallKind.OneToOne, (false, 1000, "Yarın parayı yatıracağım."));
+
+        var llm = new ScriptedLlm("""{"taahhutler":[],"iddialar":[],"sorular":[],"baski_isaretleri":[]}""");
+
+        await new AnalysisPipeline(llm, _repo).AnalyseAsync(
+            call, Options with { SendsDataOffMachine = hosted },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var ledgerStep = llm.Requests[0];
+
+        Assert.Equal(ExtractionPrompt.SystemPrompt, ledgerStep.SystemPrompt);
+        Assert.Equal(expected, ledgerStep.MaxTokens);
+    }
+
     [Fact]
     public async Task ExtractsAndStoresACommitmentWithItsRealTimestamp()
     {

@@ -92,8 +92,57 @@ public sealed class ReasoningBudgetTests
     }
 
     /// <summary>
-    /// A truncated answer holds real content and the caller can see it was cut. Asking again
-    /// would pay for the same tokens twice and is not this method's business.
+    /// A truncated answer to a SCHEMA request is asked again, because half of one is nothing.
+    ///
+    /// This is the failure the archive recorded on a 692-line conversation: eight ledger sections
+    /// in a row came back at the limit carrying three to five thousand characters each, every one
+    /// of them discarded for not parsing, and the call filed as "hiçbir bölüm okunamadı" — an
+    /// empty ledger that reads exactly like a conversation in which nothing was said. The client
+    /// kept those replies on the grounds that a truncated answer holds real content; the caller
+    /// threw them away on the grounds that it does not. Both were right about a different kind of
+    /// answer, and nobody had read the two together.
+    ///
+    /// Red means the product is again paying for eight requests and filing the result as silence.
+    /// </summary>
+    [Fact]
+    public async Task ATruncatedSchemaAnswerIsAskedAgain()
+    {
+        var handler = new StubHandler(_ => Json(CutOff), _ => Json(Answered));
+        using var http = new HttpClient(handler);
+
+        var client = new OpenAiCompatibleClient(http, LlmProviderKind.OpenAi, "https://example.invalid/v1", "k");
+
+        var response = await client.CompleteAsync(
+            Request() with { JsonSchema = JsonNode.Parse("""{"type":"object"}""") },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("{\"taahhutler\":[]}", response.Content);
+        Assert.Equal(2, handler.Bodies.Count);
+        Assert.Equal(8192, BudgetIn(handler.Bodies[1]));
+    }
+
+    /// <summary>
+    /// And when the second try is cut off too, the reply that finished is preferred over the one
+    /// that did not — there is no third attempt, and the caller is left with the longer half.
+    /// </summary>
+    [Fact]
+    public async Task TheSecondTryIsNotRepeatedAgain()
+    {
+        var handler = new StubHandler(_ => Json(CutOff));
+        using var http = new HttpClient(handler);
+
+        var client = new OpenAiCompatibleClient(http, LlmProviderKind.OpenAi, "https://example.invalid/v1", "k");
+
+        await client.CompleteAsync(
+            Request() with { JsonSchema = JsonNode.Parse("""{"type":"object"}""") },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, handler.Bodies.Count);
+    }
+
+    /// <summary>
+    /// A truncated PROSE answer holds real content and the caller can see it was cut. Asking
+    /// again would pay for the same tokens twice and is not this method's business.
     /// </summary>
     [Fact]
     public async Task AnAnswerThatWasMerelyCutOffIsNotRepeated()

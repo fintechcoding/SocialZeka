@@ -188,12 +188,21 @@ public sealed class OpenAiCompatibleClient(
     /// no commitments and no claims in it — which reads exactly like a conversation in which
     /// nothing was promised.
     ///
-    /// A cut-off answer is a different thing and is left alone: it holds real content, the
-    /// caller can see it was truncated, and asking again would pay for the same tokens twice.
+    /// A cut-off PROSE answer is a different thing and is left alone: it holds real content,
+    /// the caller can see it was truncated, and asking again would pay for the same tokens twice.
+    ///
+    /// A cut-off JSON answer is not that. Half a document parses to nothing, so the caller's only
+    /// option is to throw the whole reply away — which is exactly what the ledger step does with
+    /// it, section by section, while paying for every token. The archive has the shape: a
+    /// 692-line conversation where eight sections in a row came back at the limit with three to
+    /// five thousand characters each, all of it discarded, and the call filed as "hiçbir bölüm
+    /// okunamadı". The claim that a truncated answer holds usable content was true of prose and
+    /// false of a schema, and the two halves of the code disagreed for as long as nobody read
+    /// them together.
     /// </summary>
     private static bool NeedsMoreRoom(LlmRequest request, LlmResponse response) =>
         response.FinishReason == "length"
-        && string.IsNullOrWhiteSpace(response.Content)
+        && (string.IsNullOrWhiteSpace(response.Content) || request.JsonSchema is not null)
         && request.MaxTokens < request.MaxTokensCeiling;
 
     /// <summary>
@@ -209,15 +218,19 @@ public sealed class OpenAiCompatibleClient(
     {
         var room = Math.Min(request.MaxTokens * 4, request.MaxTokensCeiling);
 
-        CoreLog.Write("llm",
-            $"{kind}/{request.Model}: {request.MaxTokens} jetonun tamamı düşünmeye gitti, "
-            + $"yanıt boş — {room} ile yeniden deneniyor");
+        var why = string.IsNullOrWhiteSpace(first.Content)
+            ? "jetonun tamamı düşünmeye gitti, yanıt boş"
+            : $"yanıt {first.Content.Length} karakterde kesildi ve yarım JSON okunamaz";
+
+        CoreLog.Write("llm", $"{kind}/{request.Model}: {request.MaxTokens} {why} — {room} ile yeniden deneniyor");
 
         var second = await SendAsync(request with { MaxTokens = room }, cancellationToken);
 
-        // The first answer was empty, so there is nothing to lose by preferring the second even
-        // when it is truncated too — and something to gain, because a truncated answer with
-        // content in it is one the caller can at least read.
+        // Prefer the second whenever it finished, and otherwise keep whichever reply has content
+        // in it: for prose the caller can read a truncated answer, and for a schema neither one
+        // parses, so the choice costs nothing either way.
+        if (second.FinishReason != "length") return second;
+
         return string.IsNullOrWhiteSpace(second.Content) ? first : second;
     }
 

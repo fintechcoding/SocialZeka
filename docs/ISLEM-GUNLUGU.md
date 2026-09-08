@@ -3719,3 +3719,46 @@ da çiviliyor), `TheRejectionShareIsStillCountedBelowTheFloor`, ve mevcut
 **Söylenmeyen bir şey yok:** modelin bu üç satırda ürettiği iki alıntının neden bulunamadığı
 ölçülmedi. Arşiv geçmiş koşumların ret sayısını saklamıyor, o yüzden eski modelle karşılaştırma
 yapılamıyor. Uzun bir görüşmede aynı uyarı çıkarsa o gerçek bir sinyaldir ve bakılmalıdır.
+
+## 2026-09-09 — Yarım JSON okunamaz: defter adımı bütün uzun görüşmelerde boş dönüyordu
+
+Kullanıcının günlüğünde 692 satırlık #86 görüşmesi şunu yazdı: sekiz bölüm üst üste
+`bitiş=length`, her biri 2.361–5.487 karakter içerikle geldi, hepsi atıldı, görüşme "hiçbir bölüm
+okunamadı" diye kapandı. 258 saniye ve sekiz isteğin parası, ekranda hiçbir şey söylenmemiş bir
+konuşma olarak göründü.
+
+**Kodun iki yarısı birbiriyle çelişiyordu.** `OpenAiCompatibleClient.NeedsMoreRoom` kesilmiş
+cevabı "içinde gerçek içerik var, çağıran kesildiğini görebilir" diye tutuyordu. Çağıran ise
+şemayla istenen cevabın yarısını okuyamayacağı için bölümü tamamen atıyordu. İkisi de haklıydı —
+ama farklı cevap türleri hakkında. Nesir için kesilmiş yanıt okunur; **şema için yarım belge
+hiçtir.**
+
+`NeedsMoreRoom` artık şemalı bir istek `length` ile döndüğünde de yeniden soruyor, içeriği boş
+olmasa bile. Tavan ve tek deneme kuralı aynı.
+
+**Ve baştan yeterli bütçe.** Ölçüldü: kullanıcının arşivinden gerçek 120 satırlık bir parçada
+gpt-6-astra bulgularını yazmak için 3.729 jeton kullandı. Uygulama 2.048 veriyordu. Tavan
+kullanılmadıkça para götürmez — sağlayıcı üretilen jetonu faturalar, ayrılan bütçeyi değil — o
+yüzden düşük tutmanın tek nedeni yerel bir sunucunun bağlam penceresidir.
+`AnalysisOptions.CloudLedgerTokens = 8192`, yerel 2.048'de kaldı.
+
+Aynı kusur kişi okumasındaydı: v3.6.0 rapora dört bölüm ekledi ama cevabın bütçesini 3.072'de
+bıraktı. `CloudAnswerTokens = 8192`, yerel 3.072.
+
+**Model ölçümü** (aynı 120 satır, alıntı birebir metinde mi):
+
+| model | madde | metinde bulunan | maliyet |
+|---|---|---|---|
+| gpt-6-astra | 53 | 53 (%100) | 0,205 $ |
+| gpt-5.6-sol | 26 | 25 (%96) | 0,030 $ |
+| gpt-5.6-terra | 22 | 20 (%91) | 0,022 $ |
+
+astra iki katı bulgu çıkarıyor ve alıntılarının hepsi metinde. Bu ürünün bütün tasarımı birebir
+alıntıya dayandığı için fark önemli; bedeli de öyle: uzun bir görüşme sekiz bölümse astra ile
+yaklaşık 1,6 $, sol ile 0,25 $. Kullanıcının "en akıllısı" tercihi bu iş için gerçekten daha iyi
+ölçtü, ama sayı yazılı dursun.
+
+**Doğrulama.** C# 1589 test (1584 geçti, 5 atlandı). Yeni: `ATruncatedSchemaAnswerIsAskedAgain`,
+`TheSecondTryIsNotRepeatedAgain`, `TheLedgerStepAsksForRoomToWriteWhatItFound` (bulut ve yerel).
+Mevcut `AnAnswerThatWasMerelyCutOffIsNotRepeated` şemasız istekle yeşil kaldı — ayrımın doğru
+yerden geçtiğinin kanıtı.

@@ -11,6 +11,22 @@ namespace VoiceTranscript.Core.Analysis;
 public sealed record AnalysisOptions
 {
     public required string Model { get; init; }
+
+    /// <summary>
+    /// What one ledger section may write, hosted and local.
+    ///
+    /// A ceiling costs nothing until it is used — providers bill the tokens produced, not the
+    /// allowance — so the only reason to keep this low is a local server whose context window has
+    /// to hold the prompt as well. Measured on a real 120-line chunk: gpt-6-astra wrote 3.729
+    /// tokens of findings and needed every one of them. At 2.048 the reply came back truncated,
+    /// the section was discarded, and eight sections of a long conversation produced an empty
+    /// ledger that read like a conversation in which nothing was said.
+    ///
+    /// The local figure is unchanged. A 24k context cannot spare eight for the answer.
+    /// </summary>
+    public const int CloudLedgerTokens = 8192;
+
+    public const int LocalLedgerTokens = 2048;
     public int ChunkTokens { get; init; } = 2500;
 
     /// <summary>Release the GPU when the last request finishes, so Whisper can have it back.</summary>
@@ -791,7 +807,9 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
                 UserPrompt = ExtractionPrompt.BuildUserPrompt(chunk.Segments, context),
                 JsonSchema = ExtractionPrompt.Schema,
                 Temperature = 0.2,
-                MaxTokens = 2048,
+                MaxTokens = options.SendsDataOffMachine
+                    ? AnalysisOptions.CloudLedgerTokens
+                    : AnalysisOptions.LocalLedgerTokens,
             }, cancellationToken);
         }
         catch (LlmException e)

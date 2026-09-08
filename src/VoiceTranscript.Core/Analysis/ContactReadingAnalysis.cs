@@ -176,6 +176,22 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
     /// <summary>Pressure signs, capped like the rest so no one table can crowd out the others.</summary>
     public const int MaxTactics = 20;
 
+    /// <summary>
+    /// What one reading may write, hosted and local.
+    ///
+    /// The hosted figure went up with the sections. This answer used to carry eight of them and
+    /// was given 3.072 tokens; it now carries twelve, and psychological reading, emotional
+    /// patterns and where-this-is-going are the wordiest of the set. A schema answer that runs
+    /// out of room does not come back short — it comes back unparseable, and the whole reading is
+    /// lost after it was paid for. A ceiling costs nothing until it is used.
+    ///
+    /// The local figure is smaller for the reason it always was: a 24k context has to hold the
+    /// packet too, and <see cref="LocalCharacterLimit"/> is drawn against this number.
+    /// </summary>
+    public const int CloudAnswerTokens = 8192;
+
+    public const int LocalAnswerTokens = 3072;
+
     /// <summary>Transcript anchors: the newest lines of the newest conversations.</summary>
     public const int MaxExcerpts = 40;
 
@@ -314,7 +330,7 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
                 // The reading's temperature: an impression wants a voice, and extraction
                 // temperatures read like minutes of a meeting.
                 Temperature = 0.3,
-                MaxTokens = 3072,
+                MaxTokens = sendsDataOffMachine ? CloudAnswerTokens : LocalAnswerTokens,
                 UnloadAfterwards = true,
             }, cancellationToken);
         }
