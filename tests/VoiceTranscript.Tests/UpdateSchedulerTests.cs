@@ -199,6 +199,34 @@ public sealed class UpdateSchedulerTests
     }
 
     /// <summary>
+    /// Red means the wake-up hook no longer hands a resume to <c>ResumedAsync</c>.
+    ///
+    /// The test above drives <c>ResumedAsync</c> directly and pins what a resume DOES; it
+    /// cannot see whether Windows' resume ever reaches it, because <c>SystemEvents</c> is a
+    /// static event with no seam and the handler is private. Disabling that handler outright
+    /// left every behavioural test green — measured, not assumed — so the bridge is pinned the
+    /// way this repository pins wiring it cannot drive: by reading the source. The fifteen-minute
+    /// tick remains the guarantee; the hook is what makes a week-closed laptop check on the
+    /// second rather than on the quarter-hour, and losing it silently is still a regression.
+    /// </summary>
+    [Fact]
+    public void TheWakeUpHookStillForwardsAResumeToTheCheck()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            InterfaceContractSources.Root, "src", "VoiceTranscript.App", "Services", "UpdateScheduler.cs"));
+
+        var handler = source.IndexOf("private void OnPowerModeChanged(", StringComparison.Ordinal);
+        Assert.True(handler >= 0, "OnPowerModeChanged yok: uyanma kancası kaldırılmış.");
+
+        var end = source.IndexOf("public void Dispose()", handler, StringComparison.Ordinal);
+        var body = source[handler..(end < 0 ? source.Length : end)];
+
+        Assert.Contains("PowerModes.Resume", body);
+        Assert.Contains("ResumedAsync(", body);
+        Assert.Contains("SystemEvents.PowerModeChanged += OnPowerModeChanged", source);
+    }
+
+    /// <summary>
     /// Red means a check on a network that was not up yet — the first minute after a resume — is
     /// stamped as the day's check, and the next look is a day away. The stamp still moves, because
     /// the tab reports that a check was made, not that it was answered.
