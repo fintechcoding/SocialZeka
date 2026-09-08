@@ -1420,5 +1420,6 @@
   "circleswindow.kisiler-cok-konusulandan-aza": "People (most talked to first)",
   "circleswindow.cevresiz": "No circle",
   "circleswindow.n-gorusme": "{0} calls",
-  "circleswindow.n-m-kisi-bir-cevrede": "{0} / {1} people are in a circle"
+  "circleswindow.n-m-kisi-bir-cevrede": "{0} / {1} people are in a circle",
+  "healthpage.kendiliginden-denetle-acilista-ve-gunde-bir": "Check automatically: at startup and once a day"
 }

@@ -61,7 +61,8 @@ public sealed record AppSettings
     // ---- updates ------------------------------------------------------------
 
     /// <summary>
-    /// Whether the application looks for new versions.
+    /// Whether the application looks for new versions — at startup, and once a day after the last
+    /// look for as long as it stays running.
     ///
     /// On by default, and it only ever <i>looks</i>: the user decided explicitly that nothing may
     /// install without being asked. A check that fails is silent, so turning this off is about not
@@ -78,7 +79,10 @@ public sealed record AppSettings
     /// </summary>
     public string? SkippedUpdateVersion { get; init; }
 
-    /// <summary>When the last check ran, so the next one is not on every start.</summary>
+    /// <summary>
+    /// When the last check ran — from the button, at startup or by the daily re-check, whichever
+    /// was last. Shown as "Son denetim" and the point the next day is counted from.
+    /// </summary>
     public DateTimeOffset? LastUpdateCheck { get; init; }
 
     /// <summary>

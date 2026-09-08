@@ -251,7 +251,11 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="{loc:T healthpage.acilista-kendiliginden-denetle}" FontSize="{StaticResource TextSecondary}" />
+                            <!-- Named for both things it governs. The startup check was the only
+                                 one once; now the same look is owed once a day while the
+                                 application stays open, and a label that still said "at startup"
+                                 would let somebody switch it off believing the daily one stays. -->
+                            <TextBlock Text="{loc:T healthpage.kendiliginden-denetle-acilista-ve-gunde-bir}" FontSize="{StaticResource TextSecondary}" />
                             <!-- Said plainly because it is the whole distinction the owner asked
                                  for: it looks, it never installs on its own. -->
                             <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
