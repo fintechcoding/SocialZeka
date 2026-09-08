@@ -74,6 +74,30 @@ public sealed record AnalysisReport(
     public string? SummaryNotice { get; init; }
 
     /// <summary>
+    /// True when not one section of the conversation could be read, so nothing in this report
+    /// describes the call and the caller must not file it as analysed.
+    ///
+    /// Distinct from <see cref="Partial"/>, which keeps what was read. When every section is
+    /// refused the report is empty by construction, and an empty report used to be filed exactly
+    /// like a clean one: the call went to Analysed with no ledger, the warning reached no screen,
+    /// and an account with no credit produced conversations that looked finished.
+    /// </summary>
+    public bool NothingRead { get; init; }
+
+    /// <summary>
+    /// True when the provider refused at least one section because the account is out of money
+    /// or quota. The caller remembers it, so the calls queued behind this one are not sent to be
+    /// refused the same way.
+    /// </summary>
+    public bool QuotaExhausted { get; init; }
+
+    /// <summary>
+    /// The provider's own sentence for the first section it refused, when nothing was read
+    /// because of a refusal rather than answers that would not parse. Null otherwise.
+    /// </summary>
+    public string? Refusal { get; init; }
+
+    /// <summary>
     /// Share of extracted items whose quote could not be found in the transcript.
     ///
     /// Surfaced rather than swallowed. A model rejected on most of its output is not producing
@@ -146,6 +170,14 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
     private readonly Metered _llm = new(llm);
 
     /// <summary>
+    /// The first refusal the provider made in the current run, kept so the run can stop asking.
+    ///
+    /// Per run, not per instance: one pipeline may analyse several calls, and a refusal on one of
+    /// them says nothing about the account by the time the next is reached.
+    /// </summary>
+    private LlmException? _refusal;
+
+    /// <summary>
     /// What this pipeline has spent so far, prompt and completion.
     ///
     /// Public because a run that throws never reaches its own bookkeeping: the caller records
@@ -197,10 +229,23 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         var chunks = TranscriptChunker.Split(segments, options.ChunkTokens);
         var failedChunks = 0;
 
+        _refusal = null;
+
         for (var i = 0; i < chunks.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             progress?.Report($"Çözümleniyor {i + 1}/{chunks.Count}");
+
+            // Once the provider has said the account is empty, every further section would be
+            // refused the same way. Asking again costs a round trip per section and produces a
+            // row of identical failures where one refusal was the whole answer; the sections
+            // are filed as unread without being sent.
+            if (_refusal is { QuotaExhausted: true })
+            {
+                warnings.Add($"{i + 1}. bölüm istenmedi: bakiye bitmiş.");
+                failedChunks++;
+                continue;
+            }
 
             var chunk = chunks[i];
             var context = i == 0
@@ -290,7 +335,12 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
 
             RecordSpend(succeeded: false);
 
-            return new AnalysisReport(0, 0, rejected, [], null, warnings);
+            return new AnalysisReport(0, 0, rejected, [], null, warnings)
+            {
+                NothingRead = true,
+                QuotaExhausted = _refusal?.QuotaExhausted == true,
+                Refusal = _refusal?.Message,
+            };
         }
 
         // Some sections were read and some were not — a partial reading of the conversation.
@@ -537,6 +587,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         {
             Partial = partial,
             SummaryNotice = summaryNotice,
+            QuotaExhausted = _refusal?.QuotaExhausted == true,
         };
     }
 
@@ -722,6 +773,10 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
             // Treated as a section that would not parse, which is what it is from here: the loop
             // counts it failed, the others keep what they produced, and the tokens spent are
             // recorded either way. Cancellation is not an LlmException, so stopping still stops.
+            // Remembered, so the loop can stop asking when the refusal is about money, and so the
+            // report can say why nothing was read rather than only that nothing was.
+            _refusal ??= e;
+
             CoreLog.Write("çözümleme", $"bölüm istenemedi ({e.Message}) — bölüm atlanıyor");
             return null;
         }

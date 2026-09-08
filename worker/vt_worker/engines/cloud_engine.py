@@ -123,6 +123,12 @@ MAX_BACKOFF_SECONDS = 60.0
 # request — will fail identically forever, and retrying only delays telling the user why.
 RETRYABLE_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
 
+# Below this share of the audio sent, the length a service reports having processed is a decoding
+# problem rather than a rounding one. Services round to a tenth of a second and a chunk cut at a
+# quiet moment lands a few seconds either side of its plan; a service that reports a tenth of what
+# went up did not hear the file.
+SHORT_DECODE_RATIO = 0.5
+
 # Who we say we are.
 #
 # urllib announces "Python-urllib/3.12" unless told otherwise, and a service behind Cloudflare
@@ -297,6 +303,11 @@ class CloudWhisperEngine(AsrEngine):
                     return self._parse(json.load(handle), chunk.start_seconds)
             except (OSError, json.JSONDecodeError):
                 os.unlink(cache)  # corrupt, fetch it again
+            except EngineError:
+                # In no shape this engine reads: an error body that arrived under a 200 and was
+                # cached as if it were an answer. Replayed, it fails the same way on every
+                # attempt without the service ever being asked again.
+                _forget(cache)
 
         if total_chunks == 1:
             source = wav_path
@@ -373,12 +384,18 @@ class CloudWhisperEngine(AsrEngine):
                 except OSError:
                     pass
 
-        segments = self._parse(payload, chunk.start_seconds)
+        try:
+            segments = self._parse(payload, chunk.start_seconds)
+        except EngineError:
+            # Written a moment ago as if it were an answer. Left there, the next attempt would
+            # read it back and fail identically without asking the service again.
+            _forget(cache)
+            raise
 
         # What came back, beside what went out. The service reports the language it decided on, and
         # that is the one number that says whether forcing ours was the right call.
         if progress:
-            heard = str(payload.get("language") or "?")
+            heard = self._heard_language(payload, options)
             words = sum(len(segment.words) for segment in segments)
 
             # Two things the service volunteers that used to be dropped on the floor.
@@ -392,6 +409,15 @@ class CloudWhisperEngine(AsrEngine):
             # surfacing because this client filters too: seeing both counts is how anyone notices
             # the two lists have drifted apart, or that one is doing all the work.
             extra = ""
+
+            # How much audio the service says it processed, beside how much was sent. When a
+            # chunk comes back empty this is the first question: did the service hear a minute
+            # of silence, or decode two seconds of a file it could not read? The words say the
+            # same thing either way — nothing — and only the service's own figure tells them
+            # apart. Two calls came back empty here before anything wrote this number down.
+            heard_seconds = self._heard_seconds(payload)
+            if heard_seconds is not None:
+                extra += f" · {heard_seconds:.0f} sn işlendi"
 
             coverage = payload.get("coverage")
             if isinstance(coverage, dict) and coverage.get("ratio") is not None:
@@ -409,6 +435,21 @@ class CloudWhisperEngine(AsrEngine):
                 f"{chunk.index + 1}/{total_chunks} geldi · dil {heard}"
                 f" · {len(segments)} satır · {words} kelime{extra}",
             )
+
+            # Said on its own when the service processed far less than went up. A container it
+            # could not read, a header naming the wrong length, a body cut short on the way: each
+            # comes back as a clean 200 with no words in it and reads as a quiet recording, unless
+            # the two lengths are put side by side.
+            if (
+                heard_seconds is not None
+                and chunk.length_seconds > 0
+                and heard_seconds < chunk.length_seconds * SHORT_DECODE_RATIO
+            ):
+                progress(
+                    0.02 + 0.94 * (chunk.index + 1) / total_chunks,
+                    f"{chunk.index + 1}/{total_chunks} eksik çözüldü · gönderilen"
+                    f" {chunk.length_seconds:.0f} sn, servis {heard_seconds:.0f} sn işledi",
+                )
 
         return segments
 
@@ -428,6 +469,21 @@ class CloudWhisperEngine(AsrEngine):
         tags them overrides this rather than smuggling them into the segments.
         """
         return []
+
+    def _heard_language(self, payload: dict, options: EngineOptions) -> str:
+        """
+        The language the service says it heard, for the line that reports each chunk.
+
+        OpenAI's shape names it at the top. A provider that keeps it elsewhere — or says nothing
+        at all when the language was forced on it — overrides this rather than leaving a "?" on
+        every line, which is what Deepgram's lines showed for a week: the field was not where this
+        looks, and the "?" said nothing about why.
+        """
+        return str(payload.get("language") or "?")
+
+    def _heard_seconds(self, payload: dict) -> float | None:
+        """How much audio the service reports having processed, in seconds; None if it does not say."""
+        return _as_float(payload.get("duration"))
 
     def _compress(self, wav_path: str, workspace: str, suffix: str = "") -> str:
         """
@@ -656,6 +712,14 @@ class _Retryable(Exception):
         self.code = code
         self.message = message
         self.retry_after = retry_after
+
+
+def _forget(path: str) -> None:
+    """Removes a cached answer, and does not mind if it is already gone."""
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
 
 
 def _network_message(url: str, reason: object) -> str:

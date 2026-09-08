@@ -16,7 +16,7 @@ import pytest
 from vt_worker import __main__ as worker_main
 from vt_worker.chunking import Chunk
 from vt_worker.engines import cloud_engine, create
-from vt_worker.engines.base import EngineOptions
+from vt_worker.engines.base import EngineError, EngineOptions
 from vt_worker.engines.cloud_providers import DeepgramEngine, ElevenLabsEngine, _event_kind
 from vt_worker.merge import merge_streams
 
@@ -275,6 +275,160 @@ def test_deepgram_response_maps_to_timed_words():
     assert segment.end == 11.1
 
 
-def test_an_empty_deepgram_response_is_no_segments():
+def test_an_empty_deepgram_answer_is_no_segments():
+    """Silence comes back as an answer with nothing in it, and that is not an error."""
     assert DeepgramEngine()._to_segments({"results": {"channels": []}}, 0.0) == []
-    assert DeepgramEngine()._to_segments(json.loads("{}"), 0.0) == []
+    assert DeepgramEngine()._to_segments(
+        {"results": {"channels": [{"alternatives": [{"transcript": "", "words": []}]}]}}, 0.0,
+    ) == []
+
+
+@pytest.mark.parametrize("payload", [
+    json.loads("{}"),
+    {"err_code": "INVALID_AUTH", "err_msg": "Invalid credentials.", "request_id": "r-1"},
+    {"metadata": {"duration": 67.2}},
+])
+def test_a_body_that_is_not_an_answer_is_an_error_not_silence(payload):
+    """
+    A body without "results" is not an answer, and must not be reported as a quiet recording.
+
+    Two one-minute calls came back "konuşma bulunamadı" with nothing in the log saying whether
+    the service had heard silence or had not transcribed at all. Silence is an answer with empty
+    channels; anything else is the service — or something in front of it — saying something
+    else, and the error has to carry what it said.
+    """
+    with pytest.raises(EngineError) as failed:
+        DeepgramEngine()._to_segments(payload, 0.0)
+
+    assert failed.value.code == "bad_response"
+    if "err_msg" in payload:
+        assert "Invalid credentials" in str(failed.value)
+
+
+# ---- what the answer line says ----------------------------------------------
+
+
+def _deepgram():
+    engine = DeepgramEngine()
+    engine.load(EngineOptions(model_ref="https://api.deepgram.com/v1|KEY|nova-3-general"))
+    return engine
+
+
+def _answer(duration: float, words=(), detected: str | None = None) -> dict:
+    channel = {"alternatives": [{
+        "transcript": " ".join(w for w, _, _ in words),
+        "words": [
+            {"word": w, "punctuated_word": w, "start": s, "end": e, "confidence": 0.9}
+            for w, s, e in words
+        ],
+    }]}
+
+    if detected:
+        channel["detected_language"] = detected
+
+    return {"metadata": {"duration": duration, "request_id": "r"}, "results": {"channels": [channel]}}
+
+
+def _said_by(engine, options, tmp_path, seconds=67.0):
+    """Runs one chunk through the engine and returns every progress line it wrote."""
+    said: list[str] = []
+    wav = tmp_path / "call.wav"
+    wav.write_bytes(b"RIFF" + bytes(1000))
+
+    engine._chunk_segments(
+        str(wav), Chunk(0, 0.0, seconds), options, str(tmp_path), 1,
+        lambda pct, text: said.append(text))
+
+    return said
+
+
+def test_the_answer_line_names_the_language_asked_for_when_the_service_reports_none(tmp_path, monkeypatch):
+    """
+    Deepgram reports a language only when asked to detect one. With Turkish forced it says
+    nothing, and the line read "dil ?" on every chunk of every call — a question mark that looked
+    like a fault and was not one.
+    """
+    engine = _deepgram()
+    monkeypatch.setattr(engine, "_post_with_retry",
+                        lambda upload, opts: _answer(67.2, [("merhaba", 0.5, 0.9)]))
+
+    said = _said_by(engine, EngineOptions(model_ref="x", language="tr"), tmp_path)
+    line = next(s for s in said if "geldi" in s)
+
+    assert "dil tr (istendi)" in line
+    assert "67 sn işlendi" in line
+    assert "1 kelime" in line
+
+
+def test_the_answer_line_reports_the_language_the_service_detected(tmp_path, monkeypatch):
+    engine = _deepgram()
+    monkeypatch.setattr(engine, "_post_with_retry", lambda upload, opts: _answer(67.2, detected="fr"))
+
+    said = _said_by(engine, EngineOptions(model_ref="x", language="tr", multilingual=True), tmp_path)
+
+    assert any("dil fr" in s for s in said), said
+
+
+def test_a_service_that_processed_far_less_than_was_sent_says_so(tmp_path, monkeypatch):
+    """
+    Sixty-seven seconds go up; the service reports two. That is not a quiet recording, it is a
+    file the service could not read, and the difference has to be on the line rather than
+    reconstructed from a word count of zero.
+    """
+    engine = _deepgram()
+    monkeypatch.setattr(engine, "_post_with_retry", lambda upload, opts: _answer(2.1))
+
+    said = _said_by(engine, EngineOptions(model_ref="x", language="tr"), tmp_path, seconds=67.0)
+
+    assert any("eksik çözüldü" in s and "67 sn" in s and "2 sn" in s for s in said), said
+
+
+def test_a_service_that_processed_the_whole_chunk_is_not_accused(tmp_path, monkeypatch):
+    engine = _deepgram()
+    monkeypatch.setattr(engine, "_post_with_retry", lambda upload, opts: _answer(64.8))
+
+    said = _said_by(engine, EngineOptions(model_ref="x", language="tr"), tmp_path, seconds=67.0)
+
+    assert not any("eksik" in s for s in said), said
+
+
+def test_a_body_that_is_not_an_answer_is_not_cached_for_the_next_attempt(tmp_path, monkeypatch):
+    """
+    The cache exists so a retry does not upload again. An error body cached as an answer would
+    be replayed on every retry, failing identically without the service ever being asked.
+    """
+    engine = _deepgram()
+    monkeypatch.setattr(engine, "_post_with_retry", lambda upload, opts: {"err_msg": "Bad gateway"})
+
+    with pytest.raises(EngineError):
+        _said_by(engine, EngineOptions(model_ref="x", language="tr"), tmp_path)
+
+    assert not list(tmp_path.glob("*.json"))
+
+
+def test_a_cached_body_that_is_not_an_answer_is_fetched_again(tmp_path, monkeypatch):
+    """A bad answer left behind by an earlier version is thrown away, not replayed."""
+    engine = _deepgram()
+    options = EngineOptions(model_ref="x", language="tr")
+
+    monkeypatch.setattr(engine, "_post_with_retry",
+                        lambda upload, opts: _answer(67.2, [("eski", 0.5, 0.9)]))
+    _said_by(engine, options, tmp_path)
+
+    [cache] = list(tmp_path.glob("*.json"))
+    cache.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(engine, "_post_with_retry",
+                        lambda upload, opts: _answer(67.2, [("yeni", 0.5, 0.9)]))
+    wav = tmp_path / "call.wav"
+    [segment] = engine._chunk_segments(str(wav), Chunk(0, 0.0, 67.0), options, str(tmp_path), 1)
+
+    assert segment.text == "yeni"
+    assert "yeni" in cache.read_text(encoding="utf-8")
+
+
+def test_elevenlabs_answer_line_reports_the_language_code():
+    engine = ElevenLabsEngine()
+    payload = {"language_code": "tur", "words": [], "text": ""}
+
+    assert engine._heard_language(payload, EngineOptions(model_ref="x", language="tr")) == "tur"

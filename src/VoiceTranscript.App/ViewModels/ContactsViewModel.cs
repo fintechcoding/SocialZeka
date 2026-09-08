@@ -502,7 +502,11 @@ public sealed partial class ContactsViewModel : ObservableObject, IDisposable
                     // putting it here buried the transcript under it.
                     ProcessingState.Failed =>
                         $"İşlenemedi: {Core.Asr.FailureText.Summarise(value.Call.FailureReason)}",
-                    ProcessingState.Skipped => "Bu kayıt atlandı.",
+                    // With its reason when it has one. For a call with nothing said on either
+                    // side the reason is the whole story, and "atlandı" alone reads as a fault.
+                    ProcessingState.Skipped => value.Call.FailureReason is { Length: > 0 } why
+                        ? $"Atlandı: {why}"
+                        : "Bu kayıt atlandı.",
                     _ => "Bu görüşmenin metni yok.",
                 };
         }

@@ -744,9 +744,18 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
         }
 
         TranscriptMessage = segments.Count == 0
-            ? call.State == ProcessingState.Failed
-                ? "Bu görüşme yazıya dökülemedi. İşlem durumu ekranından yeniden denenebilir."
-                : "Bu görüşme henüz yazıya dökülmedi."
+            ? call.State switch
+            {
+                ProcessingState.Failed =>
+                    "Bu görüşme yazıya dökülemedi. İşlem durumu ekranından yeniden denenebilir.",
+
+                // Set aside on purpose, and the row knows why: nothing said on either side, a
+                // group call kept as audio, a recording the user stopped. "Henüz dökülmedi"
+                // promised a transcript that is not coming.
+                ProcessingState.Skipped when call.FailureReason is { Length: > 0 } why => why,
+
+                _ => "Bu görüşme henüz yazıya dökülmedi.",
+            }
             : null;
 
         // The failure strip and this message are the same fact twice; when the strip is up, one

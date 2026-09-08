@@ -19,8 +19,13 @@ import unicodedata
 import urllib.parse
 from pathlib import Path
 
-from vt_worker.engines.base import EngineOptions
-from vt_worker.engines.cloud_engine import CloudWhisperEngine, _multipart, _with_leading_space
+from vt_worker.engines.base import EngineError, EngineOptions
+from vt_worker.engines.cloud_engine import (
+    CloudWhisperEngine,
+    _as_float,
+    _multipart,
+    _with_leading_space,
+)
 from vt_worker.merge import Segment, Speaker, Word
 
 
@@ -88,6 +93,9 @@ class ElevenLabsEngine(CloudWhisperEngine):
         # The event flag changes what comes back, so a chunk cached before it was switched on
         # must not be replayed as the answer to a request that asks for events.
         return {**super()._request_signature(options), "tag_audio_events": True}
+
+    def _heard_language(self, payload: dict, options: EngineOptions) -> str:
+        return str(payload.get("language_code") or super()._heard_language(payload, options))
 
     def _to_segments(self, payload: dict, offset: float) -> list[Segment]:
         words = [
@@ -158,8 +166,18 @@ class DeepgramEngine(CloudWhisperEngine):
         return url, {"Authorization": f"Token {self._api_key}", "Content-Type": content_type}, body
 
     def _to_segments(self, payload: dict, offset: float) -> list[Segment]:
+        results = payload.get("results") if isinstance(payload, dict) else None
+
+        # An answer carries "results", silence included: a channel whose one alternative has an
+        # empty transcript and no words. A body without it is not an answer — an error a gateway
+        # sent under a 200, a page of HTML that happened to parse, somebody else's service at the
+        # address. It used to leave here as [] and be reported upstream as "konuşma bulunamadı",
+        # a quiet recording, with nothing anywhere saying the service had transcribed nothing.
+        if not isinstance(results, dict):
+            raise EngineError("bad_response", _not_an_answer(payload))
+
         try:
-            alternative = payload["results"]["channels"][0]["alternatives"][0]
+            alternative = results["channels"][0]["alternatives"][0]
         except (KeyError, IndexError, TypeError):
             return []
 
@@ -175,6 +193,46 @@ class DeepgramEngine(CloudWhisperEngine):
         ]
 
         return _single_segment(words, str(alternative.get("transcript", "")), offset)
+
+    def _heard_language(self, payload: dict, options: EngineOptions) -> str:
+        # Reported only when the service was asked to detect it. With the language forced there
+        # is nothing for it to report, and the honest line names the language that was asked
+        # for rather than printing "?" as though something had gone wrong.
+        detected = _channel(payload).get("detected_language")
+        if detected:
+            return str(detected)
+
+        if options.language and not options.multilingual:
+            return f"{options.language} (istendi)"
+
+        return "?"
+
+    def _heard_seconds(self, payload: dict) -> float | None:
+        metadata = payload.get("metadata")
+        return _as_float(metadata.get("duration")) if isinstance(metadata, dict) else None
+
+
+def _channel(payload: dict) -> dict:
+    """The first channel of a Deepgram answer, or nothing when the answer has none."""
+    try:
+        channel = payload["results"]["channels"][0]
+    except (KeyError, IndexError, TypeError):
+        return {}
+
+    return channel if isinstance(channel, dict) else {}
+
+
+def _not_an_answer(payload: object) -> str:
+    """What a body that is not a Deepgram answer looks like, for the error that names it."""
+    if isinstance(payload, dict):
+        said = payload.get("err_msg") or payload.get("message") or payload.get("error")
+        if said:
+            return f"Deepgram yanıt yerine bir hata döndürdü: {str(said)[:200]}"
+
+        keys = ", ".join(sorted(str(key) for key in payload)[:8]) or "boş gövde"
+        return f"Deepgram beklenmeyen bir yanıt döndürdü (alanlar: {keys})."
+
+    return f"Deepgram beklenmeyen bir yanıt döndürdü ({type(payload).__name__})."
 
 
 def _prob(value: object) -> float | None:

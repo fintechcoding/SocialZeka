@@ -1445,7 +1445,9 @@ public sealed class CallOrchestrator : IDisposable
 
             if (!keepTranscript)
             {
-                await TranscribeAsync(call, settings, cancellationToken);
+                // Nothing to analyse when nothing was said. The call has been set aside with its
+                // reason and its audio; the rest of this method is for a conversation.
+                if (!await TranscribeAsync(call, settings, cancellationToken)) return;
             }
             else
             {
@@ -1494,9 +1496,30 @@ public sealed class CallOrchestrator : IDisposable
             // with the switch off consumed the request, changed nothing and said nothing.
             if (settings.AnalyseAutomatically || analyseRequested)
             {
+                // The provider said the account was empty a few minutes ago and nobody has asked
+                // again since.
+                //
+                // A quota does not refill on its own, so every conversation queued behind the one
+                // that found this out would fail identically — and did, six times in one evening,
+                // each marked "işlenemedi" over a transcript that was perfectly good. The text is
+                // kept, the row says why it was not analysed, and an explicit "çözümle" from the
+                // user is the one thing that asks the provider again before the window closes.
+                if (!analyseRequested && AnalysisQuotaExhaustedRecently(callId, settings))
+                {
+                    _repository.SetCallState(callId, ProcessingState.Transcribed, QuotaExhaustedNote);
+
+                    Notice?.Invoke(this,
+                        "Görüşme yazıya döküldü. Çözümleme bekletildi: çözümleme servisinin bakiyesi bitmiş.");
+
+                    return;
+                }
+
                 if (await AnalysisServiceReachableAsync(settings, cancellationToken))
                 {
-                    await AnalyseAsync(callId, settings, cancellationToken);
+                    // False when the provider read nothing: the call stays transcribed with its
+                    // reason, and the tail below — compression, export — is for a conversation
+                    // that was analysed.
+                    if (!await AnalyseAsync(callId, settings, cancellationToken)) return;
                 }
                 else
                 {
@@ -2014,7 +2037,12 @@ public sealed class CallOrchestrator : IDisposable
         return settings.AsrMode != TranscriptionMode.CloudOnly;
     }
 
-    private async Task TranscribeAsync(Call call, AppSettings settings, CancellationToken cancellationToken)
+    /// <summary>
+    /// Turns the recording into lines. False when it was set aside instead — nothing said on
+    /// either side, most often an unanswered call — with its state and reason already written;
+    /// true once the transcript is stored and the call is marked transcribed.
+    /// </summary>
+    private async Task<bool> TranscribeAsync(Call call, AppSettings settings, CancellationToken cancellationToken)
     {
         _repository.SetCallState(call.Id, ProcessingState.Transcribing);
 
@@ -2159,14 +2187,25 @@ public sealed class CallOrchestrator : IDisposable
         // conversation, dropped it from the search index, and left the ledger quoting lines that
         // no longer existed anywhere — after which the call was marked Transcribed and announced
         // as a success.
+        //
+        // And an empty result over NO existing transcript is read before it is called a failure.
+        // Four of them in this archive were one-minute outgoing calls with the ring-back tone on
+        // one channel and the room on the other — unanswered, not untranscribable — and every one
+        // was announced as "İşleme başarısız" and deleted by hand. See EmptyTranscript.
         if (result.Segments.Count == 0)
         {
-            var existing = _repository.GetSegments(call.Id).Count;
+            var verdict = Core.Asr.EmptyTranscript.Judge(
+                call.Direction, call.Duration, hadTranscript: _repository.GetSegments(call.Id).Count > 0);
 
-            throw new InvalidOperationException(existing > 0
-                ? "Yazıya dökme boş sonuç döndürdü. Var olan döküm korundu — modeli ya da " +
-                  "servisi değiştirip yeniden deneyebilirsin."
-                : "Yazıya dökme boş sonuç döndürdü: konuşma bulunamadı. Ses kaydı duruyor.");
+            if (verdict.State == ProcessingState.Failed) throw new InvalidOperationException(verdict.Reason);
+
+            _engineInFlight.TryRemove(call.Id, out _);
+            _repository.SetCallState(call.Id, verdict.State, verdict.Reason);
+
+            AppLog.Write("çeviri", $"görüşme #{call.Id} · {verdict.Reason}");
+            Notice?.Invoke(this, verdict.Notice);
+
+            return false;
         }
 
         _repository.ReplaceSegments(call.Id, result.Segments.Select(s => new CoreSegment
@@ -2290,6 +2329,8 @@ public sealed class CallOrchestrator : IDisposable
                 AppLog.Error("ses", e, $"görüşme #{call.Id} ses ölçümü alınamadı");
             }
         }
+
+        return true;
     }
 
     /// <summary>
@@ -2367,21 +2408,96 @@ public sealed class CallOrchestrator : IDisposable
     private bool? _analysisReachable;
     private DateTimeOffset _analysisCheckedAt;
 
-    private async Task AnalyseAsync(long callId, AppSettings settings, CancellationToken cancellationToken)
+    /// <summary>
+    /// The account the analysis provider last refused for lack of money: when, and which route —
+    /// provider, address and key — it was. Null until it happens, and again after a run the
+    /// provider answers in full.
+    /// </summary>
+    private QuotaRefusal? _analysisQuotaExhausted;
+
+    /// <summary>One "no credits" answer, with enough of the route to know whose account it was about.</summary>
+    private sealed record QuotaRefusal(DateTimeOffset At, LlmProviderKind Kind, string BaseUrl, string? Key);
+
+    /// <summary>
+    /// How long a "no credits" answer is believed before the provider is asked again on its own.
+    ///
+    /// Long enough to cover a reprocessing batch, which is where the same refusal arrived six
+    /// times in a row; short enough that a recording made later in the day gets a fresh attempt
+    /// after somebody has topped the account up. A manual "çözümle" never waits for it.
+    /// </summary>
+    private static readonly TimeSpan QuotaExhaustedMemory = TimeSpan.FromMinutes(10);
+
+    /// <summary>The row's sentence for a transcript whose analysis is waiting on the account.</summary>
+    private const string QuotaExhaustedNote =
+        "Çözümleme yapılmadı: çözümleme servisinin bakiyesi ya da kotası bitmiş. Hesaba bakiye "
+        + "ekleyince ya da Ayarlar › Çözümleme'den başka bir servis seçince bu görüşme yeniden "
+        + "çözümlenebilir — metin duruyor, yeniden yazıya dökmek gerekmiyor.";
+
+    /// <summary>
+    /// Whether this call's analysis would go to an account that said it was empty a few minutes
+    /// ago. Keyed to the route: a different provider, a new address or a fresh key is a different
+    /// account and knows nothing of the refusal, so a detour chosen in the picker — or a key
+    /// replaced in the settings — is asked at once rather than made to wait out the memory.
+    /// </summary>
+    private bool AnalysisQuotaExhaustedRecently(long callId, AppSettings settings)
+    {
+        if (_analysisQuotaExhausted is not { } refused) return false;
+        if (DateTimeOffset.UtcNow - refused.At >= QuotaExhaustedMemory) return false;
+
+        var route = RouteFor(callId, settings, consume: false);
+
+        return route.Kind == refused.Kind
+            && string.Equals(route.BaseUrl, refused.BaseUrl, StringComparison.OrdinalIgnoreCase)
+            && route.Key == refused.Key;
+    }
+
+    /// <summary>
+    /// Where this call's analysis goes: a detour chosen in the picker wins over the settings, and
+    /// carries the settings' key only when it is the same provider. Consumed by the run itself —
+    /// one deliberate detour, never a standing change — and only peeked at by the check before it.
+    /// </summary>
+    private (LlmProviderKind Kind, string BaseUrl, string? Key) RouteFor(
+        long callId, AppSettings settings, bool consume)
+    {
+        (LlmProviderKind Kind, string BaseUrl) route;
+
+        var overridden = consume
+            ? _llmRouteOverride.TryRemove(callId, out route)
+            : _llmRouteOverride.TryGetValue(callId, out route);
+
+        if (!overridden) route = (settings.LlmProvider, settings.ResolvedBaseUrl);
+
+        return (route.Kind, route.BaseUrl, route.Kind == settings.LlmProvider ? settings.LlmApiKey : null);
+    }
+
+    /// <summary>
+    /// Files a transcript whose analysis the provider refused outright: kept as transcribed with
+    /// the reason on its row, announced, and — when the refusal was about money — remembered, so
+    /// the calls queued behind it are not sent to be refused the same way.
+    /// </summary>
+    private void AnalysisRefused(long callId, QuotaRefusal? refusal, string note, string notice)
+    {
+        if (refusal is not null) _analysisQuotaExhausted = refusal;
+
+        _repository.SetCallState(callId, ProcessingState.Transcribed, note);
+        Notice?.Invoke(this, notice);
+    }
+
+    /// <summary>
+    /// Builds the ledger from the transcript. False when the provider read none of it — the call
+    /// is left transcribed, with the reason on its row — and true once it is marked analysed.
+    /// </summary>
+    private async Task<bool> AnalyseAsync(long callId, AppSettings settings, CancellationToken cancellationToken)
     {
         _repository.SetCallState(callId, ProcessingState.Analysing);
 
         // A route chosen in the picker wins over the configured provider, and like the model
         // override it is consumed as it is read — one deliberate detour, never a standing change.
-        var route = _llmRouteOverride.TryRemove(callId, out var chosenRoute)
-            ? chosenRoute
-            : (Kind: settings.LlmProvider, BaseUrl: settings.ResolvedBaseUrl);
+        var route = RouteFor(callId, settings, consume: true);
 
         var routeProvider = LlmProviders.Get(route.Kind);
 
-        var client = LlmClientFactory.Create(
-            _http, route.Kind, route.BaseUrl,
-            route.Kind == settings.LlmProvider ? settings.LlmApiKey : null);
+        var client = LlmClientFactory.Create(_http, route.Kind, route.BaseUrl, route.Key);
 
         // Every fact needed to reconstruct a failed run from the log alone: which recording, how
         // much text, which provider at which address, which model. "Çözümleme çalışmıyor" with an
@@ -2455,6 +2571,21 @@ public sealed class CallOrchestrator : IDisposable
                 completionTokens: (int)spent.Completion,
                 succeeded: false);
 
+            // The pipeline files a refusal per section rather than throwing; this is for whatever
+            // still throws, filed the same way: not this call's failure. Its words are in the
+            // database and the ledger can be built from them the moment the account has money
+            // in it; a red "işlenemedi" would send somebody to re-transcribe audio that is fine.
+            if (e is Core.Llm.LlmException { QuotaExhausted: true })
+            {
+                AnalysisRefused(
+                    callId,
+                    new QuotaRefusal(DateTimeOffset.UtcNow, route.Kind, route.BaseUrl, route.Key),
+                    QuotaExhaustedNote,
+                    "Görüşme yazıya döküldü. Çözümleme yapılamadı: " + e.Message);
+
+                return false;
+            }
+
             throw;
         }
 
@@ -2463,6 +2594,42 @@ public sealed class CallOrchestrator : IDisposable
             + $"{report.CommitmentsFound} söz, {report.ClaimsFound} iddia, "
             + $"{report.QuotesRejected} alıntı reddedildi"
             + (report.Warnings.Count > 0 ? $" · {report.Warnings.Count} uyarı" : ""));
+
+        // Nothing read is nothing analysed, and the call must not be filed as though it had been.
+        //
+        // Since 3.5.0 the pipeline files a provider refusal per section instead of throwing,
+        // which is right on section five of twelve and wrong as a verdict on the whole run: with
+        // every section refused the report came back empty, its warning reached no screen, and
+        // the call went to Analysed with no ledger. An account out of credit produced
+        // conversations that looked finished. The transcript is kept, the row says why, and a
+        // refusal about money is remembered for the calls behind this one.
+        if (report.NothingRead)
+        {
+            AppLog.Write("çözümleme", $"görüşme #{callId} çözümlenmedi: "
+                + (report.QuotaExhausted ? "bakiye bitmiş" : "hiçbir bölüm okunamadı"));
+
+            AnalysisRefused(
+                callId,
+                report.QuotaExhausted
+                    ? new QuotaRefusal(DateTimeOffset.UtcNow, route.Kind, route.BaseUrl, route.Key)
+                    : null,
+                report.QuotaExhausted
+                    ? QuotaExhaustedNote
+                    : "Çözümleme yapılmadı: hiçbir bölüm okunamadı"
+                      + (report.Refusal is { Length: > 0 } why ? $" — {why}" : ".")
+                      + " Servis erişilebilir olduğunda yeniden çözümleyebilirsin; metin duruyor.",
+                report.QuotaExhausted
+                    ? "Görüşme yazıya döküldü. Çözümleme yapılamadı: çözümleme servisinin bakiyesi bitmiş."
+                    : "Görüşme yazıya döküldü. Çözümleme yapılamadı: hiçbir bölüm okunamadı.");
+
+            return false;
+        }
+
+        // What this run learned about the account: a refusal partway through is remembered so
+        // the calls behind this one wait, and a run the provider answered in full forgets it.
+        _analysisQuotaExhausted = report.QuotaExhausted
+            ? new QuotaRefusal(DateTimeOffset.UtcNow, route.Kind, route.BaseUrl, route.Key)
+            : null;
 
         // A conversation only half read, said out loud.
         //
@@ -2562,6 +2729,8 @@ public sealed class CallOrchestrator : IDisposable
                 AppLog.Error("değerlendirme", e, $"görüşme #{callId} değerlendirme başarısız");
             }
         }
+
+        return true;
     }
 
     private void Export(long callId, AppSettings settings)
