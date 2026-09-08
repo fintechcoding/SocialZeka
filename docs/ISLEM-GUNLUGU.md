@@ -3384,3 +3384,85 @@ verir, Ollama'nın varsayılanı 2–4k ve sessizce kırpar. Sunucu katalogdakin
 başlatıldıysa bu düzeltme onu görmez. llama-server `/props` ile `n_ctx`'i açıklıyor; onu yoklamak
 bütçeyi kesinleştirir. Ayrıca tutarlılık ve kişi okuması hâlâ düz 24 bin kullanıyor, ve otomatik
 tutarlılık koşumu `SendsDataOffMachine`'i istemcinin kurulduğu rota yerine ayarlardan okuyor.
+
+## 2026-09-08 — Deepgram günlüğü: bakiye, cevapsız aramalar ve "dil ?"
+
+Kullanıcı 6–8 Eylül günlüklerini "Deepgram dökümünde hatalar var" diye verdi. Günlükte üç ayrı
+şey vardı ve yalnızca biri Deepgram'la ilgiliydi.
+
+**1. Çözümleme hataları OpenAI bakiyesi.** Her `çözümleme başlıyor` satırını
+`HTTP 429 insufficient_quota / credit_balance_exhausted` izliyor: hesapta kredi yok. Kod bunu
+doğru okuyup "Anahtar doğru; sağlayıcının hesabına bak" diyordu. Ama günlükteki 3.4.0'da görüşme
+**Failed** oluyordu, dökümü sapasağlam dururken; 7 Eylül'deki toplu yeniden işleme altı görüşmeyi
+peş peşe aynı hataya götürdü. Kullanıcının şimdi çalıştırdığı 3.5.0'da ise daha kötüsü bekliyordu:
+`27074f3` hattı bölüm bazında `LlmException` yutar oldu ("bölüm istenemedi — bölüm atlanıyor"),
+bu beşinci bölümde doğru, bütün koşum için yanlış — her bölüm reddedilince boş rapor dönüyor,
+uyarısı hiçbir ekrana ulaşmıyor ve görüşme boş defterle **Analysed** oluyordu. Kredisi biten hesap,
+bitmiş görünen görüşmeler üretecekti. **Yapılan:** `LlmFailureText.IsQuotaExhausted` (cümleyi
+seçen testin kendisi) ve `LlmException.QuotaExhausted`. Hat ilk reddi `_refusal`'da tutuyor;
+bakiye reddinden sonraki bölümler istenmeden "istenmedi: bakiye bitmiş" diye kapanıyor, rapor
+`NothingRead` ve `QuotaExhausted` taşıyor. Orkestratörde `AnalyseAsync` artık bool: hiçbir bölüm
+okunmadıysa görüşme **Transcribed + not** ("metin duruyor, yeniden yazıya dökmek gerekmiyor"),
+bakiye reddi rota bazında (sağlayıcı + adres + anahtar) on dakika hatırlanıp otomatik çözümleme
+aynı nota bağlanıyor — başka sağlayıcı ya da yeni anahtar hemen soruluyor —, elle "çözümle" isteği
+bu süreyi beklemiyor, sağlayıcının tam cevapladığı bir koşum hafızayı siliyor. Hâlâ fırlatan bir
+yol için `LlmException.QuotaExhausted` yakalayıcısı da aynı yere (`AnalysisRefused`) düşüyor.
+
+**2. #93 ve #94 "konuşma bulunamadı" — cevapsız aramalar.** İkisi de ~1:07, ikisi de giden arama,
+iki kanalda da sıfır kelime. Ses dinleyicisi karşı tarafta 20–21 sn "konuşma" saymıştı, ama o ölçüm
+yalnız seviyeye bakıyor (`SpeakerIdentifier.IsSpeech` bir dBFS eşiği) ve çalma sesi de yüksek.
+Kayıtlar elle silinmiş (`sqlite_sequence` 94, en büyük id 91), dinlenemedi; ama aynı kalıp eski
+günlüklerde ex5 Whisper ile de var (#54 0:46, #63 1:09 → iki kanalda 0 kelime). Gelen aramalar
+mikrofon açılmadan, yani cevaplanmadan kaydedilmiyor; giden aramalar çevrilirken kaydediliyor ve
+WhatsApp bir dakika çaldırıp bırakıyor. 3.5.0 farkı değil: worker 3.4.0'dan beri değişmedi,
+"dinleyici takılıyor" satırı sadece günlük ayrıntısı Debug'a alınınca görünür oldu. **Yapılan:**
+`EmptyTranscript.Judge(yön, süre, mevcutDöküm)`. İki dakika ve altı, döküm yokken → **Skipped**:
+giden aramada "Konuşma bulunamadı: cevapsız arama olabilir…", yön bilinmiyorsa aynı cümle
+tahminsiz. İki dakikadan uzun sessizlik eskisi gibi **Failed** ("motoru işaret ediyor"); mevcut
+dökümün üstüne boş sonuç eskisi gibi ret. `CallStateText.Skipped` bu sebebe "Konuşma yok — ses
+duruyor" diyor. Ses silinmiyor, satır elle yeniden dökülebilir. `TranscribeAsync` artık bool
+döndürüyor; false'ta `ProcessAsync` çözümlemeye girmeden çıkıyor.
+
+**3. "dil ?" ve boş yanıtın sebebi görünmüyordu.** Deepgram dili yalnızca `detect_language=true`
+istenince bildirir (`results.channels[0].detected_language`); dil zorlanınca hiçbir şey demez ve
+satır her parçada "dil ?" yazıyordu. **Yapılan:** `CloudWhisperEngine`'e `_heard_language` /
+`_heard_seconds` kancaları. Deepgram zorlanan dilde "dil tr (istendi)", tespit varsa onu;
+`metadata.duration` satırda "67 sn işlendi"; servis gönderilenin yarısından azını işlediyse ayrı
+bir "eksik çözüldü · gönderilen 67 sn, servis 2 sn işledi" satırı (`SHORT_DECODE_RATIO`).
+`results` alanı olmayan gövde artık sessizce `[]` değil `EngineError("bad_response")` — hata
+gövdesindeki `err_msg` mesajda — ve önbelleğe yazılmış böyle bir gövde sonraki denemede tekrar
+okunmuyor (`_forget`). ElevenLabs satırı `language_code` yazıyor.
+
+**Kullanıcının yapması gereken:** OpenAI hesabına bakiye eklemek ya da Ayarlar › Çözümleme'den
+başka bir sağlayıcı seçmek. #86–#91 dökümleri duruyor; "yalnızca yeniden çözümle" yeter, ses
+yeniden yüklenmez.
+
+**İnceleme neyi buldu.** Dört bakış açılı bir inceleme koşumu (C# akış, Python worker,
+arayüz/durum anlamı, gerileme) on bir bulgu çıkardı, her biri üç şüpheciye verildi; ikisi
+çoğunlukla onaylandı ve ikisi de düzeltildi:
+
+- **Çağrı penceresi yeni kararı yutuyordu.** Satır "dinleyip gerekirse yeniden dök" diyor,
+  pencere ise satırsız her görüşmeye "Bu görüşme henüz yazıya dökülmedi" diyordu — dökülmüştü,
+  boş dönmüştü. `CallWindowViewModel` artık Skipped'te satırın kendi sebebini gösteriyor;
+  kişi kartındaki şerit de "Bu kayıt atlandı." yerine "Atlandı: <sebep>" yazıyor.
+- **Bakiye hafızası rotaya bağlı değildi.** Zaman damgası tekti; başka bir sağlayıcıya ya da
+  yenilenmiş anahtara geçen kullanıcı on dakika boyunca "bakiyen bitmiş" notu alacaktı.
+  Hafıza artık sağlayıcı + adres + anahtar üçlüsüne bağlı.
+
+Bir de incelemenin reddettiği ama not düşmeye değer bir şey: OpenAI/ex5/ElevenLabs
+ayrıştırıcıları hâlâ tanımadıkları 200 gövdesini boş liste sayıyor, yani kullanıcı bu servislere
+geçerse iki dakikanın altındaki bir görüşme "cevapsız arama olabilir" diye kapanabilir. Deepgram
+yolu (kullanıcının kullandığı) artık hata veriyor, ses duruyor ve satır yeniden dökmeyi
+öneriyor; şimdilik bu kadarı yeterli görüldü.
+
+**Doğrulama.** Python 189 test (10 yeni: Deepgram satırı, eksik çözme uyarısı, bozuk gövde →
+hata ve önbellekten silme). C# 1549 (1544 geçti, 5 atlandı — canlı servis testleri), yeni
+`EmptyTranscriptTests`, `AnalysisRefusalTests` (bakiye reddi bir kez sorulur, yoğun servis her
+bölümde sorulur, yarıda biten bakiye okunanı korur), `QuotaExhaustedQueueTests` (gerçek orkestratör
+ve hat, sahte 429 sağlayıcı: döküm duruyor, arkadaki görüşme sorulmuyor, yeni anahtar hemen
+soruluyor), `CallWithoutSpeechTests` (pencere kararı tekrarlıyor, sıradaki kayıt hâlâ "sırada")
+ve `IsQuotaExhausted` satırları dahil. Dört bakış açılı inceleme iş akışı
+Dört mutasyon, dördü de yakalandı ve yalnız kendi mekanizmalarını çiviledi: iki dakikalık
+sınır kaldırılınca `EmptyTranscriptTests`'in iki satırı; bakiye hafızası rotayı yok sayınca
+`ADifferentKeyIsADifferentAccountAndIsAskedAtOnce`; `NothingRead` hep false olunca hattın iki
+testi ve orkestratörünki; Deepgram'ın bozuk gövde koruması kalkınca beş Python testi.
