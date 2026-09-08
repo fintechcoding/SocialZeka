@@ -3294,3 +3294,44 @@ yeni bir tane yapmanın yolunu silmek olamaz.
 **Doğrulama.** 1502 C# testi (1497 geçti, 5 atlandı), iki ardışık koşumda aynı. On beş mutasyon.
 Ayrıca göç, **kullanıcının gerçek arşivinin bir kopyası üzerinde** 19'dan 23'e koşturuldu: 52
 görüşme, 2825 satır, 133 iddia yerinde; bütünlük denetimi temiz, yabancı anahtar sorunu yok.
+
+## 2026-09-08 — Güncelleme denetimi, uygulama açık kaldıkça günde bir
+
+`33f908a` + `c9f4ffc`. Kullanıcı yavaşlıktan şikâyet etti; düzeltmelerin ikisi de v3.5.0'daydı ama
+bu makinedeki kopya **3.4.0** ve süreç bir gün önceki öğleden beri hiç kapanmamıştı. Sürüm yalnız
+açılışta denetleniyordu; tepside günlerce açık kalan bir kayıt uygulaması için "açılış" olağan
+durum değildir.
+
+**Ne yapıldı.** `UpdateScheduler` aynı açılış denetimini son bakıştan yirmi dört saat sonra
+yineliyor. Kullanıcının kendi kuralı aynen duruyor: **bakar ve sorar, kendi başına asla
+kurmaz**; sonuç açılış denetimiyle aynı yoldan sunuluyor. Kayıt ya da çözümleme sürüyorsa
+ertelenir; boşta olup olmadığı kaydedicinin zaten yayımladığı iki özellikten okunur,
+`CallOrchestrator`'a dokunulmadı (doğrulandı: diff yok). "Vadesi geldi mi" duvar saatiyle on beş
+dakikada bir ve Windows uyanma bildirince yeniden bakılır; bir hafta kapalı kalan dizüstü açılınca
+denetler. Yanıt alınamayan denetim günün denetimi sayılmaz, bir saat sonra yeniden denenir.
+Anahtar tek ve adı değişti: "Kendiliğinden denetle: açılışta ve günde bir". "Son denetim" damgası
+her denetimde ilerliyor.
+
+**Ajan yarıda durdu, iş kendim tamamlandı.** Mutasyon döngüsünün ortasında durmuş ve ağaçta
+yarım uygulanmış bir mutasyon bırakmıştı; ilk koşumda bir testin kırmızı görünmesinin sebebi
+buydu (eski ikili, yarım mutasyon). Kaynak geri alındı, obj/bin silinip temiz derlendi: 1513
+yeşil, iki kez. Sonra üç yük taşıyan iddia elle mutasyonla sınandı:
+
+| Mutasyon | Kırmızıya dönen |
+|---|---|
+| Boşta kapısı kaldırıldı | yalnız `NoCheckWhileACallIsInProgressAndOneOnceIdle` |
+| "Kendiliğinden denetle" kapısı kaldırıldı | yalnız `TheSwitchOffMeansNoPeriodicCheckByAnyRoute` |
+| Uyanma kancasının gövdesi kapatıldı | **hiçbiri** |
+
+Üçüncüsü zayıf testti: uyanma testi `ResumedAsync`'i doğrudan sürüyor, yani "uyanınca denetle"
+mantığını çiviliyor ama Windows olayının o metoda ulaştığını göremiyor. `SystemEvents` statik ve
+işleyici özel olduğu için davranışsal sürülemez; deponun bu durumdaki deyimiyle bir kaynak taraması
+eklendi (`TheWakeUpHookStillForwardsAResumeToTheCheck`). Aynı mutasyon yeniden uygulandığında
+yalnız o test kırmızıya döndü. On beş dakikalık tik güvence olarak kalıyor; kanca hızlandırıcı,
+ama sessizce kaybolması yine gerileme.
+
+**Yol boyunca:** harness iki ajanı da donmuş `VoiceTranscript` deposunda kilitli çalışma ağaçlarına
+koymuştu; ikisi de ana dalın kendisindeydi, commit yoktu. Biten ajanınki `prune` ile gitti; öteki
+ajan bitince kaldırılacak.
+
+**Doğrulama.** 1514 C# testi (1509 geçti, 5 atlandı), temiz derlemede iki kez.
