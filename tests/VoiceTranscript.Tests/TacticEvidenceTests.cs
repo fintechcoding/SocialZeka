@@ -85,7 +85,7 @@ public sealed class TacticEvidenceTests : IDisposable
 
     private Task<DeceptionReport> Assess(long call, string reply) =>
         new DeceptionAnalysis(new ScriptedLlm(reply), _repo)
-            .RunAsync(call, "test-model", TestContext.Current.CancellationToken);
+            .RunAsync(call, "test-model", cancellationToken: TestContext.Current.CancellationToken);
 
     /// <summary>
     /// Only the quote travels.
@@ -313,7 +313,7 @@ public sealed class TacticEvidenceTests : IDisposable
 
         var assessment = new ScriptedLlm(Reply("yok", "Temiz.", ""));
         await new DeceptionAnalysis(assessment, _repo).RunAsync(
-            later, "test-model", TestContext.Current.CancellationToken);
+            later, "test-model", cancellationToken: TestContext.Current.CancellationToken);
 
         var everything = pipeline.Requests.Concat(consistency.Requests).Concat(assessment.Requests).ToList();
 

@@ -148,9 +148,9 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
     /// A local server's window is small, so the smaller packet is tried before giving up — and
     /// when even that does not fit, the honest answer is a refusal with the number in it.
     /// </summary>
-    public const int CloudCharacterLimit = 400_000;
+    public const int CloudCharacterLimit = PromptBudget.CloudCharacterLimit;
 
-    public const int LocalCharacterLimit = 24_000;
+    public const int LocalCharacterLimit = PromptBudget.LocalCharacterLimit;
 
     /// <summary>The user pressed [Katılmıyorum]. The only value <c>user_verdict</c> ever holds.</summary>
     public const int Disagree = 1;

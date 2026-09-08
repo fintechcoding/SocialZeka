@@ -271,6 +271,28 @@ public static class LocalLlmCatalog
         All.FirstOrDefault(m => m.Id == id)
         ?? throw new KeyNotFoundException($"Unknown LLM model id: {id}");
 
+    /// <summary>
+    /// The context window of a catalogued model, addressed the way a request addresses it.
+    ///
+    /// A request names the model as <c>AppSettings.ResolvedModelName</c> does — by file name for
+    /// llama-server and LM Studio, by id for Ollama — so both are accepted here. Null for
+    /// anything else: an Ollama tag, a file the user typed into the consistency slot, a remote
+    /// model. Null means "not known", and the caller falls back to a flat limit rather than to
+    /// a guess; a wrong window would be exactly the overflow this lookup exists to prevent.
+    /// </summary>
+    public static int? ContextTokensOf(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return null;
+
+        var wanted = model.Trim();
+
+        var entry = All.FirstOrDefault(m =>
+            string.Equals(m.Id, wanted, StringComparison.OrdinalIgnoreCase)
+            || (m.FileName.Length > 0 && string.Equals(m.FileName, wanted, StringComparison.OrdinalIgnoreCase)));
+
+        return entry is { ContextTokens: > 0 } ? entry.ContextTokens : null;
+    }
+
     /// <summary>Models that fit entirely in the given VRAM budget.</summary>
     public static IEnumerable<LocalLlmModel> FittingIn(double vramGb = UsableVramGb) =>
         All.Where(m => m.TotalGb <= vramGb);

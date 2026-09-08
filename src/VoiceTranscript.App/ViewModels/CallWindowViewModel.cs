@@ -1582,7 +1582,9 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
             var model = settings.ResolvedConsistencyModel;
             var report = await new ReadingAnalysis(client, _repository).RunAsync(
-                CallId, model, settings.PreferredName, cancellationToken);
+                CallId, model, settings.PreferredName,
+                sendsDataOffMachine: settings.Provider.SendsDataOffMachine,
+                cancellationToken);
 
             if (!report.Ok)
             {
@@ -1670,7 +1672,9 @@ public sealed partial class CallWindowViewModel : ObservableObject, IDisposable
 
             var model = settings.ResolvedConsistencyModel;
             var report = await new DeceptionAnalysis(client, _repository).RunAsync(
-                CallId, model, cancellationToken);
+                CallId, model,
+                sendsDataOffMachine: settings.Provider.SendsDataOffMachine,
+                cancellationToken);
 
             if (!report.Ok)
             {

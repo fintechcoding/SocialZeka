@@ -16,6 +16,13 @@ public sealed record AnalysisOptions
     /// <summary>Release the GPU when the last request finishes, so Whisper can have it back.</summary>
     public bool UnloadWhenDone { get; init; } = true;
 
+    /// <summary>
+    /// Whether the provider behind <see cref="Model"/> sends text off the machine. Read by the
+    /// one step that hands the conversation over whole — the summary — to size its window:
+    /// a cloud model takes the call entire, a local one takes what its context holds.
+    /// </summary>
+    public bool SendsDataOffMachine { get; init; }
+
     /// <summary>Ask the model to adjudicate the contradiction candidates the checks produced.</summary>
     public bool AdjudicateContradictions { get; init; } = true;
 
@@ -54,6 +61,17 @@ public sealed record AnalysisReport(
     /// invisible on screen unless somebody says it out loud.
     /// </summary>
     public bool Partial { get; init; }
+
+    /// <summary>
+    /// What the user has to be told about the summary: that it was written from the two ends
+    /// of a call that did not fit one request, or that it could not be written and why. Null
+    /// when it was written from the whole conversation, or was not asked for.
+    ///
+    /// A sentence rather than a flag because it carries numbers — minutes read, minutes
+    /// skipped, the provider's reason — and because the failure it replaces was a silent null:
+    /// a long call on a small model produced no summary and nothing on screen said so.
+    /// </summary>
+    public string? SummaryNotice { get; init; }
 
     /// <summary>
     /// Share of extracted items whose quote could not be found in the transcript.
@@ -485,10 +503,15 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         }
 
         string? summary = null;
+        string? summaryNotice = null;
+
         if (options.WriteSummary && !partial)
         {
             progress?.Report("Özet yazılıyor");
-            summary = await SummariseAsync(commitments, claims, flags, segments, options, cancellationToken);
+            var written = await SummariseAsync(commitments, claims, flags, segments, options, cancellationToken);
+
+            summary = written.Summary;
+            summaryNotice = written.Notice;
 
             if (summary is not null)
             {
@@ -513,6 +536,7 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
         return new AnalysisReport(commitments.Count, claims.Count, rejected, flags, summary, warnings)
         {
             Partial = partial,
+            SummaryNotice = summaryNotice,
         };
     }
 
@@ -1013,12 +1037,21 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
     }
 
     /// <summary>
+    /// What the summary step produced: the text, or the sentence the user reads instead of it.
+    /// Never both null — a summary that was not written is a notice, not a silence.
+    /// </summary>
+    private sealed record SummaryResult(string? Summary, string? Notice);
+
+    /// <summary>The summary's token budget, reserved out of the window before the transcript is sized.</summary>
+    public const int SummaryAnswerTokens = 512;
+
+    /// <summary>
     /// Writes the readable summary from the extracted structure rather than the raw transcript.
     ///
     /// Summarising structure keeps the summary anchored to things that were already verified to
     /// exist, so it cannot introduce a claim the extraction step rejected.
     /// </summary>
-    private async Task<string?> SummariseAsync(
+    private async Task<SummaryResult> SummariseAsync(
         List<Commitment> commitments,
         List<Claim> claims,
         List<Flag> flags,
@@ -1059,24 +1092,8 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
             ["bayraklar"] = new JsonArray([.. flags.Select(f => (JsonNode)f.Summary)]),
         };
 
-        try
-        {
-            var response = await _llm.CompleteAsync(new LlmRequest
-            {
-                Model = options.Model,
-                SystemPrompt = ExtractionPrompt.SummarySystemPrompt,
-                UserPrompt = facts.ToJsonString(),
-                Temperature = 0.3,
-                MaxTokens = 512,
-                UnloadAfterwards = options.UnloadWhenDone,
-            }, cancellationToken);
-
-            return response.CompletedNormally ? response.Content.Trim() : null;
-        }
-        catch (LlmException)
-        {
-            return null;
-        }
+        return await AskForSummaryAsync(
+            ExtractionPrompt.SummarySystemPrompt, facts.ToJsonString(), notice: null, options, cancellationToken);
     }
 
     /// <summary>
@@ -1086,33 +1103,81 @@ public sealed class AnalysisPipeline(ILlmClient llm, Repository repository)
     /// failure. Kept separate from the structured summary so the difference is visible in the
     /// code: one is built from quotes that were checked against the transcript, and this one is
     /// the model reading the transcript directly.
+    ///
+    /// The one step of the pipeline that hands the conversation over whole, so the one that has
+    /// to know how much the model holds. Sized from the model's window when it is known and from
+    /// the flat local limit when it is not; a call that does not fit is read from its two ends,
+    /// and the report carries the sentence that says so. It used to cut at twelve thousand
+    /// characters for every model, cloud included, and say nothing.
     /// </summary>
-    private async Task<string?> SummariseConversationAsync(
+    private async Task<SummaryResult> SummariseConversationAsync(
         IReadOnlyList<Segment> segments,
         AnalysisOptions options,
         CancellationToken cancellationToken)
     {
-        var transcript = ExtractionPrompt.BuildConversationSummaryPrompt(segments);
-        if (string.IsNullOrWhiteSpace(transcript)) return null;
+        var budget = PromptBudget.For(options.Model, options.SendsDataOffMachine);
+        var limit = budget.CharacterLimit(
+            ExtractionPrompt.ConversationSummarySystemPrompt.Length, SummaryAnswerTokens);
+
+        var window = ExtractionPrompt.BuildConversationSummaryWindow(segments, limit);
+
+        if (window.LinesKept == 0)
+        {
+            // Either no line held any speech, or the window is too small for even one. Both are
+            // a sentence, not a null: the second is the refusal the other whole-call reads give.
+            return new SummaryResult(null, window.Windowed
+                ? budget.Refusal(window.TotalCharacters, limit)
+                : Localisation.T("analysispipeline.ozet-metin-bos"));
+        }
+
+        var notice = window.Windowed
+            ? string.Format(
+                Localisation.T("analysispipeline.ozet-pencereden"),
+                window.HeadMinutes, window.TailMinutes, window.SkippedMinutes)
+            : null;
+
+        return await AskForSummaryAsync(
+            ExtractionPrompt.ConversationSummarySystemPrompt, window.Prompt, notice, options, cancellationToken);
+    }
+
+    /// <summary>
+    /// One summary request, with every way it can fail turned into a sentence.
+    ///
+    /// Both summary paths used to swallow the provider's exception into a null, and a cut-off
+    /// answer into the same null. On a long call against a small model that was the whole
+    /// visible symptom: no summary, no reason. The provider's own sentence is already worded
+    /// for a person by <see cref="LlmFailureText"/>; it is carried, not rewritten.
+    /// </summary>
+    /// <param name="notice">What the caller already knows the user must hear about the summary
+    /// if it is written — that it came from a window — kept only when the request succeeds.</param>
+    private async Task<SummaryResult> AskForSummaryAsync(
+        string systemPrompt, string userPrompt, string? notice,
+        AnalysisOptions options, CancellationToken cancellationToken)
+    {
+        LlmResponse response;
 
         try
         {
-            var response = await _llm.CompleteAsync(new LlmRequest
+            response = await _llm.CompleteAsync(new LlmRequest
             {
                 Model = options.Model,
-                SystemPrompt = ExtractionPrompt.ConversationSummarySystemPrompt,
-                UserPrompt = transcript,
+                SystemPrompt = systemPrompt,
+                UserPrompt = userPrompt,
                 Temperature = 0.3,
-                MaxTokens = 512,
+                MaxTokens = SummaryAnswerTokens,
                 UnloadAfterwards = options.UnloadWhenDone,
             }, cancellationToken);
-
-            return response.CompletedNormally ? response.Content.Trim() : null;
         }
-        catch (LlmException)
+        catch (LlmException e)
         {
-            return null;
+            return new SummaryResult(null,
+                string.Format(Localisation.T("analysispipeline.ozet-yazilamadi"), e.Message));
         }
+
+        if (!response.CompletedNormally)
+            return new SummaryResult(null, Localisation.T("analysispipeline.ozet-yarida-kesildi"));
+
+        return new SummaryResult(response.Content.Trim(), notice);
     }
 
     private static IEnumerable<JsonNode> Array(JsonNode? root, string name)

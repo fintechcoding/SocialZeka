@@ -1421,5 +1421,12 @@
   "circleswindow.cevresiz": "No circle",
   "circleswindow.n-gorusme": "{0} calls",
   "circleswindow.n-m-kisi-bir-cevrede": "{0} / {1} people are in a circle",
-  "healthpage.kendiliginden-denetle-acilista-ve-gunde-bir": "Check automatically: at startup and once a day"
+  "healthpage.kendiliginden-denetle-acilista-ve-gunde-bir": "Check automatically: at startup and once a day",
+  "promptbudget.yerel-model-sigmiyor": "This conversation is too long to hand to the model in one request: {0} thousand characters, and the chosen model's window takes at most {1} thousand. No request was sent. Under Settings → Analysis, pick a local model with a larger context or a cloud provider.",
+  "promptbudget.bulut-sigmiyor": "This conversation is too long to hand to the model in one request: {0} thousand characters against a limit of {1} thousand. This reading cannot work in pieces; no request was sent.",
+  "analysispipeline.ozet-pencereden": "The conversation did not fit one request, so the summary was written from its first {0} and last {1} minutes only; the {2} minutes in between are not in it. A model with a larger context, or a cloud provider, reads all of it.",
+  "analysispipeline.ozet-yazilamadi": "The summary could not be written: {0}",
+  "analysispipeline.ozet-yarida-kesildi": "The summary could not be written: the model's answer was cut off.",
+  "analysispipeline.ozet-metin-bos": "The summary could not be written: the transcript holds no speech.",
+  "settingswindow.tek-istek-siniri": "The transcript has to fit the model's window in one request; this reading does not work in pieces. On a local model that means roughly 35 minutes with a 16k-token context and roughly 80 with 32k. When it does not fit, no request is sent and the tab says why, with the numbers."
 }
