@@ -3565,3 +3565,73 @@ bir öksürük — hiçbirinde "çalıyor" demiyor.
 
 **Not.** `.ogg` arşivlerini PyAV okuyamıyor (deponun `arsiv-sesi-acma` becerisi bunu zaten
 söylüyor); ölçüm bu yüzden önbellekteki açılmış WAV kopyaları üzerinden yapıldı.
+
+## 2026-09-09 — Kişi okuması: atılan malzeme, açılan kural, sadeleşen Sözler
+
+Kullanıcı görüştüğü kişiler hakkında kişilik ve psikoloji analizi, kendisi için de öneri
+ağırlıklı koçluk istedi; tehdit ve imaların da analize girmesini istedi. Keşif şunu gösterdi:
+**istenenin büyük kısmı zaten kuruluydu ve kapalı duruyordu.**
+
+**1. Atılan malzeme geri alındı.** `AnalysisOptions.WritePressureSigns` varsayılanı `false` ve
+uygulamadaki tek `AnalysisOptions` kurucusu onu hiç set etmiyordu — yalnız testler açıyordu.
+Yani `baski_isaretleri` her koşumda bulunuyor, alıntısı doğrulanıyor, beyaz listeden geçiyor ve
+sonra çöpe gidiyordu. Alanın yorumu "ölçüm yapılana kadar kapalı" diyordu; beklediği ölçüm zaten
+kuruluymuş: Kalıplar bölümünün kendi kapısı, `PatternRow.DismissalCeiling = 0.30`. Bir etiketi
+kullanıcı onda üçten fazla reddederse çubuğu düşüyor. Açıldı. Uygulamanın kapıyı açtığını bir
+kaynak taraması çiviliyor — orkestratör test edilemediği için deponun bu durumdaki deyimi bu.
+
+**2. İstem kullanıcının istediği derinliğe açıldı.** `ContactReadingPrompt` psikolojik durum ve
+duygu okumasını reddediyordu. Gerekçesi kullanıcıya kendi sözleriyle söylendi ("Türkçede
+doğrulanmadı, yanlış etiket yıllarca taşınır"); kullanıcı isteğini iki kez tekrarladı. Yasak
+açıkta kaldırıldı: istem, panel metni, ayar açıklaması ve muhafız testleri **birlikte** değişti,
+çünkü bir dosyada sessizce çiğnenip başka dosyada hâlâ basılan söz, ikisinden de kötüdür.
+
+Yeni bölümler: `psikolojik_okuma` (baskı altında ne yapıyor, neyi tekrarlıyor), `duygusal_
+oruntuler` (hayal kırıklığı, öfke, geri çekilme — her biri alıntısıyla ve tek cümleden değil,
+tekrar eden örüntüden), `iliskinin_seyri`, ve kullanıcının kendisi için `oneriler`.
+
+Kaldırılmayanlar, çünkü metni denetlenebilir yapan şey bunlar: her madde dayanağa bağlı,
+dayanaksız madde kodda düşüyor ve sayılıyor, `baska_okuma` zorunlu, `ZORUNLU SİMETRİ` zorunlu,
+ses tonu iddiası yok, skor yok. **Yeni bir yasak eklendi:** klinik tanı adı. "Depresyon" bir
+izlenim değil, hekim sözüdür ve yanlışı gerçek bir insana yapışır.
+
+**3. Okuma otomatikleşti.** `ContactReadingEnabled` varsayılanı açıldı ve `ContactReadingRefresher`
+yazıldı: çözümleme bittikten sonra, o görüşmenin kişisi için, yalnız bayatladıysa. Üç ret istek
+göndermeden veriliyor — anahtar kapalı, ölçüm olumsuz diye kendini kapatmış, ya da saklanan okuma
+tam bugünkü geçmişten yapılmış. Dördüncü ret `ContactReadingAnalysis`'in kendi içinde: üç
+görüşmeden ya da yirmi çıpadan azına okuma yazılmıyor, para harcanmadan. `HabitCounter` ve
+`ProsodyMeasurer` ile aynı biçim: orkestratör test edilemediği için karar yanında testiyle
+ayrı bir sınıfta.
+
+**4. Sözler ekranı sadeleşti ve hızlandı.** Kart on dört denetim çiziyordu: beş tarih düğmesi,
+yedi fiil, üç kulak kararı. Arşiv, bunlardan yalnız birinin ("Tutuldu") uygulamanın hayatı
+boyunca dört kez basıldığını söylüyor. Kart artık o biri ile "Diğer seçenekler" bağlantısını
+gösteriyor, kalan on üçü bir tık arkada — hiçbiri kaldırılmadı.
+
+Hız da aynı değişiklikte: iki sütun `ScrollViewer` içinde düz `ItemsControl`'dü, yani sonsuz
+yükseklikte ölçülüp 145 kartın hepsini daha ilki görünmeden kuruyordu. Arama sayfası aynı
+kusurda bulunup `a199332`'de düzeltilmişti; Sözler aynı desende bırakılmıştı. İki sanallaştıran
+`ListBox` oldu.
+
+**Ölçüldü, sonra karar verildi.** Sayfanın veri maliyeti kullanıcının gerçek arşivinde 40 ms ve
+189 bağlantı — yani yavaşlık veritabanında değildi. Kullanıcı Firebird ya da MySQL'e geçmeyi
+önerdi; 81 görüşme, 163 söz, 6.388 satırlık bir veri için bu iyileştirmez, kötüleştirir.
+
+**Kişi başına malzeme** (karşı tarafın kelimesi): Samet 9.381, Serdal 6.078, Sinan 5.554, Gürhan
+3.974, Uliana 3.176, Mustafa 2.115 — bunlar okunur. Bozkurt 623, Annem 389, Avukat Polonya 174 —
+bunları mevcut kapı zaten reddediyor ve öyle kalmalı: 174 kelimeden çıkarılan portre uydurmadır.
+
+**Doğrulama.** C# 1575 test (1570 geçti, 5 atlandı). Yeni: `ContactReadingRefresherTests` (sekiz
+ret ve bayatlık kuralı), `TheApplicationAsksForPressureSignsToBeKept`, `TheReadingIsOnOutOfTheBox`.
+Güncellenen muhafızlar: `TheOpinionPanelOffersNoScoreNoDiagnosisAndNoArguments` ve
+`ThePromptRefusesScoresDiagnosesAndPersuasion` — psikolojik durum satırı çıktı, yerine klinik tanı
+geldi; skor, ikna, ses tonu, simetri ve karşı okuma aynen duruyor. `WindowSmokeTests` Sözler
+sayfasının yeni işaretlemesini kuruyor.
+
+**Yol boyunca:** bu makinede iki VoiceTranscript birden otomatik başlıyordu — eski
+`Programs\VoiceTranscript` ve yeni `Programs\SocialZeka` — ve **ikisi de aynı veritabanına
+yazıyordu** (tek veri klasörü var). Eskisi durduruldu, otomatik başlatma kaydı silindi,
+kaldırıcısı çalıştırıldı. Veri klasörüne dokunulmadı.
+
+**Yapılmadı:** eski 81 görüşmenin yeniden çözümlenmesi. Yeni istem ve baskı işaretleri ancak
+bundan sonraki çözümlemelerde çıkar; toplu yeniden çözümleme para harcar ve kullanıcının kararı.
