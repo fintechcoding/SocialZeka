@@ -541,7 +541,7 @@ public sealed record AppSettings
     /// which is why the panel itself carries its two written boundaries — no psychological or
     /// emotional state, and no "arguments you can use".
     /// </summary>
-    public bool ContactReadingEnabled { get; init; }
+    public bool ContactReadingEnabled { get; init; } = true;
 
     /// <summary>
     /// Set when the feature turned ITSELF off: three people in a row whose reading the user

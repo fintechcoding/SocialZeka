@@ -31,15 +31,26 @@ public sealed record AnalysisOptions
     /// <summary>
     /// Keep the extraction's "baski_isaretleri" as tactic evidence on the person's card.
     ///
-    /// OFF until the precision is measured. The field has been in the schema all along and the
-    /// pipeline has always thrown it away, so nobody knows how many of these signs survive quote
-    /// verification — let alone how many a person listening would call correct. Turning it on
-    /// before that would fill a card with a kind of row nobody has ever checked, and the whole
-    /// argument of the card is that every row on it can be checked.
+    /// <b>On now, and the measurement it was waiting for turned out to be already built.</b> This
+    /// stood off with the note "until the precision is measured", and the pipeline threw the signs
+    /// away on every run for months — found, quote-verified, whitelist-checked, discarded. The
+    /// thing it was waiting for is the Kalıplar section's own gate: a label the user dismisses
+    /// more than three times in ten stops drawing its bar (ContactCardViewModel's
+    /// PatternRow.DismissalCeiling = 0.30). That is the hit rate, measured by the one person who
+    /// can hear the recording, on the screen where the rows appear. A separate measuring round
+    /// would have asked the same question more slowly.
     ///
-    /// What it waits for: run it over a handful of conversations, listen to what comes out, and
-    /// keep it only if the hit rate holds up. Questions and the opt-in assessment's tactics are
-    /// unaffected — those are written either way.
+    /// Two things make it safe to turn on rather than merely tempting. A sign whose quote cannot
+    /// be located in the transcript is dropped in code before it reaches the table, so an STT
+    /// ghost cannot brand anybody; and a label outside the whitelist is dropped rather than filed
+    /// as "diger". What lands is a quote the user can play.
+    ///
+    /// It also stopped being optional in another sense: until the extraction prompt was taught
+    /// what a pressure sign is (v3.5.4), this shelf came back empty on every call while threats
+    /// were being filed as promises. Now that the prompt fills it, throwing it away would be
+    /// discarding the one part of a conversation the user asked for by name.
+    ///
+    /// Questions and the opt-in assessment's tactics are unaffected — those are written either way.
     /// </summary>
     public bool WritePressureSigns { get; init; }
 }

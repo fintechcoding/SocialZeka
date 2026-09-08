@@ -2572,6 +2572,13 @@ public sealed class CallOrchestrator : IDisposable
                     // And the same route decides how much of a call the summary may hand over
                     // in one request: a cloud model takes it whole, a local one takes its window.
                     SendsDataOffMachine = routeProvider.SendsDataOffMachine,
+                    // The threats, the accusations and the urgency, kept instead of discarded.
+                    //
+                    // This was the pipeline's one extracted-and-thrown-away shelf: the option
+                    // existed, defaulted to off, and nothing in the application ever set it, so
+                    // every pressure sign found on every call went to the floor. See
+                    // AnalysisOptions.WritePressureSigns for what changed and what still guards it.
+                    WritePressureSigns = true,
                 },
                 progress: new Progress<string>(stage => Report(callId, stage)),
                 cancellationToken);
@@ -2760,6 +2767,31 @@ public sealed class CallOrchestrator : IDisposable
             catch (Exception e) when (e is not OperationCanceledException)
             {
                 AppLog.Error("değerlendirme", e, $"görüşme #{callId} değerlendirme başarısız");
+            }
+        }
+
+        // And the person's reading, level with their history again.
+        //
+        // Last, and after the ledger is stored, because it reads what this run just wrote. It
+        // costs a request, so it makes three refusals before it sends one: the setting is off,
+        // the reading it has was made from exactly today's history, or the archive holds too
+        // little of this person to read them from. See ContactReadingRefresher.
+        //
+        // Wrapped like the counts above it: a reading that could not be written is not a reason
+        // to fail a conversation whose ledger is safely stored.
+        if (settings.ContactReadingEnabled)
+        {
+            try
+            {
+                if (await Services.ContactReadingRefresher.RefreshIfStaleAsync(
+                        _repository, _http, callId, settings, cancellationToken))
+                {
+                    AppLog.Write("okuma", $"görüşme #{callId} · kişi okuması yenilendi");
+                }
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                AppLog.Error("okuma", e, $"görüşme #{callId} kişi okuması yenilenemedi");
             }
         }
 

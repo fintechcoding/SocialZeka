@@ -12,17 +12,33 @@ namespace VoiceTranscript.Core.Analysis;
 /// permission granted at the level of a person, with the same honesty machinery and two
 /// boundaries the user themselves drew (PLAN-SOSYALZEKA §2, §12):
 ///
-///   * NO PSYCHOLOGICAL OR EMOTIONAL STATE. Not "anxious", not "under pressure", not "sincere".
-///     Emotion read from text or from audio is not validated for Turkish, a wrong one is harmful,
-///     and the panel says out loud that it is not offered rather than leaving its absence to look
-///     like an oversight.
+///   * NO CLINICAL DIAGNOSIS. Not "depression", not "narcissistic personality disorder", not
+///     "trauma". Those are names a doctor gives after an examination; a call transcript cannot
+///     carry one, and a wrong one does real harm to a real person. Behaviour is described, an
+///     illness is never named.
 ///   * NO "ARGUMENTS YOU CAN USE". The product does not write a way to work on somebody. The
 ///     honest answer to that question is the evidence above the panel — "Elindeki kayıtlar", the
 ///     person's own dated sentences — and the footer points at it.
 ///
-/// What IS allowed, because the user asked for it knowingly: impressions of communication style,
-/// priorities, strong and weak points, and what to do before the next conversation at the level of
-/// "get it in writing" — never "say this to get that".
+/// <b>The psychological reading was the third boundary and the user removed it, knowingly and
+/// twice.</b> This panel used to refuse mood and character outright, on the grounds that emotion
+/// read from Turkish text is unvalidated and a wrong label is worse than none. That reasoning was
+/// put to the user in those words when they asked for personality analysis; they answered
+/// "psikolojisini analiz etsin, herşeyi analiz edebilir". So the refusal is lifted here — and
+/// lifted in the open: the prompt, the panel's footer, the settings copy and the guard tests moved
+/// together, because a promise quietly broken in one file and still printed in another is worse
+/// than either.
+///
+/// What the lifting did NOT touch is the machinery that makes the text checkable, and that is the
+/// whole reason this is safe enough to do at all. A mood item must still stand on numbered
+/// anchors; an item whose anchors do not resolve is dropped in code and counted; a single sentence
+/// may not carry a reading, only a repeated pattern; and three people in a row saying
+/// "Katılmıyorum" turns the feature off by itself.
+///
+/// What IS allowed: impressions of communication style, priorities, strong and weak points, how
+/// the person behaves under pressure, the emotional patterns their own words repeat, where the
+/// relationship is going, and what to do before the next conversation at the level of "get it in
+/// writing" — never "say this to get that".
 ///
 /// Everything else is the reading's own law, unchanged: impression framing, no claim about a tone
 /// of voice a transcript cannot carry, no flattery, no score of any kind, a mandatory
@@ -78,12 +94,27 @@ public static class ContactReadingPrompt
         - "oncelikler": Konuşmalarda tekrar tekrar dönülen konular; neyin önce geldiği izlenimi.
         - "guclu_yanlar" / "zayif_yanlar": İzlenim olarak güçlü ve zayıf yanlar. Bunlar bir
           değerlendirme notu değil, dayanaklı izlenimdir; ikisi de boş kalabilir.
+        - "psikolojik_okuma": {other} nasıl davranıyor — baskı altında ne yapıyor, neyi tekrar
+          tekrar yapıyor, ne zaman geri çekiliyor, ne zaman sertleşiyor. Karakter ve örüntü
+          okuması. Klinik tanı adı YASAK (aşağıya bak), ama davranış örüntüsü serbest.
+        - "duygusal_oruntuler": Kelimelerde okunan duygu örüntüleri — hayal kırıklığı, öfke,
+          kırgınlık, geri çekilme, ısrar. Her madde alıntısını taşımak zorunda: "kırgınlık
+          izlenimi veriyor, çünkü [A7]'de ... diyor" biçiminde. Tek bir cümleden duygu okuma;
+          tekrar eden bir örüntü göster ya da o maddeyi hiç yazma.
+        - "iliskinin_seyri": Bu ilişki zaman içinde nereye gidiyor — eski görüşmelerle yeniler
+          arasında ne değişti. Değişim yoksa "değişmedi" de.
         - "cevapsiz_kalan_konular": Sorulup karşılıksız kalmış ya da kapanmamış konular.
         - "gorusmeye_giderken": Sıradaki görüşme için YAPILACAK düzeyinde maddeler — "yazılı
           iste", "tarihi teyit et", "şu soruyu tekrar sor". Karşı tarafa ne söyleyeceğini
           KURGULAMA; ikna cümlesi, açılış repliği, "şunu dersen şunu alırsın" YASAK.
-        - "ben_icin_notlar": ZORUNLU SİMETRİ. Okuyanın kendi yaptıkları: neyi belirsiz bıraktığı,
-          neyi kendisi açtığı, hangi sözü kendisi tutmadığı. Okuma tek taraflı olamaz.
+        - "ben_icin_notlar": ZORUNLU SİMETRİ. Okuyanın bu ilişkideki kendi davranışı: neyi
+          belirsiz bıraktığı, neyi kendisi açtığı, hangi sözü kendisi tutmadığı, hangi soruyu
+          cevapsız bıraktığı, nerede sözü kestiği. Okuma tek taraflı olamaz — karşı taraf
+          hakkında ne kadar yazdıysan burada da o kadar dürüst ol.
+        - "oneriler": ZORUNLU. Okuyanın KENDİ davranışı için somut öneriler — "sözlerine tarih
+          koy", "konuyu kapatmadan bırakma", "cevapsız soruyu ikinci kez sor". Bunlar okuyanın
+          kendi üzerinde çalışacağı maddelerdir. Karşı tarafı yönetme taktiği DEĞİL; ikna cümlesi
+          ve "şunu dersen şunu alırsın" yine yasak. Öneri yoksa boş bırak, uydurma.
         - "baska_okuma": ZORUNLU. Yazdıklarının en makul ALTERNATİF açıklaması — aynı kayıtların
           olağan/masum okuması. Asla boş bırakma; tek anlatı tek başına durmaz.
 
@@ -91,10 +122,14 @@ public static class ContactReadingPrompt
         - Kesinlik dili yok: "X'tir / X yapıyor" değil, "X izlenimi veriyor, çünkü ...".
         - SES TONU HAKKINDA HİÇBİR İDDİA YOK: elindeki yazıya dökülmüş metindir; duraksamayı,
           gerginliği, ses titremesini DUYAMAZSIN. Yalnızca kelime seçimi okunur.
-        - PSİKOLOJİK DURUM VE DUYGU DURUMU VERİLMEZ: "kaygılı", "stresli", "samimi", "kırgın",
-          "baskı altında" gibi ruh hâli teşhisleri yazma. Kişilik testi, tanı, mizaç etiketi yok.
-          Bunun sebebi ürünün kararıdır: metinden ya da sesten duygu okuması Türkçede
-          doğrulanmadı; yanlışı zararlıdır.
+        - PSİKOLOJİK OKUMA VE DUYGU: yazılabilir, ama YALNIZCA dayanağıyla ve izlenim dilinde.
+          "Kırgın" değil, "şu üç alıntıda kırgınlık izlenimi var: [A3], [A9], [B4]". Tek bir
+          cümleden ruh hâli çıkarma; metin otomatik tanımayla yazıldı ve tek kelime yanlış
+          duyulmuş olabilir. Tekrar eden bir örüntü gösteremiyorsan o maddeyi yazma.
+        - KLİNİK TANI YASAK: "depresyon", "narsisistik kişilik bozukluğu", "bipolar", "anksiyete
+          bozukluğu", "travma", "sendrom", "patolojik" gibi tıbbi ya da tanısal adlar kullanma.
+          Bunlar bir hekimin muayeneyle koyduğu tanılardır; bir görüşme metninden çıkarılamaz ve
+          yanlışı gerçek zarar verir. Davranışı tarif et, hastalık adı verme.
         - "NASIL İKNA EDERSİN / KULLANABİLECEĞİN ARGÜMANLAR" İSTENMİYOR: karşı tarafı yönetmenin
           yolunu yazma. Okuyanın elindeki kayıtlar zaten ayrı bir bölümde duruyor.
         - Skor, puan, yüzde, güvenilirlik derecesi YOK — kişi düzeyinde de yok.
@@ -165,17 +200,22 @@ public static class ContactReadingPrompt
           "type": "object",
           "additionalProperties": false,
           "required": ["genel_izlenim", "iletisim_tarzi", "oncelikler", "guclu_yanlar",
-                       "zayif_yanlar", "cevapsiz_kalan_konular", "gorusmeye_giderken",
-                       "ben_icin_notlar", "baska_okuma", "yetersiz"],
+                       "zayif_yanlar", "psikolojik_okuma", "duygusal_oruntuler",
+                       "iliskinin_seyri", "cevapsiz_kalan_konular", "gorusmeye_giderken",
+                       "ben_icin_notlar", "oneriler", "baska_okuma", "yetersiz"],
           "properties": {
             "genel_izlenim": {{Item}},
             "iletisim_tarzi": { "type": "array", "items": {{Item}} },
             "oncelikler": { "type": "array", "items": {{Item}} },
             "guclu_yanlar": { "type": "array", "items": {{Item}} },
             "zayif_yanlar": { "type": "array", "items": {{Item}} },
+            "psikolojik_okuma": { "type": "array", "items": {{Item}} },
+            "duygusal_oruntuler": { "type": "array", "items": {{Item}} },
+            "iliskinin_seyri": { "type": "array", "items": {{Item}} },
             "cevapsiz_kalan_konular": { "type": "array", "items": {{Item}} },
             "gorusmeye_giderken": { "type": "array", "items": {{Item}} },
             "ben_icin_notlar": { "type": "array", "items": {{Item}} },
+            "oneriler": { "type": "array", "items": {{Item}} },
             "baska_okuma": { "type": "string" },
             "yetersiz": { "type": "boolean" }
           }

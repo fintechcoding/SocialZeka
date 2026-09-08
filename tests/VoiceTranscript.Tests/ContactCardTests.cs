@@ -482,7 +482,7 @@ public sealed class ContactCardTests : IDisposable
     {
         var report = new ContactReadingReport(
             new ContactReadingItem(text, [new ContactReadingAnchor(anchorLabel, 1, startMs, false, "alıntı")]),
-            [], [], [], [], [], [], [],
+            [], [], [], [], [], [], [], [], [], [], [],
             "Aynı kayıtlar sıradan bir iş yoğunluğuyla da açıklanabilir.",
             CallsCovered: 3, ExcerptCount: 24, RejectedCount: 1, Insufficient: false);
 
@@ -493,21 +493,21 @@ public sealed class ContactCardTests : IDisposable
     /// <summary>
     /// Switched off, the panel is one line saying where the switch is — not silence.
     ///
-    /// Red means either that the panel appeared without anybody asking for it, which is the one
-    /// thing an opt-in surface may never do, or that "off" renders as nothing at all: a reader who
-    /// has heard the panel exists then reads the gap as a feature that failed to load, and the
-    /// card loses the chance to say that the ground below the evidence is a different one.
+    /// <b>The default moved and this test moved with it.</b> The panel used to be off until
+    /// somebody turned it on, and this test asserted exactly that. The user asked for the reading
+    /// to run by itself after every conversation, so it is on out of the box — which makes the
+    /// interesting case the other one: a person who turns it OFF must get a sentence, not a gap.
+    ///
+    /// Red means "off" renders as nothing at all: a reader who has heard the panel exists then
+    /// reads the gap as a feature that failed to load, and the card loses the chance to say that
+    /// the ground below the evidence is a different one.
     /// </summary>
     [Fact]
-    public void TheOpinionPanelIsOffUntilSomebodyTurnsItOn()
+    public void SwitchedOffThePanelSaysWhereTheSwitchIs()
     {
         StoreOpinion(_contact, "Bir izlenim.", "A1", 1_000, "hash");
 
-        // No model behind the card at all, and with a model but the switch off.
-        Assert.False(Card().OpinionEnabled);
-        Assert.Empty(Card().Opinion);
-
-        var off = Card(Access(new Core.Configuration.AppSettings()));
+        var off = Card(Access(new Core.Configuration.AppSettings { ContactReadingEnabled = false }));
         Assert.False(off.OpinionEnabled);
         Assert.Empty(off.Opinion);
         Assert.Null(off.OpinionSignature);
@@ -518,6 +518,18 @@ public sealed class ContactCardTests : IDisposable
         {
             Assert.Contains(word, Strings(code)["contactcard.modelin-gorusu-kapali"], StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    /// <summary>
+    /// And out of the box it is on, because the user asked for it to run without being asked.
+    ///
+    /// Red means a fresh installation has gone back to hiding the reading behind a switch nobody
+    /// knows to look for — which is how this feature spent its whole life with zero rows written.
+    /// </summary>
+    [Fact]
+    public void TheReadingIsOnOutOfTheBox()
+    {
+        Assert.True(new Core.Configuration.AppSettings().ContactReadingEnabled);
     }
 
     /// <summary>One dictionary, straight off disk: language-independent, unlike Localisation.T.</summary>
@@ -682,25 +694,30 @@ public sealed class ContactCardTests : IDisposable
     }
 
     /// <summary>
-    /// The panel refuses the same three vocabularies in its surface that the card refuses in its
-    /// figures: a score, a psychological or emotional state, and arguments to use on somebody.
+    /// The panel refuses a score, a clinical diagnosis, and arguments to use on somebody.
     ///
     /// Member names rather than markup, for the same reason <see cref="NothingOnTheCardIsAScore"/>
-    /// checks members: one property called <c>MoodLine</c> or <c>PersuasionTips</c> and every
-    /// binding that wants it is one line of XAML away. The two boundaries are also asserted to be
-    /// SAID — a refusal nobody can read is the kind that gets "fixed" by the next person who
-    /// notices the gap.
+    /// checks members: one property called <c>TrustScore</c> or <c>PersuasionTips</c> and every
+    /// binding that wants it is one line of XAML away.
     ///
-    /// Red means the opinion panel has started offering what the user themselves excluded when
-    /// they allowed impressions (§7-1, §7-4, §7-5).
+    /// <b>Two words left this list and one arrived, and the change was deliberate.</b> "psikolojik"
+    /// and "duygu" were forbidden here because the panel refused mood and character outright; the
+    /// user asked for exactly those and was told why the product had refused them. So the panel
+    /// now carries <c>PsychologicalReading</c> and <c>EmotionalPatterns</c>, and this test would
+    /// have gone red on the feature the user asked for rather than on a mistake. What replaced
+    /// them is the boundary that did NOT move: a diagnosis. "Depresyon" is not an impression, it
+    /// is a doctor's word, and a wrong one attaches to a real person.
+    ///
+    /// Red means the panel has started scoring somebody, naming an illness, or writing a way to
+    /// work on them (§7-1, §7-5, and the clinical line the user did not lift).
     /// </summary>
     [Fact]
-    public void TheOpinionPanelOffersNoStateAndNoArguments()
+    public void TheOpinionPanelOffersNoScoreNoDiagnosisAndNoArguments()
     {
         string[] forbidden =
         [
             "score", "skor", "puan", "trust", "guven", "risk", "rating", "grade",
-            "psycholog", "psikolojik", "emotion", "duygu", "mood", "ruhhal",
+            "diagnos", "tani", "teshis", "depres", "bozukluk", "sendrom", "patoloj", "klinik",
             "argument", "arguman", "persuad", "ikna", "manipul", "leverage", "tactic",
         ];
 
@@ -753,7 +770,7 @@ public sealed class ContactCardTests : IDisposable
     /// <summary>A reading with no items at all, which is the shape both empty cases arrive in.</summary>
     private static ContactReadingReport EmptyReport(
         int calls, int excerpts, int rejected, bool insufficient) =>
-        new(new ContactReadingItem("", []), [], [], [], [], [], [], [], "",
+        new(new ContactReadingItem("", []), [], [], [], [], [], [], [], [], [], [], [], "",
             CallsCovered: calls, ExcerptCount: excerpts, RejectedCount: rejected,
             Insufficient: insufficient);
 
