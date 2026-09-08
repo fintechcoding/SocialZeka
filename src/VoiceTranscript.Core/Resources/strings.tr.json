@@ -639,6 +639,8 @@
   "settingswindow.ses-opus-a-sikistirilip-gerekirse-sessiz-a": "Ses Opus'a sıkıştırılıp gerekirse sessiz anlardan bölünerek gönderilir, hiçbir kelime ortadan kesilmez. Her parça ayrı denenir, hız sınırına takılırsa beklenip tekrar denenir, ve biten parçalar önbellekte tutulduğu için yeniden deneme baştan başlamaz.",
   "settingswindow.ses-yakalama": "Ses yakalama",
   "settingswindow.ses-yakalamayi-sina": "Ses yakalamayı sına",
+  "settingswindow.cevapsizi-atla": "Cevapsız aramaları kaydetme",
+  "settingswindow.cevapsizi-atla-aciklama": "Çaldı ama açılmadıysa görüşme yazıya dökülmez ve ses kaydı silinir. Karar sesin kendisinden veriliyor: karşı kanal aynı çalma sesini bir saat gibi tekrarlıyorsa ve mikrofonda kimse konuşmamışsa. İkisi birden gerekir, yani bir şey söylediğin kayıt hiçbir zaman silinmez. Kapatırsan çalma sesi de her kayıt gibi yüklenip dökülür.",
   "settingswindow.sesi-sikistir": "Sesi sıkıştır",
   "settingswindow.sesi-sikistir-aciklama": "İşlenmiş kaydı Opus'a çevirir: aynı ses, beş kat küçük dosya. İki taraf ayrı kalır; dinleme, kesit ve yeniden çevirme gerektiğinde çözer. Yeniden çevirme bu dosyayı okuduğu için kalite bilerek yüksek tutulur. Eski kayıtlar açılışta arka planda sıkıştırılır.",
   "settingswindow.sesten-kisi-tanima": "Sesten kişi tanıma",

@@ -65,6 +65,64 @@ public sealed class EmptyTranscriptTests
         Assert.Contains("korundu", verdict.Reason);
     }
 
+    /// <summary>
+    /// The one rule in the application that deletes a recording. Every condition is required,
+    /// and each row here is a way somebody could lose audio if it were not.
+    /// </summary>
+    [Theory]
+    // enabled, measured, hasTranscript, expected
+    [InlineData(true, true, false, true)]     // the only yes
+    [InlineData(false, true, false, false)]   // the user turned it off
+    [InlineData(true, false, false, false)]   // the audio did not say so
+    [InlineData(true, true, true, false)]     // there are words from this call already
+    [InlineData(false, false, false, false)]
+    public void ARecordingIsThrownAwayOnlyWhenAllThreeConditionsHold(
+        bool enabled, bool measured, bool hasTranscript, bool expected)
+    {
+        Assert.Equal(expected, EmptyTranscript.ShouldDiscardAsUnanswered(enabled, measured, hasTranscript));
+    }
+
+    /// <summary>
+    /// A re-transcription of a call that already has words must never delete its audio, however
+    /// convincing the ring at the front of it looks.
+    /// </summary>
+    [Fact]
+    public void ACallThatAlreadyHasWordsIsNeverDiscarded()
+    {
+        Assert.False(EmptyTranscript.ShouldDiscardAsUnanswered(
+            enabled: true, measuredUnanswered: true, hasTranscript: true));
+    }
+
+    /// <summary>
+    /// A call the audio itself says rang unanswered: set aside, and the row says the recording
+    /// went and that nothing was ever uploaded.
+    /// </summary>
+    [Fact]
+    public void AMeasuredRingOutIsSetAsideAndSaysItsAudioIsGone()
+    {
+        var verdict = EmptyTranscript.Unanswered(TimeSpan.FromSeconds(63), audioKept: false);
+
+        Assert.Equal(ProcessingState.Skipped, verdict.State);
+        Assert.StartsWith("Cevapsız arama", verdict.Reason);
+        Assert.Contains("01:03", verdict.Reason);
+        Assert.Contains("silindi", verdict.Reason);
+        Assert.Contains("gönderilmedi", verdict.Reason);
+    }
+
+    /// <summary>
+    /// A file a player still holds open survives the deletion, and then the row must not claim
+    /// it was deleted — a sentence that contradicts the disk is worse than no sentence.
+    /// </summary>
+    [Fact]
+    public void ARingOutWhoseAudioSurvivedSaysThatInstead()
+    {
+        var verdict = EmptyTranscript.Unanswered(TimeSpan.FromSeconds(63), audioKept: true);
+
+        Assert.Equal(ProcessingState.Skipped, verdict.State);
+        Assert.Contains("duruyor", verdict.Reason);
+        Assert.DoesNotContain("silindi", verdict.Reason);
+    }
+
     /// <summary>The row's word is decided by the reason's opening, so the opening is pinned.</summary>
     [Fact]
     public void EverySetAsideReasonOpensWithTheWordsTheRowIsToldApartBy()

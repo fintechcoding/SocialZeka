@@ -46,6 +46,7 @@ public static class CallStateText
         if (reason is null) return "Atlandı";
         if (reason.StartsWith("Çok kısa", StringComparison.CurrentCultureIgnoreCase)) return "Çok kısa — ses silindi";
         if (reason.Contains("durdurdu", StringComparison.CurrentCultureIgnoreCase)) return "Durduruldu — yeniden işlenebilir";
+        if (reason.StartsWith("Cevapsız arama", StringComparison.CurrentCultureIgnoreCase)) return "Cevapsız arama";
         if (reason.StartsWith("Konuşma bulunamadı", StringComparison.CurrentCultureIgnoreCase)) return "Konuşma yok — ses duruyor";
         return "Atlandı";
     }
