@@ -86,7 +86,7 @@ public sealed class ReadingAnalysisTests : IDisposable
 
     private Task<ReadingReport> Run(long call, string reply, string? preferredName = null) =>
         new ReadingAnalysis(new ScriptedLlm(reply), _repo)
-            .RunAsync(call, "test-model", preferredName, TestContext.Current.CancellationToken);
+            .RunAsync(call, "test-model", preferredName, cancellationToken: TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task ARiskWithoutAVerifiableQuoteDiesAndAVerifiedOneKeepsItsTimestamp()

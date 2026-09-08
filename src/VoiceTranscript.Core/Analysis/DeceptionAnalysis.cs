@@ -74,12 +74,31 @@ public sealed class DeceptionAnalysis(ILlmClient llm, Repository repository)
 {
     public const int MaxTactics = 6;
 
+    /// <summary>The answer's token budget, reserved out of the window before the size check.</summary>
+    public const int AnswerTokens = 1536;
+
+    /// <summary>The instructions' and the schema's share of the window, counted once.</summary>
+    private static readonly int OverheadCharacters =
+        DeceptionPrompt.SystemPrompt.Length + DeceptionPrompt.Schema.ToJsonString().Length;
+
     public async Task<DeceptionReport> RunAsync(
-        long callId, string model, CancellationToken cancellationToken = default)
+        long callId, string model, bool sendsDataOffMachine = true,
+        CancellationToken cancellationToken = default)
     {
         var segments = repository.GetSegments(callId);
         if (segments.Count == 0)
             return DeceptionReport.Failed("Bu görüşmenin metni yok — önce yazıya dökülmesi gerekir.");
+
+        var userPrompt = DeceptionPrompt.BuildUserPrompt(segments);
+
+        // Refused before the request is paid for, never chunked. Two of the eight tactics —
+        // "geri_yazim" and "celiski_ortme" — are by definition what one end of the call did to
+        // the other, and an assessment of half a conversation would brand a person on evidence
+        // whose other half it never saw. The sentence names the size, the limit and the fix.
+        var budget = PromptBudget.For(model, sendsDataOffMachine);
+
+        if (budget.Refuse(userPrompt, OverheadCharacters, AnswerTokens) is { } refusal)
+            return DeceptionReport.Failed(refusal);
 
         var startedAt = DateTimeOffset.UtcNow;
         var clock = System.Diagnostics.Stopwatch.StartNew();
@@ -91,10 +110,10 @@ public sealed class DeceptionAnalysis(ILlmClient llm, Repository repository)
             {
                 Model = model,
                 SystemPrompt = DeceptionPrompt.SystemPrompt,
-                UserPrompt = DeceptionPrompt.BuildUserPrompt(segments),
+                UserPrompt = userPrompt,
                 JsonSchema = DeceptionPrompt.Schema,
                 Temperature = 0.2,
-                MaxTokens = 1536,
+                MaxTokens = AnswerTokens,
                 UnloadAfterwards = true,
             }, cancellationToken);
         }

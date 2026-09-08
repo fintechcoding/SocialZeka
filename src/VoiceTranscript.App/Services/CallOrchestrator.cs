@@ -2420,6 +2420,9 @@ public sealed class CallOrchestrator : IDisposable
                     // Only a local backend holds the GPU this machine needs back for Whisper —
                     // judged by the route actually used, not the configured one.
                     UnloadWhenDone = !routeProvider.SendsDataOffMachine,
+                    // And the same route decides how much of a call the summary may hand over
+                    // in one request: a cloud model takes it whole, a local one takes its window.
+                    SendsDataOffMachine = routeProvider.SendsDataOffMachine,
                 },
                 progress: new Progress<string>(stage => Report(callId, stage)),
                 cancellationToken);
@@ -2471,6 +2474,12 @@ public sealed class CallOrchestrator : IDisposable
         // the pipeline collects reach no screen at all today; this is the one that matters.
         if (report.Partial)
             Notice?.Invoke(this, Core.Text.Localisation.T("callorchestrator.bolum-okunamadi"));
+
+        // The summary's own news, the same way: written from the two ends of a call that did
+        // not fit one request, or not written and why. Before this, a long call on a small model
+        // simply had no summary, and the screen looked like the model had nothing to say.
+        if (report.SummaryNotice is { } summaryNotice)
+            Notice?.Invoke(this, summaryNotice);
 
         // A model whose quotes mostly cannot be found is not producing usable evidence, and the
         // user should be told to change it rather than left with a quietly empty ledger.
@@ -2537,7 +2546,11 @@ public sealed class CallOrchestrator : IDisposable
             try
             {
                 var deception = await new Core.Analysis.DeceptionAnalysis(client, _repository).RunAsync(
-                    callId, settings.ResolvedConsistencyModel, cancellationToken);
+                    callId, settings.ResolvedConsistencyModel,
+                    // The route the client was built from, so the size cap matches the server
+                    // the request actually goes to.
+                    sendsDataOffMachine: routeProvider.SendsDataOffMachine,
+                    cancellationToken);
 
                 AppLog.Write("değerlendirme", deception.Ok
                     ? $"görüşme #{callId} · düzey {deception.Level} · {deception.Tactics.Count} taktik"

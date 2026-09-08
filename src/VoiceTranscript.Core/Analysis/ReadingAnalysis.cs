@@ -42,8 +42,17 @@ public sealed class ReadingAnalysis(ILlmClient llm, Repository repository)
     public const int MaxRisks = 3;
     public const int MaxQuestions = 3;
 
+    /// <summary>
+    /// The answer's token budget. Named because the size check below reserves it: a request
+    /// whose prompt fills the window leaves the model nothing to answer with.
+    /// </summary>
+    public const int AnswerTokens = 2048;
+
+    /// <summary>The schema's share of the window, counted once rather than per run.</summary>
+    private static readonly int SchemaCharacters = ReadingPrompt.Schema.ToJsonString().Length;
+
     public async Task<ReadingReport> RunAsync(
-        long callId, string model, string? preferredName = null,
+        long callId, string model, string? preferredName = null, bool sendsDataOffMachine = true,
         CancellationToken cancellationToken = default)
     {
         var segments = repository.GetSegments(callId);
@@ -56,6 +65,19 @@ public sealed class ReadingAnalysis(ILlmClient llm, Repository repository)
             ? repository.GetContact(contactId)?.Name
             : null;
 
+        var systemPrompt = ReadingPrompt.BuildSystemPrompt(otherParty, preferredName);
+        var userPrompt = ReadingPrompt.BuildUserPrompt(segments, otherParty, preferredName);
+
+        // Refused before the request is paid for, never chunked: the negotiation state and the
+        // unresolved topics are relations between the two ends of the call, and a reading of
+        // the first half is a reading of a different conversation presented as this one. The
+        // sentence says the size, the limit and what would change the answer — a 45-minute
+        // call used to reach the server, overflow it and come back as an error about tokens.
+        var budget = PromptBudget.For(model, sendsDataOffMachine);
+
+        if (budget.Refuse(userPrompt, systemPrompt.Length + SchemaCharacters, AnswerTokens) is { } refusal)
+            return ReadingReport.Failed(refusal);
+
         var startedAt = DateTimeOffset.UtcNow;
         var clock = System.Diagnostics.Stopwatch.StartNew();
 
@@ -65,13 +87,13 @@ public sealed class ReadingAnalysis(ILlmClient llm, Repository repository)
             response = await llm.CompleteAsync(new LlmRequest
             {
                 Model = model,
-                SystemPrompt = ReadingPrompt.BuildSystemPrompt(otherParty, preferredName),
-                UserPrompt = ReadingPrompt.BuildUserPrompt(segments, otherParty, preferredName),
+                SystemPrompt = systemPrompt,
+                UserPrompt = userPrompt,
                 JsonSchema = ReadingPrompt.Schema,
 
                 // A reading wants a voice; extraction temperatures read like meeting minutes.
                 Temperature = 0.3,
-                MaxTokens = 2048,
+                MaxTokens = AnswerTokens,
                 UnloadAfterwards = true,
             }, cancellationToken);
         }

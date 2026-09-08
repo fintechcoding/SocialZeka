@@ -260,36 +260,107 @@ public static class ExtractionPrompt
         """;
 
     /// <summary>
-    /// Lays the transcript out for <see cref="ConversationSummarySystemPrompt"/>.
-    ///
-    /// Truncated from the front rather than the back when it is too long: the end of a call is
-    /// where things are agreed, and a summary that read only the opening pleasantries would be
-    /// worse than useless — it would look complete.
+    /// What the conversation summary was handed, and how much of the call that is.
     /// </summary>
-    public static string BuildConversationSummaryPrompt(
-        IReadOnlyList<Segment> segments, int maxCharacters = 12000)
+    /// <param name="Prompt">The fenced transcript, whole or windowed.</param>
+    /// <param name="Windowed">True when the middle of the call was left out.</param>
+    /// <param name="TotalCharacters">What the whole conversation would have cost, labels included.</param>
+    /// <param name="LinesKept">Lines that went in. Zero means the budget held not even one.</param>
+    /// <param name="HeadMinutes">Minutes read from the start — the whole call when not windowed.</param>
+    /// <param name="TailMinutes">Minutes read from the end. Zero when not windowed.</param>
+    /// <param name="SkippedMinutes">Minutes between the two that the model never saw.</param>
+    public sealed record ConversationWindow(
+        string Prompt, bool Windowed, int TotalCharacters, int LinesKept,
+        int HeadMinutes, int TailMinutes, int SkippedMinutes);
+
+    /// <summary>
+    /// Told to the model where the middle was cut, so a gap in the conversation is not read as
+    /// a jump in it. Prompt text, not interface text: the reader of this is the model.
+    /// </summary>
+    public const string SkippedMiddleMarker =
+        "[görüşmenin orta bölümü atlandı; özet yalnızca yukarıdaki baş ve aşağıdaki son bölüme dayanmalı]";
+
+    /// <summary>
+    /// Lays the transcript out for <see cref="ConversationSummarySystemPrompt"/>, within a budget.
+    ///
+    /// Whole when it fits. When it does not, the head and the tail, with the middle cut out and
+    /// marked: the opening says what the call was for, the end is where things are agreed, and a
+    /// summary that read only one of them would look complete while describing a different
+    /// conversation. The tail gets the larger share for the reason the older tail-only cut gave
+    /// — agreements come last. What is cut is reported back in minutes so the caller can say
+    /// so to the person reading the summary; this used to cut at a flat twelve thousand
+    /// characters, whatever the model, and tell nobody.
+    ///
+    /// Cut on line boundaries, never inside one: half a sentence at the edge of the window is an
+    /// invitation to complete it.
+    /// </summary>
+    public static ConversationWindow BuildConversationSummaryWindow(
+        IReadOnlyList<Segment> segments, int maxCharacters)
     {
-        var lines = segments
-            .Where(s => !string.IsNullOrWhiteSpace(s.Text))
-            .Select(s => $"{(s.IsMe ? "BEN" : "KARSI")}: {s.Text.Trim()}")
-            .ToList();
+        var spoken = segments.Where(s => !string.IsNullOrWhiteSpace(s.Text)).ToList();
+        var lines = spoken.Select(s => $"{(s.IsMe ? "BEN" : "KARSI")}: {s.Text.Trim()}").ToList();
 
-        var text = string.Join(Environment.NewLine, lines);
+        var newline = Environment.NewLine.Length;
+        var total = lines.Sum(l => l.Length + newline);
 
-        // Fenced like every other place the transcript is handed to a model.
-        //
-        // This was the one path that sent it bare, and by the code's own account it is the path
-        // most calls take. Transcript text is untrusted: the person on the other end can say
-        // "önceki talimatları yoksay" out loud, and an unfenced prompt gives that sentence the
-        // same standing as the instructions above it.
-        static string Fence(string body) =>
-            "<<<KONUSMA_BASLANGIC>>>" + Environment.NewLine
-            + body + Environment.NewLine
-            + "<<<KONUSMA_SONU>>>";
+        static int Minutes(int fromMs, int toMs) => (int)Math.Round(Math.Max(0, toMs - fromMs) / 60_000.0);
 
-        if (text.Length <= maxCharacters) return Fence(text);
+        if (total <= maxCharacters)
+        {
+            var whole = spoken.Count == 0 ? 0 : Minutes(spoken[0].StartMs, spoken[^1].EndMs);
 
-        return Fence("[görüşmenin başı kısaltıldı]" + Environment.NewLine
-                     + text[^maxCharacters..]);
+            return new ConversationWindow(
+                Fence(string.Join(Environment.NewLine, lines)), false, total, lines.Count, whole, 0, 0);
+        }
+
+        // A third for the head, the rest for the tail, the marker paid for first.
+        var available = Math.Max(0, maxCharacters - SkippedMiddleMarker.Length - 2 * newline);
+        var headBudget = available / 3;
+        var tailBudget = available - headBudget;
+
+        var headCount = 0;
+        var used = 0;
+
+        while (headCount < lines.Count && used + lines[headCount].Length + newline <= headBudget)
+        {
+            used += lines[headCount].Length + newline;
+            headCount++;
+        }
+
+        var tailStart = lines.Count;
+        used = 0;
+
+        while (tailStart > headCount && used + lines[tailStart - 1].Length + newline <= tailBudget)
+        {
+            used += lines[tailStart - 1].Length + newline;
+            tailStart--;
+        }
+
+        var head = lines.Take(headCount);
+        var tail = lines.Skip(tailStart);
+
+        var body = string.Join(Environment.NewLine, head.Append(SkippedMiddleMarker).Concat(tail));
+
+        var headEndMs = headCount == 0 ? spoken[0].StartMs : spoken[headCount - 1].EndMs;
+        var tailStartMs = tailStart == lines.Count ? spoken[^1].EndMs : spoken[tailStart].StartMs;
+
+        return new ConversationWindow(
+            Fence(body), true, total, headCount + (lines.Count - tailStart),
+            Minutes(spoken[0].StartMs, headEndMs),
+            Minutes(tailStartMs, spoken[^1].EndMs),
+            Minutes(headEndMs, tailStartMs));
     }
+
+    /// <summary>
+    /// Fenced like every other place the transcript is handed to a model.
+    ///
+    /// This was the one path that sent it bare, and by the code's own account it is the path
+    /// most calls take. Transcript text is untrusted: the person on the other end can say
+    /// "önceki talimatları yoksay" out loud, and an unfenced prompt gives that sentence the
+    /// same standing as the instructions above it.
+    /// </summary>
+    private static string Fence(string body) =>
+        "<<<KONUSMA_BASLANGIC>>>" + Environment.NewLine
+        + body + Environment.NewLine
+        + "<<<KONUSMA_SONU>>>";
 }

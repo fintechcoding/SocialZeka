@@ -54,10 +54,13 @@ public sealed class ConsistencyAnalysis(ILlmClient llm, Repository repository)
     /// long-range dependency, and analysing half a conversation for consistency is analysing a
     /// different conversation. Cloud models hold multi-hour calls whole; a local server does
     /// not, and pretending otherwise would silently truncate evidence.
+    ///
+    /// The two numbers live in <see cref="PromptBudget"/> now, so the reads that came after this
+    /// one — the reading, the assessment, the summary — refuse at the same sizes it does.
     /// </summary>
-    public const int CloudCharacterLimit = 400_000;
+    public const int CloudCharacterLimit = PromptBudget.CloudCharacterLimit;
 
-    public const int LocalCharacterLimit = 24_000;
+    public const int LocalCharacterLimit = PromptBudget.LocalCharacterLimit;
 
     public async Task<ConsistencyReport> RunAsync(
         long callId,

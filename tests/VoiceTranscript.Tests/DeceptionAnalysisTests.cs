@@ -79,7 +79,7 @@ public sealed class DeceptionAnalysisTests : IDisposable
 
     private Task<DeceptionReport> Run(long call, string reply) =>
         new DeceptionAnalysis(new ScriptedLlm(reply), _repo)
-            .RunAsync(call, "test-model", TestContext.Current.CancellationToken);
+            .RunAsync(call, "test-model", cancellationToken: TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task AVerifiedTacticKeepsItsTimestampAndTheSpendIsBookedUnderItsOwnStage()

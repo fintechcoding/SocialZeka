@@ -1420,5 +1420,12 @@
   "circleswindow.kisiler-cok-konusulandan-aza": "Kişiler (çok konuşulandan aza)",
   "circleswindow.cevresiz": "Çevresiz",
   "circleswindow.n-gorusme": "{0} görüşme",
-  "circleswindow.n-m-kisi-bir-cevrede": "{0} / {1} kişi bir çevrede"
+  "circleswindow.n-m-kisi-bir-cevrede": "{0} / {1} kişi bir çevrede",
+  "promptbudget.yerel-model-sigmiyor": "Bu görüşme tek istekte modele verilemeyecek kadar uzun: {0} bin karakter, seçili modelin penceresine en çok {1} bin sığıyor. İstek gönderilmedi. Ayarlar → Çözümleme bölümünden daha geniş bağlamlı bir yerel model ya da bulut tabanlı bir sağlayıcı seçilebilir.",
+  "promptbudget.bulut-sigmiyor": "Bu görüşme tek istekte modele verilemeyecek kadar uzun: {0} bin karakter, sınır {1} bin. Bu okuma parçalanarak çalışamaz; istek gönderilmedi.",
+  "analysispipeline.ozet-pencereden": "Görüşme tek istekte sığmadığı için özet yalnızca ilk {0} ve son {1} dakikadan yazıldı; aradaki {2} dakika özette yok. Daha geniş bağlamlı bir model ya da bulut tabanlı bir sağlayıcı görüşmenin tamamını okur.",
+  "analysispipeline.ozet-yazilamadi": "Özet yazılamadı: {0}",
+  "analysispipeline.ozet-yarida-kesildi": "Özet yazılamadı: model cevabı yarıda kesildi.",
+  "analysispipeline.ozet-metin-bos": "Özet yazılamadı: görüşme metninde söz yok.",
+  "settingswindow.tek-istek-siniri": "Görüşme metni tek istekte modelin penceresine sığmak zorunda; bu okuma parçalanarak çalışmaz. Yerel modelde bu, 16 bin token bağlamla yaklaşık 35 dakika, 32 binle yaklaşık 80 dakika demektir. Sığmayınca istek gönderilmez ve sekme sebebini sayısıyla söyler."
 }
