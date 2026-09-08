@@ -206,7 +206,10 @@ public sealed partial class PromiseCard : ObservableObject
     public bool CanEdit => IsOpen && !IsGrouped;
     public bool HasUserDeadline => Commitment.UserDeadlineDate is not null;
 
-    /// <summary>The three ear buttons: only where there is still a promise to rule on.</summary>
+    /// <summary>
+    /// The ear buttons, and the card's own "Bu söz değil": only where there is still a promise
+    /// to rule on.
+    /// </summary>
     public bool CanJudge => !IsDismissed && !IsGrouped;
 
     // ---- S2: one sentence, two promises -------------------------------------------------------

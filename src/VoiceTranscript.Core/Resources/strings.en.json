@@ -1200,6 +1200,7 @@
   "promisespage.dogru": "Correct",
   "promisespage.yanlis-duyulmus": "Misheard",
   "promisespage.bu-soz-degil": "Not a promise",
+  "promisespage.bu-soz-degil-aciklama": "This sentence was not a commitment: take it off the list and tell the extraction it was wrong.",
   "promisespage.dogru-dedin": "✎ you said: correct",
   "promisespage.yanlis-duyulmus-dedin": "✎ you said: misheard",
   "promisespage.soz-degil-dedin": "✎ you said: not a promise",

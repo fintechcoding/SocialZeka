@@ -596,6 +596,48 @@ public sealed class AnalysisPipelineTests : IDisposable
         Assert.Empty(_repo.GetOpenCommitments(contact));
         Assert.Contains(report.Warnings, w => w.Contains("elendi"));
         Assert.Equal(1.0, report.RejectionRate);
+
+        // Every quote in this run was rejected, and it is still one quote. The ledger records
+        // that; the user is not told to change models over it.
+        Assert.False(report.ModelLooksUnsuited);
+    }
+
+    /// <summary>
+    /// "Bu model bu iş için uygun olmayabilir" needs more than a handful of quotes behind it.
+    ///
+    /// A sixteen-second call — "telefondayım, sonra ararım" — hands the extraction almost nothing,
+    /// and two unfindable quotes out of two is a hundred per cent. Said as a share, that reads as
+    /// a verdict on the model the user picked an hour ago, measured on a sample of two. Red here
+    /// means the product is again calling a model unfit on evidence it would never accept from
+    /// the model itself.
+    /// </summary>
+    [Theory]
+    [InlineData(0, 0, 0, false)]   // nothing extracted at all
+    [InlineData(0, 0, 2, false)]   // the short call: everything rejected, and it is two items
+    [InlineData(0, 0, 4, false)]   // still under the floor
+    [InlineData(3, 0, 2, false)]   // five items, exactly the old threshold, which has not moved
+    [InlineData(2, 0, 4, true)]    // six items, four of them unfindable: now it means something
+    [InlineData(0, 0, 5, true)]    // the floor itself, all rejected
+    public void AVerdictOnTheModelNeedsEnoughQuotesToStandOn(
+        int commitments, int claims, int rejected, bool unsuited)
+    {
+        var report = new AnalysisReport(commitments, claims, rejected, [], null, []);
+
+        Assert.Equal(unsuited, report.ModelLooksUnsuited);
+        Assert.Equal(commitments + claims + rejected, report.QuotesJudged);
+    }
+
+    /// <summary>
+    /// The share itself is untouched — it is still counted and still shown wherever a caller
+    /// wants it. Only the sentence about the model waits for a denominator.
+    /// </summary>
+    [Fact]
+    public void TheRejectionShareIsStillCountedBelowTheFloor()
+    {
+        var report = new AnalysisReport(0, 0, 2, [], null, []);
+
+        Assert.Equal(1.0, report.RejectionRate);
+        Assert.False(report.ModelLooksUnsuited);
     }
 
     [Fact]

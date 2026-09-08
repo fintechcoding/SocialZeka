@@ -211,17 +211,32 @@
 
                         Counted over this archive: "Tutuldu" has been pressed four times and every
                         other control on the card zero. So the card shows that one and a link, and
-                        folds the other thirteen away — see PromiseCard.AreActionsOpen for the
-                        count that decided it.
+                        folds the rest away — see PromiseCard.AreActionsOpen for the count that
+                        decided it.
+
+                        The second verb is here because the extraction is wrong sometimes and the
+                        reader can see it at a glance: a sentence that was never a promise sits in
+                        the list until somebody says so, and making that a two-click job left it
+                        sitting. It is a ruling, not a tidy-up — the extractor's own measurement
+                        reads these, which is why this and not "Reddet" is the one on the front.
                     -->
                     <WrapPanel Margin="0,8,0,0"
                                Visibility="{Binding IsGrouped, Converter={StaticResource InverseBoolToVisibility}}">
-                        <ui:Button Content="{loc:T promisespage.tutuldu}" Margin="0,0,10,0"
+                        <ui:Button Content="{loc:T promisespage.tutuldu}" Margin="0,0,8,0"
                                    Visibility="{Binding CanFulfil, Converter={StaticResource BoolToVisibility}}"
                                    Command="{Binding DataContext.FulfilCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                    CommandParameter="{Binding}">
                             <ui:Button.Icon>
                                 <ui:SymbolIcon Symbol="Checkmark24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+                        <ui:Button Content="{loc:T promisespage.bu-soz-degil}" Margin="0,0,10,0" Appearance="Secondary"
+                                   ToolTip="{loc:T promisespage.bu-soz-degil-aciklama}"
+                                   Visibility="{Binding CanJudge, Converter={StaticResource BoolToVisibility}}"
+                                   Command="{Binding DataContext.JudgeNotAPromiseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="Dismiss24" />
                             </ui:Button.Icon>
                         </ui:Button>
                         <ui:HyperlinkButton Padding="0" VerticalAlignment="Center"
@@ -329,7 +344,12 @@
                     <!--
                         S4 — the ear, on a promise. Aynam's confirmation widened from what the user
                         said to what somebody was held to: the words are that promise, or the
-                        transcript misheard them, or they were said and are not a promise.
+                        transcript misheard them.
+
+                        The third ruling, "and they are not a promise at all", moved to the front
+                        of the card. It was never really an ear question — the other two ask
+                        whether the words were heard right, that one asks whether the words were
+                        a commitment — and it is the one the reader reaches for most.
 
                         The machine never gives this ruling and never asks it as a leading question;
                         it asks whether the user listened.
@@ -343,9 +363,6 @@
                                    CommandParameter="{Binding}" />
                         <ui:Button Content="{loc:T promisespage.yanlis-duyulmus}" Margin="0,0,6,4" Appearance="Transparent"
                                    Command="{Binding DataContext.JudgeMisheardCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                   CommandParameter="{Binding}" />
-                        <ui:Button Content="{loc:T promisespage.bu-soz-degil}" Margin="0,0,6,4" Appearance="Transparent"
-                                   Command="{Binding DataContext.JudgeNotAPromiseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                    CommandParameter="{Binding}" />
                     </WrapPanel>
 

@@ -2689,8 +2689,10 @@ public sealed class CallOrchestrator : IDisposable
             Notice?.Invoke(this, summaryNotice);
 
         // A model whose quotes mostly cannot be found is not producing usable evidence, and the
-        // user should be told to change it rather than left with a quietly empty ledger.
-        if (report.RejectionRate > 0.4)
+        // user should be told to change it rather than left with a quietly empty ledger — but not
+        // on a call too short to have held anything. AnalysisReport.ModelLooksUnsuited carries
+        // both halves of that.
+        if (report.ModelLooksUnsuited)
         {
             Notice?.Invoke(this,
                 $"Çözümlemede üretilen alıntıların %{report.RejectionRate * 100:0}'ı metinde bulunamadı. " +

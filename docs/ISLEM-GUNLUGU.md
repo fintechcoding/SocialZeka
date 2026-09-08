@@ -3680,3 +3680,42 @@ kırmızıya döndü, geri alınınca on ikisi de yeşil.
 21:09'daki OpenRouter yazımının üstüne yazılmıştı — dosya yedeğe birebir eşitti. Uygulama
 kapatıldı ve ayar yeniden yazıldı: OpenRouter, `openai/gpt-6-astra`, kişi okuması açık.
 Transkripsiyon etkilenmedi, o `SttEndpoints` içindeki ayrı Deepgram anahtarını kullanıyor.
+
+## 2026-09-09 — İki alıntıdan hüküm çıkmaz; söz kartına ikinci fiil
+
+Kullanıcı OpenRouter/gpt-6-astra'ya geçtikten sonraki ilk çözümlemede "Bu model bu iş için uygun
+olmayabilir" uyarısını aldı ve haklı olarak sordu.
+
+**Uyarı, iki alıntı üzerinden hüküm veriyordu.** Görüşme #90 on altı saniye ve üç satır: "Alo, ha
+kardeşim telefondaydım ne yapıyorsun" · "iki dakika duramıyorum sana biraz döndürüyorum" ·
+"Tamam, Murat, görüşürüz". İçinde söz de iddia da yok. Çıkarım iki alıntı üretti, ikisi de metinde
+bulunamadı, oran %100 oldu ve ekrana kullanıcının bir saat önce seçtiği model hakkında bir hüküm
+olarak çıktı. Örneklem iki.
+
+Eşik değişmedi. Değişen, eşiğin üzerinde koşmasına izin verilen payda:
+`AnalysisReport.ModelLooksUnsuited` artık `QuotesJudged >= SmallestVerdict` (5) şartını da arıyor
+ve karar orkestratörden çıkıp `AnalysisPipeline`'a, testinin yanına taşındı. Oran hâlâ sayılıyor ve
+hâlâ okunabiliyor; susan yalnız model hakkındaki cümle. Bu, kişi okumasındaki "kayıtta yeterli şey
+yok" kapısının aynı fikri: bir avuç madde üzerinden alınan oran hiçbir şeyin ölçüsü değildir.
+
+Ürünün kendi yasasının gereği: bir modelden kabul etmeyeceği kanıtla bir model hakkında hüküm
+kurmak, tam olarak bu ürünün karşı çıktığı şeydir.
+
+**Söz kartına ikinci fiil.** Kullanıcı: *"burda tutuldu birde reddedildi butonu olabilir bu gerçek
+bir söz değildir belki ben okuyup ignore edebilirim."* Ekran görüntüsündeki kart, gerçekten söz
+olmayan bir cümleyi taşıyordu ve onu listeden çıkarmak iki tıktı.
+
+"Bu söz değil" öne alındı; kart artık iki fiil ve bir bağlantı gösteriyor. Öne alınan bu, "Reddet"
+değil: reddetmek satırı listeden kaldırır, "bu söz değil" ise çıkarımın yanıldığını söyler ve
+ölçümün okuduğu şey odur. Aynı düğme kulak üçlüsünden çıkarıldı, çünkü orada zaten yanlış
+duruyordu: diğer ikisi kelimelerin doğru duyulup duyulmadığını sorar, bu ise kelimelerin bir
+taahhüt olup olmadığını.
+
+**Doğrulama.** C# 1585 test (1580 geçti, 5 atlandı). Yeni:
+`AVerdictOnTheModelNeedsEnoughQuotesToStandOn` (altı sınır durumu, eski eşiğin yerinde durduğunu
+da çiviliyor), `TheRejectionShareIsStillCountedBelowTheFloor`, ve mevcut
+`InventedQuotesAreRejectedAndReported` artık tek alıntının hüküm olmadığını da doğruluyor.
+
+**Söylenmeyen bir şey yok:** modelin bu üç satırda ürettiği iki alıntının neden bulunamadığı
+ölçülmedi. Arşiv geçmiş koşumların ret sayısını saklamıyor, o yüzden eski modelle karşılaştırma
+yapılamıyor. Uzun bir görüşmede aynı uyarı çıkarsa o gerçek bir sinyaldir ve bakılmalıdır.

@@ -119,10 +119,32 @@ public sealed record AnalysisReport(
     {
         get
         {
-            var total = CommitmentsFound + ClaimsFound + QuotesRejected;
+            var total = QuotesJudged;
             return total == 0 ? 0 : (double)QuotesRejected / total;
         }
     }
+
+    /// <summary>How many extracted items that share was measured over.</summary>
+    public int QuotesJudged => CommitmentsFound + ClaimsFound + QuotesRejected;
+
+    /// <summary>
+    /// The fewest quotes a run may say anything about the model on.
+    ///
+    /// A sixteen-second call — "telefondayım, sonra ararım" — gives the extraction almost nothing
+    /// to find, and two invented quotes out of two is a hundred per cent. Told as a share, that
+    /// reads as a verdict on the model the user just chose, on a sample of two. The floor is the
+    /// same idea as the contact reading's "too little on record": a rate over a handful of items
+    /// is not a measurement of anything.
+    /// </summary>
+    public const int SmallestVerdict = 5;
+
+    /// <summary>
+    /// Whether this run is grounds to doubt the model rather than a small sample.
+    ///
+    /// The threshold has not moved. What is new is the denominator it is allowed to run on, and
+    /// the rule lives here rather than in the orchestrator so a test can hold it.
+    /// </summary>
+    public bool ModelLooksUnsuited => QuotesJudged >= SmallestVerdict && RejectionRate > 0.4;
 }
 
 /// <summary>

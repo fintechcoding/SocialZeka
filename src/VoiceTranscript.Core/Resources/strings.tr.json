@@ -1200,6 +1200,7 @@
   "promisespage.dogru": "Doğru",
   "promisespage.yanlis-duyulmus": "Yanlış duyulmuş",
   "promisespage.bu-soz-degil": "Bu söz değil",
+  "promisespage.bu-soz-degil-aciklama": "Bu cümle bir söz değilmiş: listeden çıkar ve çıkarıma yanıldığını söyle.",
   "promisespage.dogru-dedin": "✎ doğru dedin",
   "promisespage.yanlis-duyulmus-dedin": "✎ yanlış duyulmuş dedin",
   "promisespage.soz-degil-dedin": "✎ söz değil dedin",
