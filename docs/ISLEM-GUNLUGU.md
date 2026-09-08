@@ -3466,3 +3466,102 @@ Dört mutasyon, dördü de yakalandı ve yalnız kendi mekanizmalarını çivile
 sınır kaldırılınca `EmptyTranscriptTests`'in iki satırı; bakiye hafızası rotayı yok sayınca
 `ADifferentKeyIsADifferentAccountAndIsAskedAtOnce`; `NothingRead` hep false olunca hattın iki
 testi ve orkestratörünki; Deepgram'ın bozuk gövde koruması kalkınca beş Python testi.
+
+## 2026-09-08 — Çalan ama açılmayan arama kaydedilmesin
+
+Kullanıcı: "aranmış ama açılmamış sesleri tespit edip bunları kaydetmemesini nasıl sağlarız...
+gereksiz, sistemi ve veritabanını yoruyor." Aynı gün 3.5.1'in ayırdığı #97 tam bu: Gürhan'ı
+aramış, telefon çalmış, açılmamış; 63 saniye kayıt, iki kanalda sıfır kelime, 2 MB WAV ve
+listede kırmızı bir satır. Üstelik Deepgram'a yüklenmiş de.
+
+**Neden dedektör kaçırıyor.** Giden aramada mikrofon tuşa basar basmaz açılıyor, hoparlörden de
+çalma sesi geliyor; `CallDetector` için bu, cevaplanmış bir görüşmeden ayırt edilemez
+(`_captureStreak` ve `_renderWhileCapturing` birlikte `EnterCall`). Gelen aramada mikrofon
+açılmadığı için sorun yok. Yani mesele giden aramalara özgü ve kayıt başlamadan çözülemiyor.
+
+**Sesin kendisi söylüyor.** Çalma sesi tek bir kaydın saat gibi tekrarı; konuşma kendini
+tekrarlamaz. Bu makinedeki okunabilen bütün kayıtlar ölçüldü (33 kanal, 20-400 sn):
+
+| kanal | parça | dönem | düzensizlik | benzerlik |
+|---|---|---|---|---|
+| #97 far (cevapsız) | 10 | 6,0 sn | 0,00 | 1,00 |
+| #88 far (kısa) | 4 | 6,0 sn | 0,00 | 1,00 |
+| #72 far (kısa) | 3 | 4,5 sn | 0,00 | 1,00 |
+| otuz gerçek görüşme | 3-219 | 1,5-7,4 sn | 0,29-1,28 | -0,02-0,61 |
+
+İki grubun arasında hiçbir şey yok. Eşikler (düzensizlik ≤ 0,15, benzerlik ≥ 0,90) bu boşluğa,
+makineye yakın tarafa kondu.
+
+**İki koşul, ve ikincisi silmeyi güvenli kılan.** Karşı kanalın çalması karşı tarafın *henüz*
+açmadığını söyler, kaydın değersiz olduğunu değil. Bu yüzden mikrofonun da susmuş olması
+gerekiyor: #97'nin mikrofonu en sessiz ve en gürültülü onda biri arasında 7 dB oynuyor, oda
+tonu; her cevaplanmış görüşmenin mikrofonu 37-69 dB. **#88 tam da bu yüzden önemli:** far kanalı
+ders kitabı çalma sesi, mikrofonu 54 dB, çünkü kullanıcı konuşuyor. O kayıt silinmemeli, ve
+kural onu bağışlıyor.
+
+**Yapılan.** `worker/vt_worker/ringback.py`: kanal başına taban/tepe, yüksek parçalar, parçalar
+arası dönem düzensizliği ve zarf benzerliği; karar iki koşulun birlikte tutmasıyla, gerekçesi
+cümle olarak dönüyor. `cmd_transcribe` bunu motoru yüklemeden önce soruyor, yani cevapsız arama
+hiçbir yere yüklenmiyor — gerçek #97 üzerinde 0,06 saniyede karar verdi. C# tarafında
+`TranscriptionRequest.DetectUnanswered`, `WorkerResult.Unanswered`,
+`EmptyTranscript.ShouldDiscardAsUnanswered` (üç koşul: kullanıcı istemiş, ses söylemiş, bu
+görüşmenin kendi dökümü yok) ve `EmptyTranscript.Unanswered` kararı. Satır **Cevapsız arama**
+oluyor, ses siliniyor, cümle silindiğini söylüyor — silinemediyse söylemiyor. Ayarlarda anahtar
+var ve varsayılan açık; uygulamada kayıt silen tek kural bu olduğu için görünür ve kapatılabilir.
+
+**Kullanıcı "genel yapıyı bozmasın" dedi ve haklı çıktı — iki gerçek kusur bu denetimde çıktı.**
+
+*Bellek.* İlk yazımda kareler kare kare kopyalanıyordu: 25 ms'lik pencereler 10 ms'de bir
+kaydığı için her örnek iki buçuk kez tutuluyor, yani beş dakikalık ses kanal başına 48 MB
+görünüm ve üstüne 96 MB float64 kare demek. Elli dakikalık bir görüşmede yarım gigabayta
+çıkıyordu — hem de Whisper modelini de tutan bir dizüstünde. İki değişiklik: kare enerjileri tek
+bir kümülatif toplamdan hesaplanıyor, ve `MAX_SECONDS = 300` üstündeki kayıt hiç okunmuyor.
+Sınır bütün kayda konuyor, okunan kısma değil; çünkü 2:30'da açılmış bir görüşmenin yalnız ilk
+iki dakikasına bakmak "far çalıyor, mikrofon susuyor" der ve gerçek bir konuşmayı sildirir.
+Ölçüldü: 62 dakikalık 120 MB'lık dosya artık 1 ms'de ve sıfır bellekle eleniyor, gerçek #97
+73 ms ve 21 MB ile aynı sayıları veriyor.
+
+*Numpy.* `ringback.py` numpy'ı modül başında import ediyordu. Bu paketin kuralı ise tersi:
+`prosody.py` ve `speaker.py` numpy'ı kullandıkları fonksiyonun içinde import ediyor, çünkü
+`probe` ve `download` komutları kurulum sihirbazı hiçbir şey yüklemeden **önce** koşuyor ve
+`__main__` bütün modülleri koşulsuz import ediyor. Benzetimle doğrulandı: modül başındaki tek
+import, numpy'sız makinede worker'ı hiç başlamaz hale getiriyordu — yani tam da sihirbaza ihtiyaç
+duyan makinede. Import fonksiyonlara alındı ve kural artık yazılı: `test_worker_imports.py`
+paketteki her modülü AST ile tarayıp sihirbazın kurduğu paketlerin modül başında import
+edilmediğini doğruluyor. Kural hiçbir yerde yazılı olmadığı için bozulmuştu.
+
+**İnceleme iki delik daha buldu ve ikisi de silme yönündeydi.**
+
+*Ortalama benzerlik.* Bir dakika çalıp sonra açılan görüşmenin far kanalı on özdeş çalma parçası
+artı birkaç konuşma parçasıdır. Ortalama alınca çalma, konuşmayı bastırıyordu: eşik 0,90 iken
+ölçülen 0,898. İki binde bir farkla, iki kişinin konuştuğu bir kaydı silmeye kalmıştı. Kural
+artık **en kötü çifte** bakıyor — birinin açtığı ana denk gelen çift — ve o çift 0,01 veriyor.
+Aynı düzeltme aralık ölçüsüne de yapıldı: bütün boşlukların standart sapması yerine, medyandan
+**en çok sapan** boşluk. Marj 0,002'den 0,89'a çıktı.
+
+*Yüzde 95'lik mikrofon testi.* "Kimse konuşmadı" ölçütü kanalın 95'lik dilimiyle 10'luk dilimi
+arasındaki farka bakıyordu. Bu, kaydın ne kadarının gürültülü olduğunu sorar; birinin bir şey
+söyleyip söylemediğini değil. Altmış saniyenin yüzde beşi üç saniyedir, yani kısa bir "alo"
+95'lik dilimi hiç kıpırdatmıyor: iki kelime konuşulmuş bir mikrofon 1 dB yayılım gösterip
+"sessiz" okunuyordu. Ölçüt artık **konuşma eşiğinin üstünde geçen süre** — eşik `speaker.py`'nin
+kendi ölçülmüş -40 dBFS'i, ve 0,2 saniyeden kısa diziler sayılmıyor ki kapı çarpması konuşma
+sayılmasın. Bu arşivde ölçülen: cevapsız arama 0,3 sn; konuşulmuş mikrofonlar 2,5 / 3,0 / 3,5 /
+5,5 / 12,3 / 14,0 / 35,2 / 38,6 sn. Sınır 1,0 saniyeye kondu; #88 sınırın beş katı uzakta.
+
+Bilinen kaçak: #87, on saniyelik ve mikrofonu o kadar sessiz ki hiçbir şey eşiği geçmiyor,
+"sessiz" okunuyor. Yine de korunuyor, çünkü far kanalı çalma sesi değil. Far koşulu güçlü olan,
+mikrofon ikinci kilit.
+
+**Doğrulama.** Python 233 test (44 yeni; sentezlenmiş çalma sesi, konuşma ve oda tonu ile —
+gerçek arşiv olmadan da sınanabilsin diye — artı import taraması, açıldıktan sonra korunma,
+kısa konuşma ve kapı çarpması). C# 1562 (1557 geçti, 5
+atlandı), Release derlemesi de temiz. Beş mutasyon: mikrofon koşulu kalkınca konuşulan kayıt
+siliniyor (bir test), üç tekrar ikiye inince rastlantı delil sayılıyor (bir test), döküm koruması
+kalkınca yeniden dökme sözü olan kaydı siliyor (iki test), anahtar yok sayılınca kapalıyken de
+siliyor (bir test), numpy modül başına dönünce import taraması kırmızıya dönüyor (bir test),
+en kötü benzerlik yerine ortalama konunca açıldıktan sonraki görüşme siliniyor (altı test).
+Bozuk sinyaller ayrıca elle denendi: tam dijital sessizlik, boşluksuz sabit ton, DC ofset ve tek
+bir öksürük — hiçbirinde "çalıyor" demiyor.
+
+**Not.** `.ogg` arşivlerini PyAV okuyamıyor (deponun `arsiv-sesi-acma` becerisi bunu zaten
+söylüyor); ölçüm bu yüzden önbellekteki açılmış WAV kopyaları üzerinden yapıldı.
