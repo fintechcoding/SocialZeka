@@ -127,6 +127,23 @@ public sealed partial class PromiseCard : ObservableObject
     /// <summary>Folded away until asked for: the card is a list item, not a transcript.</summary>
     [ObservableProperty] private bool _isAroundOpen;
 
+    // ---- the rest of the verbs, folded away ---------------------------------------------------
+
+    /// <summary>
+    /// Whether this card is showing everything it can do, or only the one thing anybody does.
+    ///
+    /// A card used to draw every verb it had at once: five ways to set a date, up to seven verbs,
+    /// three ways to rule on the ear — around fourteen controls, on every card, on a page holding
+    /// a hundred and forty-five of them. Counted against what the archive says was ever pressed,
+    /// that is one used control and thirteen that have never been touched in the application's
+    /// life.
+    ///
+    /// So the card keeps the one and folds the thirteen. Nothing is removed — a promise the user
+    /// wants to postpone, re-date or say was misheard is one click further away, and that click
+    /// is on the card rather than in a menu somewhere else.
+    /// </summary>
+    [ObservableProperty] private bool _areActionsOpen;
+
     // ---- S4: the user's ear on the moment -----------------------------------------------------
 
     /// <summary>What the user said this moment is, if they have listened and ruled.</summary>
@@ -851,6 +868,13 @@ public sealed partial class PromisesViewModel(Repository repository) : Observabl
     private void ToggleAround(PromiseCard? card)
     {
         if (card is not null) card.IsAroundOpen = !card.IsAroundOpen;
+    }
+
+    /// <summary>Shows or folds away everything the card can do beyond marking it kept.</summary>
+    [RelayCommand]
+    private void ToggleActions(PromiseCard? card)
+    {
+        if (card is not null) card.AreActionsOpen = !card.AreActionsOpen;
     }
 
 }

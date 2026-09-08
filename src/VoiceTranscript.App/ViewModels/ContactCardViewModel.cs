@@ -1084,9 +1084,17 @@ public sealed partial class ContactCardViewModel : ObservableObject
         Section("contactcard.oncelikler", report.Priorities);
         Section("contactcard.guclu-yanlar", report.Strengths);
         Section("contactcard.zayif-yanlar", report.Weaknesses);
+        Section("contactcard.psikolojik-okuma", report.PsychologicalReading);
+        Section("contactcard.duygusal-oruntuler", report.EmotionalPatterns);
+        Section("contactcard.iliskinin-seyri", report.WhereThisIsGoing);
         Section("contactcard.cevapsiz-kalan-konular", report.UnansweredTopics);
         Section("contactcard.gorusmeye-giderken", report.BeforeYouGo);
+
+        // The reader's own half, last and together: what they did in this relationship, and what
+        // to do about it. The panel keeps them beside each other on purpose — a note about your
+        // own behaviour with no suggestion under it is a complaint.
         Section("contactcard.ben-icin-notlar", report.NotesForMe);
+        Section("contactcard.oneriler", report.Suggestions);
 
         OpinionCounterReading = string.IsNullOrWhiteSpace(report.CounterReading)
             ? null

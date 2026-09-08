@@ -12,6 +12,25 @@
 
     <UserControl.Resources>
         <!--
+            A card is its own surface, so its row is nothing at all: CleanList's chrome would draw
+            a second hover behind every card and pad it away from the one beside it. Same shape as
+            the search page's rows, and for the same reason.
+        -->
+        <Style x:Key="PromiseRow" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter HorizontalAlignment="Stretch" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
             One promise. The head says where it stands (how late, whether it was marked), the
             body says what and by when, the quote is the evidence and plays where it was said,
             and the verbs are the user's — nothing on this card was decided by the machine
@@ -188,6 +207,34 @@
                     </StackPanel>
 
                     <!--
+                        The one verb anybody uses, and the way to the rest.
+
+                        Counted over this archive: "Tutuldu" has been pressed four times and every
+                        other control on the card zero. So the card shows that one and a link, and
+                        folds the other thirteen away — see PromiseCard.AreActionsOpen for the
+                        count that decided it.
+                    -->
+                    <WrapPanel Margin="0,8,0,0"
+                               Visibility="{Binding IsGrouped, Converter={StaticResource InverseBoolToVisibility}}">
+                        <ui:Button Content="{loc:T promisespage.tutuldu}" Margin="0,0,10,0"
+                                   Visibility="{Binding CanFulfil, Converter={StaticResource BoolToVisibility}}"
+                                   Command="{Binding DataContext.FulfilCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="Checkmark24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+                        <ui:HyperlinkButton Padding="0" VerticalAlignment="Center"
+                                            Content="{loc:T promisespage.diger-secenekler}"
+                                            ToolTip="{loc:T promisespage.diger-secenekler-aciklama}"
+                                            Command="{Binding DataContext.ToggleActionsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}" />
+                    </WrapPanel>
+
+                    <!-- Everything below is one click away, and nothing below was removed. -->
+                    <StackPanel Visibility="{Binding AreActionsOpen, Converter={StaticResource BoolToVisibility}}">
+
+                    <!--
                         S3 — "Ne zamana?". Twelve of the archive's thirteen promises have no date,
                         so this strip is on almost every card.
 
@@ -231,14 +278,6 @@
                     <!-- The verbs. Only the user marks anything; each can be taken back from the notice below. -->
                     <WrapPanel Margin="0,8,0,0"
                                Visibility="{Binding IsGrouped, Converter={StaticResource InverseBoolToVisibility}}">
-                        <ui:Button Content="{loc:T promisespage.tutuldu}" Margin="0,0,6,4"
-                                   Visibility="{Binding CanFulfil, Converter={StaticResource BoolToVisibility}}"
-                                   Command="{Binding DataContext.FulfilCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                   CommandParameter="{Binding}">
-                            <ui:Button.Icon>
-                                <ui:SymbolIcon Symbol="Checkmark24" />
-                            </ui:Button.Icon>
-                        </ui:Button>
                         <ui:Button Content="{loc:T promisespage.tutulmadi}" Margin="0,0,6,4" Appearance="Secondary"
                                    Visibility="{Binding CanFulfil, Converter={StaticResource BoolToVisibility}}"
                                    Command="{Binding DataContext.AbandonCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -309,6 +348,8 @@
                                    Command="{Binding DataContext.JudgeNotAPromiseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                    CommandParameter="{Binding}" />
                     </WrapPanel>
+
+                    </StackPanel>
 
                     <!--
                         ✎ The user's own writing, below a rule.
@@ -397,7 +438,17 @@
             </ui:Button>
         </WrapPanel>
 
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+        <!--
+            The columns scroll themselves, and that is what makes the page quick.
+
+            They used to be two plain ItemsControls inside one ScrollViewer, which is the shape
+            the search page was already found in and fixed (a199332): an ItemsControl has no
+            scrolling panel of its own, so it is measured with unlimited height and builds a
+            visual tree for every row the query returned — a hundred and forty-five cards, each
+            with its own nested lists, before the first one appears. A ListBox has a scrolling
+            panel and builds only what is on screen.
+        -->
+        <Grid Grid.Row="3">
             <Grid>
                 <!-- Two ways to land here: no promises at all, or a chip that happens to be
                      empty. The body says both, because from the page they look identical. -->
@@ -419,9 +470,19 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="{Binding MineHeader}" Style="{StaticResource GroupHeader}" Margin="4,0,0,6" />
-                        <ItemsControl ItemsSource="{Binding Mine}" ItemTemplate="{StaticResource PromiseCardTemplate}" />
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="{Binding MineHeader}" Style="{StaticResource GroupHeader}" Margin="4,0,0,6" />
+                        <ListBox Grid.Row="1" Style="{StaticResource CleanList}" ItemsSource="{Binding Mine}"
+                                 ItemTemplate="{StaticResource PromiseCardTemplate}"
+                                 ItemContainerStyle="{StaticResource PromiseRow}"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 VirtualizingPanel.ScrollUnit="Pixel" />
+                        <StackPanel Grid.Row="2">
                         <TextBlock Text="{Binding MineTally}" Style="{StaticResource Caption}" Margin="4,2,0,0" />
 
                         <!-- Where the column came from. A count with no denominator beside it reads
@@ -434,18 +495,30 @@
                         <TextBlock Text="{Binding AsymmetryNote}" Style="{StaticResource Caption}" Margin="4,4,0,12"
                                    TextWrapping="Wrap" Foreground="{DynamicResource SystemFillColorCautionBrush}"
                                    Visibility="{Binding HasAsymmetryNote, Converter={StaticResource BoolToVisibility}}" />
-                    </StackPanel>
+                        </StackPanel>
+                    </Grid>
 
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="{Binding TheirsHeader}" Style="{StaticResource GroupHeader}" Margin="4,0,0,6" />
-                        <ItemsControl ItemsSource="{Binding Theirs}" ItemTemplate="{StaticResource PromiseCardTemplate}" />
-                        <TextBlock Text="{Binding TheirsTally}" Style="{StaticResource Caption}" Margin="4,2,0,0" />
-                        <TextBlock Text="{Binding SourceLine}" Style="{StaticResource Caption}" Margin="4,2,0,12"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="{Binding TheirsHeader}" Style="{StaticResource GroupHeader}" Margin="4,0,0,6" />
+                        <ListBox Grid.Row="1" Style="{StaticResource CleanList}" ItemsSource="{Binding Theirs}"
+                                 ItemTemplate="{StaticResource PromiseCardTemplate}"
+                                 ItemContainerStyle="{StaticResource PromiseRow}"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 VirtualizingPanel.ScrollUnit="Pixel" />
+                        <StackPanel Grid.Row="2">
+                            <TextBlock Text="{Binding TheirsTally}" Style="{StaticResource Caption}" Margin="4,2,0,0" />
+                            <TextBlock Text="{Binding SourceLine}" Style="{StaticResource Caption}" Margin="4,2,0,12"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
                 </Grid>
             </Grid>
-        </ScrollViewer>
+        </Grid>
 
         <!--
             What just happened, and the way back — the shared strip, not a copy of it.

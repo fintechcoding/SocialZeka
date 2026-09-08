@@ -384,21 +384,27 @@ public sealed class ContactReadingAnalysisTests : IDisposable
     }
 
     /// <summary>
-    /// The instructions say the two boundaries out loud, so a later edit cannot quietly drop them.
+    /// The boundaries that survived, said out loud, so a later edit cannot quietly drop them.
     ///
-    /// Red means the prompt has stopped refusing psychological state or "how to persuade them" —
-    /// the two things the user explicitly excluded when they allowed impressions (§12) — or has
-    /// stopped forbidding a score. The panel would go on looking the same while asking for
-    /// something else entirely.
+    /// One of the original three is gone on purpose. The prompt used to refuse psychological and
+    /// emotional readings; the user asked for them, was told why the product had refused
+    /// ("Türkçede doğrulanmadı, yanlış etiket zararlı") and asked again. What did NOT move is
+    /// everything that keeps such a reading checkable — anchors, impression framing, no claim
+    /// about a voice the model cannot hear, mandatory symmetry, mandatory counter-reading — plus
+    /// two refusals the user never asked to lift: a score, and a clinical diagnosis.
+    ///
+    /// Red means the prompt has started scoring a person, naming an illness, writing persuasion,
+    /// or has dropped the symmetry or the counter-reading. The panel would go on looking the same
+    /// while asking for something else entirely.
     /// </summary>
     [Fact]
-    public void ThePromptRefusesStatesScoresAndPersuasion()
+    public void ThePromptRefusesScoresDiagnosesAndPersuasion()
     {
         var prompt = ContactReadingPrompt.BuildSystemPrompt("Gürhan", "Kadir");
 
         foreach (var phrase in new[]
                  {
-                     "PSİKOLOJİK DURUM VE DUYGU DURUMU VERİLMEZ",
+                     "KLİNİK TANI YASAK",
                      "KULLANABİLECEĞİN ARGÜMANLAR",
                      "Skor, puan, yüzde",
                      "SES TONU HAKKINDA HİÇBİR İDDİA YOK",
@@ -410,9 +416,21 @@ public sealed class ContactReadingAnalysisTests : IDisposable
             Assert.Contains(phrase, prompt, StringComparison.Ordinal);
         }
 
+        // A psychological reading is allowed but never free-floating: it is asked for WITH its
+        // anchors, and one sentence may not carry one.
+        Assert.Contains("PSİKOLOJİK OKUMA VE DUYGU", prompt, StringComparison.Ordinal);
+        Assert.Contains("YALNIZCA dayanağıyla", prompt, StringComparison.Ordinal);
+
         // The schema is flat and every field is required; the strictness test walks it too.
         var schema = JsonSerializer.Serialize(ContactReadingPrompt.Schema);
-        Assert.Contains("ben_icin_notlar", schema, StringComparison.Ordinal);
-        Assert.Contains("baska_okuma", schema, StringComparison.Ordinal);
+
+        foreach (var field in new[]
+                 {
+                     "ben_icin_notlar", "baska_okuma", "oneriler",
+                     "psikolojik_okuma", "duygusal_oruntuler", "iliskinin_seyri",
+                 })
+        {
+            Assert.Contains(field, schema, StringComparison.Ordinal);
+        }
     }
 }

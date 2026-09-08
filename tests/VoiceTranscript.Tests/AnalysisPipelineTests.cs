@@ -1131,4 +1131,41 @@ public sealed class AnalysisPipelineTests : IDisposable
 
         Assert.Empty(_repo.TacticEvidenceOf(call));
     }
+
+    /// <summary>
+    /// And the application opens it.
+    ///
+    /// The test above proves the gate works; nothing proved anybody had unlocked it. For months
+    /// nobody had: the option defaulted to false and the one place that builds AnalysisOptions
+    /// never mentioned it, so every pressure sign found on every real call was quote-verified and
+    /// then dropped on the floor. That is invisible from the outside — a card with no threat rows
+    /// looks exactly like a person who never made one.
+    ///
+    /// A source scan rather than a behavioural test, which is what this repository does when the
+    /// rule lives inside a class no test can construct: CallOrchestrator opens capture devices.
+    /// It goes red if somebody removes the line, and that is the whole job.
+    /// </summary>
+    [Fact]
+    public void TheApplicationAsksForPressureSignsToBeKept()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            RepositoryRoot(), "src", "VoiceTranscript.App", "Services", "CallOrchestrator.cs"));
+
+        var options = source.IndexOf("new AnalysisOptions", StringComparison.Ordinal);
+        Assert.True(options > 0, "CallOrchestrator artık AnalysisOptions kurmuyor mu?");
+
+        var block = source[options..(source.IndexOf("progress:", options, StringComparison.Ordinal))];
+
+        Assert.Contains("WritePressureSigns = true", block);
+    }
+
+    private static string RepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "VoiceTranscript.slnx")))
+            directory = directory.Parent;
+
+        return directory?.FullName ?? throw new InvalidOperationException("Depo kökü bulunamadı.");
+    }
 }

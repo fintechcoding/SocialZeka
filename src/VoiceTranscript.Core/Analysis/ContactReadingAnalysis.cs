@@ -61,9 +61,35 @@ public sealed record ContactReadingReport(
     IReadOnlyList<ContactReadingItem> Priorities,
     IReadOnlyList<ContactReadingItem> Strengths,
     IReadOnlyList<ContactReadingItem> Weaknesses,
+
+    /// <summary>How the person behaves — under pressure, in repetition, when they withdraw.</summary>
+    IReadOnlyList<ContactReadingItem> PsychologicalReading,
+
+    /// <summary>
+    /// Emotional patterns the person's own words repeat: disappointment, anger, withdrawal.
+    ///
+    /// A pattern rather than a moment, and that is the rule the prompt enforces: one sentence
+    /// carries no reading, because the transcript came from automatic recognition and a single
+    /// misheard word would become a feeling somebody is told they had.
+    /// </summary>
+    IReadOnlyList<ContactReadingItem> EmotionalPatterns,
+
+    /// <summary>Where the relationship has moved between the older calls and the newer ones.</summary>
+    IReadOnlyList<ContactReadingItem> WhereThisIsGoing,
+
     IReadOnlyList<ContactReadingItem> UnansweredTopics,
     IReadOnlyList<ContactReadingItem> BeforeYouGo,
     IReadOnlyList<ContactReadingItem> NotesForMe,
+
+    /// <summary>
+    /// What the reader could do differently, about their own behaviour and nothing else.
+    ///
+    /// Separate from <see cref="BeforeYouGo"/>, which is a checklist for the next call ("get the
+    /// date in writing"). This is the coaching the user asked for: the habits of their own side of
+    /// the table. It is still not a way to work on the other person — that ban did not move.
+    /// </summary>
+    IReadOnlyList<ContactReadingItem> Suggestions,
+
     string CounterReading,
     int CallsCovered,
     int ExcerptCount,
@@ -73,11 +99,13 @@ public sealed record ContactReadingReport(
     string? Problem = null)
 {
     public static ContactReadingReport Failed(string problem) =>
-        new(new ContactReadingItem("", []), [], [], [], [], [], [], [], "", 0, 0, 0, false, false, problem);
+        new(new ContactReadingItem("", []), [], [], [], [], [], [], [], [], [], [], [], "",
+            0, 0, 0, false, false, problem);
 
     /// <summary>An empty but honest answer: the archive did not hold enough to read.</summary>
     public static ContactReadingReport TooThin(int calls, int excerpts) =>
-        new(new ContactReadingItem("", []), [], [], [], [], [], [], [], "", calls, excerpts, 0, true);
+        new(new ContactReadingItem("", []), [], [], [], [], [], [], [], [], [], [], [], "",
+            calls, excerpts, 0, true);
 
     /// <summary>Every item that survived, so a caller can count what was kept against what was not.</summary>
     public IEnumerable<ContactReadingItem> Items =>
@@ -496,9 +524,13 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
         var priorities = List("oncelikler");
         var strengths = List("guclu_yanlar");
         var weaknesses = List("zayif_yanlar");
+        var psychology = List("psikolojik_okuma");
+        var emotions = List("duygusal_oruntuler");
+        var direction = List("iliskinin_seyri");
         var unanswered = List("cevapsiz_kalan_konular");
         var before = List("gorusmeye_giderken");
         var mine = List("ben_icin_notlar");
+        var suggestions = List("oneriler");
 
         bool insufficient;
         try
@@ -511,7 +543,9 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
         }
 
         return new ContactReadingReport(
-            impression, style, priorities, strengths, weaknesses, unanswered, before, mine,
+            impression, style, priorities, strengths, weaknesses,
+            psychology, emotions, direction,
+            unanswered, before, mine, suggestions,
             (Str(root, "baska_okuma") ?? "").Trim(),
             packet.CallsCovered,
             packet.Count,
