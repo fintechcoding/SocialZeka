@@ -43,6 +43,52 @@ public static class EmptyTranscript
     /// </summary>
     public static readonly TimeSpan LongestQuietCall = TimeSpan.FromMinutes(2);
 
+    /// <summary>
+    /// Whether this recording may be thrown away as a call that only ever rang.
+    ///
+    /// Three conditions, and each one is load-bearing, so the rule lives here where it can be
+    /// checked rather than inside the orchestrator, which no test can construct — it opens
+    /// capture devices. This is the only rule in the application that deletes a recording.
+    ///
+    /// <b>The user has to have asked for it</b>, because a rule that deletes must be refusable.
+    ///
+    /// <b>The audio has to have said so</b>, and said so on both channels: the far side replaying
+    /// one sound on a clock, and a microphone that never left its noise floor. The reading comes
+    /// from the worker, which measures rather than infers — an empty transcript would not do,
+    /// because a transcriber having a bad night produces exactly that for a real conversation.
+    ///
+    /// <b>And the call must have no transcript of its own.</b> A recording somebody already has
+    /// words from is a recording they may want to hear, whatever the ring at the front of it
+    /// sounded like, and a re-transcription must never be able to delete it.
+    /// </summary>
+    public static bool ShouldDiscardAsUnanswered(bool enabled, bool measuredUnanswered, bool hasTranscript) =>
+        enabled && measuredUnanswered && !hasTranscript;
+
+    /// <summary>
+    /// A call the audio itself says was never answered: the far channel replayed one sound on a
+    /// clock and nobody spoke into the microphone.
+    ///
+    /// Separate from <see cref="Judge"/> because it rests on something far stronger. Judge infers
+    /// from an absence — no words came back, which a broken transcriber also produces — and so it
+    /// keeps the audio. This is a measurement of the recording itself, and it is what lets the
+    /// audio go: there is nothing in it but a ringing tone, it was never uploaded anywhere, and
+    /// keeping two megabytes of it serves nobody.
+    /// </summary>
+    /// <param name="duration">How long it rang, for the row.</param>
+    /// <param name="audioKept">Whether the recording survived the deletion attempt.</param>
+    public static EmptyTranscriptVerdict Unanswered(TimeSpan duration, bool audioKept)
+    {
+        var length = $"{(int)duration.TotalMinutes:00}:{duration.Seconds:00}";
+
+        return new(
+            ProcessingState.Skipped,
+            $"Cevapsız arama: {length} çaldı, açılmadı — iki tarafta da konuşma yok. "
+            + (audioKept
+                ? "Ses kaydı duruyor."
+                : "Ses kaydı silindi; kayıt yazıya dökülmek üzere hiçbir yere gönderilmedi."),
+            "Cevapsız arama kaydedilmedi: çaldı, açılmadı.");
+    }
+
     public static EmptyTranscriptVerdict Judge(CallDirection direction, TimeSpan duration, bool hadTranscript)
     {
         // Never over an existing transcript: the old text stays and the row says why the new

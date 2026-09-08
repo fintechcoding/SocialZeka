@@ -692,6 +692,29 @@
                                                  VerticalAlignment="Center" />
                             </Grid>
                         </Border>
+
+                        <!-- The only rule in the application that deletes a recording, so it is
+                             on this page rather than implied: what it decides on is in the
+                             caption, and it can be refused. -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="CallDismiss24" FontSize="18" Margin="0,0,14,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T settingswindow.cevapsizi-atla}" FontSize="{StaticResource TextBody}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{loc:T settingswindow.cevapsizi-atla-aciklama}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" IsChecked="{Binding DiscardUnansweredCalls}"
+                                                 VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- Transcription -->

@@ -1768,6 +1768,9 @@ public sealed class CallOrchestrator : IDisposable
                     FarPath = AudioMaterialiser.EnsurePcm(call.FarPath),
                     Hotwords = CurrentVocabulary(settings).Terms,
                     Multilingual = settings.MixedLanguage,
+                    // Asked here above all, because this is the route that costs money: a call
+                    // that only ever rang is answered from the audio before a byte goes up.
+                    DetectUnanswered = settings.DiscardUnansweredCalls,
                     CacheDir = _paths.Models,
                 }, progress: new Progress<Core.Asr.WorkerProgress>(p =>
                 {
@@ -2117,6 +2120,7 @@ public sealed class CallOrchestrator : IDisposable
                     FarPath = AudioMaterialiser.EnsurePcm(call.FarPath),
                     Hotwords = CurrentVocabulary(settings).Terms,
                     Multilingual = settings.MixedLanguage,
+                    DetectUnanswered = settings.DiscardUnansweredCalls,
                     CacheDir = _paths.Models,
                 }, progress: new Progress<Core.Asr.WorkerProgress>(p =>
                 {
@@ -2187,6 +2191,35 @@ public sealed class CallOrchestrator : IDisposable
         // conversation, dropped it from the search index, and left the ledger quoting lines that
         // no longer existed anywhere — after which the call was marked Transcribed and announced
         // as a success.
+        // A call that rang and was never answered: nothing was uploaded, and nothing is kept.
+        //
+        // The audio goes, which is the one place in this method that deletes a recording, so the
+        // conditions are narrow and each is load-bearing. The worker measured it rather than
+        // inferred it — the far channel replayed one sound on a clock and the microphone never
+        // left its noise floor (worker/vt_worker/ringback.py, and the numbers it was measured
+        // against). The user has left the switch on. And this call has no transcript of its own,
+        // because a recording somebody has words from is a recording somebody may want to hear,
+        // whatever the ring at the front of it looked like.
+        if (Core.Asr.EmptyTranscript.ShouldDiscardAsUnanswered(
+                enabled: settings.DiscardUnansweredCalls,
+                measuredUnanswered: result.Unanswered?.Unanswered == true,
+                hasTranscript: _repository.GetSegments(call.Id).Count > 0))
+        {
+            AppLog.Write("çeviri",
+                $"görüşme #{call.Id} · cevapsız arama · {result.Unanswered!.Why}");
+
+            // Best effort, and the sentence follows what actually happened: a file held open by a
+            // player stays, and then the row must not claim it was deleted.
+            var removed = _repository.ForgetAudio(call.Id);
+            var missed = Core.Asr.EmptyTranscript.Unanswered(call.Duration, audioKept: removed == 0);
+
+            _engineInFlight.TryRemove(call.Id, out _);
+            _repository.SetCallState(call.Id, missed.State, missed.Reason);
+            Notice?.Invoke(this, missed.Notice);
+
+            return false;
+        }
+
         //
         // And an empty result over NO existing transcript is read before it is called a failure.
         // Four of them in this archive were one-minute outgoing calls with the ring-back tone on

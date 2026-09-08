@@ -398,6 +398,20 @@ public sealed record AppSettings
     /// <summary>Model used when a call falls through to the cloud. Ignored in LocalOnly.</summary>
     public string CloudAsrModelId { get; init; } = "cloud-openai-whisper";
 
+    /// <summary>
+    /// Whether a call that rang and was never answered is set aside instead of transcribed, and
+    /// its recording deleted.
+    ///
+    /// On, because an unanswered call is not a conversation and every part of keeping one costs
+    /// something: an upload to a paid transcriber that can only come back empty, two megabytes on
+    /// disk, and a red row in the list that somebody has to delete by hand. Four of them reached
+    /// this archive that way in three days.
+    ///
+    /// Off is for somebody who wants the ring itself kept. It is a switch rather than a constant
+    /// because the decision deletes a recording, and a rule that deletes must be refusable.
+    /// </summary>
+    public bool DiscardUnansweredCalls { get; init; } = true;
+
     /// <summary>Overrides the endpoint of the chosen hosted model.</summary>
     public string? AsrApiBaseUrl { get; init; }
 

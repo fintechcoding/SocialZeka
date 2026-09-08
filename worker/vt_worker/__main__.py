@@ -30,7 +30,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from vt_worker import artifacts, chunking, dll_paths, gpu
-from vt_worker import models, prosody, speaker
+from vt_worker import models, prosody, ringback, speaker
 from vt_worker.engines import DEFAULT_ENGINE, EngineError, EngineOptions, create, probe_all
 from vt_worker.merge import MergedTranscript, Segment, merge_streams
 from vt_worker.segmentation import DEFAULT_MAX_GAP, resegment_on_gaps
@@ -221,6 +221,41 @@ def cmd_transcribe(request: dict[str, Any]) -> int:
     # On by default, and switchable per request so a bad result can be reproduced without it.
 
     started = time.monotonic()
+
+    # Asked before an engine is loaded and before a byte is uploaded, because that is the whole
+    # point: a call that rang and was never answered has nothing in it to transcribe, and paying
+    # a hosted service to discover that is how four of them reached this archive as failures.
+    #
+    # Only when the caller asked. The check deletes nothing and decides nothing on its own — it
+    # measures, and the answer travels back with the numbers it rests on. See ringback.py for
+    # what those numbers are and what they were measured against.
+    if bool(request.get("detect_unanswered", False)):
+        reading = ringback.unanswered(mic_path, far_path)
+
+        if reading is not None:
+            log(f"calma sesi denetimi: {reading['why']}")
+
+        if reading is not None and reading["unanswered"]:
+            emit({"type": "progress", "id": job_id, "stage": "merge", "percent": 100.0,
+                  "note": "cevapsiz arama: konusma yok, yukleme yapilmadi"})
+
+            emit(
+                _transcript_to_json(
+                    job_id,
+                    merge_streams([], []),
+                    {
+                        "engine": engine_name,
+                        "model_ref": request.get("model_ref") or "",
+                        "language": options.language,
+                        "resegment_max_gap": max_gap,
+                        "elapsed_s": round(time.monotonic() - started, 2),
+                        "speech_coverage": {},
+                        "unanswered": reading,
+                    },
+                )
+            )
+            return 0
+
     engine = create(engine_name)
 
     emit({"type": "progress", "id": job_id, "stage": "loading", "percent": 0.0})

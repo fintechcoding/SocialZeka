@@ -43,6 +43,7 @@ public sealed class CallStateTextTests
     [InlineData("Çok kısa kayıt.", "Çok kısa — ses silindi")]
     [InlineData("Kullanıcı durdurdu; yeniden işlenebilir.", "Durduruldu — yeniden işlenebilir")]
     [InlineData("Konuşma bulunamadı: cevapsız arama olabilir. Giden arama 01:07 sürdü.", "Konuşma yok — ses duruyor")]
+    [InlineData("Cevapsız arama: 01:03 çaldı, açılmadı — iki tarafta da konuşma yok.", "Cevapsız arama")]
     [InlineData("Grup araması", "Atlandı")]
     [InlineData(null, "Atlandı")]
     public void SkippedIsToldApartByItsReason(string? reason, string expected)

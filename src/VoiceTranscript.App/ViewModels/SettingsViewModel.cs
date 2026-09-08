@@ -108,6 +108,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _notionDatabaseId = settings.NotionDatabaseId ?? "";
         _audioRetentionDays = settings.AudioRetentionDays;
         _compressAudio = settings.CompressAudioAfterProcessing;
+        _discardUnansweredCalls = settings.DiscardUnansweredCalls;
 
         foreach (var endpoint in settings.SttEndpoints)
             SttEndpoints.Add(new SttEndpointViewModel(endpoint, _probe));
@@ -528,6 +529,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private int _audioRetentionDays;
 
     [ObservableProperty] private bool _compressAudio = true;
+
+    /// <summary>Whether a call that only ever rang is set aside and its recording deleted.</summary>
+    [ObservableProperty] private bool _discardUnansweredCalls = true;
 
     /// <summary>Nothing chosen for analysis: the page shows what to do instead of an empty address.</summary>
     public bool NoLlmChosen => SelectedProvider.Kind == LlmProviderKind.None;
@@ -1014,6 +1018,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         AudioRetentionDays = AudioRetentionDays,
         PreferredName = string.IsNullOrWhiteSpace(PreferredName) ? null : PreferredName.Trim(),
         CompressAudioAfterProcessing = CompressAudio,
+        DiscardUnansweredCalls = DiscardUnansweredCalls,
         SttEndpoints = [.. SttEndpoints.Select(e => e.ToEndpoint())],
     };
 

@@ -349,6 +349,15 @@ public sealed class WorkerResult : WorkerEvent
         SpeechCoverage is { Count: > 0 } c ? c.Values.Min() : null;
 
     /// <summary>
+    /// What the audio said about whether this call was ever answered, when the request asked.
+    ///
+    /// Null when the question was not asked, or could not be answered — a channel missing, a file
+    /// that would not read, a recording too short to hold a pattern. Null means the recording was
+    /// transcribed the ordinary way and nothing here applies.
+    /// </summary>
+    public UnansweredReading? Unanswered { get; init; }
+
+    /// <summary>
     /// What the service heard that was not a word: laughter, a cough, a long silence.
     ///
     /// Only ElevenLabs labels these, and only when asked. Every other engine sends an empty list,
@@ -410,6 +419,23 @@ public sealed class TranscriptWord
     [JsonPropertyName("p")] public double? Probability { get; init; }
 }
 
+/// <summary>
+/// The worker's reading of whether a call was ever answered, with the sentence it rests on.
+///
+/// Two numbers decide it and both are in <c>Why</c>: the far channel replaying one sound on a
+/// clock, and a microphone that never left its own noise floor. See worker/vt_worker/ringback.py
+/// for what they were measured against — the recording is deleted on the strength of them, so the
+/// evidence travels with the answer rather than being reduced to a flag.
+/// </summary>
+public sealed class UnansweredReading
+{
+    /// <summary>True only when the far channel rang AND nobody spoke into the microphone.</summary>
+    public bool Unanswered { get; init; }
+
+    /// <summary>The measurement in one sentence, for the log.</summary>
+    public string Why { get; init; } = "";
+}
+
 public sealed class TranscriptStats
 {
     public int MicSegments { get; init; }
@@ -450,6 +476,16 @@ public sealed class TranscriptionRequest
     public int BeamSize { get; init; } = 5;
     public bool WordTimestamps { get; init; } = true;
     public bool VadFilter { get; init; } = true;
+
+    /// <summary>
+    /// Whether the worker should first ask the audio if this call was ever answered, and return
+    /// without transcribing when it was not.
+    ///
+    /// Off unless the caller asks, because it changes what a job does rather than how it does it:
+    /// a request that reaches an older worker, or one made with this false, transcribes the whole
+    /// recording exactly as before.
+    /// </summary>
+    public bool DetectUnanswered { get; init; }
 
     /// <summary>
     /// Names and terms the recogniser should expect — "Sumsub, KYC, Uliana" — biased at every
