@@ -181,11 +181,15 @@ public sealed class ContactReadingAnalysisTests : IDisposable
     /// <summary>
     /// The assessment's tables and the unverified summary never reach this prompt.
     ///
-    /// Planted as markers that exist ONLY in deception_note, tactic_evidence and call_summary,
-    /// then the reading is run over the same person. Red means the panel is being written partly
-    /// out of an earlier model's suspicion (§7-10) or out of the one stored text in the archive
-    /// nobody ever checked against the transcript — either way a reading of a reading, presented
-    /// as a reading of a person.
+    /// Planted as markers that exist ONLY in deception_note, call_summary, and a tactic row
+    /// written BY THE ASSESSMENT, then the reading is run over the same person. Red means the
+    /// panel is being written partly out of an earlier model's suspicion (§7-10) or out of the
+    /// one stored text in the archive nobody ever checked against the transcript — either way a
+    /// reading of a reading, presented as a reading of a person.
+    ///
+    /// The source on that tactic row is what makes this test still mean something after the
+    /// extraction's own pressure signs began to be handed over: the two rows sit in one table
+    /// and only one of them is a model quoting itself.
     /// </summary>
     [Fact]
     public async Task NothingFromTheAssessmentOrTheSummaryReachesThePrompt()
@@ -229,6 +233,125 @@ public sealed class ContactReadingAnalysisTests : IDisposable
             Assert.DoesNotContain(marker, request.UserPrompt, StringComparison.Ordinal);
             Assert.DoesNotContain(marker, request.SystemPrompt, StringComparison.Ordinal);
         }
+    }
+
+    /// <summary>
+    /// The extraction's pressure signs ARE handed over, labelled, as ordinary ledger anchors.
+    ///
+    /// This is the half of the rule that changed on the owner's instruction: they asked for
+    /// threats and insinuations to count towards what is said about a person, and until this
+    /// version those rows were found, quote-verified, stored, and then never read by anything
+    /// that writes about the person. Red means the reading is once again being made out of the
+    /// polite half of the archive.
+    /// </summary>
+    [Fact]
+    public async Task ThePressureSignsTheExtractionFoundAreHandedOver()
+    {
+        const string marker = "PANTERKODU";
+
+        SeedEnough();
+
+        var call = _repo.ListCalls(_contact, limit: 10)[0];
+
+        _repo.ReplaceTacticEvidence(call.Id, TacticEvidence.Sources.Pipeline,
+        [
+            new TacticEvidence
+            {
+                CallId = call.Id,
+                Tactic = "tehdit",
+                Quote = $"{marker} yatırmazsan avukatımı ararım",
+                QuoteStartMs = 4_000,
+            },
+        ]);
+
+        var llm = new ScriptedLlm(Reply());
+        await Run(llm);
+
+        var request = Assert.Single(llm.Requests);
+
+        Assert.Contains(marker, request.UserPrompt, StringComparison.Ordinal);
+
+        // Labelled, not smuggled in as an ordinary transcript line: the reading may cite it, and
+        // the reader following the citation back has to be able to see what it was filed as.
+        Assert.Contains("baskı işareti: tehdit", request.UserPrompt, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A quote the user dismissed is not evidence any more, here either.
+    ///
+    /// Pressing the button on the card is the user saying the label was wrong. A reading built on
+    /// it afterwards would be built on a mistake they had already corrected, and it would be the
+    /// second time the product asked them to correct it.
+    /// </summary>
+    [Fact]
+    public async Task APressureSignTheUserThrewOutIsNotHandedOver()
+    {
+        const string marker = "PUMAKODU";
+
+        SeedEnough();
+
+        var call = _repo.ListCalls(_contact, limit: 10)[0];
+
+        _repo.ReplaceTacticEvidence(call.Id, TacticEvidence.Sources.Pipeline,
+        [
+            new TacticEvidence
+            {
+                CallId = call.Id,
+                Tactic = "suclama",
+                Quote = $"{marker} hep sen böyle yapıyorsun",
+                QuoteStartMs = 8_000,
+            },
+        ]);
+
+        var stored = Assert.Single(_repo.TacticEvidenceOf(call.Id));
+        _repo.DismissTacticEvidence(stored.Id);
+
+        var llm = new ScriptedLlm(Reply());
+        await Run(llm);
+
+        Assert.DoesNotContain(marker, Assert.Single(llm.Requests).UserPrompt, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The kept items of every section count, not only the sections that existed first.
+    ///
+    /// <see cref="ContactReadingReport.RejectedCount"/> is raised wherever an item is dropped, so
+    /// a section left out of <see cref="ContactReadingReport.Items"/> puts its losses in the
+    /// numerator and its survivors nowhere. The visible cost of that arithmetic is the panel's
+    /// warning that the model may not suit the job, printed over a reading that was mostly fine.
+    ///
+    /// Here: three anchored items in the newest section, one unanchored item in an old one.
+    /// Counting all twelve sections that is one drop in four; counting the original eight it is
+    /// one in two, and the warning fires.
+    /// </summary>
+    [Fact]
+    public async Task ItemsFromTheNewerSectionsCountTowardsTheRejectionRate()
+    {
+        SeedEnough();
+
+        const string reply = """
+        {"genel_izlenim":{"metin":"Konuyu tarihe bağlamadan bırakıyor.","dayanaklar":["A1"]},
+         "iletisim_tarzi":[],
+         "oncelikler":[],
+         "guclu_yanlar":[],
+         "zayif_yanlar":[{"metin":"Dayanaksız bırakılmış bir cümle.","dayanaklar":[]}],
+         "psikolojik_okuma":[{"metin":"Baskı altında konuyu değiştiriyor.","dayanaklar":["A2"]}],
+         "duygusal_oruntuler":[{"metin":"Aynı konuda tekrar eden bir kırgınlık.","dayanaklar":["A3"]}],
+         "iliskinin_seyri":[{"metin":"Görüşmeler kısalıyor.","dayanaklar":["A4"]}],
+         "cevapsiz_kalan_konular":[],
+         "gorusmeye_giderken":[],
+         "ben_icin_notlar":[],
+         "oneriler":[],
+         "baska_okuma":"Aynı kayıtlar sıradan bir iş yoğunluğuyla da açıklanabilir.",
+         "yetersiz":false}
+        """;
+
+        var report = await Run(new ScriptedLlm(reply));
+
+        Assert.True(report.Ok);
+        Assert.Equal(1, report.RejectedCount);
+        Assert.Equal(4, report.Items.Count());
+        Assert.Equal(0.2, report.RejectionRate, 3);
     }
 
     /// <summary>

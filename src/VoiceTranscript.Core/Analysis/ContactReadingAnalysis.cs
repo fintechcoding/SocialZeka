@@ -107,11 +107,19 @@ public sealed record ContactReadingReport(
         new(new ContactReadingItem("", []), [], [], [], [], [], [], [], [], [], [], [], "",
             calls, excerpts, 0, true);
 
-    /// <summary>Every item that survived, so a caller can count what was kept against what was not.</summary>
+    /// <summary>
+    /// Every item that survived, so a caller can count what was kept against what was not.
+    ///
+    /// All twelve sections, and it has to be all of them: <see cref="RejectedCount"/> counts a
+    /// dropped item wherever it was dropped, so a section missing from this list would put its
+    /// losses in the numerator and its survivors nowhere. That is how the warning about a model
+    /// unsuited to the job would come to be printed over a reading that was mostly fine.
+    /// </summary>
     public IEnumerable<ContactReadingItem> Items =>
         new[] { GeneralImpression }
             .Concat(CommunicationStyle).Concat(Priorities).Concat(Strengths).Concat(Weaknesses)
-            .Concat(UnansweredTopics).Concat(BeforeYouGo).Concat(NotesForMe)
+            .Concat(PsychologicalReading).Concat(EmotionalPatterns).Concat(WhereThisIsGoing)
+            .Concat(UnansweredTopics).Concat(BeforeYouGo).Concat(NotesForMe).Concat(Suggestions)
             .Where(i => i.Anchors.Count > 0);
 
     /// <summary>
@@ -139,17 +147,21 @@ public sealed record ContactReadingReport(
 /// The reading of one call is this feature's parent (<see cref="ReadingAnalysis"/>) and the rules
 /// are the same, hardened for the larger claim being made. Three of them are code, not prompt:
 ///
-/// 1. WHAT GOES IN. Ledger rows the machine verified (claims, promises, deterministic and
-///    consistency flags) and transcript lines, each numbered. <b>deception_note,
-///    tactic_evidence and call_summary never enter the packet</b> — the first two because a run
-///    must not read its own earlier suspicion back (§7-10), the third because it is the one
-///    stored text in the archive that was never quote-verified.
+/// 1. WHAT GOES IN. Ledger rows the machine verified — claims, promises, deterministic and
+///    consistency flags, and the extraction's pressure signs — plus transcript lines, each
+///    numbered. <b>deception_note and call_summary never enter the packet</b>: the first because
+///    a run must not read its own earlier suspicion back (§7-10), the second because it is the
+///    one stored text in the archive that was never quote-verified. Tactic rows written by that
+///    assessment are excluded with it; only the extraction's own are handed over, and
+///    <see cref="Repository.PressureQuotes"/> carries the reason the two are not alike.
 /// 2. WHAT COMES OUT. Every item must cite an anchor the packet actually contained. One that
 ///    cites nothing, or cites a number nobody handed over, is DROPPED and counted; the general
 ///    impression is held to the same rule.
-/// 3. WHAT IT CANNOT SAY. No score at any level, no psychological or emotional state, and no
-///    "arguments you can use" — refused in the instructions, said out loud in the panel, and
-///    kept out of this file's vocabulary so it cannot arrive by accident.
+/// 3. WHAT IT CANNOT SAY. No score at any level, no clinical diagnosis, and no "arguments you
+///    can use" — refused in the instructions, said out loud in the panel, and kept out of this
+///    file's vocabulary so it cannot arrive by accident. A psychological and emotional reading
+///    IS produced, on the owner's instruction of 8 September 2026, and every line of it is held
+///    to rule 2 like any other.
 ///
 /// The result is a dead end: <c>contact_reading</c> is joined by nothing and fed to no prompt.
 /// </summary>
@@ -160,6 +172,9 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
 
     public const int MaxPromises = 20;
     public const int MaxFlags = 20;
+
+    /// <summary>Pressure signs, capped like the rest so no one table can crowd out the others.</summary>
+    public const int MaxTactics = 20;
 
     /// <summary>Transcript anchors: the newest lines of the newest conversations.</summary>
     public const int MaxExcerpts = 40;
@@ -252,7 +267,7 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
         var contact = repository.GetContact(contactId);
         if (contact is null) return ContactReadingReport.Failed("Kişi bulunamadı.");
 
-        var packet = BuildPacket(contactId, MaxClaims, MaxPromises, MaxFlags, MaxExcerpts);
+        var packet = BuildPacket(contactId, MaxClaims, MaxPromises, MaxFlags, MaxTactics, MaxExcerpts);
 
         // Refused before a request is paid for rather than after. "Fewer than three conversations"
         // is not a thin reading, it is no reading: the panel says so and nothing is stored.
@@ -266,7 +281,8 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
         {
             // The smaller packet is a different question honestly asked, not the same one
             // truncated: fewer rows, all of them whole.
-            packet = BuildPacket(contactId, SmallLedger / 3, SmallLedger / 3, SmallLedger / 3, SmallExcerpts);
+            packet = BuildPacket(
+                contactId, SmallLedger / 4, SmallLedger / 4, SmallLedger / 4, SmallLedger / 4, SmallExcerpts);
             prompt = ContactReadingPrompt.BuildUserPrompt(packet);
 
             if (packet.TooThin)
@@ -366,13 +382,13 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
     /// voice mixed into one stream, so nothing in it can be attributed to this person — counting
     /// it would put somebody else's sentences under their name (§7-14).
     ///
-    /// What is NOT here is the point of the method: no <c>deception_note</c> level or paragraph,
-    /// no <c>tactic_evidence</c> row, and no <c>call_summary</c>. The first two would be a model
-    /// reading its own earlier suspicion back; the third is the one stored text nobody verified
-    /// against the transcript.
+    /// What is NOT here is half the point of the method: no <c>deception_note</c> level or
+    /// paragraph, no tactic row written by that assessment, and no <c>call_summary</c>. The first
+    /// two would be a model reading its own earlier suspicion back; the third is the one stored
+    /// text nobody verified against the transcript.
     /// </summary>
     public ContactReadingPacket BuildPacket(
-        long contactId, int maxClaims, int maxPromises, int maxFlags, int maxExcerpts)
+        long contactId, int maxClaims, int maxPromises, int maxFlags, int maxTactics, int maxExcerpts)
     {
         var calls = repository.ListCalls(contactId, limit: int.MaxValue);
         var group = calls.Where(c => c.Kind == CallKind.Group).Select(c => c.Id).ToHashSet();
@@ -425,6 +441,19 @@ public sealed class ContactReadingAnalysis(ILlmClient llm, Repository repository
                      .Take(maxFlags))
         {
             Ledger(flag.CallId, flag.QuoteStartMs, isMe: false, flag.Quote, $"işaret: {flag.Summary}");
+        }
+
+        // The extraction's pressure signs: threat, accusation, urgency, flattery, authority,
+        // scarcity. Each is a whitelisted label over words the code found in the transcript, so
+        // it is an anchor of exactly the kind rule 2 demands. Fetched wide and narrowed here,
+        // because the query cannot exclude group calls and this person's loudest conversation
+        // may well have been one.
+        foreach (var pressure in repository.PressureQuotes(contactId, Math.Max(maxTactics * 4, 40))
+                     .Where(t => !group.Contains(t.CallId))
+                     .Take(maxTactics))
+        {
+            Ledger(pressure.CallId, pressure.QuoteStartMs, pressure.ByMe, pressure.Quote,
+                $"baskı işareti: {pressure.Tactic}");
         }
 
         List<ContactReadingExcerpt> excerpts = [];

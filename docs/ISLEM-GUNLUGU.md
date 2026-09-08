@@ -3635,3 +3635,48 @@ kaldırıcısı çalıştırıldı. Veri klasörüne dokunulmadı.
 
 **Yapılmadı:** eski 81 görüşmenin yeniden çözümlenmesi. Yeni istem ve baskı işaretleri ancak
 bundan sonraki çözümlemelerde çıkar; toplu yeniden çözümleme para harcar ve kullanıcının kararı.
+
+## 2026-09-09 — Baskı işaretleri kişi okumasına girdi; red oranı düzeltildi
+
+v3.6.0 planın iki maddesini eksik bırakmıştı. İkisi de kullanıcının kendi isteğinin ortasındaydı,
+o yüzden ertelenmedi.
+
+**1. Tehdit ve imalar artık kişi okumasına giriyor.** v3.6.0 `WritePressureSigns`'ı açtı, yani
+`baski_isaretleri` bulunuyor, alıntısı doğrulanıyor ve `tactic_evidence`'a yazılıyordu — ama o
+tablo hiçbir isteme girmiyordu. Kullanıcı tam bunu istemişti: *"tehditler imalar bir çok konu var
+bunların hepsini kişilik analizlerinde kullanabiliriz."* Sonuç, arşivin kibar yarısından çıkarılan
+bir portreydi.
+
+Sınır tablodan **kaynağa** taşındı. `Repository.PressureQuotes` yalnız `source='pipeline'`
+satırlarını, kullanıcının reddetmediklerini, en yeni görüşmeden başlayarak verir;
+`ContactReadingAnalysis.MaxTactics = 20` diğer defter tabloları gibi kendi tavanını taşır ve
+satır pakete `[B#] … baskı işareti: tehdit — KARSI: "…"` olarak girer. Grup görüşmeleri diğer
+yarısı gibi elenir.
+
+`source='deception'` satırları hâlâ girmiyor ve bu ayrım kuralın kendisi: değerlendirme geçişinin
+yazdığı satır o geçişin okumasını taşır, geri beslemek modelin kendi eski şüphesinden dava
+kurmasıdır (§7-10). İki satır aynı tabloda durur; yalnız biri modelin kendi sözüdür. Mevcut
+`NothingFromTheAssessmentOrTheSummaryReachesThePrompt` testi tam da `deception` kaynaklı satır
+ektiği için değişmeden yeşil kaldı — sınırın doğru yere çekildiğinin kanıtı.
+
+**2. Red oranı kusuru.** v3.6.0 rapora dört bölüm ekledi (`psikolojik_okuma`,
+`duygusal_oruntuler`, `iliskinin_seyri`, `oneriler`) ama `Items` listesine eklemedi. `RejectedCount`
+maddeyi nerede düşerse düşsün sayıyor, `Items` ise sağ kalanların yalnız sekiz bölümünü
+topluyordu: kayıp payda dışında, zarar pay içinde. Görünen bedeli, çoğu yerinde bir okumanın
+üstüne basılan "bu model bu işe uygun olmayabilir" uyarısıdır. On iki bölümün hepsi sayılıyor.
+
+**Ayrıca:** sınıfın kendi doküman yorumu hâlâ "skor yok, psikolojik ya da duygusal durum yok"
+diyordu — dün kaldırılan yasak. Yerine bugün geçerli olan yazıldı: klinik tanı yok, skor yok,
+ikna argümanı yok; psikolojik okuma **var** ve her satırı 2. kurala tabi. İstem metnindeki `[B#]`
+tarifi de baskı işaretlerini sayıyor.
+
+**Doğrulama.** C# 1578 test (1573 geçti, 5 atlandı). Yeni:
+`ThePressureSignsTheExtractionFoundAreHandedOver`, `APressureSignTheUserThrewOutIsNotHandedOver`,
+`ItemsFromTheNewerSectionsCountTowardsTheRejectionRate`. Mutasyon kontrolü yapıldı: kaynak
+süzgeci `deception`'a çevrildiğinde ve `Items` eski hâline döndürüldüğünde tam beklenen üç test
+kırmızıya döndü, geri alınınca on ikisi de yeşil.
+
+**Kullanıcının makinesinde:** `settings.json`, uygulamanın çalışan eski kopyası tarafından
+21:09'daki OpenRouter yazımının üstüne yazılmıştı — dosya yedeğe birebir eşitti. Uygulama
+kapatıldı ve ayar yeniden yazıldı: OpenRouter, `openai/gpt-6-astra`, kişi okuması açık.
+Transkripsiyon etkilenmedi, o `SttEndpoints` içindeki ayrı Deepgram anahtarını kullanıyor.

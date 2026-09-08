@@ -3997,6 +3997,36 @@ public sealed class Repository(Database database)
             .Select(r => r.ToModel())];
     }
 
+    /// <summary>
+    /// One person's pressure quotes, newest conversation first — the extraction pass only.
+    ///
+    /// The source filter is the whole point of the method. A tactic line written by the opt-in
+    /// assessment carries that pass's own reading of the conversation, and handing it back to
+    /// another model is a run arguing from its own earlier suspicion (§7-10). A pipeline row is a
+    /// different kind of thing: the extraction found the words, the code located them in the
+    /// stored transcript, and what survives is a whitelisted label and a sentence somebody said.
+    ///
+    /// Rows the user has dismissed are left out, because dismissing one is the user saying the
+    /// label was wrong, and a reading built on it would be built on a mistake they already fixed.
+    /// </summary>
+    public IReadOnlyList<TacticEvidence> PressureQuotes(long contactId, int limit = 20)
+    {
+        using var connection = Open();
+
+        return [.. connection
+            .Query<TacticRow>(
+                """
+                SELECT t.* FROM tactic_evidence t
+                  JOIN call c ON c.id = t.call_id
+                 WHERE t.contact_id = @contactId AND t.source = @source
+                   AND t.dismissed_by_user = 0
+                 ORDER BY c.started_at DESC, t.quote_start_ms
+                 LIMIT @limit;
+                """,
+                new { contactId, source = TacticEvidence.Sources.Pipeline, limit })
+            .Select(r => r.ToModel())];
+    }
+
     public void DismissTacticEvidence(long id)
     {
         using var connection = Open();

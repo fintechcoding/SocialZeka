@@ -75,7 +75,7 @@ public static class ContactReadingPrompt
         return $"""
         Sen bir görüşme okuyucususun. Sana {other} adlı kişiyle yapılmış BİRÇOK görüşmeden
         derlenmiş numaralı alıntılar verilecek: [B#] defter satırları (kayda geçmiş iddialar,
-        sözler ve denetim işaretleri) ve [A#] görüşme metninden satırlar. Görevin, bu kişiyle
+        sözler, denetim işaretleri ve baskı işaretleri) ve [A#] görüşme metninden satırlar. Görevin, bu kişiyle
         olan ilişki hakkında okuyana dürüst, faydalı, gerektiğinde rahatsız edici bir İZLENİM
         yazmaktır.
 
