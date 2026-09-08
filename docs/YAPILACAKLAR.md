@@ -1583,6 +1583,18 @@ koşulları: [`PLAN-IKINCI-TUR.md`](PLAN-IKINCI-TUR.md).
   Aynam'ın motor açılırı bunu **sözlükten gelen** bir metinle yapıyor, yani dil değiştirilince
   karşılaştırma tutmuyor — bugün gerçekten bozuk olan tek yer burası. K8 çipleri kapsıyor,
   açılırları kapsamıyor.
+- [ ] **NCTX-YOKLA — Yerel sunucunun gerçek bağlam penceresini yokla.** Katalogdaki `ContextTokens`
+  uygulamanın varsaydığı değer; llama-server'ın gerçek `-c` değerini kullanıcı verir, Ollama'nın
+  varsayılanı 2–4k ve sessizce kırpar. Sunucu katalogdakinden küçük pencereyle başlatıldıysa
+  `PromptBudget` bunu görmez ve 'token' hatası devam eder. llama-server `/props` ile `n_ctx`
+  açıklıyor; onu okuyup bütçeyi kesinleştirmek. Kullanıcının 45–50 dk şikâyeti bu düzeltmeden
+  sonra da sürerse ilk bakılacak yer.
+- [ ] **BUTCE-KALAN-IKI — Tutarlılık ve kişi okuması hâlâ düz 24 bin.** `PromptBudget.For(...)`'a
+  bağlamak birer satır ama davranışı ve kişi kartındaki '24 bin' açıklamasını değiştirir.
+- [ ] **ROTA-BAYRAK — Otomatik tutarlılık koşumu `SendsDataOffMachine`'i yanlış yerden okuyor.**
+  İstemci `routeProvider`'dan kuruluyor, bayrak `settings.Provider`'dan geliyor; görüşme başına
+  rota geçersiz kılınmışsa kapak yanlış tarafa göre seçilir. Değerlendirme çağrısı düzeltildi,
+  tutarlılık satırına dokunulmadı.
 - [x] **Ç2 — Genel bakış merkezli çevre sekmeleri (şema v22)** — PLAN-IKINCI-TUR §6. Kullanıcı
   çip değil SEKME istedi ve Genel bakış'ta istedi. Ç'nin şeması ve Çevreler penceresi kalır;
   gizleme tamamen düşer (iki mekanizma aynı işi yapmaz). Şerit YALNIZ "Son görüşmeler"i süzer;
