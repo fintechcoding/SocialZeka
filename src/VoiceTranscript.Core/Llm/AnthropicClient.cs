@@ -133,6 +133,7 @@ public sealed class AnthropicClient(
                     LlmFailureText.Describe(LlmProviderKind.Anthropic, (int)response.StatusCode, body))
                 {
                     Body = body,
+                    QuotaExhausted = LlmFailureText.IsQuotaExhausted((int)response.StatusCode, body),
                 };
             }
 

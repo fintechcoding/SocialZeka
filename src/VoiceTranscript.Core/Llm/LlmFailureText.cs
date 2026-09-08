@@ -47,8 +47,7 @@ public static class LlmFailureText
         // wait for something that will not happen: a quota does not refill on its own. The busy
         // branch below stays a guess about an unmarked failure; this one is what the provider
         // said in as many words.
-        if (status == 402 || lowered.Contains("quota") || lowered.Contains("insufficient_quota")
-            || lowered.Contains("billing") || lowered.Contains("credit"))
+        if (IsQuotaExhausted(status, body))
         {
             return "Çözümleme servisinin bakiyesi ya da kotası bitmiş görünüyor. Anahtar doğru; "
                    + "sağlayıcının hesabına bakman gerekiyor.";
@@ -97,6 +96,23 @@ public static class LlmFailureText
         return detail is { Length: > 0 }
             ? $"Çözümleme yapılamadı ({status}): {Truncate(detail)}"
             : $"Çözümleme yapılamadı ({status}).";
+    }
+
+    /// <summary>
+    /// Whether a refusal is about the account's balance rather than about the request.
+    ///
+    /// Asked on its own because the answer changes what the queue does next, not only what the
+    /// sentence says. A quota does not refill by itself, so every conversation queued behind the
+    /// one that found this out fails the same way — six did, in one evening — and each failure
+    /// used to mark a call with a perfectly good transcript as "işlenemedi". The same test the
+    /// sentence is chosen by, so the two can never disagree about what happened.
+    /// </summary>
+    public static bool IsQuotaExhausted(int status, string? body)
+    {
+        var lowered = (MessageFrom(body) ?? "").ToLowerInvariant();
+
+        return status == 402 || lowered.Contains("quota") || lowered.Contains("insufficient_quota")
+            || lowered.Contains("billing") || lowered.Contains("credit");
     }
 
     /// <summary>

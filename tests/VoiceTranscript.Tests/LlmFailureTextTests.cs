@@ -54,6 +54,22 @@ public class LlmFailureTextTests
         Assert.DoesNotContain("yoğun", text);
     }
 
+    /// <summary>
+    /// The queue reads this flag to keep transcripts out of the failed list when the account is
+    /// empty, so it has to agree with the sentence: money is money, busy is busy.
+    /// </summary>
+    [Theory]
+    [InlineData(402, "", true)]
+    [InlineData(429, "{\"error\":{\"message\":\"You have no credits remaining. Add credits to continue using the API.\",\"type\":\"insufficient_quota\",\"code\":\"credit_balance_exhausted\"}}", true)]
+    [InlineData(429, "{\"error\":{\"message\":\"You exceeded your current quota\"}}", true)]
+    [InlineData(429, "", false)]
+    [InlineData(503, "{\"error\":{\"message\":\"model is overloaded\"}}", false)]
+    [InlineData(401, "", false)]
+    public void TheQueueIsToldWhenTheMoneyRanOut(int status, string body, bool expected)
+    {
+        Assert.Equal(expected, LlmFailureText.IsQuotaExhausted(status, body));
+    }
+
     [Fact]
     public void AModelThatNoLongerExistsSaysSo()
     {

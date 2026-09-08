@@ -37,13 +37,16 @@ public static class CallStateText
     /// <summary>
     /// "Atlandı" covered three different things: a recording too short to keep (its audio is
     /// already gone), a group call kept as audio only, and a call the user stopped mid-way
-    /// (fully resumable). The reason column tells them apart; the word should too.
+    /// (fully resumable). The reason column tells them apart; the word should too. A fourth
+    /// joined them: a recording with nothing said on either side — most often an unanswered
+    /// call — whose audio is kept and which can be transcribed again by hand.
     /// </summary>
     public static string Skipped(string? reason)
     {
         if (reason is null) return "Atlandı";
         if (reason.StartsWith("Çok kısa", StringComparison.CurrentCultureIgnoreCase)) return "Çok kısa — ses silindi";
         if (reason.Contains("durdurdu", StringComparison.CurrentCultureIgnoreCase)) return "Durduruldu — yeniden işlenebilir";
+        if (reason.StartsWith("Konuşma bulunamadı", StringComparison.CurrentCultureIgnoreCase)) return "Konuşma yok — ses duruyor";
         return "Atlandı";
     }
 

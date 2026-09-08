@@ -102,6 +102,15 @@ public sealed class LlmException(string message, Exception? inner = null) : Exce
     /// corrective retries — every model needing the newer field simply stopped working.
     /// </summary>
     public string? Body { get; init; }
+
+    /// <summary>
+    /// True when the provider refused because the account is out of money or quota.
+    ///
+    /// Read by the queue, which treats it differently from every other refusal: the transcript
+    /// is kept and the call waits for the account rather than being marked failed, and the
+    /// calls behind it are not sent to fail the same way. See <see cref="LlmFailureText.IsQuotaExhausted"/>.
+    /// </summary>
+    public bool QuotaExhausted { get; init; }
 }
 
 /// <summary>
@@ -432,6 +441,7 @@ public sealed class OpenAiCompatibleClient(
                 throw new LlmException(LlmFailureText.Describe(kind, (int)response.StatusCode, body))
                 {
                     Body = body,
+                    QuotaExhausted = LlmFailureText.IsQuotaExhausted((int)response.StatusCode, body),
                 };
             }
 
