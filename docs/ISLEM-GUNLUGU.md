@@ -3335,3 +3335,52 @@ koymuştu; ikisi de ana dalın kendisindeydi, commit yoktu. Biten ajanınki `pru
 ajan bitince kaldırılacak.
 
 **Doğrulama.** 1514 C# testi (1509 geçti, 5 atlandı), temiz derlemede iki kez.
+
+## 2026-09-08 — Uzun görüşmede bütün dökümü tek istekte gönderen üç analiz
+
+`9458ba1`. Kullanıcı 45–50 dakikalık görüşmelerde "Deepgram bozuluyor, token vs hatası" dedi.
+Deepgram sesi beş dakikalık parçalarla yüklüyor ve bu makinede 69 dakikalık görüşme sorunsuz
+dökülmüş; sorun dökümden sonraki adımda. Çıkarım 2500 tokenlik bölümlerle güvenli. Tutarlılık ve
+kişi okuması kendini kapaklıyor. **Okuma ve Değerlendirme kapaksızdı.** Özet ise iddia edildiği
+gibi kapaksız değil, daha kötüsüydü: `BuildConversationSummaryPrompt` her model için **12 bin
+karaktere, yalnız sondan** kırpıyordu ve bunu söylemiyordu — 50 dakikalık görüşmenin özeti son
+on iki dakikayı anlatıyordu. Üstüne sağlayıcı hatasını ve yarıda kesilen cevabı yutup null
+döndürüyordu.
+
+**Ne yapıldı.** Yeni `PromptBudget`: yerel modelin bağlamı katalogda biliniyorsa kapak ondan
+türetiliyor — `(bağlam − cevap payı − sistem istemi ve şema) × 3` karakter; bilinmiyorsa düz 24
+bin; bulutta 400 bin. Karakter/token oranı **3**, ölçülen 4,1'in bilerek altında: istemdeki
+`[dd:ss] SEN:` etiketleri yaklaşık 2 karakter/token tokenleşiyor ve etiketli satırı ~3,5'e
+çekiyor. Fazla tahmin sınırdaki görüşmeyi birkaç dakika erken reddeder; eksik tahmin taşan
+isteği gönderir. Mutasyon M3 bunu gösterdi: oran 4 olunca hesap 50 dakikalık görüşmeyi 16k
+modele **kabul ediyor**.
+
+**Okuma ve Değerlendirme reddediyor**, pencere açmıyor: pazarlık durumu ve kapanmamış konular
+görüşmenin iki ucu arasındaki ilişkidir, pencere başka bir görüşmedir. Ret cümlesi boyutu ve
+sınırı sayıyla söylüyor ve istek gönderilmiyor. **Özet ise baş ve son pencere açıyor**, üçte
+bir baş, üçte iki son, satır sınırında kesilmiş, arası modele işaretli; sığıyorsa bütünü. Çünkü
+sınırlı bir özet hiç özetten iyidir, ve açılış görüşmenin ne için yapıldığını söyler. Pencere
+açıldıysa bildirim çıkıyor: "özet yalnızca ilk {0} ve son {1} dakikadan yazıldı; aradaki {2}
+dakika özette yok." Sağlayıcı hatası ve yarıda kesilen cevap da artık bildirim.
+
+**50 dakikalık görüşme ne yapıyor** (ölçülen: okuma istemi 55.850 karakter):
+
+| Model | Okuma | Değerlendirme | Özet |
+|---|---|---|---|
+| qwen3.5-4b-q6k (32k, varsayılan) | sığıyor (~79 dk'ya kadar) | sığıyor | bütün |
+| 16k'lık dört yerel model | red (~35 dk sınır) | red | ilk 15 + son 30 dk |
+| bilinmeyen yerel | red (~21 dk) | red | pencere |
+| bulut | sığıyor | sığıyor | bütün |
+
+Ayar kartlarına tek istek kuralı yazıldı: "16k'da ≈35 dk, 32k'da ≈80 dk; sığmazsa istek
+gönderilmez ve sekme sebebini söyler."
+
+**Doğrulama.** 1513 test (1508 geçti, 5 atlandı), iki kez. On mutasyon; sekizi yalnız kendi
+testini, ikisi aynı mekanizmayı farklı açılardan çivileyen birkaçını kırdı.
+
+**Bulunan, düzeltilmeyen — ve kullanıcının hatasını hâlâ açıklayabilecek olan:** katalogdaki
+bağlam uygulamanın *varsaydığı* değer; llama-server'ın gerçek `-c` değerini kullanıcı başlatırken
+verir, Ollama'nın varsayılanı 2–4k ve sessizce kırpar. Sunucu katalogdakinden küçük pencereyle
+başlatıldıysa bu düzeltme onu görmez. llama-server `/props` ile `n_ctx`'i açıklıyor; onu yoklamak
+bütçeyi kesinleştirir. Ayrıca tutarlılık ve kişi okuması hâlâ düz 24 bin kullanıyor, ve otomatik
+tutarlılık koşumu `SendsDataOffMachine`'i istemcinin kurulduğu rota yerine ayarlardan okuyor.
