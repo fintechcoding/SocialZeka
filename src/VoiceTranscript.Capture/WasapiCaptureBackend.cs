@@ -89,22 +89,35 @@ public sealed class WasapiCaptureBackend : IAudioCaptureBackend
 
     public bool IsProcessIsolated => false;
 
+    /// <summary>Whether the AEC reference was accepted when the microphone actually started.</summary>
+    public bool EchoCancellationActive { get; private set; }
+
     public event PacketHandler? PacketReady;
 
     public event EventHandler<string>? Interrupted;
 
     /// <summary>
-    /// Opens both streams.
-    ///
-    /// Built asynchronously on purpose. Asking the stream to follow the default output device —
-    /// which is what keeps a call alive when a headset is plugged in mid-conversation — makes
-    /// NAudio activate the client through a callback, and it refuses a synchronous build rather
-    /// than blocking on it.
+    /// Opens both streams on the selected endpoints and releases them if startup fails.
     /// </summary>
     public async Task StartAsync(int? targetProcessId = null, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         Stop();
+
+        try
+        {
+            await StartCoreAsync(cancellationToken);
+        }
+        catch
+        {
+            Stop();
+            throw;
+        }
+    }
+
+    private async Task StartCoreAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
 
         _enumerator = new MMDeviceEnumerator();
 
@@ -133,8 +146,6 @@ public sealed class WasapiCaptureBackend : IAudioCaptureBackend
 
         var format = new WaveFormat(Format.SampleRate, Format.BitsPerSample, Format.Channels);
 
-        _microphone = await BuildMicrophoneAsync(captureDevice, renderDevice, format);
-
         _loopback = await new WasapiRecorderBuilder()
             .WithDevice(renderDevice)
             .WithLoopbackCapture()
@@ -143,18 +154,15 @@ public sealed class WasapiCaptureBackend : IAudioCaptureBackend
             .WithSharedMode()
             .BuildAsync();
 
-        _microphone.DataAvailable += (buffer, flags, _, qpc) =>
-            Emit(StreamRole.Microphone, buffer, flags, qpc);
-
         _loopback.DataAvailable += (buffer, flags, _, qpc) =>
             Emit(StreamRole.Loopback, buffer, flags, qpc);
 
-        _microphone.RecordingStopped += (_, e) => OnStopped("Mikrofon", e);
         _loopback.RecordingStopped += (_, e) => OnStopped("Hoparlör", e);
 
         StartKeepAlive(renderDevice);
 
-        _microphone.StartRecording();
+        _microphone = await StartMicrophoneAsync(captureDevice, renderDevice, format, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         _loopback.StartRecording();
     }
 
@@ -175,45 +183,52 @@ public sealed class WasapiCaptureBackend : IAudioCaptureBackend
     /// place. Setting an AEC reference without it silently does nothing on most endpoints.
     ///
     /// The reference endpoint is requested, not assumed. It needs Windows 11 build 22621 and a
-    /// driver that supports it, and asking on a machine without either throws during the build —
-    /// so a refusal has to cost the echo cancellation rather than the whole recording.
+    /// driver that supports it. NAudio can reject it at StartRecording, after a successful build.
+    /// Both stages are retried without communications processing or an explicit AEC reference.
     /// </summary>
-    private async Task<WasapiRecorder> BuildMicrophoneAsync(
+    private async Task<WasapiRecorder> StartMicrophoneAsync(
         MMDevice captureDevice,
         MMDevice renderDevice,
-        WaveFormat format)
+        WaveFormat format,
+        CancellationToken cancellationToken)
     {
-        WasapiRecorderBuilder Basic() => new WasapiRecorderBuilder()
-            .WithDevice(captureDevice)
-            .WithFormat(format)
-            .WithEventSync()
-            .WithSharedMode()
-            .WithCommunicationsMode();
-
-        if (_useEchoCancellation && EchoCancellationSupported)
-        {
-            try
-            {
-                return await Basic()
-                    .WithEchoCancellationReferenceEndpoint(renderDevice)
-                    .BuildAsync();
-            }
-            catch (Exception e)
-            {
-                // Not every driver or Windows build supports choosing the reference endpoint.
-                // Losing echo cancellation means advising headphones; losing the recording
-                // means losing the conversation.
-                Interrupted?.Invoke(this, $"Yankı engelleme açılamadı, kayıt onsuz sürüyor: {e.Message}");
-            }
-        }
-        else if (_useEchoCancellation)
+        EchoCancellationActive = false;
+        var tryAec = _useEchoCancellation && EchoCancellationSupported;
+        if (_useEchoCancellation && !tryAec)
         {
             Interrupted?.Invoke(this,
                 "Yankı engelleme bu Windows sürümünde kullanılamıyor, kayıt onsuz sürüyor. "
                 + "Kulaklık kullanmak konuşmacı ayrımını belirgin şekilde iyileştirir.");
         }
 
-        return await Basic().BuildAsync();
+        var requestedAec = false;
+        var microphone = await CaptureStartup.StartAsync(
+            tryAec,
+            async preferred =>
+            {
+                requestedAec = preferred;
+                var builder = new WasapiRecorderBuilder()
+                    .WithDevice(captureDevice)
+                    .WithFormat(format)
+                    .WithEventSync()
+                    .WithSharedMode();
+                if (preferred)
+                    builder.WithCommunicationsMode().WithEchoCancellationReferenceEndpoint(renderDevice);
+                return await builder.BuildAsync();
+            },
+            recorder =>
+            {
+                recorder.DataAvailable += (buffer, flags, _, qpc) =>
+                    Emit(StreamRole.Microphone, buffer, flags, qpc);
+                // AEC capability is checked here, not by BuildAsync.
+                recorder.StartRecording();
+                return Task.CompletedTask;
+            },
+            e => Interrupted?.Invoke(this, $"Yankı engelleme açılamadı, standart mikrofonla yeniden deneniyor: {e.Message}"),
+            cancellationToken);
+        microphone.RecordingStopped += (_, e) => OnStopped("Mikrofon", e);
+        EchoCancellationActive = requestedAec;
+        return microphone;
     }
 
     /// <summary>
@@ -286,6 +301,7 @@ public sealed class WasapiCaptureBackend : IAudioCaptureBackend
 
     public void Stop()
     {
+        EchoCancellationActive = false;
         TryStop(_microphone);
         TryStop(_loopback);
 

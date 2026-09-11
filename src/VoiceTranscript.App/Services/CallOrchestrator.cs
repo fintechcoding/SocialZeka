@@ -1133,36 +1133,27 @@ public sealed class CallOrchestrator : IDisposable
     /// </summary>
     private static string EchoCancellationInUse(IAudioCaptureBackend backend, AppSettings settings)
     {
+        if (backend is FallbackCaptureBackend { ActiveBackend: { } active })
+            return EchoCancellationInUse(active, settings);
         if (!settings.UseEchoCancellation) return "kapali";
         if (backend.IsProcessIsolated) return "kapali (uygulama bazli yakalamada yok)";
-
-        return WasapiCaptureBackend.EchoCancellationSupported
-            ? "acik"
-            : "kapali (bu Windows desteklemiyor)";
+        return backend is WasapiCaptureBackend wasapi
+            ? wasapi.EchoCancellationActive ? "acik (referans kabul edildi)" : "kapali (standart mikrofon kullaniliyor)"
+            : "bilinmiyor";
     }
 
     private IAudioCaptureBackend CreateBackend(AppSettings settings)
     {
         if (_captureBackend is { } factory) return factory(settings);
 
-        if (settings.PreferProcessLoopback)
-        {
-            try
-            {
-                return new ProcessLoopbackCaptureBackend();
-            }
-            catch (Exception e)
-            {
-                // Falling back rather than failing: whole-device capture records the same
-                // conversation, just with anything else that happens to be playing.
-                Notice?.Invoke(this, $"Uygulama bazlı yakalama açılamadı, cihaz yakalamaya geçildi: {e.Message}");
-            }
-        }
-
-        return new WasapiCaptureBackend(
+        IAudioCaptureBackend DeviceCapture() => new WasapiCaptureBackend(
                     settings.UseEchoCancellation,
                     settings.MicrophoneDeviceId,
                     settings.OutputDeviceId);
+
+        return settings.PreferProcessLoopback
+            ? new FallbackCaptureBackend(() => new ProcessLoopbackCaptureBackend(), DeviceCapture)
+            : DeviceCapture();
     }
 
     /// <summary>
