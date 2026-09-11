@@ -81,12 +81,13 @@ public sealed class ProcessLoopbackCaptureBackend : IAudioCaptureBackend
 
         _microphoneInUse = NameOf(captureDevice);
 
+        // Explicit endpoints cannot be combined with default-device stream routing.
+        // Keep the communications microphone selected above for this recording.
         _microphone = await new WasapiRecorderBuilder()
             .WithDevice(captureDevice)
             .WithFormat(format)
             .WithEventSync()
             .WithSharedMode()
-            .WithDefaultDeviceStreamRouting()
             .BuildAsync();
 
         _microphone.DataAvailable += (buffer, flags, _, qpc) => Emit(StreamRole.Microphone, buffer, flags, qpc);
